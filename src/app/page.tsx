@@ -1,13 +1,51 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RobViewer } from "~/components/RobViewer";
 import { parseRobText } from "~/lib/robParser";
+
+type SavedPallet = {
+  id: string;
+  name: string;
+  createdAt: number;
+  data: ReturnType<typeof parseRobText>;
+};
+
+const STORAGE_KEY = "saved_pallets_v1";
 
 export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ReturnType<typeof parseRobText> | null>(null);
+  const [saved, setSaved] = useState<SavedPallet[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Load saved pallets on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as SavedPallet[];
+        setSaved(parsed);
+        if (parsed.length > 0) {
+          const first = parsed[0]!;
+          setSelectedId(first.id);
+          setData(first.data);
+        }
+      }
+    } catch (_e) {
+      // ignore
+    }
+  }, []);
+
+  const persist = useCallback((next: SavedPallet[]) => {
+    setSaved(next);
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    } catch (_e) {
+      // ignore storage quota errors silently
+    }
+  }, []);
 
   const onFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -25,12 +63,21 @@ export default function HomePage() {
           sample_box: parsed.layers[0]?.boxes[0] ?? null,
         });
       }
+      const newEntry: SavedPallet = {
+        id: (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `${Date.now()}`,
+        name: file.name ?? `Pallet ${new Date().toLocaleString()}`,
+        createdAt: Date.now(),
+        data: parsed,
+      };
+      const next = [newEntry, ...saved];
+      persist(next);
+      setSelectedId(newEntry.id);
       setData(parsed);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to parse .rob file");
       setData(null);
     }
-  }, []);
+  }, [persist, saved]);
 
   const reset = useCallback(() => {
     setData(null);
@@ -47,16 +94,17 @@ export default function HomePage() {
           type="file"
           accept=".rob,text/plain"
           onChange={onFileChange}
-          className="cursor-pointer rounded border border-white/20 bg-white/5 px-3 py-2 text-sm"
+          className="hidden"
         />
-        {data && (
-          <button onClick={reset} className="rounded bg-white/10 px-3 py-2 text-sm hover:bg-white/20">
-            Clear
-          </button>
-        )}
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          className="rounded bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+        >
+          Import .rob file
+        </button>
       </div>
     </div>
-  ), [onFileChange, reset, data]);
+  ), [onFileChange]);
 
   return (
     <main className="flex min-h-screen flex-col items-stretch bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
@@ -77,9 +125,75 @@ export default function HomePage() {
         )}
         {data && data.total_boxes > 0 && (
           <div className="flex gap-4">
+            {/* Left: saved list */}
+            <aside className="w-64 shrink-0 rounded border border-white/10 bg-black/20 p-3 text-sm">
+              <div className="mb-2 flex items-center justify-between">
+                <h2 className="text-base font-semibold">Saved Pallets</h2>
+                {saved.length > 0 && (
+                  <button
+                    onClick={() => {
+                      persist([]);
+                      setData(null);
+                      setSelectedId(null);
+                    }}
+                    className="rounded bg-white/5 px-2 py-1 text-xs text-white/80 hover:bg-white/10"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
+              <div className="flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1">
+                {saved.length === 0 && (
+                  <div className="text-white/60">No saved pallets yet.</div>
+                )}
+                {saved.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`group flex items-start justify-between gap-2 rounded border px-2 py-2 ${
+                      p.id === selectedId ? "border-white/40 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                    }`}
+                  >
+                    <button
+                      className="flex min-w-0 flex-1 flex-col text-left"
+                      onClick={() => {
+                        setSelectedId(p.id);
+                        setData(p.data);
+                      }}
+                    >
+                      <span className="truncate text-white/90">{p.name}</span>
+                      <span className="text-xs text-white/50">
+                        {p.data.layer_count} layers · {p.data.total_boxes} boxes
+                      </span>
+                    </button>
+                    <button
+                      aria-label="Delete"
+                      className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 opacity-0 group-hover:opacity-100 hover:bg-red-500/30"
+                      onClick={() => {
+                        const next = saved.filter((s) => s.id !== p.id);
+                        persist(next);
+                        if (selectedId === p.id) {
+                          if (next[0]) {
+                            setSelectedId(next[0].id);
+                            setData(next[0].data);
+                          } else {
+                            setSelectedId(null);
+                            setData(null);
+                          }
+                        }
+                      }}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </aside>
+
+            {/* Center: viewer */}
             <div className="h-[70vh] flex-1 overflow-hidden rounded border border-white/10">
               <RobViewer data={data} />
             </div>
+            {/* Right: info */}
             <aside className="w-80 shrink-0 rounded border border-white/10 bg-black/20 p-3 text-sm">
               <h2 className="mb-2 text-base font-semibold">Pallet Info</h2>
               <div className="space-y-1 text-white/90">
