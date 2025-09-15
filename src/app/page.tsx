@@ -102,9 +102,9 @@ export default function HomePage() {
   //
 
   const header = useMemo(() => (
-    <div className="flex w-full items-center justify-between gap-4">
-      <h1 className="text-2xl font-bold">Pallet 3D Viewer (.rob)</h1>
-      <div className="flex items-center gap-2">
+    <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <h1 className="text-center text-2xl font-bold text-cyan-100 sm:text-left">Pallet 3D Viewer (.rob)</h1>
+      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
         <input
           ref={fileInputRef}
           type="file"
@@ -115,7 +115,7 @@ export default function HomePage() {
         />
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="rounded bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
+          className="w-full rounded bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-cyan-400 sm:w-auto"
         >
           Import .rob file(s)
         </button>
@@ -138,15 +138,15 @@ export default function HomePage() {
   }, [saved, filterL, filterW, filterH]);
 
   return (
-    <main className="flex min-h-screen flex-col items-stretch bg-gradient-to-b from-[#2e026d] to-[#15162c] text-white">
-      <div className="container mx-auto flex max-w-6xl flex-1 flex-col gap-4 px-4 py-6">
+    <main className="flex min-h-screen flex-col items-stretch bg-gradient-to-b from-[#07152f] via-[#040d1d] to-[#010409] text-slate-100">
+      <div className="mx-auto flex w-full max-w-[110rem] flex-1 flex-col gap-6 px-4 py-8">
         {header}
         {error && (
           <div className="rounded border border-red-400 bg-red-500/20 p-3 text-sm text-red-100">{error}</div>
         )}
         {!data && (
-          <div className="flex flex-1 items-center justify-center rounded border border-white/10 bg-black/10">
-            <p className="text-center text-white/80">Upload a .rob file to visualize the pallet</p>
+          <div className="flex flex-1 items-center justify-center rounded border border-cyan-500/10 bg-slate-900/50">
+            <p className="text-center text-slate-200">Upload a .rob file to visualize the pallet</p>
           </div>
         )}
         {data && data.total_boxes === 0 && (
@@ -155,11 +155,11 @@ export default function HomePage() {
           </div>
         )}
         {data && data.total_boxes > 0 && (
-          <div className="flex gap-4">
+          <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,280px)] xl:items-start xl:gap-8">
             {/* Left: saved list */}
-            <aside className="w-64 shrink-0 rounded border border-white/10 bg-black/20 p-3 text-sm">
+            <aside className="order-2 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-1 xl:w-[240px] xl:shrink-0">
               <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-base font-semibold">Saved Pallets</h2>
+                <h2 className="text-base font-semibold text-cyan-200">Saved Pallets</h2>
                 {saved.length > 0 && (
                   <button
                     onClick={async (e) => {
@@ -170,50 +170,52 @@ export default function HomePage() {
                       setSelectedId(null);
                       setSaved([]);
                     }}
-                    className="rounded bg-white/5 px-2 py-1 text-xs text-white/80 hover:bg-white/10"
+                    className="rounded border border-cyan-500/20 bg-transparent px-2 py-1 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
                   >
                     Clear All
                   </button>
                 )}
               </div>
-              <div className="mb-3 grid grid-cols-3 gap-2">
+              <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
                 <input
                   value={filterL}
                   onChange={(e) => setFilterL(e.target.value)}
                   inputMode="numeric"
                   placeholder="L"
-                  className="w-full rounded bg-white/5 px-2 py-1 text-xs text-white/80 placeholder-white/40 outline-none"
+                  className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:outline-none focus:ring-0"
                 />
                 <input
                   value={filterW}
                   onChange={(e) => setFilterW(e.target.value)}
                   inputMode="numeric"
                   placeholder="W"
-                  className="w-full rounded bg-white/5 px-2 py-1 text-xs text-white/80 placeholder-white/40 outline-none"
+                  className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:outline-none focus:ring-0"
                 />
                 <input
                   value={filterH}
                   onChange={(e) => setFilterH(e.target.value)}
                   inputMode="numeric"
                   placeholder="H"
-                  className="w-full rounded bg-white/5 px-2 py-1 text-xs text-white/80 placeholder-white/40 outline-none"
+                  className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:outline-none focus:ring-0"
                 />
                 <button
                   onClick={() => { setFilterL(""); setFilterW(""); setFilterH(""); }}
-                  className="col-span-3 rounded bg-white/5 px-2 py-1 text-xs text-white/70 hover:bg-white/10"
+                  className="col-span-2 rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-200 transition hover:border-cyan-400/40 hover:bg-slate-900/50 sm:col-span-3"
                 >
                   Reset Filters
                 </button>
               </div>
               <div className="flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1 scrollbar-thin">
                 {filteredSaved.length === 0 && (
-                  <div className="text-white/60">No saved pallets yet.</div>
+                  <div className="text-slate-400">No saved pallets yet.</div>
                 )}
                 {filteredSaved.map((p) => (
                   <div
                     key={p.id}
-                    className={`group flex items-start justify-between gap-2 rounded border px-2 py-2 ${
-                      p.id === selectedId ? "border-white/40 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10"
+                    className={`group flex items-start justify-between gap-2 rounded border px-3 py-2 transition ${
+                      p.id === selectedId
+                        ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/20"
+                        : "border-cyan-500/10 bg-slate-900/50 hover:border-cyan-400/40 hover:bg-slate-900/70"
                     }`}
                   >
                     <button
@@ -223,14 +225,14 @@ export default function HomePage() {
                         setData(p.data);
                       }}
                     >
-                      <span className="truncate text-white/90">{p.name}</span>
-                      <span className="text-xs text-white/50">
-                        {p.data.layer_count} layers · {p.data.total_boxes} boxes
+                      <span className="truncate text-slate-100">{p.name}</span>
+                      <span className="text-xs text-slate-400">
+                        {p.data.layer_count} layers x {p.data.total_boxes} boxes
                       </span>
                     </button>
                     <button
                       aria-label="Delete"
-                      className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 opacity-0 group-hover:opacity-100 hover:bg-red-500/30"
+                      className="rounded bg-rose-500/15 px-2 py-1 text-xs text-rose-200 opacity-0 transition group-hover:opacity-100 hover:bg-rose-500/25"
                       onClick={async (e) => {
                         const allow = e.ctrlKey || window.confirm(`Delete "${p.name}"?`);
                         if (!allow) return;
@@ -256,31 +258,31 @@ export default function HomePage() {
             </aside>
 
             {/* Center: viewer */}
-            <div className="h-[70vh] flex-1 overflow-hidden rounded border border-white/10">
+            <div className="order-1 flex-1 overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 shadow-inner shadow-cyan-500/10 min-h-[320px] sm:min-h-[420px] xl:order-2 xl:h-[70vh]">
               <RobViewer data={data} />
             </div>
             {/* Right: info */}
-            <aside className="w-80 shrink-0 rounded border border-white/10 bg-black/20 p-3 text-sm">
-              <h2 className="mb-2 text-base font-semibold">Pallet Info</h2>
-              <div className="space-y-1 text-white/90">
+            <aside className="order-3 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-3 xl:w-[260px] xl:shrink-0">
+              <h2 className="mb-3 text-base font-semibold text-cyan-200">Pallet Info</h2>
+              <div className="space-y-2 text-slate-100">
                 <div>
-                  <span className="text-white/60">Layers:</span> {data.layer_count}
+                  <span className="text-slate-400">Layers:</span> {data.layer_count}
                 </div>
                 <div>
-                  <span className="text-white/60">Total boxes:</span> {data.total_boxes}
+                  <span className="text-slate-400">Total boxes:</span> {data.total_boxes}
                 </div>
-                <div className="pt-2 font-medium text-white/80">Package (L×W×H)</div>
+                <div className="pt-2 font-medium text-slate-200">Package (LxWxH)</div>
                 <div>
-                  {data.package.width} × {data.package.length} × {data.package.height}
+                  {data.package.width} x {data.package.length} x {data.package.height}
                 </div>
-                <div className="pt-2 font-medium text-white/80">Pallet (L×W×H)</div>
+                <div className="pt-2 font-medium text-slate-200">Pallet (LxWxH)</div>
                 <div>
                   {data.pallet ? (
                     <span>
-                      {data.pallet.width} × {data.pallet.length} × {data.pallet.height}
+                      {data.pallet.width} x {data.pallet.length} x {data.pallet.height}
                     </span>
                   ) : (
-                    <span className="text-white/50">unknown</span>
+                    <span className="text-slate-500">unknown</span>
                   )}
                 </div>
               </div>
@@ -291,3 +293,4 @@ export default function HomePage() {
     </main>
   );
 }
+

@@ -18,7 +18,7 @@ export function RobViewer({ data }: { data: PalletData }) {
 
     const container = mountRef.current;
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x0b0b10);
+    scene.background = new THREE.Color(0x050b18);
     sceneRef.current = scene;
 
     const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 10000);
@@ -30,7 +30,7 @@ export function RobViewer({ data }: { data: PalletData }) {
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setClearColor(0x0b0b10, 1);
+    renderer.setClearColor(0x050b18, 1);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -155,7 +155,7 @@ export function RobViewer({ data }: { data: PalletData }) {
     // Slight edge stroke overlay (per-quad explicit edges to preserve grid lines)
     const edgeGeom = new THREE.BufferGeometry();
     edgeGeom.setAttribute("position", new THREE.Float32BufferAttribute(edgePositions, 3));
-    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x0b0b0b, opacity: 0.85, transparent: true, depthTest: true, depthWrite: false });
+    const edgeMaterial = new THREE.LineBasicMaterial({ color: 0x0f172a, opacity: 0.85, transparent: true, depthTest: true, depthWrite: false });
     const edgeLines = new THREE.LineSegments(edgeGeom, edgeMaterial);
     edgeLines.renderOrder = 2; // render after mesh but still depth-tested
     scene.add(edgeLines);
@@ -181,7 +181,7 @@ export function RobViewer({ data }: { data: PalletData }) {
     palletEdges.renderOrder = 2;
     scene.add(palletEdges);
 
-    const grid = new THREE.GridHelper(1200, 24, 0x666666, 0x333333);
+    const grid = new THREE.GridHelper(1200, 24, 0x1f2a37, 0x111827);
     // Grid in X-Y plane: rotate from XZ default to XY
     grid.rotation.x = Math.PI / 2;
     scene.add(grid);
@@ -255,7 +255,6 @@ export function RobViewer({ data }: { data: PalletData }) {
     };
   }, [data]);
 
-  return <div ref={mountRef} className="relative h-full w-full min-h-[600px]" />;
+  return <div ref={mountRef} className="relative h-full w-full min-h-[320px] sm:min-h-[420px] xl:min-h-[600px]" />;
 }
-
 
