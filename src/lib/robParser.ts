@@ -135,7 +135,7 @@ export function parseRobText(text: string): PalletData {
       const parts: number[] = new Array<number>(9);
       for (let p = 0; p < 9; p++) {
         const v = rawParts[p];
-        parts[p] = Number.isFinite(v) ? (v as number) : 0;
+        parts[p] = typeof v === "number" && Number.isFinite(v) ? v : 0;
       }
       const x = expectIndex(parts, 3, "x");
       const y = expectIndex(parts, 4, "y");
