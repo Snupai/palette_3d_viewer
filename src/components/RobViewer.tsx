@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
-import type { PalletData, Rotation } from "~/lib/robParser";
+import type { PalletData } from "~/lib/robParser";
 
 export function RobViewer({ data }: { data: PalletData }) {
   const mountRef = useRef<HTMLDivElement>(null);

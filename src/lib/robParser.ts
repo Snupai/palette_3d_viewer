@@ -131,9 +131,12 @@ export function parseRobText(text: string): PalletData {
       const coordLine = lines[current_line] ?? "";
       if (!coordLine) throw new Error("Unexpected .rob format: missing coordinate line");
       const rawParts = coordLine.trim().split(/\s+/).map((n) => parseInt(n, 10));
-      // ensure array has at least 9 entries
-      const parts: number[] = new Array(9).fill(0);
-      for (let p = 0; p < Math.min(rawParts.length, 9); p++) parts[p] = rawParts[p]!;
+      // ensure array has at least 9 entries, with explicit numeric copy
+      const parts: number[] = new Array<number>(9);
+      for (let p = 0; p < 9; p++) {
+        const v = rawParts[p];
+        parts[p] = Number.isFinite(v) ? (v as number) : 0;
+      }
       const x = expectIndex(parts, 3, "x");
       const y = expectIndex(parts, 4, "y");
       const rotation = expectIndex(parts, 5, "rotation") as Rotation;
@@ -149,8 +152,8 @@ export function parseRobText(text: string): PalletData {
       } else {
         const centers = calculatePackageCenters([x, y], package_width, package_length, rotation, num_packages);
         for (const c of centers) {
-          const cx = expectIndex(c as number[], 0, "cx");
-          const cy = expectIndex(c as number[], 1, "cy");
+          const cx = (c as number[])[0]!;
+          const cy = (c as number[])[1]!;
           const rect: Rectangle = { width: package_length, length: package_width, x: cx, y: cy };
           boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
         }
