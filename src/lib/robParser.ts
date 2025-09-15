@@ -75,6 +75,14 @@ function parseBlueLine(dx: number, dy: number): Side | Corner | null {
   return null;
 }
 
+function expectIndex<T>(arr: T[], idx: number, label: string): T {
+  const v = arr[idx];
+  if (v === undefined || v === null) {
+    throw new Error(`Unexpected .rob format: missing ${label}`);
+  }
+  return v as T;
+}
+
 export function parseRobText(text: string): PalletData {
   // Do NOT filter blank lines; positions are significant in the Python version
   const lines = text.split(/\r?\n/);
@@ -85,39 +93,53 @@ export function parseRobText(text: string): PalletData {
     ? { width: palletDimensionsRaw[0]!, length: palletDimensionsRaw[1]!, height: palletDimensionsRaw[2]! }
     : null;
 
-  const packageDimensions = lines[1].trim().split(/\s+/).map((n) => parseInt(n, 10));
-  const package_width = packageDimensions[0];
-  const package_length = packageDimensions[1];
-  const package_height = packageDimensions[2];
+  const packageLine = lines[1];
+  if (!packageLine) throw new Error("Unexpected .rob format: missing package dimensions line");
+  const packageDimensions = packageLine.trim().split(/\s+/).map((n) => parseInt(n, 10));
+  const package_width = expectIndex(packageDimensions, 0, "package width");
+  const package_length = expectIndex(packageDimensions, 1, "package length");
+  const package_height = expectIndex(packageDimensions, 2, "package height");
 
-  const num_unique_layers = parseInt(lines[2].trim(), 10);
-  const num_layers = parseInt(lines[3].trim(), 10);
+  const uniqueLayersLine = lines[2];
+  const layersCountLine = lines[3];
+  if (!uniqueLayersLine || !layersCountLine) throw new Error("Unexpected .rob format: missing layer count lines");
+  const num_unique_layers = parseInt(uniqueLayersLine.trim(), 10);
+  const num_layers = parseInt(layersCountLine.trim(), 10);
 
   const layer_order: number[] = [];
   let current_line = 5;
   for (let i = 0; i < num_layers; i++) {
-    const unique_layer_id = parseInt(lines[current_line].trim().split(/\s+/)[0]!, 10);
+    const lo = lines[current_line];
+    if (!lo) throw new Error("Unexpected .rob format: missing layer order entry");
+    const unique_layer_id = parseInt(lo.trim().split(/\s+/)[0]!, 10);
     layer_order.push(unique_layer_id);
     current_line += 1;
   }
 
   const parseLayerBoxes = (): Box[] => {
     // Skip over any empty lines before the count line
-    while (current_line < lines.length && lines[current_line].trim() === "") current_line += 1;
-    const num_coordinates = parseInt(lines[current_line].trim(), 10);
+    while (current_line < lines.length && lines[current_line]?.trim() === "") current_line += 1;
+    const countLine = lines[current_line] ?? "";
+    if (!countLine) throw new Error("Unexpected .rob format: missing coordinates count");
+    const num_coordinates = parseInt(countLine.trim(), 10);
     current_line += 1;
     const boxes: Box[] = [];
     let boxCount = 1;
     for (let i = 0; i < num_coordinates; i++) {
       // Move past accidental blank lines within coordinate block
-      while (current_line < lines.length && lines[current_line].trim() === "") current_line += 1;
-      const parts = lines[current_line].trim().split(/\s+/).map((n) => parseInt(n, 10));
-      const x = parts[3]!;
-      const y = parts[4]!;
-      const rotation = parts[5]! as Rotation;
-      const num_packages = parts[6]!;
-      const dx = parts[7]!;
-      const dy = parts[8]!;
+      while (current_line < lines.length && lines[current_line]?.trim() === "") current_line += 1;
+      const coordLine = lines[current_line] ?? "";
+      if (!coordLine) throw new Error("Unexpected .rob format: missing coordinate line");
+      const rawParts = coordLine.trim().split(/\s+/).map((n) => parseInt(n, 10));
+      // ensure array has at least 9 entries
+      const parts: number[] = new Array(9).fill(0);
+      for (let p = 0; p < Math.min(rawParts.length, 9); p++) parts[p] = rawParts[p]!;
+      const x = expectIndex(parts, 3, "x");
+      const y = expectIndex(parts, 4, "y");
+      const rotation = expectIndex(parts, 5, "rotation") as Rotation;
+      const num_packages = expectIndex(parts, 6, "num_packages");
+      const dx = expectIndex(parts, 7, "dx");
+      const dy = expectIndex(parts, 8, "dy");
 
       const blue_line = parseBlueLine(dx, dy);
 
@@ -127,7 +149,9 @@ export function parseRobText(text: string): PalletData {
       } else {
         const centers = calculatePackageCenters([x, y], package_width, package_length, rotation, num_packages);
         for (const c of centers) {
-          const rect: Rectangle = { width: package_length, length: package_width, x: c[0], y: c[1] };
+          const cx = expectIndex(c as number[], 0, "cx");
+          const cy = expectIndex(c as number[], 1, "cy");
+          const rect: Rectangle = { width: package_length, length: package_width, x: cx, y: cy };
           boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
         }
       }
