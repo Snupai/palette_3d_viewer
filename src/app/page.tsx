@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { RobViewer } from "~/components/RobViewer";
 import { parseRobText } from "~/lib/robParser";
+import { clearPallets, deletePalletById, getAllPallets, putPallets } from "~/lib/storage";
 
 type SavedPallet = {
   id: string;
@@ -23,22 +24,34 @@ export default function HomePage() {
   const [filterH, setFilterH] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load saved pallets on mount
+  // Load saved pallets on mount, migrating from localStorage if present
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as SavedPallet[];
-        setSaved(parsed);
-        if (parsed.length > 0) {
-          const first = parsed[0]!;
-          setSelectedId(first.id);
-          setData(first.data);
+    (async () => {
+      try {
+        const existing = await getAllPallets<SavedPallet>();
+        if (existing.length > 0) {
+          setSaved(existing);
+          setSelectedId(existing[0]!.id);
+          setData(existing[0]!.data);
+          return;
         }
+        // Migrate from localStorage once
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as SavedPallet[];
+          if (parsed.length > 0) {
+            await putPallets(parsed);
+            localStorage.removeItem(STORAGE_KEY);
+            const migrated = await getAllPallets<SavedPallet>();
+            setSaved(migrated);
+            setSelectedId(migrated[0]!.id);
+            setData(migrated[0]!.data);
+          }
+        }
+      } catch {
+        // ignore
       }
-    } catch {
-      // ignore
-    }
+    })();
   }, []);
 
   const persist = useCallback((next: SavedPallet[]) => {
@@ -52,33 +65,44 @@ export default function HomePage() {
 
   const onFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
-    const file = e.target.files?.[0];
-    if (!file) return;
-    try {
-      const text = await file.text();
-      const parsed = parseRobText(text);
-      if (process.env.NODE_ENV !== "production") {
-        console.log(".rob file selected:", file.name, `(${text.length} chars)`);
-        console.log("Parsed pallet:", {
-          layers: parsed.layer_count,
-          total_boxes: parsed.total_boxes,
-          first_layer_boxes: parsed.layers[0]?.boxes.length ?? 0,
-          sample_box: parsed.layers[0]?.boxes[0] ?? null,
-        });
+    const fileList = e.target.files ? Array.from(e.target.files) : [];
+    if (fileList.length === 0) return;
+    const newEntries: SavedPallet[] = [];
+    const failed: string[] = [];
+    for (const file of fileList) {
+      try {
+        const text = await file.text();
+        const parsed = parseRobText(text);
+        if (process.env.NODE_ENV !== "production") {
+          console.log(".rob file selected:", file.name, `(${text.length} chars)`);
+          console.log("Parsed pallet:", {
+            layers: parsed.layer_count,
+            total_boxes: parsed.total_boxes,
+            first_layer_boxes: parsed.layers[0]?.boxes.length ?? 0,
+            sample_box: parsed.layers[0]?.boxes[0] ?? null,
+          });
+        }
+        const entry: SavedPallet = {
+          id: (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name ?? `Pallet ${new Date().toLocaleString()}`,
+          createdAt: Date.now(),
+          data: parsed,
+        };
+        newEntries.push(entry);
+      } catch {
+        failed.push(file.name);
       }
-      const newEntry: SavedPallet = {
-        id: (globalThis.crypto?.randomUUID?.() as string | undefined) ?? `${Date.now()}`,
-        name: file.name ?? `Pallet ${new Date().toLocaleString()}`,
-        createdAt: Date.now(),
-        data: parsed,
-      };
-      const next = [newEntry, ...saved];
-      persist(next);
-      setSelectedId(newEntry.id);
-      setData(parsed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to parse .rob file");
-      setData(null);
+    }
+    if (newEntries.length > 0) {
+      await putPallets(newEntries);
+      const next = await getAllPallets<SavedPallet>();
+      setSaved(next);
+      const last = newEntries[newEntries.length - 1]!;
+      setSelectedId(last.id);
+      setData(last.data);
+    }
+    if (failed.length > 0) {
+      setError(`Failed to parse: ${failed.join(", ")}`);
     }
   }, [persist, saved]);
 
@@ -92,6 +116,7 @@ export default function HomePage() {
           ref={fileInputRef}
           type="file"
           accept=".rob,text/plain"
+          multiple
           onChange={onFileChange}
           className="hidden"
         />
@@ -99,7 +124,7 @@ export default function HomePage() {
           onClick={() => fileInputRef.current?.click()}
           className="rounded bg-white/10 px-4 py-2 text-sm font-medium text-white hover:bg-white/20"
         >
-          Import .rob file
+          Import .rob file(s)
         </button>
       </div>
     </div>
@@ -144,10 +169,13 @@ export default function HomePage() {
                 <h2 className="text-base font-semibold">Saved Pallets</h2>
                 {saved.length > 0 && (
                   <button
-                    onClick={() => {
-                      persist([]);
+                    onClick={async (e) => {
+                      const allow = e.ctrlKey || window.confirm("Clear all saved pallets?");
+                      if (!allow) return;
+                      await clearPallets();
                       setData(null);
                       setSelectedId(null);
+                      setSaved([]);
                     }}
                     className="rounded bg-white/5 px-2 py-1 text-xs text-white/80 hover:bg-white/10"
                   >
@@ -184,7 +212,7 @@ export default function HomePage() {
                   Reset Filters
                 </button>
               </div>
-              <div className="flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1">
+              <div className="flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1 scrollbar-thin">
                 {filteredSaved.length === 0 && (
                   <div className="text-white/60">No saved pallets yet.</div>
                 )}
@@ -210,9 +238,12 @@ export default function HomePage() {
                     <button
                       aria-label="Delete"
                       className="rounded bg-red-500/20 px-2 py-1 text-xs text-red-200 opacity-0 group-hover:opacity-100 hover:bg-red-500/30"
-                      onClick={() => {
-                        const next = saved.filter((s) => s.id !== p.id);
-                        persist(next);
+                      onClick={async (e) => {
+                        const allow = e.ctrlKey || window.confirm(`Delete "${p.name}"?`);
+                        if (!allow) return;
+                        await deletePalletById(p.id);
+                        const next = await getAllPallets<SavedPallet>();
+                        setSaved(next);
                         if (selectedId === p.id) {
                           if (next[0]) {
                             setSelectedId(next[0].id);
