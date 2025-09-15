@@ -99,6 +99,9 @@ export function parseRobText(text: string): PalletData {
   const package_width = expectIndex(packageDimensions, 0, "package width");
   const package_length = expectIndex(packageDimensions, 1, "package length");
   const package_height = expectIndex(packageDimensions, 2, "package height");
+  // Optional input direction flag (packages come in rotated 90°). If 1, flip
+  // width/length for boxes only (do not change stored package dims).
+  const input_direction = packageDimensions.length > 3 && packageDimensions[3] === 1 ? 1 : 0;
 
   const uniqueLayersLine = lines[2];
   const layersCountLine = lines[3];
@@ -147,14 +150,20 @@ export function parseRobText(text: string): PalletData {
       const blue_line = parseBlueLine(dx, dy);
 
       if (num_packages === 1) {
-        const rect: Rectangle = { width: package_length, length: package_width, x, y };
+        const rectWidth = input_direction === 1 ? package_width : package_length;
+        const rectLength = input_direction === 1 ? package_length : package_width;
+        const rect: Rectangle = { width: rectWidth, length: rectLength, x, y };
         boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
       } else {
-        const centers = calculatePackageCenters([x, y], package_width, package_length, rotation, num_packages);
+        const centerWidth = input_direction === 1 ? package_length : package_width;
+        const centerLength = input_direction === 1 ? package_width : package_length;
+        const centers = calculatePackageCenters([x, y], centerWidth, centerLength, rotation, num_packages);
         for (const c of centers) {
           const cx = (c as number[])[0]!;
           const cy = (c as number[])[1]!;
-          const rect: Rectangle = { width: package_length, length: package_width, x: cx, y: cy };
+          const rectWidth = input_direction === 1 ? package_width : package_length;
+          const rectLength = input_direction === 1 ? package_length : package_width;
+          const rect: Rectangle = { width: rectWidth, length: rectLength, x: cx, y: cy };
           boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
         }
       }
