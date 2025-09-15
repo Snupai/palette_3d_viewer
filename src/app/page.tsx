@@ -26,9 +26,9 @@ export default function HomePage() {
 
   // Load saved pallets on mount, migrating from localStorage if present
   useEffect(() => {
-    (async () => {
+    void (async () => {
       try {
-        const existing = await getAllPallets<SavedPallet>();
+        const existing = await getAllPallets<ReturnType<typeof parseRobText>>();
         if (existing.length > 0) {
           setSaved(existing);
           setSelectedId(existing[0]!.id);
@@ -42,7 +42,7 @@ export default function HomePage() {
           if (parsed.length > 0) {
             await putPallets(parsed);
             localStorage.removeItem(STORAGE_KEY);
-            const migrated = await getAllPallets<SavedPallet>();
+            const migrated = await getAllPallets<ReturnType<typeof parseRobText>>();
             setSaved(migrated);
             setSelectedId(migrated[0]!.id);
             setData(migrated[0]!.data);
@@ -54,14 +54,7 @@ export default function HomePage() {
     })();
   }, []);
 
-  const persist = useCallback((next: SavedPallet[]) => {
-    setSaved(next);
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch {
-      // ignore storage quota errors silently
-    }
-  }, []);
+  //
 
   const onFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     setError(null);
@@ -94,8 +87,8 @@ export default function HomePage() {
       }
     }
     if (newEntries.length > 0) {
-      await putPallets(newEntries);
-      const next = await getAllPallets<SavedPallet>();
+      await putPallets<ReturnType<typeof parseRobText>>(newEntries);
+      const next = await getAllPallets<ReturnType<typeof parseRobText>>();
       setSaved(next);
       const last = newEntries[newEntries.length - 1]!;
       setSelectedId(last.id);
@@ -104,7 +97,7 @@ export default function HomePage() {
     if (failed.length > 0) {
       setError(`Failed to parse: ${failed.join(", ")}`);
     }
-  }, [persist, saved]);
+  }, []);
 
   //
 
@@ -242,7 +235,7 @@ export default function HomePage() {
                         const allow = e.ctrlKey || window.confirm(`Delete "${p.name}"?`);
                         if (!allow) return;
                         await deletePalletById(p.id);
-                        const next = await getAllPallets<SavedPallet>();
+                        const next = await getAllPallets<ReturnType<typeof parseRobText>>();
                         setSaved(next);
                         if (selectedId === p.id) {
                           if (next[0]) {
