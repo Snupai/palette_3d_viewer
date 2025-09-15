@@ -160,6 +160,27 @@ export function RobViewer({ data }: { data: PalletData }) {
     edgeLines.renderOrder = 2; // render after mesh but still depth-tested
     scene.add(edgeLines);
 
+    // Euro pallet below boxes: 1200 x 800 x 144 (Z-up -> depth is height)
+    const euroWidth = 1200;
+    const euroLength = 800;
+    const euroHeight = 144;
+    const palletGeom = new THREE.BoxGeometry(euroWidth, euroLength, euroHeight);
+    const palletMat = new THREE.MeshPhongMaterial({ color: 0xb38b6d, shininess: 10, side: THREE.DoubleSide });
+    const palletMesh = new THREE.Mesh(palletGeom, palletMat);
+    palletMesh.position.set(euroWidth / 2, euroLength / 2, -euroHeight / 2);
+    // Nudge back to avoid z-fighting with grid
+    palletMat.polygonOffset = true;
+    palletMat.polygonOffsetFactor = 1;
+    palletMat.polygonOffsetUnits = 2;
+    scene.add(palletMesh);
+    const palletEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(palletGeom),
+      new THREE.LineBasicMaterial({ color: 0x2b2b2b, transparent: true, opacity: 0.9 })
+    );
+    palletEdges.position.copy(palletMesh.position);
+    palletEdges.renderOrder = 2;
+    scene.add(palletEdges);
+
     const grid = new THREE.GridHelper(1200, 24, 0x666666, 0x333333);
     // Grid in X-Y plane: rotate from XZ default to XY
     grid.rotation.x = Math.PI / 2;
