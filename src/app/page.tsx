@@ -36,7 +36,7 @@ export default function HomePage() {
           setData(first.data);
         }
       }
-    } catch (_e) {
+    } catch {
       // ignore
     }
   }, []);
@@ -45,7 +45,7 @@ export default function HomePage() {
     setSaved(next);
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    } catch (_e) {
+    } catch {
       // ignore storage quota errors silently
     }
   }, []);
@@ -82,11 +82,7 @@ export default function HomePage() {
     }
   }, [persist, saved]);
 
-  const reset = useCallback(() => {
-    setData(null);
-    setError(null);
-    if (fileInputRef.current) fileInputRef.current.value = "";
-  }, []);
+  //
 
   const header = useMemo(() => (
     <div className="flex w-full items-center justify-between gap-4">
