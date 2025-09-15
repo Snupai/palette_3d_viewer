@@ -1,29 +1,28 @@
-# Create T3 App
+# Pallet 3D Viewer
 
-This is a [T3 Stack](https://create.t3.gg/) project bootstrapped with `create-t3-app`.
+Visualize `.rob` pallet layouts in a fast, interactive 3D scene powered by Three.js.
 
-## What's next? How do I make an app with this?
+### Features
+- Import `.rob` files and render layered pallet layouts
+- Save multiple pallets locally and switch between them
+- 3D navigation with orbit controls, grid, axes, and pallet base
+- OpenGraph/Twitter embeds with dynamic OG image
 
-We try to keep this project as simple as possible, so you can start with just the scaffolding we set up for you, and add additional things later when they become necessary.
+### Getting Started
+- **Install**: `bun install` or `pnpm install` or `npm install`
+- **Dev**: `bun run dev` (or `pnpm dev` / `npm run dev`)
+- **Build**: `bun run build` (or `pnpm build` / `npm run build`)
 
-If you are not familiar with the different technologies used in this project, please refer to the respective docs. If you still are in the wind, please join our [Discord](https://t3.gg/discord) and ask for help.
+Open `http://localhost:3000` and use the “Import .rob file” button.
 
-- [Next.js](https://nextjs.org)
-- [NextAuth.js](https://next-auth.js.org)
-- [Prisma](https://prisma.io)
-- [Drizzle](https://orm.drizzle.team)
-- [Tailwind CSS](https://tailwindcss.com)
-- [tRPC](https://trpc.io)
+### Tech Stack
+- **Next.js 15** app router
+- **Three.js** for rendering
+- **TypeScript**
+- **Tailwind CSS**
 
-## Learn More
+### OpenGraph
+- Site metadata and a dynamic OG image are configured. Update the icon at `public/favicon.ico`.
 
-To learn more about the [T3 Stack](https://create.t3.gg/), take a look at the following resources:
-
-- [Documentation](https://create.t3.gg/)
-- [Learn the T3 Stack](https://create.t3.gg/en/faq#what-learning-resources-are-currently-available) — Check out these awesome tutorials
-
-You can check out the [create-t3-app GitHub repository](https://github.com/t3-oss/create-t3-app) — your feedback and contributions are welcome!
-
-## How do I deploy this?
-
-Follow our deployment guides for [Vercel](https://create.t3.gg/en/deployment/vercel), [Netlify](https://create.t3.gg/en/deployment/netlify) and [Docker](https://create.t3.gg/en/deployment/docker) for more information.
+### License
+MIT
