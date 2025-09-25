@@ -40,6 +40,7 @@ export interface StoredPallet<T = unknown> {
   name: string;
   createdAt: number;
   data: T;
+  rawText?: string;
 }
 
 export async function getAllPallets<T = unknown>(): Promise<StoredPallet<T>[]> {

@@ -10,9 +10,26 @@ type SavedPallet = {
   name: string;
   createdAt: number;
   data: ReturnType<typeof parseRobText>;
+  rawText?: string;
 };
 
 const STORAGE_KEY = "saved_pallets_v1";
+
+function rotateRobPlanBy180(rawText: string): string {
+  const newline = rawText.includes("\r\n") ? "\r\n" : "\n";
+  const lines = rawText.split(/\r?\n/);
+  const coordinatePattern = /^(\s*-?\d+(?:\s+-?\d+){4}\s+)(-?\d+)(.*)$/;
+  const rotated = lines.map((line) => {
+    if (!coordinatePattern.test(line)) return line;
+    return line.replace(coordinatePattern, (_full, prefix: string, rotationRaw: string, suffix: string) => {
+      const rotation = Number.parseInt(rotationRaw, 10);
+      if (!Number.isFinite(rotation)) return line;
+      const rotatedValue = ((rotation + 180) % 360 + 360) % 360;
+      return `${prefix}${rotatedValue}${suffix}`;
+    });
+  });
+  return rotated.join(newline);
+}
 
 export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
@@ -23,6 +40,7 @@ export default function HomePage() {
   const [filterW, setFilterW] = useState("");
   const [filterH, setFilterH] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [selectedRawText, setSelectedRawText] = useState<string | null>(null);
 
   // Load saved pallets on mount, migrating from localStorage if present
   useEffect(() => {
@@ -33,6 +51,7 @@ export default function HomePage() {
           setSaved(existing);
           setSelectedId(existing[0]!.id);
           setData(existing[0]!.data);
+          setSelectedRawText(existing[0]!.rawText ?? null);
           return;
         }
         // Migrate from localStorage once
@@ -46,6 +65,7 @@ export default function HomePage() {
             setSaved(migrated);
             setSelectedId(migrated[0]!.id);
             setData(migrated[0]!.data);
+            setSelectedRawText(migrated[0]!.rawText ?? null);
           }
         }
       } catch {
@@ -80,6 +100,7 @@ export default function HomePage() {
           name: file.name ?? `Pallet ${new Date().toLocaleString()}`,
           createdAt: Date.now(),
           data: parsed,
+          rawText: text,
         };
         newEntries.push(entry);
       } catch {
@@ -93,6 +114,7 @@ export default function HomePage() {
       const last = newEntries[newEntries.length - 1]!;
       setSelectedId(last.id);
       setData(last.data);
+      setSelectedRawText(last.rawText ?? null);
     }
     if (failed.length > 0) {
       setError(`Failed to parse: ${failed.join(", ")}`);
@@ -101,7 +123,66 @@ export default function HomePage() {
 
   //
 
-  const header = useMemo(() => (
+  const selectedEntry = useMemo(() => saved.find((p) => p.id === selectedId) ?? null, [saved, selectedId]);
+
+  useEffect(() => {
+    const nextRaw = selectedEntry?.rawText ?? null;
+    setSelectedRawText((prev) => (prev === nextRaw ? prev : nextRaw));
+  }, [selectedEntry]);
+
+  const triggerDownload = useCallback((filename: string, contents: string) => {
+    const blob = new Blob([contents], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    setTimeout(() => URL.revokeObjectURL(url), 0);
+  }, []);
+
+  const onModifyPlan = useCallback(() => {
+    setError(null);
+    if (!data) {
+      setError("Load a plan before modifying it.");
+      return;
+    }
+    if (!selectedRawText) {
+      setError("Cannot modify this plan because the original .rob text is unavailable.");
+      return;
+    }
+    try {
+      const rotatedRaw = rotateRobPlanBy180(selectedRawText);
+      const baseName = selectedEntry?.name ?? "pallet.rob";
+      const downloadName = baseName.toLowerCase().endsWith(".rob") ? baseName : `${baseName}.rob`;
+      triggerDownload(downloadName, rotatedRaw);
+    } catch (err) {
+      console.error("Failed to modify plan", err);
+      setError("Unable to modify the plan at this time.");
+    }
+  }, [data, selectedEntry, selectedRawText, triggerDownload]);
+
+  const onDownloadOriginal = useCallback(() => {
+    setError(null);
+    if (!selectedRawText) {
+      setError("Cannot download this plan because the original .rob text is unavailable.");
+      return;
+    }
+    try {
+      const baseName = selectedEntry?.name ?? "pallet.rob";
+      const downloadName = baseName.toLowerCase().endsWith(".rob") ? baseName : `${baseName}.rob`;
+      triggerDownload(downloadName, selectedRawText);
+    } catch (err) {
+      console.error("Failed to download original plan", err);
+      setError("Unable to download the original plan at this time.");
+    }
+  }, [selectedEntry, selectedRawText, triggerDownload]);
+
+  const header = useMemo(() => {
+    const downloadDisabled = !selectedRawText;
+    const modifyDisabled = !data || downloadDisabled;
+    return (
     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <h1 className="text-center text-2xl font-bold text-cyan-100 sm:text-left">Pallet 3D Viewer (.rob)</h1>
       <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -119,9 +200,34 @@ export default function HomePage() {
         >
           Import .rob file(s)
         </button>
+        <button
+          type="button"
+          onClick={onDownloadOriginal}
+          disabled={downloadDisabled}
+          className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
+            downloadDisabled
+              ? "cursor-not-allowed bg-slate-700 text-slate-400"
+              : "bg-slate-200 text-slate-900 hover:bg-white"
+          }`}
+        >
+          Download original plan
+        </button>
+        <button
+          type="button"
+          onClick={onModifyPlan}
+          disabled={modifyDisabled}
+          className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
+            modifyDisabled
+              ? "cursor-not-allowed bg-slate-700 text-slate-400"
+              : "bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+          }`}
+        >
+          Modify plan (rotate 180°)
+        </button>
       </div>
     </div>
-  ), [onFileChange]);
+  );
+  }, [data, onDownloadOriginal, onFileChange, onModifyPlan, selectedRawText]);
 
   const filteredSaved = useMemo(() => {
     const l = filterL.trim() === "" ? null : Number(filterL);
@@ -169,6 +275,7 @@ export default function HomePage() {
                       setData(null);
                       setSelectedId(null);
                       setSaved([]);
+                      setSelectedRawText(null);
                     }}
                     className="rounded border border-cyan-500/20 bg-transparent px-2 py-1 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
                   >
@@ -223,6 +330,7 @@ export default function HomePage() {
                       onClick={() => {
                         setSelectedId(p.id);
                         setData(p.data);
+                        setSelectedRawText(p.rawText ?? null);
                       }}
                     >
                       <span className="truncate text-slate-100">{p.name}</span>
@@ -243,9 +351,11 @@ export default function HomePage() {
                           if (next[0]) {
                             setSelectedId(next[0].id);
                             setData(next[0].data);
+                            setSelectedRawText(next[0].rawText ?? null);
                           } else {
                             setSelectedId(null);
                             setData(null);
+                            setSelectedRawText(null);
                           }
                         }
                       }}
