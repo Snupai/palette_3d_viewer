@@ -338,7 +338,7 @@ export function RobViewer({
           child instanceof THREE.LineSegments ||
           child instanceof THREE.Line
         ) {
-          child.geometry.dispose();
+          (child.geometry as THREE.BufferGeometry).dispose();
         }
       }
     };
@@ -430,7 +430,7 @@ export function RobViewer({
       const solidMeshes = layerRenders.filter((lr) => lr.solidMesh.visible).map((lr) => lr.solidMesh);
       const hits = raycaster.intersectObjects(solidMeshes, false);
       const hit = hits[0];
-      if (!hit || hit.faceIndex == null || !(hit.object instanceof THREE.Mesh)) {
+      if (hit?.faceIndex == null || !(hit.object instanceof THREE.Mesh)) {
         clearHighlight();
         onBoxSelectRef.current?.(null);
         return;
