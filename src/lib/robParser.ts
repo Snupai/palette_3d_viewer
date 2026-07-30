@@ -16,11 +16,21 @@ export interface Box {
   rotation: Rotation;
   rect: Rectangle;
   height: number;
+  /** Place/grip center from the .rob coordinate line (shared by multi-package grips). */
+  placeX: number;
+  placeY: number;
+  /** Number of packages gripped together on this coordinate line. */
+  numPackages: number;
 }
 
 export interface Layer {
   unique_layer_id: number;
   boxes: Box[];
+  /**
+   * Zwischenlage under this layer (from .rob layer-order column 2).
+   * Typically 0 or 1; multiplied by {@link ZWISCHENLAGE_HEIGHT_MM} for Z.
+   */
+  zwischenlage: number;
 }
 
 export interface PalletData {
@@ -29,6 +39,42 @@ export interface PalletData {
   total_boxes: number;
   package: { width: number; length: number; height: number };
   pallet: { width: number; length: number; height: number } | null;
+}
+
+/** Thickness of one Zwischenlage in mm (matches robot `Dicke_ZwLagen`). */
+export const ZWISCHENLAGE_HEIGHT_MM = 3;
+
+/**
+ * Z of the bottom face of packages on `layerIndex` (0 = bottom layer).
+ * Sum of package heights below + Zwischenlagen under this layer and below.
+ * Does not include pallet height.
+ */
+export function layerZBottom(
+  layers: Layer[],
+  layerIndex: number,
+  packageHeight: number,
+  zwischenlageHeight = ZWISCHENLAGE_HEIGHT_MM,
+): number {
+  let z = 0;
+  const last = Math.min(layerIndex, layers.length - 1);
+  for (let i = 0; i <= last; i++) {
+    z += (layers[i]?.zwischenlage ?? 0) * zwischenlageHeight;
+    if (i < layerIndex) z += packageHeight;
+  }
+  return z;
+}
+
+/**
+ * Robot place Z (top of packages on this layer): bottom + package height.
+ * First layer with Zwischenlage → Zwischenlage + box height, and so on.
+ */
+export function layerPlaceZ(
+  layers: Layer[],
+  layerIndex: number,
+  packageHeight: number,
+  zwischenlageHeight = ZWISCHENLAGE_HEIGHT_MM,
+): number {
+  return layerZBottom(layers, layerIndex, packageHeight, zwischenlageHeight) + packageHeight;
 }
 
 function calculatePackageCenters(
@@ -109,13 +155,15 @@ export function parseRobText(text: string): PalletData {
   const num_unique_layers = parseInt(uniqueLayersLine.trim(), 10);
   const num_layers = parseInt(layersCountLine.trim(), 10);
 
-  const layer_order: number[] = [];
+  const layer_order: Array<{ unique_layer_id: number; zwischenlage: number }> = [];
   let current_line = 5;
   for (let i = 0; i < num_layers; i++) {
     const lo = lines[current_line];
     if (!lo) throw new Error("Unexpected .rob format: missing layer order entry");
-    const unique_layer_id = parseInt(lo.trim().split(/\s+/)[0]!, 10);
-    layer_order.push(unique_layer_id);
+    const parts = lo.trim().split(/\s+/).map((n) => parseInt(n, 10));
+    const unique_layer_id = expectIndex(parts, 0, "unique layer id");
+    const zwischenlage = parts.length > 1 && Number.isFinite(parts[1]) ? parts[1]! : 0;
+    layer_order.push({ unique_layer_id, zwischenlage });
     current_line += 1;
   }
 
@@ -153,7 +201,16 @@ export function parseRobText(text: string): PalletData {
         const rectWidth = input_direction === 1 ? package_width : package_length;
         const rectLength = input_direction === 1 ? package_length : package_width;
         const rect: Rectangle = { width: rectWidth, length: rectLength, x, y };
-        boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
+        boxes.push({
+          blueNumber: boxCount,
+          blueLine: blue_line,
+          rotation,
+          rect,
+          height: package_height,
+          placeX: x,
+          placeY: y,
+          numPackages: num_packages,
+        });
       } else {
         const centerWidth = input_direction === 1 ? package_length : package_width;
         const centerLength = input_direction === 1 ? package_width : package_length;
@@ -164,7 +221,16 @@ export function parseRobText(text: string): PalletData {
           const rectWidth = input_direction === 1 ? package_width : package_length;
           const rectLength = input_direction === 1 ? package_length : package_width;
           const rect: Rectangle = { width: rectWidth, length: rectLength, x: cx, y: cy };
-          boxes.push({ blueNumber: boxCount, blueLine: blue_line, rotation, rect, height: package_height });
+          boxes.push({
+            blueNumber: boxCount,
+            blueLine: blue_line,
+            rotation,
+            rect,
+            height: package_height,
+            placeX: x,
+            placeY: y,
+            numPackages: num_packages,
+          });
         }
       }
       boxCount += 1;
@@ -175,15 +241,19 @@ export function parseRobText(text: string): PalletData {
 
   const unique_layers: Layer[] = [];
   for (let i = 0; i < Math.max(1, num_unique_layers); i++) {
-    unique_layers.push({ unique_layer_id: i + 1, boxes: parseLayerBoxes() });
+    unique_layers.push({ unique_layer_id: i + 1, boxes: parseLayerBoxes(), zwischenlage: 0 });
   }
 
   const layers: Layer[] = [];
-  for (const num of layer_order) {
-    let idx = num - 1;
+  for (const entry of layer_order) {
+    let idx = entry.unique_layer_id - 1;
     if (idx < 0) idx = unique_layers.length - 1; // mimic Python negative index behavior when num==0
     const src = unique_layers[idx];
-    layers.push({ unique_layer_id: num, boxes: src ? src.boxes : [] });
+    layers.push({
+      unique_layer_id: entry.unique_layer_id,
+      boxes: src ? src.boxes : [],
+      zwischenlage: entry.zwischenlage,
+    });
   }
 
   const total_boxes = layers.reduce((acc, l) => acc + l.boxes.length, 0);

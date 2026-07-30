@@ -1,9 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { RobViewer } from "~/components/RobViewer";
+import { LayerSlider } from "~/components/LayerSlider";
+import { RobViewer, type BoxSelection } from "~/components/RobViewer";
 import { parseRobText } from "~/lib/robParser";
 import { clearPallets, deletePalletById, getAllPallets, putPallets } from "~/lib/storage";
+
+/** Re-parse from raw .rob when present so newer fields (place coords) are available. */
+function resolvePalletData(entry: { data: ReturnType<typeof parseRobText>; rawText?: string }) {
+  if (entry.rawText) {
+    try {
+      return parseRobText(entry.rawText);
+    } catch {
+      return entry.data;
+    }
+  }
+  return entry.data;
+}
 
 type SavedPallet = {
   id: string;
@@ -41,6 +54,9 @@ export default function HomePage() {
   const [filterH, setFilterH] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedRawText, setSelectedRawText] = useState<string | null>(null);
+  const [boxSelection, setBoxSelection] = useState<BoxSelection | null>(null);
+  /** 1-based from bottom: show layers 1..N solid; above hidden. */
+  const [visibleUpToLayer, setVisibleUpToLayer] = useState(1);
 
   // Load saved pallets on mount, migrating from localStorage if present
   useEffect(() => {
@@ -50,8 +66,9 @@ export default function HomePage() {
         if (existing.length > 0) {
           setSaved(existing);
           setSelectedId(existing[0]!.id);
-          setData(existing[0]!.data);
+          setData(resolvePalletData(existing[0]!));
           setSelectedRawText(existing[0]!.rawText ?? null);
+          setBoxSelection(null);
           return;
         }
         // Migrate from localStorage once
@@ -64,8 +81,9 @@ export default function HomePage() {
             const migrated = await getAllPallets<ReturnType<typeof parseRobText>>();
             setSaved(migrated);
             setSelectedId(migrated[0]!.id);
-            setData(migrated[0]!.data);
+            setData(resolvePalletData(migrated[0]!));
             setSelectedRawText(migrated[0]!.rawText ?? null);
+            setBoxSelection(null);
           }
         }
       } catch {
@@ -113,8 +131,9 @@ export default function HomePage() {
       setSaved(next);
       const last = newEntries[newEntries.length - 1]!;
       setSelectedId(last.id);
-      setData(last.data);
+      setData(resolvePalletData(last));
       setSelectedRawText(last.rawText ?? null);
+      setBoxSelection(null);
     }
     if (failed.length > 0) {
       setError(`Failed to parse: ${failed.join(", ")}`);
@@ -129,6 +148,11 @@ export default function HomePage() {
     const nextRaw = selectedEntry?.rawText ?? null;
     setSelectedRawText((prev) => (prev === nextRaw ? prev : nextRaw));
   }, [selectedEntry]);
+
+  // Reset layer slider to show all layers when pallet data changes
+  useEffect(() => {
+    if (data) setVisibleUpToLayer(data.layer_count);
+  }, [data]);
 
   const triggerDownload = useCallback((filename: string, contents: string) => {
     const blob = new Blob([contents], { type: "text/plain" });
@@ -276,6 +300,7 @@ export default function HomePage() {
                       setSelectedId(null);
                       setSaved([]);
                       setSelectedRawText(null);
+                      setBoxSelection(null);
                     }}
                     className="rounded border border-cyan-500/20 bg-transparent px-2 py-1 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
                   >
@@ -329,8 +354,9 @@ export default function HomePage() {
                       className="flex min-w-0 flex-1 flex-col text-left"
                       onClick={() => {
                         setSelectedId(p.id);
-                        setData(p.data);
+                        setData(resolvePalletData(p));
                         setSelectedRawText(p.rawText ?? null);
+                        setBoxSelection(null);
                       }}
                     >
                       <span className="truncate text-slate-100">{p.name}</span>
@@ -350,12 +376,14 @@ export default function HomePage() {
                         if (selectedId === p.id) {
                           if (next[0]) {
                             setSelectedId(next[0].id);
-                            setData(next[0].data);
+                            setData(resolvePalletData(next[0]));
                             setSelectedRawText(next[0].rawText ?? null);
+                            setBoxSelection(null);
                           } else {
                             setSelectedId(null);
                             setData(null);
                             setSelectedRawText(null);
+                            setBoxSelection(null);
                           }
                         }
                       }}
@@ -367,9 +395,20 @@ export default function HomePage() {
               </div>
             </aside>
 
-            {/* Center: viewer */}
-            <div className="order-1 flex-1 overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 shadow-inner shadow-cyan-500/10 min-h-[320px] sm:min-h-[420px] xl:order-2 xl:h-[70vh]">
-              <RobViewer data={data} />
+            {/* Center: viewer with layer rail alongside */}
+            <div className="order-1 flex min-w-0 flex-1 items-stretch gap-1 xl:order-2">
+              <div className="relative min-h-[320px] min-w-0 flex-1 overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 shadow-inner shadow-cyan-500/10 sm:min-h-[420px] xl:h-[70vh]">
+                <RobViewer
+                  data={data}
+                  visibleUpToLayer={visibleUpToLayer}
+                  onBoxSelect={setBoxSelection}
+                />
+              </div>
+              <LayerSlider
+                layerCount={data.layer_count}
+                value={visibleUpToLayer}
+                onChange={setVisibleUpToLayer}
+              />
             </div>
             {/* Right: info */}
             <aside className="order-3 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-3 xl:w-[260px] xl:shrink-0">
@@ -396,6 +435,47 @@ export default function HomePage() {
                   )}
                 </div>
               </div>
+
+              <h2 className="mb-3 mt-5 text-base font-semibold text-cyan-200">Selected Box</h2>
+              {boxSelection ? (
+                <div className="space-y-2 text-slate-100">
+                  <div>
+                    <span className="text-slate-400">Place X:</span> {boxSelection.placeX}
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Place Y:</span> {boxSelection.placeY}
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Place Z:</span> {boxSelection.placeZ}
+                    <span className="text-slate-500"> (Oberkante, ohne Palette)</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Grip packages:</span> {boxSelection.numPackages}
+                    {boxSelection.gripBoxCount !== boxSelection.numPackages
+                      ? ` (${boxSelection.gripBoxCount} highlighted)`
+                      : null}
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Rotation:</span> {boxSelection.rotation}°
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Layer (from bottom):</span>{" "}
+                    {boxSelection.layerIndex + 1}
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Zwischenlage:</span>{" "}
+                    {boxSelection.zwischenlage ? `yes (${boxSelection.zwischenlage})` : "no"}
+                  </div>
+                  <div>
+                    <span className="text-slate-400">Grip #:</span> {boxSelection.blueNumber}
+                  </div>
+                  <div className="pt-1 text-xs text-slate-400">
+                    Box center: {boxSelection.rect.x}, {boxSelection.rect.y}
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-slate-400">Click a box to highlight its grip group and show place coordinates.</p>
+              )}
             </aside>
           </div>
         )}
