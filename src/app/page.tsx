@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { InterlayerControls } from "~/components/InterlayerControls";
 import { LayerEditor2D } from "~/components/LayerEditor2D";
 import { LayerSlider } from "~/components/LayerSlider";
 import { RobViewer, type BoxSelection } from "~/components/RobViewer";
 import {
+  applyBaseInterlayerEdit,
   applyGripEdit,
+  applyInterlayerAfterLayerEdit,
   parseRobText,
   serializeRobText,
   type Grip,
@@ -439,9 +442,25 @@ export default function HomePage() {
       const edited = applyGripEdit(data, selectedUniqueLayerId, nextGrips);
       const newline =
         selectedRawText?.includes("\r\n") === true ? "\r\n" : "\n";
-      commitEditedRawText(serializeRobText(edited, { newline }));
+      commitEditedRawText(
+        serializeRobText(edited, { newline, separator: "\t" }),
+      );
     },
     [commitEditedRawText, data, selectedRawText, selectedUniqueLayerId],
+  );
+
+  const commitInterlayerEdit = useCallback(
+    (edit: (current: NonNullable<typeof data>) => NonNullable<typeof data>) => {
+      if (!data) return;
+      const edited = edit(data);
+      if (edited === data) return;
+      const newline =
+        selectedRawText?.includes("\r\n") === true ? "\r\n" : "\n";
+      commitEditedRawText(
+        serializeRobText(edited, { newline, separator: "\t" }),
+      );
+    },
+    [commitEditedRawText, data, selectedRawText],
   );
 
   const triggerDownload = useCallback((filename: string, contents: string) => {
@@ -656,7 +675,7 @@ export default function HomePage() {
             structure.
           </div>
         )}
-        {viewedData && viewedData.total_boxes > 0 && (
+        {viewedData && viewedData.total_boxes > 0 && !editMode && (
           <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,280px)] xl:items-start xl:gap-8">
             {/* Left: saved list */}
             <aside className="order-2 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-1 xl:w-[240px] xl:shrink-0">
@@ -948,6 +967,26 @@ export default function HomePage() {
             onUndo={undoEdit}
             onRedo={redoEdit}
             onResetToOriginal={resetToOriginal}
+            interlayerEditor={
+              <InterlayerControls
+                layers={data.layers}
+                trailingZwischenlage={data.trailingZwischenlage ?? 0}
+                onBaseChange={(zwischenlage) =>
+                  commitInterlayerEdit((current) =>
+                    applyBaseInterlayerEdit(current, zwischenlage),
+                  )
+                }
+                onLayerChange={(layerIndex, zwischenlage) =>
+                  commitInterlayerEdit((current) =>
+                    applyInterlayerAfterLayerEdit(
+                      current,
+                      layerIndex,
+                      zwischenlage,
+                    ),
+                  )
+                }
+              />
+            }
             layerSelector={
               <label className="flex min-w-[250px] flex-col gap-1 text-xs text-slate-400">
                 <span>Layer pattern</span>

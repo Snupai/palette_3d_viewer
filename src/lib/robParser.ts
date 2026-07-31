@@ -45,7 +45,9 @@ export interface Layer {
   unique_layer_id: number;
   boxes: Box[];
   /**
-   * Zwischenlage under this layer (from .rob layer-order column 2).
+   * Zwischenlage under this physical layer.
+   * Layer 1 reads it from the second value on line 5; later layers read it
+   * from the second value of the preceding layer-order row.
    * Typically 0 or 1; multiplied by {@link ZWISCHENLAGE_HEIGHT_MM} for Z.
    */
   zwischenlage: number;
@@ -60,6 +62,10 @@ export interface PalletData {
   package: { width: number; length: number; height: number };
   pallet: { width: number; length: number; height: number } | null;
   inputDirection: 0 | 1;
+  /** Whether the optional input-direction value was present on package line 2. */
+  inputDirectionExplicit?: boolean;
+  /** Final .rob layer-order flag after the top layer; kept for round-tripping. */
+  trailingZwischenlage?: number;
 }
 
 /** Thickness of one Zwischenlage in mm (matches robot `Dicke_ZwLagen`). */
@@ -522,6 +528,48 @@ export function applyGripEdit(
   };
 }
 
+function normalizedInterlayerValue(zwischenlage: number): number {
+  return Math.max(0, Math.trunc(zwischenlage));
+}
+
+export function applyBaseInterlayerEdit(
+  data: PalletData,
+  zwischenlage: number,
+): PalletData {
+  if (data.layers.length === 0) return data;
+  const normalized = normalizedInterlayerValue(zwischenlage);
+  if (data.layers[0]?.zwischenlage === normalized) return data;
+
+  return {
+    ...data,
+    layers: data.layers.map((layer, index) =>
+      index === 0 ? { ...layer, zwischenlage: normalized } : layer,
+    ),
+  };
+}
+
+export function applyInterlayerAfterLayerEdit(
+  data: PalletData,
+  layerIndex: number,
+  zwischenlage: number,
+): PalletData {
+  if (layerIndex < 0 || layerIndex >= data.layers.length) return data;
+  const normalized = normalizedInterlayerValue(zwischenlage);
+  if (layerIndex === data.layers.length - 1) {
+    if ((data.trailingZwischenlage ?? 0) === normalized) return data;
+    return { ...data, trailingZwischenlage: normalized };
+  }
+
+  const nextLayerIndex = layerIndex + 1;
+  if (data.layers[nextLayerIndex]?.zwischenlage === normalized) return data;
+  return {
+    ...data,
+    layers: data.layers.map((layer, index) =>
+      index === nextLayerIndex ? { ...layer, zwischenlage: normalized } : layer,
+    ),
+  };
+}
+
 export function splitGrip(
   grip: Grip,
   packageWidth: number,
@@ -731,6 +779,7 @@ export function parseRobText(text: string): PalletData {
   // width/length for boxes only (do not change stored package dims).
   const input_direction: 0 | 1 =
     packageDimensions.length > 3 && packageDimensions[3] === 1 ? 1 : 0;
+  const inputDirectionExplicit = packageDimensions.length > 3;
 
   const uniqueLayersLine = lines[2];
   const layersCountLine = lines[3];
@@ -738,6 +787,13 @@ export function parseRobText(text: string): PalletData {
     throw new Error("Unexpected .rob format: missing layer count lines");
   const num_unique_layers = parseInt(uniqueLayersLine.trim(), 10);
   const num_layers = parseInt(layersCountLine.trim(), 10);
+  const layerOrderHeaderParts = (lines[4] ?? "")
+    .trim()
+    .split(/\s+/)
+    .map((n) => parseInt(n, 10));
+  const firstLayerZwischenlage = Number.isFinite(layerOrderHeaderParts[1])
+    ? layerOrderHeaderParts[1]!
+    : 0;
 
   const layer_order: Array<{ unique_layer_id: number; zwischenlage: number }> =
     [];
@@ -821,14 +877,18 @@ export function parseRobText(text: string): PalletData {
   }
 
   const layers: Layer[] = [];
-  for (const entry of layer_order) {
+  for (let layerIndex = 0; layerIndex < layer_order.length; layerIndex++) {
+    const entry = layer_order[layerIndex]!;
     let idx = entry.unique_layer_id - 1;
     if (idx < 0) idx = unique_layers.length - 1; // mimic Python negative index behavior when num==0
     const src = unique_layers[idx];
     layers.push({
       unique_layer_id: entry.unique_layer_id,
       boxes: src ? src.boxes : [],
-      zwischenlage: entry.zwischenlage,
+      zwischenlage:
+        layerIndex === 0
+          ? firstLayerZwischenlage
+          : (layer_order[layerIndex - 1]?.zwischenlage ?? 0),
     });
   }
 
@@ -845,6 +905,8 @@ export function parseRobText(text: string): PalletData {
     },
     pallet: palletDims,
     inputDirection: input_direction,
+    inputDirectionExplicit,
+    trailingZwischenlage: layer_order.at(-1)?.zwischenlage ?? 0,
   };
 }
 
@@ -892,9 +954,10 @@ function legacyGripsForUniqueLayer(
 
 export function serializeRobText(
   data: PalletData,
-  opts?: { newline?: "\n" | "\r\n" },
+  opts?: { newline?: "\n" | "\r\n"; separator?: " " | "\t" },
 ): string {
   const newline = opts?.newline ?? "\n";
+  const separator = opts?.separator ?? " ";
   const uniqueLayerIds = Object.keys(data.uniqueLayers ?? {})
     .map(Number)
     .filter((id) => Number.isInteger(id) && id > 0);
@@ -903,20 +966,32 @@ export function serializeRobText(
     .filter((id) => Number.isInteger(id) && id > 0);
   const numUniqueLayers = Math.max(0, ...uniqueLayerIds, ...layerIds);
   const palletLine = data.pallet
-    ? `${data.pallet.width} ${data.pallet.length} ${data.pallet.height}`
-    : "0 0 0";
+    ? [data.pallet.width, data.pallet.length, data.pallet.height].join(
+        separator,
+      )
+    : [0, 0, 0].join(separator);
   const inputDirection = data.inputDirection ?? 0;
-  const packageLine =
-    `${data.package.width} ${data.package.length} ${data.package.height}` +
-    (inputDirection === 1 ? " 1" : "");
+  const packageLine = [
+    data.package.width,
+    data.package.length,
+    data.package.height,
+    ...(inputDirection === 1 || data.inputDirectionExplicit
+      ? [inputDirection]
+      : []),
+  ].join(separator);
   const lines = [
     palletLine,
     packageLine,
     String(numUniqueLayers),
     String(data.layers.length),
-    "",
-    ...data.layers.map(
-      (layer) => `${layer.unique_layer_id} ${layer.zwischenlage ?? 0}`,
+    [0, data.layers[0]?.zwischenlage ?? 0].join(separator),
+    ...data.layers.map((layer, layerIndex) =>
+      [
+        layer.unique_layer_id,
+        data.layers[layerIndex + 1]?.zwischenlage ??
+          data.trailingZwischenlage ??
+          0,
+      ].join(separator),
     ),
   ];
 
@@ -949,7 +1024,7 @@ export function serializeRobText(
           grip.numPackages,
           grip.dx,
           grip.dy,
-        ].join(" "),
+        ].join(separator),
       );
     }
   }

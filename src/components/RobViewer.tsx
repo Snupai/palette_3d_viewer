@@ -6,7 +6,12 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Box, PalletData } from "~/lib/robParser";
-import { footprintSize, layerPlaceZ, layerZBottom } from "~/lib/robParser";
+import {
+  footprintSize,
+  layerPlaceZ,
+  layerZBottom,
+  ZWISCHENLAGE_HEIGHT_MM,
+} from "~/lib/robParser";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
 const GRIPPER_OBJ = "10_01_43_00016.obj";
@@ -98,6 +103,15 @@ type LayerRender = {
   solidMesh: THREE.Mesh;
   solidEdges: THREE.LineSegments;
   pickEntries: BoxPickEntry[];
+};
+
+type InterlayerRender = {
+  layerNum: number;
+  isAboveLayer: boolean;
+  mesh: THREE.Mesh;
+  edges: THREE.LineSegments;
+  opaqueMaterial: THREE.MeshPhongMaterial;
+  exposedMaterial: THREE.MeshPhongMaterial;
 };
 
 function placeOf(box: Box): {
@@ -243,6 +257,7 @@ export function RobViewer({
   onBoxSelectRef.current = onBoxSelect;
 
   const layerRendersRef = useRef<LayerRender[]>([]);
+  const interlayerRendersRef = useRef<InterlayerRender[]>([]);
   const highlightGroupRef = useRef<THREE.Group | null>(null);
   const applyHighlightRef = useRef<((entry: BoxPickEntry) => void) | null>(
     null,
@@ -264,7 +279,7 @@ export function RobViewer({
     const camera = new THREE.PerspectiveCamera(
       45,
       container.clientWidth / container.clientHeight,
-      0.1,
+      1,
       10000,
     );
     camera.up.set(0, 0, 1);
@@ -313,8 +328,29 @@ export function RobViewer({
       depthTest: true,
       depthWrite: false,
     });
+    const interlayerMat = new THREE.MeshPhongMaterial({
+      color: 0xd6c49a,
+      shininess: 3,
+      side: THREE.DoubleSide,
+    });
+    const topInterlayerMat = new THREE.MeshPhongMaterial({
+      color: 0xd6c49a,
+      shininess: 3,
+      side: THREE.DoubleSide,
+      transparent: true,
+      opacity: 0.35,
+      depthWrite: false,
+    });
+    const interlayerEdgeMat = new THREE.LineBasicMaterial({
+      color: 0xffedbd,
+      transparent: true,
+      opacity: 0.9,
+      depthTest: true,
+      depthWrite: false,
+    });
 
     const layerRenders: LayerRender[] = [];
+    const interlayerRenders: InterlayerRender[] = [];
     const allBounds = new THREE.Box3();
     let hasBounds = false;
 
@@ -440,10 +476,85 @@ export function RobViewer({
       solidEdges.renderOrder = 2;
       scene.add(solidEdges);
 
-      layerRenders.push({ layerNum, solidMesh, solidEdges, pickEntries });
+      layerRenders.push({
+        layerNum,
+        solidMesh,
+        solidEdges,
+        pickEntries,
+      });
+    }
+
+    const interlayerWidth = data.pallet?.width ?? 1200;
+    const interlayerLength = data.pallet?.length ?? 800;
+    const addInterlayerRender = (
+      layerNum: number,
+      bottomZ: number,
+      count: number,
+      isAboveLayer: boolean,
+    ) => {
+      const normalizedCount = Math.max(0, Math.trunc(count));
+      if (normalizedCount === 0) return;
+      const height = normalizedCount * ZWISCHENLAGE_HEIGHT_MM;
+      const geometry = new THREE.BoxGeometry(
+        interlayerWidth,
+        interlayerLength,
+        height,
+      );
+      const mesh = new THREE.Mesh(geometry, interlayerMat);
+      mesh.position.set(
+        interlayerWidth / 2,
+        interlayerLength / 2,
+        bottomZ + height / 2,
+      );
+      mesh.renderOrder = 0;
+      scene.add(mesh);
+
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry),
+        interlayerEdgeMat,
+      );
+      edges.position.copy(mesh.position);
+      edges.renderOrder = 2;
+      scene.add(edges);
+      interlayerRenders.push({
+        layerNum,
+        isAboveLayer,
+        mesh,
+        edges,
+        opaqueMaterial: interlayerMat,
+        exposedMaterial: topInterlayerMat,
+      });
+
+      allBounds.union(
+        new THREE.Box3().setFromCenterAndSize(
+          mesh.position,
+          new THREE.Vector3(interlayerWidth, interlayerLength, height),
+        ),
+      );
+      hasBounds = true;
+    };
+
+    if (data.layers.length > 0) {
+      addInterlayerRender(0, 0, data.layers[0]?.zwischenlage ?? 0, false);
+      for (let layerIdx = 0; layerIdx < data.layers.length - 1; layerIdx++) {
+        addInterlayerRender(
+          layerIdx,
+          layerPlaceZ(data.layers, layerIdx, data.package.height),
+          data.layers[layerIdx + 1]?.zwischenlage ?? 0,
+          true,
+        );
+      }
+      const topLayerIdx = data.layers.length - 1;
+      addInterlayerRender(
+        topLayerIdx,
+        layerPlaceZ(data.layers, topLayerIdx, data.package.height),
+        data.trailingZwischenlage ?? 0,
+        true,
+      );
     }
 
     layerRendersRef.current = layerRenders;
+    interlayerRendersRef.current = interlayerRenders;
 
     const applyLayerVisibility = (upTo: number) => {
       const maxSolid = Math.min(
@@ -454,6 +565,17 @@ export function RobViewer({
         const solid = lr.layerNum + 1 <= maxSolid;
         lr.solidMesh.visible = solid;
         lr.solidEdges.visible = solid;
+      }
+      for (const interlayer of interlayerRenders) {
+        const visible = interlayer.layerNum + 1 <= maxSolid;
+        const exposed =
+          interlayer.isAboveLayer && interlayer.layerNum + 1 === maxSolid;
+        interlayer.mesh.visible = visible;
+        interlayer.edges.visible = visible;
+        interlayer.mesh.material = exposed
+          ? interlayer.exposedMaterial
+          : interlayer.opaqueMaterial;
+        interlayer.mesh.renderOrder = exposed ? 1 : 0;
       }
     };
     applyLayerVisibility(visibleUpToRef.current);
@@ -640,11 +762,14 @@ export function RobViewer({
     applyHighlightRef.current = applyHighlight;
 
     let centerForControls: THREE.Vector3 | null = null;
+    let maxOrbitDistance = camera.far * 0.8;
     if (hasBounds && !allBounds.isEmpty()) {
       const size = new THREE.Vector3();
       allBounds.getSize(size);
       const center = new THREE.Vector3();
       allBounds.getCenter(center);
+      const boundingSphere = new THREE.Sphere();
+      allBounds.getBoundingSphere(boundingSphere);
       centerForControls = center.clone();
       const maxSize = Math.max(size.x, size.y, size.z);
       const distance = maxSize * 1.8 + 500;
@@ -654,12 +779,19 @@ export function RobViewer({
         center.z + distance,
       );
       camera.lookAt(center);
+
+      const initialOrbitDistance = camera.position.distanceTo(center);
+      maxOrbitDistance = initialOrbitDistance * 3;
+      camera.near = THREE.MathUtils.clamp(boundingSphere.radius / 100, 1, 10);
+      camera.far = maxOrbitDistance + boundingSphere.radius * 2;
+      camera.updateProjectionMatrix();
     }
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.05;
     controls.screenSpacePanning = true;
+    controls.maxDistance = maxOrbitDistance;
     controls.target.copy(centerForControls ?? new THREE.Vector3(600, 400, 300));
     controls.update();
 
@@ -781,6 +913,13 @@ export function RobViewer({
       placeMarkerMat.dispose();
       solidMat.dispose();
       solidEdgeMat.dispose();
+      interlayerMat.dispose();
+      topInterlayerMat.dispose();
+      interlayerEdgeMat.dispose();
+      for (const interlayer of interlayerRenders) {
+        interlayer.mesh.geometry.dispose();
+        interlayer.edges.geometry.dispose();
+      }
       gripperHolder.traverse((obj) => {
         if (!(obj instanceof THREE.Mesh)) return;
         (obj.geometry as THREE.BufferGeometry).dispose();
@@ -792,6 +931,7 @@ export function RobViewer({
         }
       });
       layerRendersRef.current = [];
+      interlayerRendersRef.current = [];
       highlightGroupRef.current = null;
       applyHighlightRef.current = null;
       clearHighlightRef.current = null;
@@ -812,7 +952,8 @@ export function RobViewer({
   // Update layer visibility without rebuilding the scene
   useEffect(() => {
     const layerRenders = layerRendersRef.current;
-    if (layerRenders.length === 0) return;
+    const interlayerRenders = interlayerRendersRef.current;
+    if (layerRenders.length === 0 && interlayerRenders.length === 0) return;
     const maxSolid = Math.min(
       Math.max(1, visibleUpToLayer),
       Math.max(1, data.layers.length),
@@ -821,6 +962,17 @@ export function RobViewer({
       const solid = lr.layerNum + 1 <= maxSolid;
       lr.solidMesh.visible = solid;
       lr.solidEdges.visible = solid;
+    }
+    for (const interlayer of interlayerRenders) {
+      const visible = interlayer.layerNum + 1 <= maxSolid;
+      const exposed =
+        interlayer.isAboveLayer && interlayer.layerNum + 1 === maxSolid;
+      interlayer.mesh.visible = visible;
+      interlayer.edges.visible = visible;
+      interlayer.mesh.material = exposed
+        ? interlayer.exposedMaterial
+        : interlayer.opaqueMaterial;
+      interlayer.mesh.renderOrder = exposed ? 1 : 0;
     }
     // Keep selection if its layer is still visible; otherwise clear
     const selected = selectedEntryRef.current;

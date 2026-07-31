@@ -42,6 +42,7 @@ type LayerEditor2DProps = {
   onRedo: () => void;
   onResetToOriginal: () => void;
   layerSelector?: ReactNode;
+  interlayerEditor?: ReactNode;
 };
 
 type DragState = {
@@ -218,6 +219,7 @@ export function LayerEditor2D({
   onRedo,
   onResetToOriginal,
   layerSelector,
+  interlayerEditor,
 }: LayerEditor2DProps) {
   const palletWidth = pallet?.width ?? 1200;
   const palletLength = pallet?.length ?? 800;
@@ -723,7 +725,7 @@ export function LayerEditor2D({
   );
 
   return (
-    <section className="rounded border border-cyan-500/15 bg-slate-900/70 p-4 shadow-lg shadow-cyan-500/10 backdrop-blur">
+    <section className="flex min-h-[calc(100dvh-10rem)] flex-col rounded border border-cyan-500/15 bg-slate-900/70 p-4 shadow-lg shadow-cyan-500/10 backdrop-blur">
       <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         <div>
           <h2 className="text-base font-semibold text-cyan-200">
@@ -733,6 +735,36 @@ export function LayerEditor2D({
             Dragging moves pick and place together. Shift-click packages to
             build a merge selection.
           </p>
+          <div
+            className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400"
+            aria-label="Delta marker legend"
+          >
+            <span className="inline-flex items-center gap-1.5">
+              <span
+                className="h-1 w-5 rounded-full bg-sky-400"
+                aria-hidden="true"
+              />
+              Cyan edge/corner = side selected by dx/dy
+            </span>
+            <span className="inline-flex items-center gap-1.5">
+              <svg
+                viewBox="0 0 24 8"
+                className="h-2 w-6 text-amber-400"
+                aria-hidden="true"
+              >
+                <circle cx="3" cy="4" r="2" fill="currentColor" />
+                <path
+                  d="M 5 4 H 19 M 16 1 L 20 4 L 16 7"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.5"
+                />
+              </svg>
+              Yellow arrow = dx/dy direction from grip center
+            </span>
+          </div>
         </div>
         {layerSelector}
         <div className="flex flex-wrap gap-2">
@@ -826,14 +858,16 @@ export function LayerEditor2D({
         </div>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
-        <div className="min-h-[300px] overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 p-3">
+      {interlayerEditor}
+
+      <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="min-h-[60vh] overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 p-3 lg:min-h-0">
           <svg
             ref={svgRef}
             viewBox={`0 0 ${palletWidth} ${palletLength}`}
             role="application"
             aria-label={`Top-down editor for unique layer ${uniqueLayerId}`}
-            className="h-full min-h-[276px] w-full touch-none"
+            className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none lg:min-h-0"
             onPointerDown={(event) => {
               if (event.target !== event.currentTarget) return;
               onSelectGrip(null);
