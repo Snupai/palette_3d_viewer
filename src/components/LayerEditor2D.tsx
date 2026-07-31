@@ -13,6 +13,7 @@ import {
   findGripCollision,
   footprintSize,
   gripsToBoxes,
+  insertMergedGripByDeltaDependencies,
   mergeGrips,
   pickOffsetForCount,
   splitGrip,
@@ -32,6 +33,14 @@ type LayerEditor2DProps = {
   isSaving: boolean;
   onSave: () => void;
   onDiscard: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
+  historyPosition: number;
+  historyLength: number;
+  canResetToOriginal: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onResetToOriginal: () => void;
   layerSelector?: ReactNode;
 };
 
@@ -61,7 +70,9 @@ type NumericDraft = {
 
 const INPUT_CLASS =
   "w-full rounded border border-cyan-500/20 bg-slate-950/50 px-2 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-0";
-const COLLISION_MESSAGE = "Boxes cannot overlap. The change was not applied.";
+const COLLISION_MESSAGE = "Boxes cannot overlap. Position restored.";
+const DRAG_COLLISION_MESSAGE =
+  "Boxes cannot overlap. Stopped at the last valid position.";
 
 function createGripId(): string {
   return (
@@ -198,6 +209,14 @@ export function LayerEditor2D({
   isSaving,
   onSave,
   onDiscard,
+  canUndo,
+  canRedo,
+  historyPosition,
+  historyLength,
+  canResetToOriginal,
+  onUndo,
+  onRedo,
+  onResetToOriginal,
   layerSelector,
 }: LayerEditor2DProps) {
   const palletWidth = pallet?.width ?? 1200;
@@ -275,6 +294,40 @@ export function LayerEditor2D({
       inputDirection,
     ) !== null;
 
+  const clampDragPosition = (
+    gripIndex: number,
+    grip: Grip,
+    fromX: number,
+    fromY: number,
+    toX: number,
+    toY: number,
+  ) => {
+    const steps = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
+    let x = fromX;
+    let y = fromY;
+    if (steps === 0) return { x, y, collided: false };
+
+    for (let step = 1; step <= steps; step++) {
+      const candidateX = Math.round(fromX + ((toX - fromX) * step) / steps);
+      const candidateY = Math.round(fromY + ((toY - fromY) * step) / steps);
+      if (candidateX === x && candidateY === y) continue;
+      const candidate = { ...grip, x: candidateX, y: candidateY };
+      const collides =
+        findGripCollision(
+          withReplacedGrip(gripIndex, candidate),
+          packageWidth,
+          packageLength,
+          inputDirection,
+          gripIndex,
+        ) !== null;
+      if (collides) return { x, y, collided: true };
+      x = candidateX;
+      y = candidateY;
+    }
+
+    return { x, y, collided: false };
+  };
+
   const replaceGrip = (index: number, nextGrip: Grip) => {
     onCommitGrips(withReplacedGrip(index, nextGrip));
   };
@@ -338,26 +391,23 @@ export function LayerEditor2D({
     const y = Math.round(point.y - drag.offsetY);
     const currentGrip = grips[drag.gripIndex];
     if (!currentGrip || currentGrip.id !== drag.gripId) return;
-    const candidate = {
-      ...currentGrip,
+    const clamped = clampDragPosition(
+      drag.gripIndex,
+      currentGrip,
+      drag.x,
+      drag.y,
       x,
       y,
-      pickX: x + drag.pickPlaceOffsetX,
-      pickY: y + drag.pickPlaceOffsetY,
-    };
-    if (hasCollision(withReplacedGrip(drag.gripIndex, candidate))) {
-      setMessage(COLLISION_MESSAGE);
-      return;
-    }
-    setMessage(null);
+    );
+    setMessage(clamped.collided ? DRAG_COLLISION_MESSAGE : null);
     setDrag((current) =>
       current
         ? {
             ...current,
-            x,
-            y,
-            pickX: x + current.pickPlaceOffsetX,
-            pickY: y + current.pickPlaceOffsetY,
+            x: clamped.x,
+            y: clamped.y,
+            pickX: clamped.x + current.pickPlaceOffsetX,
+            pickY: clamped.y + current.pickPlaceOffsetY,
           }
         : null,
     );
@@ -371,19 +421,16 @@ export function LayerEditor2D({
     if (!point || !currentGrip || currentGrip.id !== drag.gripId) return;
     const pointerX = Math.round(point.x - drag.offsetX);
     const pointerY = Math.round(point.y - drag.offsetY);
-    const pointerCandidate = {
-      ...currentGrip,
-      pickX: pointerX + drag.pickPlaceOffsetX,
-      pickY: pointerY + drag.pickPlaceOffsetY,
-      x: pointerX,
-      y: pointerY,
-    };
-    const pointerCollides = hasCollision(
-      withReplacedGrip(drag.gripIndex, pointerCandidate),
+    const clamped = clampDragPosition(
+      drag.gripIndex,
+      currentGrip,
+      drag.x,
+      drag.y,
+      pointerX,
+      pointerY,
     );
-    const x = pointerCollides ? drag.x : pointerX;
-    const y = pointerCollides ? drag.y : pointerY;
-    if (pointerCollides) setMessage(COLLISION_MESSAGE);
+    const { x, y } = clamped;
+    if (clamped.collided) setMessage(DRAG_COLLISION_MESSAGE);
     if (x === currentGrip.x && y === currentGrip.y) return;
     replaceGrip(drag.gripIndex, {
       ...currentGrip,
@@ -498,24 +545,35 @@ export function LayerEditor2D({
     );
     if (!merged) {
       setMessage(
-        "Selected packages must share compatible pick/place rotations, pick origins, and even place spacing.",
+        "Packages can only be grouped when they are single, aligned, and their width faces touch.",
       );
       return;
     }
 
-    const firstIndex = Math.min(...mergeSelection);
-    const next: Grip[] = [];
-    grips.forEach((grip, index) => {
-      if (index === firstIndex) next.push(merged);
-      if (!mergeSelection.has(index)) next.push(grip);
-    });
+    const placement = insertMergedGripByDeltaDependencies(
+      grips,
+      mergeSelection,
+      merged,
+      packageWidth,
+      packageLength,
+      inputDirection,
+    );
+    if (!placement) {
+      setMessage(
+        "These packages cannot be merged because their dx/dy placement dependencies conflict.",
+      );
+      return;
+    }
+    const { grips: next, mergedIndex } = placement;
     if (hasCollision(next)) {
       setMessage(COLLISION_MESSAGE);
       return;
     }
-    setMergeSelection(new Set([firstIndex]));
-    setMessage(`${selected.length} packages merged into one grip.`);
-    onSelectGrip(firstIndex);
+    setMergeSelection(new Set([mergedIndex]));
+    setMessage(
+      `${selected.length} packages merged and aligned; dx/dy placement order preserved.`,
+    );
+    onSelectGrip(mergedIndex);
     onCommitGrips(next);
   };
 
@@ -678,7 +736,7 @@ export function LayerEditor2D({
         </div>
         {layerSelector}
         <div className="flex flex-wrap gap-2">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span
               className={`text-xs ${
                 hasUnsavedChanges ? "text-amber-200" : "text-emerald-200"
@@ -702,6 +760,36 @@ export function LayerEditor2D({
               className="cursor-pointer rounded border border-amber-400/30 px-3 py-1.5 text-xs font-medium text-amber-100 transition hover:bg-amber-500/10 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Discard changes
+            </button>
+            <button
+              type="button"
+              onClick={onUndo}
+              disabled={!canUndo || isSaving}
+              className="cursor-pointer rounded border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={onRedo}
+              disabled={!canRedo || isSaving}
+              className="cursor-pointer rounded border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Redo
+            </button>
+            <span
+              className="self-center rounded bg-slate-950/50 px-2 py-1 font-mono text-[11px] text-slate-400"
+              role="status"
+            >
+              History {historyPosition}/{historyLength}
+            </span>
+            <button
+              type="button"
+              onClick={onResetToOriginal}
+              disabled={!canResetToOriginal || isSaving}
+              className="cursor-pointer rounded border border-rose-400/30 px-3 py-1.5 text-xs font-medium text-rose-200 transition hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Reset to original
             </button>
           </div>
           <button

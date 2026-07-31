@@ -251,6 +251,7 @@ export function findGripCollision(
   packageWidth: number,
   packageLength: number,
   inputDirection: 0 | 1,
+  focusGripIndex?: number,
 ): GripCollision | null {
   const boxesByGrip = grips.map((grip) =>
     gripsToBoxes([grip], packageWidth, packageLength, 0, inputDirection),
@@ -270,6 +271,13 @@ export function findGripCollision(
       secondGripIndex < boxesByGrip.length;
       secondGripIndex++
     ) {
+      if (
+        focusGripIndex !== undefined &&
+        firstGripIndex !== focusGripIndex &&
+        secondGripIndex !== focusGripIndex
+      ) {
+        continue;
+      }
       const secondBoxes = boxesByGrip[secondGripIndex] ?? [];
       for (const first of firstBoxes) {
         const firstSize = footprintSize(first);
@@ -302,6 +310,187 @@ export function findGripCollision(
   }
 
   return null;
+}
+
+type BoxBounds = {
+  left: number;
+  right: number;
+  bottom: number;
+  top: number;
+};
+
+type GripDependency = {
+  prerequisiteIndex: number;
+  dependentIndex: number;
+};
+
+function buildGripDeltaDependencies(
+  grips: Grip[],
+  packageWidth: number,
+  packageLength: number,
+  inputDirection: 0 | 1,
+): GripDependency[] {
+  const boundsByGrip = grips.map((grip) =>
+    gripsToBoxes([grip], packageWidth, packageLength, 0, inputDirection).map(
+      (box): BoxBounds => {
+        const size = footprintSize(box);
+        return {
+          left: box.rect.x - size.width / 2,
+          right: box.rect.x + size.width / 2,
+          bottom: box.rect.y - size.length / 2,
+          top: box.rect.y + size.length / 2,
+        };
+      },
+    ),
+  );
+  const coordinateTolerance = 0.500_001;
+  const nearestTolerance = Math.max(
+    coordinateTolerance,
+    Math.min(2, Math.min(packageWidth, packageLength) * 0.01),
+  );
+
+  const nearestInDirection = (
+    sourceIndex: number,
+    axis: "x" | "y",
+    direction: -1 | 1,
+  ): number[] => {
+    const sourceBounds = boundsByGrip[sourceIndex] ?? [];
+    const candidateGaps: { index: number; gap: number }[] = [];
+
+    boundsByGrip.forEach((candidateBounds, candidateIndex) => {
+      if (candidateIndex === sourceIndex) return;
+      let candidateGap = Number.POSITIVE_INFINITY;
+
+      sourceBounds.forEach((source) => {
+        candidateBounds.forEach((candidate) => {
+          const perpendicularOverlap =
+            axis === "x"
+              ? Math.min(source.top, candidate.top) -
+                Math.max(source.bottom, candidate.bottom)
+              : Math.min(source.right, candidate.right) -
+                Math.max(source.left, candidate.left);
+          if (perpendicularOverlap <= coordinateTolerance) return;
+
+          const gap =
+            axis === "x"
+              ? direction > 0
+                ? candidate.left - source.right
+                : source.left - candidate.right
+              : direction > 0
+                ? candidate.bottom - source.top
+                : source.bottom - candidate.top;
+          if (gap < -coordinateTolerance) return;
+          candidateGap = Math.min(candidateGap, Math.max(0, gap));
+        });
+      });
+
+      if (!Number.isFinite(candidateGap)) return;
+      candidateGaps.push({ index: candidateIndex, gap: candidateGap });
+    });
+
+    const nearestGap = Math.min(...candidateGaps.map(({ gap }) => gap));
+    return candidateGaps
+      .filter(({ gap }) => gap - nearestGap <= nearestTolerance)
+      .map(({ index }) => index);
+  };
+
+  const dependencies = new Map<string, GripDependency>();
+  grips.forEach((grip, dependentIndex) => {
+    const axes = [
+      grip.dx === 0
+        ? null
+        : ({ axis: "x", direction: -Math.sign(grip.dx) } as const),
+      grip.dy === 0
+        ? null
+        : ({ axis: "y", direction: -Math.sign(grip.dy) } as const),
+    ].filter(
+      (value): value is { axis: "x" | "y"; direction: -1 | 1 } =>
+        value !== null,
+    );
+
+    axes.forEach(({ axis, direction }) => {
+      nearestInDirection(dependentIndex, axis, direction).forEach(
+        (prerequisiteIndex) => {
+          dependencies.set(`${prerequisiteIndex}:${dependentIndex}`, {
+            prerequisiteIndex,
+            dependentIndex,
+          });
+        },
+      );
+    });
+  });
+
+  return [...dependencies.values()];
+}
+
+/**
+ * Replaces selected grips with one merged grip while retaining their .rob
+ * placement constraints. A grip's dx/dy points toward already placed
+ * reference grips; conversely, other grips whose dx/dy points at a selected
+ * grip must remain after the merged grip.
+ */
+export function insertMergedGripByDeltaDependencies(
+  grips: Grip[],
+  selectedIndices: ReadonlySet<number>,
+  mergedGrip: Grip,
+  packageWidth: number,
+  packageLength: number,
+  inputDirection: 0 | 1,
+): { grips: Grip[]; mergedIndex: number } | null {
+  const selected = new Set(
+    [...selectedIndices].filter((index) => index >= 0 && index < grips.length),
+  );
+  if (selected.size < 2) return null;
+
+  const remaining = grips
+    .map((grip, originalIndex) => ({ grip, originalIndex }))
+    .filter(({ originalIndex }) => !selected.has(originalIndex));
+  const remainingIndexByOriginal = new Map(
+    remaining.map(({ originalIndex }, index) => [originalIndex, index]),
+  );
+  let earliestInsertion = 0;
+  let latestInsertion = remaining.length;
+
+  buildGripDeltaDependencies(
+    grips,
+    packageWidth,
+    packageLength,
+    inputDirection,
+  ).forEach(({ prerequisiteIndex, dependentIndex }) => {
+    const prerequisiteSelected = selected.has(prerequisiteIndex);
+    const dependentSelected = selected.has(dependentIndex);
+    if (prerequisiteSelected === dependentSelected) return;
+
+    if (dependentSelected) {
+      const prerequisitePosition =
+        remainingIndexByOriginal.get(prerequisiteIndex);
+      if (prerequisitePosition !== undefined) {
+        earliestInsertion = Math.max(
+          earliestInsertion,
+          prerequisitePosition + 1,
+        );
+      }
+    } else {
+      const dependentPosition = remainingIndexByOriginal.get(dependentIndex);
+      if (dependentPosition !== undefined) {
+        latestInsertion = Math.min(latestInsertion, dependentPosition);
+      }
+    }
+  });
+
+  if (earliestInsertion > latestInsertion) return null;
+
+  const firstSelectedIndex = Math.min(...selected);
+  const preferredInsertion = remaining.filter(
+    ({ originalIndex }) => originalIndex < firstSelectedIndex,
+  ).length;
+  const mergedIndex = Math.max(
+    earliestInsertion,
+    Math.min(preferredInsertion, latestInsertion),
+  );
+  const next = remaining.map(({ grip }) => grip);
+  next.splice(mergedIndex, 0, mergedGrip);
+  return { grips: next, mergedIndex };
 }
 
 export function applyGripEdit(
@@ -382,29 +571,43 @@ export function mergeGrips(
   packageLength: number,
   inputDirection: 0 | 1,
 ): Grip | null {
+  const first = grips[0];
   if (
+    !first ||
     grips.length < 2 ||
     grips.some(
       (grip) =>
-        grip.numPackages !== 1 ||
-        grip.rotation !== grips[0]?.rotation ||
-        grip.pickRotation !== grips[0]?.pickRotation,
+        grip.numPackages !== 1 || grip.rotation % 180 !== first.rotation % 180,
     )
   ) {
     return null;
   }
 
-  const rotation = grips[0]!.rotation;
-  const pickRotation = grips[0]!.pickRotation;
-  const effectiveWidth = inputDirection === 1 ? packageLength : packageWidth;
+  const rotation = first.rotation;
+  const pickRotation = first.pickRotation;
+  const firstBox = gripsToBoxes(
+    [first],
+    packageWidth,
+    packageLength,
+    0,
+    inputDirection,
+  )[0];
+  if (!firstBox) return null;
+  const firstFootprint = footprintSize(firstBox);
+  // Allow only small manual placement inaccuracies. A successful merge then
+  // snaps every package onto one axis with their grouping faces touching.
+  const alignmentTolerance = Math.max(
+    2,
+    Math.min(10, Math.min(firstFootprint.width, firstFootprint.length) * 0.05),
+  );
   const horizontal = rotation === 0 || rotation === 180;
-  const crossAxis = horizontal ? grips[0]!.y : grips[0]!.x;
-  const tolerance = 0.001;
+  const groupingSpan = horizontal
+    ? firstFootprint.width
+    : firstFootprint.length;
+  const crossAxisValues = grips.map((grip) => (horizontal ? grip.y : grip.x));
   if (
-    grips.some(
-      (grip) =>
-        Math.abs((horizontal ? grip.y : grip.x) - crossAxis) > tolerance,
-    )
+    Math.max(...crossAxisValues) - Math.min(...crossAxisValues) >
+    alignmentTolerance
   ) {
     return null;
   }
@@ -419,8 +622,8 @@ export function mergeGrips(
     const previousAxis = horizontal ? previous.x : previous.y;
     const currentAxis = horizontal ? current.x : current.y;
     if (
-      Math.abs(direction * (currentAxis - previousAxis) - effectiveWidth) >
-      tolerance
+      Math.abs(direction * (currentAxis - previousAxis) - groupingSpan) >
+      alignmentTolerance
     ) {
       return null;
     }
@@ -441,29 +644,27 @@ export function mergeGrips(
         : Math.ceil(value);
   const x = snapAnchor(averageX);
   const y = snapAnchor(averageY);
-  const first = sorted[0]!;
-  const singlePickOffset = pickOffsetForCount(
-    packageWidth,
-    packageLength,
-    inputDirection,
-    pickRotation,
-    1,
-  );
-  const firstPickOrigin = {
-    x: first.pickX - singlePickOffset.x,
-    y: first.pickY - singlePickOffset.y,
-  };
-  if (
-    sorted.some(
-      (grip) =>
-        Math.abs(grip.pickX - singlePickOffset.x - firstPickOrigin.x) >
-          tolerance ||
-        Math.abs(grip.pickY - singlePickOffset.y - firstPickOrigin.y) >
-          tolerance,
-    )
-  ) {
-    return null;
-  }
+  const pickOrigins = sorted.map((grip) => {
+    const singlePickOffset = pickOffsetForCount(
+      packageWidth,
+      packageLength,
+      inputDirection,
+      grip.pickRotation,
+      1,
+    );
+    return {
+      x: grip.pickX - singlePickOffset.x,
+      y: grip.pickY - singlePickOffset.y,
+    };
+  });
+  const pickOriginXs = pickOrigins.map((origin) => origin.x);
+  const pickOriginYs = pickOrigins.map((origin) => origin.y);
+  const averagePickOriginX =
+    pickOriginXs.reduce((total, value) => total + value, 0) /
+    pickOriginXs.length;
+  const averagePickOriginY =
+    pickOriginYs.reduce((total, value) => total + value, 0) /
+    pickOriginYs.length;
   const mergedPickOffset = pickOffsetForCount(
     packageWidth,
     packageLength,
@@ -472,20 +673,20 @@ export function mergeGrips(
     sorted.length,
   );
   const sameOffset = sorted.every(
-    (grip) => grip.dx === first.dx && grip.dy === first.dy,
+    (grip) => grip.dx === sorted[0]!.dx && grip.dy === sorted[0]!.dy,
   );
 
   return {
     id: createGripId(),
-    pickX: firstPickOrigin.x + mergedPickOffset.x,
-    pickY: firstPickOrigin.y + mergedPickOffset.y,
+    pickX: snapAnchor(averagePickOriginX + mergedPickOffset.x),
+    pickY: snapAnchor(averagePickOriginY + mergedPickOffset.y),
     pickRotation,
     x,
     y,
     rotation,
     numPackages: sorted.length,
-    dx: sameOffset ? first.dx : 0,
-    dy: sameOffset ? first.dy : 0,
+    dx: sameOffset ? sorted[0]!.dx : 0,
+    dy: sameOffset ? sorted[0]!.dy : 0,
   };
 }
 

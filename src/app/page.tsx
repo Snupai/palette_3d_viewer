@@ -45,7 +45,26 @@ type SavedPallet = {
   originalRawText?: string;
 };
 
+type PlanView = "original" | "edited";
+
+type EditHistory = {
+  entries: string[];
+  index: number;
+};
+
 const STORAGE_KEY = "saved_pallets_v1";
+const MAX_EDIT_HISTORY = 100;
+
+function createEditHistory(rawText: string | null): EditHistory {
+  return rawText === null
+    ? { entries: [], index: -1 }
+    : { entries: [rawText], index: 0 };
+}
+
+function planDownloadName(name: string, view: PlanView): string {
+  const stem = name.toLowerCase().endsWith(".rob") ? name.slice(0, -4) : name;
+  return view === "original" ? `${stem}.rob` : `${stem}.edited.rob`;
+}
 
 function rotateRobPlanBy180(rawText: string): string {
   const newline = rawText.includes("\r\n") ? "\r\n" : "\n";
@@ -82,6 +101,7 @@ export default function HomePage() {
   /** 1-based from bottom: show layers 1..N solid; above hidden. */
   const [visibleUpToLayer, setVisibleUpToLayer] = useState(1);
   const [editMode, setEditMode] = useState(false);
+  const [planView, setPlanView] = useState<PlanView>("edited");
   const [isSavingEdits, setIsSavingEdits] = useState(false);
   const [selectedUniqueLayerId, setSelectedUniqueLayerId] = useState<
     number | null
@@ -89,6 +109,13 @@ export default function HomePage() {
   const [selectedGripIndex, setSelectedGripIndex] = useState<number | null>(
     null,
   );
+  const [editHistory, setEditHistory] = useState<EditHistory>(() =>
+    createEditHistory(null),
+  );
+
+  const resetEditHistory = useCallback((rawText: string | null) => {
+    setEditHistory(createEditHistory(rawText));
+  }, []);
 
   // Load saved pallets on mount, migrating from localStorage if present
   useEffect(() => {
@@ -100,6 +127,7 @@ export default function HomePage() {
           setSelectedId(existing[0]!.id);
           setData(resolvePalletData(existing[0]!));
           setSelectedRawText(existing[0]!.rawText ?? null);
+          resetEditHistory(existing[0]!.rawText ?? null);
           setBoxSelection(null);
           setSelectedGripIndex(null);
           return;
@@ -117,6 +145,7 @@ export default function HomePage() {
             setSelectedId(migrated[0]!.id);
             setData(resolvePalletData(migrated[0]!));
             setSelectedRawText(migrated[0]!.rawText ?? null);
+            resetEditHistory(migrated[0]!.rawText ?? null);
             setBoxSelection(null);
             setSelectedGripIndex(null);
           }
@@ -125,7 +154,7 @@ export default function HomePage() {
         // ignore
       }
     })();
-  }, []);
+  }, [resetEditHistory]);
 
   //
 
@@ -176,6 +205,7 @@ export default function HomePage() {
         setSelectedId(last.id);
         setData(resolvePalletData(last));
         setSelectedRawText(last.rawText ?? null);
+        resetEditHistory(last.rawText ?? null);
         setBoxSelection(null);
         setSelectedGripIndex(null);
       }
@@ -183,7 +213,7 @@ export default function HomePage() {
         setError(`Failed to parse: ${failed.join(", ")}`);
       }
     },
-    [],
+    [resetEditHistory],
   );
 
   //
@@ -195,7 +225,21 @@ export default function HomePage() {
   const persistedRawText = selectedEntry?.rawText ?? null;
   const hasUnsavedEdits =
     selectedEntry !== null && selectedRawText !== persistedRawText;
-  const layerCount = data?.layer_count ?? 0;
+  const originalRawText =
+    selectedEntry?.originalRawText ?? selectedEntry?.rawText ?? selectedRawText;
+  const originalData = useMemo(() => {
+    if (!selectedEntry) return null;
+    if (!originalRawText) return selectedEntry.data;
+    try {
+      return parseRobText(originalRawText);
+    } catch {
+      return selectedEntry.data;
+    }
+  }, [originalRawText, selectedEntry]);
+  const viewedRawText =
+    planView === "original" ? originalRawText : selectedRawText;
+  const viewedData = planView === "original" ? originalData : data;
+  const layerCount = viewedData?.layer_count ?? 0;
   const uniqueLayerOptions = useMemo(() => {
     if (!data) return [];
     const stackedAt = new Map<number, number[]>();
@@ -213,7 +257,7 @@ export default function HomePage() {
   // Reset layer slider to show all layers when pallet data changes
   useEffect(() => {
     if (layerCount > 0) setVisibleUpToLayer(layerCount);
-  }, [layerCount, selectedId]);
+  }, [layerCount, planView, selectedId]);
 
   useEffect(() => {
     if (!data || !editMode) {
@@ -237,17 +281,38 @@ export default function HomePage() {
     });
   }, [data, editMode, uniqueLayerOptions, visibleUpToLayer]);
 
-  const commitEditedRawText = useCallback((newRawText: string) => {
+  const applyEditedRawText = useCallback((newRawText: string): boolean => {
     try {
       const parsed = parseRobText(newRawText);
       setError(null);
       setData(parsed);
       setSelectedRawText(newRawText);
+      return true;
     } catch (error) {
       console.error("Failed to apply edited pallet draft", error);
       setError("Unable to apply this edit to the .rob plan.");
+      return false;
     }
   }, []);
+
+  const commitEditedRawText = useCallback(
+    (newRawText: string) => {
+      if (!applyEditedRawText(newRawText)) return;
+      setEditHistory((current) => {
+        if (current.entries[current.index] === newRawText) return current;
+        const nextEntries = [
+          ...current.entries.slice(0, current.index + 1),
+          newRawText,
+        ];
+        const limitedEntries = nextEntries.slice(-MAX_EDIT_HISTORY);
+        return {
+          entries: limitedEntries,
+          index: limitedEntries.length - 1,
+        };
+      });
+    },
+    [applyEditedRawText],
+  );
 
   const saveEditedPlan = useCallback(async () => {
     if (
@@ -289,10 +354,11 @@ export default function HomePage() {
     if (!selectedEntry) return;
     setData(resolvePalletData(selectedEntry));
     setSelectedRawText(selectedEntry.rawText ?? null);
+    resetEditHistory(selectedEntry.rawText ?? null);
     setBoxSelection(null);
     setSelectedGripIndex(null);
     setError(null);
-  }, [selectedEntry]);
+  }, [resetEditHistory, selectedEntry]);
 
   const discardEditedPlan = useCallback(() => {
     if (
@@ -304,7 +370,49 @@ export default function HomePage() {
     restorePersistedPlan();
   }, [hasUnsavedEdits, restorePersistedPlan]);
 
+  const applyHistoryIndex = useCallback(
+    (nextIndex: number) => {
+      const rawText = editHistory.entries[nextIndex];
+      if (rawText === undefined || !applyEditedRawText(rawText)) return;
+      setEditHistory((current) => ({ ...current, index: nextIndex }));
+      setBoxSelection(null);
+      setSelectedGripIndex(null);
+    },
+    [applyEditedRawText, editHistory.entries],
+  );
+
+  const undoEdit = useCallback(() => {
+    if (editHistory.index <= 0) return;
+    applyHistoryIndex(editHistory.index - 1);
+  }, [applyHistoryIndex, editHistory.index]);
+
+  const redoEdit = useCallback(() => {
+    if (editHistory.index >= editHistory.entries.length - 1) return;
+    applyHistoryIndex(editHistory.index + 1);
+  }, [applyHistoryIndex, editHistory.entries.length, editHistory.index]);
+
+  const resetToOriginal = useCallback(() => {
+    if (!originalRawText || selectedRawText === originalRawText) return;
+    commitEditedRawText(originalRawText);
+    setPlanView("edited");
+    setBoxSelection(null);
+    setSelectedGripIndex(null);
+  }, [commitEditedRawText, originalRawText, selectedRawText]);
+
+  const selectPlanView = useCallback((nextView: PlanView) => {
+    setPlanView(nextView);
+    setBoxSelection(null);
+    setSelectedGripIndex(null);
+    if (nextView === "original") setEditMode(false);
+  }, []);
+
   const toggleEditMode = useCallback(() => {
+    if (!editMode) {
+      setPlanView("edited");
+      setBoxSelection(null);
+      setEditMode(true);
+      return;
+    }
     if (editMode && hasUnsavedEdits) {
       const discard = window.confirm(
         "Exit edit mode and discard all unsaved changes?",
@@ -312,7 +420,7 @@ export default function HomePage() {
       if (!discard) return;
       restorePersistedPlan();
     }
-    setEditMode((current) => !current);
+    setEditMode(false);
   }, [editMode, hasUnsavedEdits, restorePersistedPlan]);
 
   const requestFileImport = useCallback(() => {
@@ -350,82 +458,47 @@ export default function HomePage() {
 
   const onModifyPlan = useCallback(() => {
     setError(null);
-    if (!data) {
+    if (!viewedData) {
       setError("Load a plan before modifying it.");
       return;
     }
-    if (!selectedRawText) {
+    if (!viewedRawText) {
       setError(
-        "Cannot modify this plan because the original .rob text is unavailable.",
+        "Cannot modify the currently viewed plan because its .rob text is unavailable.",
       );
       return;
     }
     try {
-      const rotatedRaw = rotateRobPlanBy180(selectedRawText);
+      const rotatedRaw = rotateRobPlanBy180(viewedRawText);
       const baseName = selectedEntry?.name ?? "pallet.rob";
-      const downloadName = baseName.toLowerCase().endsWith(".rob")
-        ? baseName
-        : `${baseName}.rob`;
+      const downloadName = planDownloadName(baseName, planView);
       triggerDownload(downloadName, rotatedRaw);
     } catch (err) {
       console.error("Failed to modify plan", err);
       setError("Unable to modify the plan at this time.");
     }
-  }, [data, selectedEntry, selectedRawText, triggerDownload]);
+  }, [planView, selectedEntry, triggerDownload, viewedData, viewedRawText]);
 
-  const onDownloadOriginal = useCallback(() => {
+  const onDownloadCurrent = useCallback(() => {
     setError(null);
-    const originalRawText =
-      selectedEntry?.originalRawText ??
-      selectedEntry?.rawText ??
-      selectedRawText;
-    if (!originalRawText) {
+    if (!viewedRawText) {
       setError(
-        "Cannot download this plan because the original .rob text is unavailable.",
+        "Cannot download the currently viewed plan because its .rob text is unavailable.",
       );
       return;
     }
     try {
       const baseName = selectedEntry?.name ?? "pallet.rob";
-      const downloadName = baseName.toLowerCase().endsWith(".rob")
-        ? baseName
-        : `${baseName}.rob`;
-      triggerDownload(downloadName, originalRawText);
+      triggerDownload(planDownloadName(baseName, planView), viewedRawText);
     } catch (err) {
-      console.error("Failed to download original plan", err);
-      setError("Unable to download the original plan at this time.");
+      console.error("Failed to download current plan", err);
+      setError("Unable to download the currently viewed plan at this time.");
     }
-  }, [selectedEntry, selectedRawText, triggerDownload]);
-
-  const onDownloadEdited = useCallback(() => {
-    setError(null);
-    if (!selectedRawText) {
-      setError(
-        "Cannot download this plan because edited .rob text is unavailable.",
-      );
-      return;
-    }
-    try {
-      const baseName = selectedEntry?.name ?? "pallet.rob";
-      const stem = baseName.toLowerCase().endsWith(".rob")
-        ? baseName.slice(0, -4)
-        : baseName;
-      triggerDownload(`${stem}.edited.rob`, selectedRawText);
-    } catch (error) {
-      console.error("Failed to download edited plan", error);
-      setError("Unable to download the edited plan at this time.");
-    }
-  }, [selectedEntry, selectedRawText, triggerDownload]);
+  }, [planView, selectedEntry, triggerDownload, viewedRawText]);
 
   const header = useMemo(() => {
-    const originalRawText =
-      selectedEntry?.originalRawText ??
-      selectedEntry?.rawText ??
-      selectedRawText;
-    const downloadDisabled = !originalRawText;
-    const editedDownloadDisabled =
-      !selectedRawText || selectedRawText === originalRawText;
-    const modifyDisabled = !data || !selectedRawText;
+    const downloadDisabled = !viewedRawText;
+    const modifyDisabled = !viewedData || !viewedRawText;
     return (
       <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-center text-2xl font-bold text-cyan-100 sm:text-left">
@@ -446,9 +519,51 @@ export default function HomePage() {
           >
             Import .rob file(s)
           </button>
+          <div
+            role="group"
+            aria-label="Plan view"
+            className="grid w-full grid-cols-2 rounded border border-cyan-400/30 bg-slate-950/60 p-0.5 sm:w-auto"
+          >
+            <button
+              type="button"
+              onClick={() => selectPlanView("original")}
+              disabled={!originalRawText}
+              aria-pressed={planView === "original"}
+              className={`rounded px-3 py-1.5 text-sm font-semibold transition ${
+                !originalRawText
+                  ? "cursor-not-allowed text-slate-600"
+                  : planView === "original"
+                    ? "cursor-pointer bg-cyan-400 text-slate-950"
+                    : "cursor-pointer text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100"
+              }`}
+            >
+              Original
+            </button>
+            <button
+              type="button"
+              onClick={() => selectPlanView("edited")}
+              disabled={!selectedRawText}
+              aria-pressed={planView === "edited"}
+              className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-semibold transition ${
+                !selectedRawText
+                  ? "cursor-not-allowed text-slate-600"
+                  : planView === "edited"
+                    ? "cursor-pointer bg-cyan-400 text-slate-950"
+                    : "cursor-pointer text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100"
+              }`}
+            >
+              Edited
+              {hasUnsavedEdits ? (
+                <span
+                  className="h-2 w-2 rounded-full bg-amber-300"
+                  aria-label="Unsaved changes"
+                />
+              ) : null}
+            </button>
+          </div>
           <button
             type="button"
-            onClick={onDownloadOriginal}
+            onClick={onDownloadCurrent}
             disabled={downloadDisabled}
             className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
               downloadDisabled
@@ -456,19 +571,7 @@ export default function HomePage() {
                 : "cursor-pointer bg-slate-200 text-slate-900 hover:bg-white"
             }`}
           >
-            Download original plan
-          </button>
-          <button
-            type="button"
-            onClick={onDownloadEdited}
-            disabled={editedDownloadDisabled}
-            className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
-              editedDownloadDisabled
-                ? "cursor-not-allowed bg-slate-700 text-slate-400"
-                : "cursor-pointer bg-cyan-100 text-slate-900 hover:bg-white"
-            }`}
-          >
-            Download edited plan
+            Download current plan
           </button>
           <button
             type="button"
@@ -503,14 +606,18 @@ export default function HomePage() {
   }, [
     data,
     editMode,
-    onDownloadEdited,
-    onDownloadOriginal,
+    hasUnsavedEdits,
+    onDownloadCurrent,
     onFileChange,
     onModifyPlan,
+    originalRawText,
+    planView,
     requestFileImport,
-    selectedEntry,
+    selectPlanView,
     selectedRawText,
     toggleEditMode,
+    viewedData,
+    viewedRawText,
   ]);
 
   const filteredSaved = useMemo(() => {
@@ -536,20 +643,20 @@ export default function HomePage() {
             {error}
           </div>
         )}
-        {!data && (
+        {!viewedData && (
           <div className="flex flex-1 items-center justify-center rounded border border-cyan-500/10 bg-slate-900/50">
             <p className="text-center text-slate-200">
               Upload a .rob file to visualize the pallet
             </p>
           </div>
         )}
-        {data && data.total_boxes === 0 && (
+        {viewedData && viewedData.total_boxes === 0 && (
           <div className="flex flex-1 items-center justify-center rounded border border-yellow-400/40 bg-yellow-500/10 p-3 text-sm text-yellow-100">
             Parsed 0 boxes. The .rob format may differ from the expected
             structure.
           </div>
         )}
-        {data && data.total_boxes > 0 && (
+        {viewedData && viewedData.total_boxes > 0 && (
           <div className="flex flex-col gap-5 xl:grid xl:grid-cols-[minmax(220px,260px)_minmax(0,1fr)_minmax(220px,280px)] xl:items-start xl:gap-8">
             {/* Left: saved list */}
             <aside className="order-2 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-1 xl:w-[240px] xl:shrink-0">
@@ -568,6 +675,7 @@ export default function HomePage() {
                       setSelectedId(null);
                       setSaved([]);
                       setSelectedRawText(null);
+                      resetEditHistory(null);
                       setBoxSelection(null);
                       setSelectedUniqueLayerId(null);
                       setSelectedGripIndex(null);
@@ -639,6 +747,7 @@ export default function HomePage() {
                         setSelectedId(p.id);
                         setData(resolvePalletData(p));
                         setSelectedRawText(p.rawText ?? null);
+                        resetEditHistory(p.rawText ?? null);
                         setBoxSelection(null);
                         setSelectedUniqueLayerId(null);
                         setSelectedGripIndex(null);
@@ -667,6 +776,7 @@ export default function HomePage() {
                             setSelectedId(next[0].id);
                             setData(resolvePalletData(next[0]));
                             setSelectedRawText(next[0].rawText ?? null);
+                            resetEditHistory(next[0].rawText ?? null);
                             setBoxSelection(null);
                             setSelectedUniqueLayerId(null);
                             setSelectedGripIndex(null);
@@ -674,6 +784,7 @@ export default function HomePage() {
                             setSelectedId(null);
                             setData(null);
                             setSelectedRawText(null);
+                            resetEditHistory(null);
                             setBoxSelection(null);
                             setSelectedUniqueLayerId(null);
                             setSelectedGripIndex(null);
@@ -692,7 +803,7 @@ export default function HomePage() {
             <div className="order-1 flex min-w-0 flex-1 items-stretch gap-1 xl:order-2">
               <div className="relative min-h-[320px] min-w-0 flex-1 overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 shadow-inner shadow-cyan-500/10 sm:min-h-[420px] xl:h-[70vh]">
                 <RobViewer
-                  data={data}
+                  data={viewedData}
                   visibleUpToLayer={visibleUpToLayer}
                   onBoxSelect={(selection) => {
                     setBoxSelection(selection);
@@ -700,7 +811,8 @@ export default function HomePage() {
                       setVisibleUpToLayer(selection.layerIndex + 1);
                       if (editMode) {
                         const uniqueLayerId =
-                          data.layers[selection.layerIndex]?.unique_layer_id;
+                          viewedData.layers[selection.layerIndex]
+                            ?.unique_layer_id;
                         if (uniqueLayerId !== undefined && uniqueLayerId > 0) {
                           setSelectedUniqueLayerId(uniqueLayerId);
                           setSelectedGripIndex(selection.blueNumber - 1);
@@ -711,7 +823,7 @@ export default function HomePage() {
                 />
               </div>
               <LayerSlider
-                layerCount={data.layer_count}
+                layerCount={viewedData.layer_count}
                 value={visibleUpToLayer}
                 onChange={setVisibleUpToLayer}
               />
@@ -724,27 +836,27 @@ export default function HomePage() {
               <div className="space-y-2 text-slate-100">
                 <div>
                   <span className="text-slate-400">Layers:</span>{" "}
-                  {data.layer_count}
+                  {viewedData.layer_count}
                 </div>
                 <div>
                   <span className="text-slate-400">Total boxes:</span>{" "}
-                  {data.total_boxes}
+                  {viewedData.total_boxes}
                 </div>
                 <div className="pt-2 font-medium text-slate-200">
                   Package (LxWxH)
                 </div>
                 <div>
-                  {data.package.width} x {data.package.length} x{" "}
-                  {data.package.height}
+                  {viewedData.package.width} x {viewedData.package.length} x{" "}
+                  {viewedData.package.height}
                 </div>
                 <div className="pt-2 font-medium text-slate-200">
                   Pallet (LxWxH)
                 </div>
                 <div>
-                  {data.pallet ? (
+                  {viewedData.pallet ? (
                     <span>
-                      {data.pallet.width} x {data.pallet.length} x{" "}
-                      {data.pallet.height}
+                      {viewedData.pallet.width} x {viewedData.pallet.length} x{" "}
+                      {viewedData.pallet.height}
                     </span>
                   ) : (
                     <span className="text-slate-500">unknown</span>
@@ -826,6 +938,16 @@ export default function HomePage() {
             isSaving={isSavingEdits}
             onSave={() => void saveEditedPlan()}
             onDiscard={discardEditedPlan}
+            canUndo={editHistory.index > 0}
+            canRedo={editHistory.index < editHistory.entries.length - 1}
+            historyPosition={editHistory.index + 1}
+            historyLength={editHistory.entries.length}
+            canResetToOriginal={
+              originalRawText !== null && selectedRawText !== originalRawText
+            }
+            onUndo={undoEdit}
+            onRedo={redoEdit}
+            onResetToOriginal={resetToOriginal}
             layerSelector={
               <label className="flex min-w-[250px] flex-col gap-1 text-xs text-slate-400">
                 <span>Layer pattern</span>
