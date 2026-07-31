@@ -338,21 +338,69 @@ export function LayerEditor2D({
     if (steps === 0)
       return { x, y, collided: false, insufficientSupport: false };
 
+    // Precompute other grips once; only rebuild the dragged grip each step.
+    const otherBounds: Array<{
+      left: number;
+      right: number;
+      bottom: number;
+      top: number;
+    }> = [];
+    for (let index = 0; index < grips.length; index++) {
+      if (index === gripIndex) continue;
+      const other = grips[index];
+      if (!other) continue;
+      for (const box of gripsToBoxes(
+        [other],
+        packageWidth,
+        packageLength,
+        0,
+        inputDirection,
+      )) {
+        const size = footprintSize(box);
+        otherBounds.push({
+          left: box.rect.x - size.width / 2,
+          right: box.rect.x + size.width / 2,
+          bottom: box.rect.y - size.length / 2,
+          top: box.rect.y + size.length / 2,
+        });
+      }
+    }
+    const collisionTolerance = 0.500_001;
+
     for (let step = 1; step <= steps; step++) {
       const candidateX = Math.round(fromX + ((toX - fromX) * step) / steps);
       const candidateY = Math.round(fromY + ((toY - fromY) * step) / steps);
       if (candidateX === x && candidateY === y) continue;
       const candidate = { ...grip, x: candidateX, y: candidateY };
       const insufficientSupport = !hasSufficientPalletSupport(candidate);
-      const collides =
-        !insufficientSupport &&
-        findGripCollision(
-          withReplacedGrip(gripIndex, candidate),
+      let collides = false;
+      if (!insufficientSupport && otherBounds.length > 0) {
+        for (const box of gripsToBoxes(
+          [candidate],
           packageWidth,
           packageLength,
+          0,
           inputDirection,
-          gripIndex,
-        ) !== null;
+        )) {
+          const size = footprintSize(box);
+          const left = box.rect.x - size.width / 2;
+          const right = box.rect.x + size.width / 2;
+          const bottom = box.rect.y - size.length / 2;
+          const top = box.rect.y + size.length / 2;
+          if (
+            otherBounds.some(
+              (other) =>
+                Math.min(right, other.right) - Math.max(left, other.left) >
+                  collisionTolerance &&
+                Math.min(top, other.top) - Math.max(bottom, other.bottom) >
+                  collisionTolerance,
+            )
+          ) {
+            collides = true;
+            break;
+          }
+        }
+      }
       if (insufficientSupport || collides)
         return { x, y, collided: collides, insufficientSupport };
       x = candidateX;

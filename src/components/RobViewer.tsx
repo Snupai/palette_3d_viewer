@@ -484,8 +484,10 @@ export function RobViewer({
       });
     }
 
-    const interlayerWidth = data.pallet?.width ?? 1200;
-    const interlayerLength = data.pallet?.length ?? 800;
+    const palletWidth = data.pallet?.width ?? 1200;
+    const palletLength = data.pallet?.length ?? 800;
+    const interlayerWidth = palletWidth;
+    const interlayerLength = palletLength;
     const addInterlayerRender = (
       layerNum: number,
       bottomZ: number,
@@ -580,17 +582,19 @@ export function RobViewer({
     };
     applyLayerVisibility(visibleUpToRef.current);
 
-    const euroWidth = 1200;
-    const euroLength = 800;
     const euroHeight = 144;
-    const palletGeom = new THREE.BoxGeometry(euroWidth, euroLength, euroHeight);
+    const palletGeom = new THREE.BoxGeometry(
+      palletWidth,
+      palletLength,
+      euroHeight,
+    );
     const palletMat = new THREE.MeshPhongMaterial({
       color: 0xb38b6d,
       shininess: 10,
       side: THREE.DoubleSide,
     });
     const palletMesh = new THREE.Mesh(palletGeom, palletMat);
-    palletMesh.position.set(euroWidth / 2, euroLength / 2, -euroHeight / 2);
+    palletMesh.position.set(palletWidth / 2, palletLength / 2, -euroHeight / 2);
     palletMat.polygonOffset = true;
     palletMat.polygonOffsetFactor = 1;
     palletMat.polygonOffsetUnits = 2;

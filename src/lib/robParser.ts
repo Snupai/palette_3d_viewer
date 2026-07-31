@@ -625,7 +625,9 @@ export function mergeGrips(
     grips.length < 2 ||
     grips.some(
       (grip) =>
-        grip.numPackages !== 1 || grip.rotation % 180 !== first.rotation % 180,
+        grip.numPackages !== 1 ||
+        grip.rotation % 180 !== first.rotation % 180 ||
+        grip.pickRotation !== first.pickRotation,
     )
   ) {
     return null;
@@ -914,9 +916,14 @@ function legacyGripsForUniqueLayer(
   data: PalletData,
   uniqueLayerId: number,
 ): Grip[] {
-  const sourceLayer = data.layers.find(
+  let sourceLayer = data.layers.find(
     (layer) => layer.unique_layer_id === uniqueLayerId,
   );
+  // Legacy stored pallets may lack uniqueLayers and use unique_layer_id <= 0.
+  if (!sourceLayer && uniqueLayerId === 1) {
+    sourceLayer =
+      data.layers.find((layer) => layer.boxes.length > 0) ?? data.layers[0];
+  }
   if (!sourceLayer) return [];
 
   const grouped = new Map<number, Box[]>();
@@ -964,7 +971,14 @@ export function serializeRobText(
   const layerIds = data.layers
     .map((layer) => layer.unique_layer_id)
     .filter((id) => Number.isInteger(id) && id > 0);
-  const numUniqueLayers = Math.max(0, ...uniqueLayerIds, ...layerIds);
+  // parseRobText always reads Math.max(1, num_unique_layers) coordinate blocks.
+  // Keep at least one block whenever the pallet has layer rows so round-trips
+  // stay valid for legacy entries without uniqueLayers / with id <= 0.
+  const numUniqueLayers = Math.max(
+    data.layers.length > 0 ? 1 : 0,
+    ...uniqueLayerIds,
+    ...layerIds,
+  );
   const palletLine = data.pallet
     ? [data.pallet.width, data.pallet.length, data.pallet.height].join(
         separator,
@@ -987,7 +1001,7 @@ export function serializeRobText(
     [0, data.layers[0]?.zwischenlage ?? 0].join(separator),
     ...data.layers.map((layer, layerIndex) =>
       [
-        layer.unique_layer_id,
+        layer.unique_layer_id > 0 ? layer.unique_layer_id : 1,
         data.layers[layerIndex + 1]?.zwischenlage ??
           data.trailingZwischenlage ??
           0,
