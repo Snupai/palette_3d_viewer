@@ -72,8 +72,12 @@ type NumericDraft = {
 const INPUT_CLASS =
   "w-full rounded border border-cyan-500/20 bg-slate-950/50 px-2 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-0";
 const COLLISION_MESSAGE = "Boxes cannot overlap. Position restored.";
+const OUT_OF_BOUNDS_MESSAGE =
+  "Packages must remain within the pallet. Position restored.";
 const DRAG_COLLISION_MESSAGE =
   "Boxes cannot overlap. Stopped at the last valid position.";
+const DRAG_OUT_OF_BOUNDS_MESSAGE =
+  "Packages must remain within the pallet. Stopped at the last valid position.";
 
 function createGripId(): string {
   return (
@@ -296,6 +300,19 @@ export function LayerEditor2D({
       inputDirection,
     ) !== null;
 
+  const isWithinPallet = (grip: Grip) =>
+    gripsToBoxes([grip], packageWidth, packageLength, 0, inputDirection).every(
+      (box) => {
+        const size = footprintSize(box);
+        return (
+          box.rect.x - size.width / 2 >= 0 &&
+          box.rect.x + size.width / 2 <= palletWidth &&
+          box.rect.y - size.length / 2 >= 0 &&
+          box.rect.y + size.length / 2 <= palletLength
+        );
+      },
+    );
+
   const clampDragPosition = (
     gripIndex: number,
     grip: Grip,
@@ -307,14 +324,16 @@ export function LayerEditor2D({
     const steps = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
     let x = fromX;
     let y = fromY;
-    if (steps === 0) return { x, y, collided: false };
+    if (steps === 0) return { x, y, collided: false, outOfBounds: false };
 
     for (let step = 1; step <= steps; step++) {
       const candidateX = Math.round(fromX + ((toX - fromX) * step) / steps);
       const candidateY = Math.round(fromY + ((toY - fromY) * step) / steps);
       if (candidateX === x && candidateY === y) continue;
       const candidate = { ...grip, x: candidateX, y: candidateY };
+      const outOfBounds = !isWithinPallet(candidate);
       const collides =
+        !outOfBounds &&
         findGripCollision(
           withReplacedGrip(gripIndex, candidate),
           packageWidth,
@@ -322,12 +341,13 @@ export function LayerEditor2D({
           inputDirection,
           gripIndex,
         ) !== null;
-      if (collides) return { x, y, collided: true };
+      if (outOfBounds || collides)
+        return { x, y, collided: collides, outOfBounds };
       x = candidateX;
       y = candidateY;
     }
 
-    return { x, y, collided: false };
+    return { x, y, collided: false, outOfBounds: false };
   };
 
   const replaceGrip = (index: number, nextGrip: Grip) => {
@@ -335,6 +355,11 @@ export function LayerEditor2D({
   };
 
   const replacePlacedGrip = (index: number, nextGrip: Grip) => {
+    if (!isWithinPallet(nextGrip)) {
+      setMessage(OUT_OF_BOUNDS_MESSAGE);
+      setDraft(gripDraft(grips[index] ?? null));
+      return false;
+    }
     const next = withReplacedGrip(index, nextGrip);
     if (hasCollision(next)) {
       setMessage(COLLISION_MESSAGE);
@@ -401,7 +426,13 @@ export function LayerEditor2D({
       x,
       y,
     );
-    setMessage(clamped.collided ? DRAG_COLLISION_MESSAGE : null);
+    setMessage(
+      clamped.outOfBounds
+        ? DRAG_OUT_OF_BOUNDS_MESSAGE
+        : clamped.collided
+          ? DRAG_COLLISION_MESSAGE
+          : null,
+    );
     setDrag((current) =>
       current
         ? {
@@ -432,7 +463,8 @@ export function LayerEditor2D({
       pointerY,
     );
     const { x, y } = clamped;
-    if (clamped.collided) setMessage(DRAG_COLLISION_MESSAGE);
+    if (clamped.outOfBounds) setMessage(DRAG_OUT_OF_BOUNDS_MESSAGE);
+    else if (clamped.collided) setMessage(DRAG_COLLISION_MESSAGE);
     if (x === currentGrip.x && y === currentGrip.y) return;
     replaceGrip(drag.gripIndex, {
       ...currentGrip,
