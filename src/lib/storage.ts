@@ -16,11 +16,15 @@ function openDatabase(): Promise<IDBDatabase> {
       }
     };
     request.onsuccess = () => resolve(request.result);
-    request.onerror = () => reject(request.error ?? new Error("IndexedDB open failed"));
+    request.onerror = () =>
+      reject(request.error ?? new Error("IndexedDB open failed"));
   });
 }
 
-async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => T | Promise<T>): Promise<T> {
+async function withStore<T>(
+  mode: IDBTransactionMode,
+  fn: (store: IDBObjectStore) => T | Promise<T>,
+): Promise<T> {
   const db = await openDatabase();
   return new Promise<T>((resolve, reject) => {
     const tx = db.transaction(STORE_NAME, mode);
@@ -29,9 +33,12 @@ async function withStore<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore
       .then((result) => {
         tx.oncomplete = () => resolve(result);
         tx.onerror = () => reject(tx.error ?? new Error("IndexedDB tx error"));
-        tx.onabort = () => reject(tx.error ?? new Error("IndexedDB tx aborted"));
+        tx.onabort = () =>
+          reject(tx.error ?? new Error("IndexedDB tx aborted"));
       })
-      .catch((err) => reject(err instanceof Error ? err : new Error(String(err))));
+      .catch((err) =>
+        reject(err instanceof Error ? err : new Error(String(err))),
+      );
   });
 }
 
@@ -41,6 +48,7 @@ export interface StoredPallet<T = unknown> {
   createdAt: number;
   data: T;
   rawText?: string;
+  originalRawText?: string;
 }
 
 export async function getAllPallets<T = unknown>(): Promise<StoredPallet<T>[]> {
@@ -53,12 +61,15 @@ export async function getAllPallets<T = unknown>(): Promise<StoredPallet<T>[]> {
         rows.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
         resolve(rows);
       };
-      req.onerror = () => reject(req.error ?? new Error("IndexedDB getAll failed"));
+      req.onerror = () =>
+        reject(req.error ?? new Error("IndexedDB getAll failed"));
     });
   });
 }
 
-export async function putPallets<T = unknown>(entries: Array<StoredPallet<T>>): Promise<void> {
+export async function putPallets<T = unknown>(
+  entries: Array<StoredPallet<T>>,
+): Promise<void> {
   if (!entries || entries.length === 0) return;
   await withStore("readwrite", (store) => {
     for (const entry of entries) store.put(entry);
@@ -82,9 +93,8 @@ export async function countPallets(): Promise<number> {
     return new Promise<number>((resolve, reject) => {
       const req = store.count();
       req.onsuccess = () => resolve(req.result ?? 0);
-      req.onerror = () => reject(req.error ?? new Error("IndexedDB count failed"));
+      req.onerror = () =>
+        reject(req.error ?? new Error("IndexedDB count failed"));
     });
   });
 }
-
-

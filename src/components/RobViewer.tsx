@@ -6,7 +6,7 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Box, PalletData } from "~/lib/robParser";
-import { layerPlaceZ, layerZBottom } from "~/lib/robParser";
+import { footprintSize, layerPlaceZ, layerZBottom } from "~/lib/robParser";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
 const GRIPPER_OBJ = "10_01_43_00016.obj";
@@ -25,7 +25,9 @@ function prepareGripperModel(object: THREE.Object3D): THREE.Group {
   object.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const geometry = child.geometry as THREE.BufferGeometry;
-    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    const mats = Array.isArray(child.material)
+      ? child.material
+      : [child.material];
     for (const mat of mats) {
       if (mat instanceof THREE.Material) {
         mat.side = THREE.DoubleSide;
@@ -98,7 +100,11 @@ type LayerRender = {
   pickEntries: BoxPickEntry[];
 };
 
-function placeOf(box: Box): { placeX: number; placeY: number; numPackages: number } {
+function placeOf(box: Box): {
+  placeX: number;
+  placeY: number;
+  numPackages: number;
+} {
   return {
     placeX: box.placeX ?? box.rect.x,
     placeY: box.placeY ?? box.rect.y,
@@ -109,34 +115,107 @@ function placeOf(box: Box): { placeX: number; placeY: number; numPackages: numbe
 function buildBoxQuads(
   box: Box,
   z: number,
-  addQuad: (a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, d: THREE.Vector3, color: THREE.Color) => void,
-  colors: { green: THREE.Color; white: THREE.Color; red: THREE.Color; blue: THREE.Color },
+  addQuad: (
+    a: THREE.Vector3,
+    b: THREE.Vector3,
+    c: THREE.Vector3,
+    d: THREE.Vector3,
+    color: THREE.Color,
+  ) => void,
+  colors: {
+    green: THREE.Color;
+    white: THREE.Color;
+    red: THREE.Color;
+    blue: THREE.Color;
+  },
 ) {
-  let width = box.rect.length;
-  let length = box.rect.width;
-  if (box.rotation === 90 || box.rotation === 270) {
-    width = box.rect.width;
-    length = box.rect.length;
-  }
+  const { width, length } = footprintSize(box);
   const height = box.height;
 
-  const v0 = new THREE.Vector3(box.rect.x - width / 2, box.rect.y - length / 2, z);
-  const v1 = new THREE.Vector3(box.rect.x + width / 2, box.rect.y - length / 2, z);
-  const v2 = new THREE.Vector3(box.rect.x + width / 2, box.rect.y + length / 2, z);
-  const v3 = new THREE.Vector3(box.rect.x - width / 2, box.rect.y + length / 2, z);
-  const v4 = new THREE.Vector3(box.rect.x - width / 2, box.rect.y - length / 2, z + height);
-  const v5 = new THREE.Vector3(box.rect.x + width / 2, box.rect.y - length / 2, z + height);
-  const v6 = new THREE.Vector3(box.rect.x + width / 2, box.rect.y + length / 2, z + height);
-  const v7 = new THREE.Vector3(box.rect.x - width / 2, box.rect.y + length / 2, z + height);
+  const v0 = new THREE.Vector3(
+    box.rect.x - width / 2,
+    box.rect.y - length / 2,
+    z,
+  );
+  const v1 = new THREE.Vector3(
+    box.rect.x + width / 2,
+    box.rect.y - length / 2,
+    z,
+  );
+  const v2 = new THREE.Vector3(
+    box.rect.x + width / 2,
+    box.rect.y + length / 2,
+    z,
+  );
+  const v3 = new THREE.Vector3(
+    box.rect.x - width / 2,
+    box.rect.y + length / 2,
+    z,
+  );
+  const v4 = new THREE.Vector3(
+    box.rect.x - width / 2,
+    box.rect.y - length / 2,
+    z + height,
+  );
+  const v5 = new THREE.Vector3(
+    box.rect.x + width / 2,
+    box.rect.y - length / 2,
+    z + height,
+  );
+  const v6 = new THREE.Vector3(
+    box.rect.x + width / 2,
+    box.rect.y + length / 2,
+    z + height,
+  );
+  const v7 = new THREE.Vector3(
+    box.rect.x - width / 2,
+    box.rect.y + length / 2,
+    z + height,
+  );
 
-  const faceColors: [THREE.Color, THREE.Color, THREE.Color, THREE.Color, THREE.Color, THREE.Color] =
+  const faceColors: [
+    THREE.Color,
+    THREE.Color,
+    THREE.Color,
+    THREE.Color,
+    THREE.Color,
+    THREE.Color,
+  ] =
     box.rotation === 0
-      ? [colors.green, colors.green, colors.white, colors.red, colors.blue, colors.blue]
+      ? [
+          colors.green,
+          colors.green,
+          colors.white,
+          colors.red,
+          colors.blue,
+          colors.blue,
+        ]
       : box.rotation === 90
-      ? [colors.green, colors.green, colors.blue, colors.blue, colors.red, colors.white]
-      : box.rotation === 180
-      ? [colors.green, colors.green, colors.red, colors.white, colors.blue, colors.blue]
-      : [colors.green, colors.green, colors.blue, colors.blue, colors.white, colors.red];
+        ? [
+            colors.green,
+            colors.green,
+            colors.blue,
+            colors.blue,
+            colors.red,
+            colors.white,
+          ]
+        : box.rotation === 180
+          ? [
+              colors.green,
+              colors.green,
+              colors.red,
+              colors.white,
+              colors.blue,
+              colors.blue,
+            ]
+          : [
+              colors.green,
+              colors.green,
+              colors.blue,
+              colors.blue,
+              colors.white,
+              colors.red,
+            ];
 
   addQuad(v0, v1, v2, v3, faceColors[0]);
   addQuad(v4, v5, v6, v7, faceColors[1]);
@@ -165,7 +244,9 @@ export function RobViewer({
 
   const layerRendersRef = useRef<LayerRender[]>([]);
   const highlightGroupRef = useRef<THREE.Group | null>(null);
-  const applyHighlightRef = useRef<((entry: BoxPickEntry) => void) | null>(null);
+  const applyHighlightRef = useRef<((entry: BoxPickEntry) => void) | null>(
+    null,
+  );
   const clearHighlightRef = useRef<(() => void) | null>(null);
   const selectedEntryRef = useRef<BoxPickEntry | null>(null);
   const visibleUpToRef = useRef(visibleUpToLayer);
@@ -180,7 +261,12 @@ export function RobViewer({
     scene.background = new THREE.Color(0x050b18);
     sceneRef.current = scene;
 
-    const camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 0.1, 10000);
+    const camera = new THREE.PerspectiveCamera(
+      45,
+      container.clientWidth / container.clientHeight,
+      0.1,
+      10000,
+    );
     camera.up.set(0, 0, 1);
     camera.position.set(1400, 1000, 1400);
     camera.lookAt(new THREE.Vector3(600, 400, 300));
@@ -253,14 +339,48 @@ export function RobViewer({
         color: THREE.Color,
       ) => {
         const base = positions.length / 3;
-        positions.push(a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z, d.x, d.y, d.z);
+        positions.push(
+          a.x,
+          a.y,
+          a.z,
+          b.x,
+          b.y,
+          b.z,
+          c.x,
+          c.y,
+          c.z,
+          d.x,
+          d.y,
+          d.z,
+        );
         indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
-        for (let i = 0; i < 4; i++) vertexColors.push(color.r, color.g, color.b);
+        for (let i = 0; i < 4; i++)
+          vertexColors.push(color.r, color.g, color.b);
         edgePositions.push(
-          a.x, a.y, a.z, b.x, b.y, b.z,
-          b.x, b.y, b.z, c.x, c.y, c.z,
-          c.x, c.y, c.z, d.x, d.y, d.z,
-          d.x, d.y, d.z, a.x, a.y, a.z,
+          a.x,
+          a.y,
+          a.z,
+          b.x,
+          b.y,
+          b.z,
+          b.x,
+          b.y,
+          b.z,
+          c.x,
+          c.y,
+          c.z,
+          c.x,
+          c.y,
+          c.z,
+          d.x,
+          d.y,
+          d.z,
+          d.x,
+          d.y,
+          d.z,
+          a.x,
+          a.y,
+          a.z,
         );
       };
 
@@ -292,9 +412,15 @@ export function RobViewer({
       if (positions.length === 0) continue;
 
       const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(positions, 3),
+      );
       geometry.setIndex(indices);
-      geometry.setAttribute("color", new THREE.Float32BufferAttribute(vertexColors, 3));
+      geometry.setAttribute(
+        "color",
+        new THREE.Float32BufferAttribute(vertexColors, 3),
+      );
       geometry.computeVertexNormals();
       geometry.computeBoundingBox();
       if (geometry.boundingBox) {
@@ -306,7 +432,10 @@ export function RobViewer({
       scene.add(solidMesh);
 
       const edgeGeom = new THREE.BufferGeometry();
-      edgeGeom.setAttribute("position", new THREE.Float32BufferAttribute(edgePositions, 3));
+      edgeGeom.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(edgePositions, 3),
+      );
       const solidEdges = new THREE.LineSegments(edgeGeom, solidEdgeMat);
       solidEdges.renderOrder = 2;
       scene.add(solidEdges);
@@ -317,7 +446,10 @@ export function RobViewer({
     layerRendersRef.current = layerRenders;
 
     const applyLayerVisibility = (upTo: number) => {
-      const maxSolid = Math.min(Math.max(1, upTo), Math.max(1, data.layers.length));
+      const maxSolid = Math.min(
+        Math.max(1, upTo),
+        Math.max(1, data.layers.length),
+      );
       for (const lr of layerRenders) {
         const solid = lr.layerNum + 1 <= maxSolid;
         lr.solidMesh.visible = solid;
@@ -330,7 +462,11 @@ export function RobViewer({
     const euroLength = 800;
     const euroHeight = 144;
     const palletGeom = new THREE.BoxGeometry(euroWidth, euroLength, euroHeight);
-    const palletMat = new THREE.MeshPhongMaterial({ color: 0xb38b6d, shininess: 10, side: THREE.DoubleSide });
+    const palletMat = new THREE.MeshPhongMaterial({
+      color: 0xb38b6d,
+      shininess: 10,
+      side: THREE.DoubleSide,
+    });
     const palletMesh = new THREE.Mesh(palletGeom, palletMat);
     palletMesh.position.set(euroWidth / 2, euroLength / 2, -euroHeight / 2);
     palletMat.polygonOffset = true;
@@ -339,7 +475,11 @@ export function RobViewer({
     scene.add(palletMesh);
     const palletEdges = new THREE.LineSegments(
       new THREE.EdgesGeometry(palletGeom),
-      new THREE.LineBasicMaterial({ color: 0x2b2b2b, transparent: true, opacity: 0.9 }),
+      new THREE.LineBasicMaterial({
+        color: 0x2b2b2b,
+        transparent: true,
+        opacity: 0.9,
+      }),
     );
     palletEdges.position.copy(palletMesh.position);
     palletEdges.renderOrder = 2;
@@ -396,7 +536,8 @@ export function RobViewer({
         objLoader.setMaterials(materials);
         fetch(`${GRIPPER_MODEL_PATH}${GRIPPER_OBJ}`)
           .then((res) => {
-            if (!res.ok) throw new Error(`Failed to load gripper OBJ (${res.status})`);
+            if (!res.ok)
+              throw new Error(`Failed to load gripper OBJ (${res.status})`);
             return res.text();
           })
           .then((objText) => {
@@ -438,27 +579,34 @@ export function RobViewer({
 
     const applyHighlight = (entry: BoxPickEntry) => {
       clearHighlight();
-      const maxSolid = Math.min(Math.max(1, visibleUpToRef.current), Math.max(1, data.layers.length));
+      const maxSolid = Math.min(
+        Math.max(1, visibleUpToRef.current),
+        Math.max(1, data.layers.length),
+      );
       if (entry.layerNum + 1 > maxSolid) return;
 
       const gripBoxes = allPickEntries().filter(
-        (e) => e.layerIndex === entry.layerIndex && e.blueNumber === entry.blueNumber,
+        (e) =>
+          e.layerIndex === entry.layerIndex &&
+          e.blueNumber === entry.blueNumber,
       );
 
       for (const grip of gripBoxes) {
-        let width = grip.rect.length;
-        let length = grip.rect.width;
-        if (grip.rotation === 90 || grip.rotation === 270) {
-          width = grip.rect.width;
-          length = grip.rect.length;
-        }
+        const { width, length } = footprintSize(grip);
         const z = grip.zBottom;
-        const geo = new THREE.BoxGeometry(width * 1.02, length * 1.02, grip.height * 1.02);
+        const geo = new THREE.BoxGeometry(
+          width * 1.02,
+          length * 1.02,
+          grip.height * 1.02,
+        );
         const overlay = new THREE.Mesh(geo, highlightMat);
         overlay.position.set(grip.rect.x, grip.rect.y, z + grip.height / 2);
         highlightGroup.add(overlay);
 
-        const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), highlightEdgeMat);
+        const edges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(geo),
+          highlightEdgeMat,
+        );
         edges.position.copy(overlay.position);
         highlightGroup.add(edges);
       }
@@ -469,11 +617,16 @@ export function RobViewer({
         const shortSingle =
           entry.numPackages === 1 && data.package.length < 265 ? 90 : 0;
         gripperHolder.position.set(entry.placeX, entry.placeY, entry.placeZ);
-        gripperHolder.rotation.z = THREE.MathUtils.degToRad(entry.rotation + shortSingle);
+        gripperHolder.rotation.z = THREE.MathUtils.degToRad(
+          entry.rotation + shortSingle,
+        );
         gripperHolder.visible = true;
       } else {
         const markerZ = entry.placeZ + 20;
-        const marker = new THREE.Mesh(new THREE.SphereGeometry(18, 12, 12), placeMarkerMat);
+        const marker = new THREE.Mesh(
+          new THREE.SphereGeometry(18, 12, 12),
+          placeMarkerMat,
+        );
         marker.position.set(entry.placeX, entry.placeY, markerZ);
         highlightGroup.add(marker);
 
@@ -495,7 +648,11 @@ export function RobViewer({
       centerForControls = center.clone();
       const maxSize = Math.max(size.x, size.y, size.z);
       const distance = maxSize * 1.8 + 500;
-      camera.position.set(center.x + distance, center.y + distance, center.z + distance);
+      camera.position.set(
+        center.x + distance,
+        center.y + distance,
+        center.z + distance,
+      );
       camera.lookAt(center);
     }
 
@@ -526,7 +683,9 @@ export function RobViewer({
       pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(pointer, camera);
 
-      const solidMeshes = layerRenders.filter((lr) => lr.solidMesh.visible).map((lr) => lr.solidMesh);
+      const solidMeshes = layerRenders
+        .filter((lr) => lr.solidMesh.visible)
+        .map((lr) => lr.solidMesh);
       const hits = raycaster.intersectObjects(solidMeshes, false);
       const hit = hits[0];
       if (hit?.faceIndex == null || !(hit.object instanceof THREE.Mesh)) {
@@ -536,7 +695,9 @@ export function RobViewer({
         return;
       }
 
-      const layerRender = layerRenders.find((lr) => lr.solidMesh === hit.object);
+      const layerRender = layerRenders.find(
+        (lr) => lr.solidMesh === hit.object,
+      );
       if (!layerRender) {
         selectedEntryRef.current = null;
         clearHighlight();
@@ -546,7 +707,9 @@ export function RobViewer({
 
       const entry =
         layerRender.pickEntries.find(
-          (e) => hit.faceIndex! >= e.firstFace && hit.faceIndex! < e.firstFace + e.faceCount,
+          (e) =>
+            hit.faceIndex! >= e.firstFace &&
+            hit.faceIndex! < e.firstFace + e.faceCount,
         ) ?? null;
       if (!entry) {
         selectedEntryRef.current = null;
@@ -558,7 +721,9 @@ export function RobViewer({
       selectedEntryRef.current = entry;
       applyHighlight(entry);
       const gripBoxCount = allPickEntries().filter(
-        (e) => e.layerIndex === entry.layerIndex && e.blueNumber === entry.blueNumber,
+        (e) =>
+          e.layerIndex === entry.layerIndex &&
+          e.blueNumber === entry.blueNumber,
       ).length;
       onBoxSelectRef.current?.({
         layerIndex: entry.layerIndex,
@@ -619,7 +784,9 @@ export function RobViewer({
       gripperHolder.traverse((obj) => {
         if (!(obj instanceof THREE.Mesh)) return;
         (obj.geometry as THREE.BufferGeometry).dispose();
-        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        const mats = Array.isArray(obj.material)
+          ? obj.material
+          : [obj.material];
         for (const mat of mats) {
           (mat as THREE.Material).dispose();
         }
@@ -631,7 +798,9 @@ export function RobViewer({
       if (rendererRef.current) {
         rendererRef.current.dispose();
         if (rendererRef.current.domElement.parentElement) {
-          rendererRef.current.domElement.parentElement.removeChild(rendererRef.current.domElement);
+          rendererRef.current.domElement.parentElement.removeChild(
+            rendererRef.current.domElement,
+          );
         }
         rendererRef.current = null;
       }
@@ -644,7 +813,10 @@ export function RobViewer({
   useEffect(() => {
     const layerRenders = layerRendersRef.current;
     if (layerRenders.length === 0) return;
-    const maxSolid = Math.min(Math.max(1, visibleUpToLayer), Math.max(1, data.layers.length));
+    const maxSolid = Math.min(
+      Math.max(1, visibleUpToLayer),
+      Math.max(1, data.layers.length),
+    );
     for (const lr of layerRenders) {
       const solid = lr.layerNum + 1 <= maxSolid;
       lr.solidMesh.visible = solid;
@@ -663,5 +835,10 @@ export function RobViewer({
     }
   }, [visibleUpToLayer, data.layers.length]);
 
-  return <div ref={mountRef} className="relative h-full w-full min-h-[320px] sm:min-h-[420px] xl:min-h-[600px]" />;
+  return (
+    <div
+      ref={mountRef}
+      className="relative h-full min-h-[320px] w-full sm:min-h-[420px] xl:min-h-[600px]"
+    />
+  );
 }
