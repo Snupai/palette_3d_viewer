@@ -401,7 +401,12 @@ export default function HomePage() {
                 <RobViewer
                   data={data}
                   visibleUpToLayer={visibleUpToLayer}
-                  onBoxSelect={setBoxSelection}
+                  onBoxSelect={(selection) => {
+                    setBoxSelection(selection);
+                    if (selection) {
+                      setVisibleUpToLayer(selection.layerIndex + 1);
+                    }
+                  }}
                 />
               </div>
               <LayerSlider

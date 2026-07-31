@@ -3,8 +3,56 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
+import { MTLLoader } from "three/examples/jsm/loaders/MTLLoader.js";
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import type { Box, PalletData } from "~/lib/robParser";
 import { layerPlaceZ, layerZBottom } from "~/lib/robParser";
+
+const GRIPPER_MODEL_PATH = "/models/gripper/";
+const GRIPPER_OBJ = "10_01_43_00016.obj";
+const GRIPPER_MTL = "10_01_43_00016.mtl";
+
+/** OBJLoader turns a whole object into LineSegments if it contains any `l` edges — strip those first. */
+function stripObjLineElements(objText: string): string {
+  return objText
+    .split(/\r?\n/)
+    .filter((line) => !/^\s*l\s/.test(line))
+    .join("\n");
+}
+
+/** Normalize CAD model (Y-up) to scene Z-up with origin at bottom center. */
+function prepareGripperModel(object: THREE.Object3D): THREE.Group {
+  object.traverse((child) => {
+    if (!(child instanceof THREE.Mesh)) return;
+    const geometry = child.geometry as THREE.BufferGeometry;
+    const mats = Array.isArray(child.material) ? child.material : [child.material];
+    for (const mat of mats) {
+      if (mat instanceof THREE.Material) {
+        mat.side = THREE.DoubleSide;
+        mat.visible = true;
+        mat.transparent = true;
+        mat.opacity = 0.3;
+        mat.depthWrite = false;
+        if ("wireframe" in mat) {
+          (mat as THREE.MeshPhongMaterial).wireframe = false;
+        }
+      }
+    }
+    if (!geometry.getAttribute("normal")) {
+      geometry.computeVertexNormals();
+    }
+  });
+
+  const pivot = new THREE.Group();
+  // CAD is Y-up; +90° around X maps CAD +Y → scene +Z (gripper top up).
+  object.rotation.x = Math.PI / 2;
+  pivot.add(object);
+  pivot.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(pivot);
+  const center = box.getCenter(new THREE.Vector3());
+  object.position.set(-center.x, -center.y, -box.min.z);
+  return pivot;
+}
 
 export type BoxSelection = {
   layerIndex: number;
@@ -119,6 +167,7 @@ export function RobViewer({
   const highlightGroupRef = useRef<THREE.Group | null>(null);
   const applyHighlightRef = useRef<((entry: BoxPickEntry) => void) | null>(null);
   const clearHighlightRef = useRef<(() => void) | null>(null);
+  const selectedEntryRef = useRef<BoxPickEntry | null>(null);
   const visibleUpToRef = useRef(visibleUpToLayer);
   visibleUpToRef.current = visibleUpToLayer;
 
@@ -329,7 +378,48 @@ export function RobViewer({
       depthWrite: false,
     });
 
+    const gripperHolder = new THREE.Group();
+    gripperHolder.visible = false;
+    gripperHolder.renderOrder = 4;
+    scene.add(gripperHolder);
+    let gripperModel: THREE.Group | null = null;
+    let cancelled = false;
+
+    const mtlLoader = new MTLLoader();
+    mtlLoader.setPath(GRIPPER_MODEL_PATH);
+    mtlLoader.load(
+      GRIPPER_MTL,
+      (materials) => {
+        if (cancelled) return;
+        materials.preload();
+        const objLoader = new OBJLoader();
+        objLoader.setMaterials(materials);
+        fetch(`${GRIPPER_MODEL_PATH}${GRIPPER_OBJ}`)
+          .then((res) => {
+            if (!res.ok) throw new Error(`Failed to load gripper OBJ (${res.status})`);
+            return res.text();
+          })
+          .then((objText) => {
+            if (cancelled) return;
+            const obj = objLoader.parse(stripObjLineElements(objText));
+            gripperModel = prepareGripperModel(obj);
+            gripperHolder.clear();
+            gripperHolder.add(gripperModel);
+            const selected = selectedEntryRef.current;
+            if (selected) applyHighlightRef.current?.(selected);
+          })
+          .catch(() => {
+            // Keep sphere fallback if OBJ fails to load
+          });
+      },
+      undefined,
+      () => {
+        // Keep sphere fallback if MTL fails to load
+      },
+    );
+
     const clearHighlight = () => {
+      gripperHolder.visible = false;
       while (highlightGroup.children.length > 0) {
         const child = highlightGroup.children[0]!;
         highlightGroup.remove(child);
@@ -373,17 +463,26 @@ export function RobViewer({
         highlightGroup.add(edges);
       }
 
-      // Marker sits just above the box top (= place Z)
-      const markerZ = entry.placeZ + 20;
-      const marker = new THREE.Mesh(new THREE.SphereGeometry(18, 12, 12), placeMarkerMat);
-      marker.position.set(entry.placeX, entry.placeY, markerZ);
-      highlightGroup.add(marker);
+      // Gripper (or sphere fallback) at place point on package top
+      if (gripperModel) {
+        // Single short packages: yaw gripper +90° (scene Z-up) so jaws align.
+        const shortSingle =
+          entry.numPackages === 1 && data.package.length < 265 ? 90 : 0;
+        gripperHolder.position.set(entry.placeX, entry.placeY, entry.placeZ);
+        gripperHolder.rotation.z = THREE.MathUtils.degToRad(entry.rotation + shortSingle);
+        gripperHolder.visible = true;
+      } else {
+        const markerZ = entry.placeZ + 20;
+        const marker = new THREE.Mesh(new THREE.SphereGeometry(18, 12, 12), placeMarkerMat);
+        marker.position.set(entry.placeX, entry.placeY, markerZ);
+        highlightGroup.add(marker);
 
-      const stemGeom = new THREE.BufferGeometry().setFromPoints([
-        new THREE.Vector3(entry.placeX, entry.placeY, entry.placeZ),
-        new THREE.Vector3(entry.placeX, entry.placeY, markerZ),
-      ]);
-      highlightGroup.add(new THREE.Line(stemGeom, highlightEdgeMat));
+        const stemGeom = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(entry.placeX, entry.placeY, entry.placeZ),
+          new THREE.Vector3(entry.placeX, entry.placeY, markerZ),
+        ]);
+        highlightGroup.add(new THREE.Line(stemGeom, highlightEdgeMat));
+      }
     };
     applyHighlightRef.current = applyHighlight;
 
@@ -431,6 +530,7 @@ export function RobViewer({
       const hits = raycaster.intersectObjects(solidMeshes, false);
       const hit = hits[0];
       if (hit?.faceIndex == null || !(hit.object instanceof THREE.Mesh)) {
+        selectedEntryRef.current = null;
         clearHighlight();
         onBoxSelectRef.current?.(null);
         return;
@@ -438,6 +538,7 @@ export function RobViewer({
 
       const layerRender = layerRenders.find((lr) => lr.solidMesh === hit.object);
       if (!layerRender) {
+        selectedEntryRef.current = null;
         clearHighlight();
         onBoxSelectRef.current?.(null);
         return;
@@ -448,11 +549,13 @@ export function RobViewer({
           (e) => hit.faceIndex! >= e.firstFace && hit.faceIndex! < e.firstFace + e.faceCount,
         ) ?? null;
       if (!entry) {
+        selectedEntryRef.current = null;
         clearHighlight();
         onBoxSelectRef.current?.(null);
         return;
       }
 
+      selectedEntryRef.current = entry;
       applyHighlight(entry);
       const gripBoxCount = allPickEntries().filter(
         (e) => e.layerIndex === entry.layerIndex && e.blueNumber === entry.blueNumber,
@@ -497,19 +600,30 @@ export function RobViewer({
     };
     animate();
     onResize();
+    selectedEntryRef.current = null;
     onBoxSelectRef.current?.(null);
 
     return () => {
+      cancelled = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
+      selectedEntryRef.current = null;
       clearHighlight();
       highlightMat.dispose();
       highlightEdgeMat.dispose();
       placeMarkerMat.dispose();
       solidMat.dispose();
       solidEdgeMat.dispose();
+      gripperHolder.traverse((obj) => {
+        if (!(obj instanceof THREE.Mesh)) return;
+        (obj.geometry as THREE.BufferGeometry).dispose();
+        const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
+        for (const mat of mats) {
+          (mat as THREE.Material).dispose();
+        }
+      });
       layerRendersRef.current = [];
       highlightGroupRef.current = null;
       applyHighlightRef.current = null;
@@ -536,9 +650,17 @@ export function RobViewer({
       lr.solidMesh.visible = solid;
       lr.solidEdges.visible = solid;
     }
-    // Clear selection highlight if it was on a now-hidden layer
-    clearHighlightRef.current?.();
-    onBoxSelectRef.current?.(null);
+    // Keep selection if its layer is still visible; otherwise clear
+    const selected = selectedEntryRef.current;
+    if (selected && selected.layerNum + 1 <= maxSolid) {
+      applyHighlightRef.current?.(selected);
+    } else if (selected) {
+      selectedEntryRef.current = null;
+      clearHighlightRef.current?.();
+      onBoxSelectRef.current?.(null);
+    } else {
+      clearHighlightRef.current?.();
+    }
   }, [visibleUpToLayer, data.layers.length]);
 
   return <div ref={mountRef} className="relative h-full w-full min-h-[320px] sm:min-h-[420px] xl:min-h-[600px]" />;
