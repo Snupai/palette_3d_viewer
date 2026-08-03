@@ -1,4 +1,4 @@
-import type { BoxSelection } from "~/components/RobViewer";
+import type { BoxSelection } from "~/components/rob-viewer/viewerTypes";
 import type { PalletData } from "~/lib/palletTypes";
 
 type PalletInfoPanelProps = {

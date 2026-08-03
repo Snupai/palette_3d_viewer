@@ -1,7 +1,12 @@
-// Lightweight IndexedDB helper for storing many pallets without localStorage quota issues
+import {
+  savedPalletSchema,
+  validateStoredPallets,
+  type PalletStorageLoadResult,
+} from "~/lib/palletPersistence";
+import type { SavedPallet } from "~/lib/palletTypes";
 
 const DB_NAME = "pallets-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_NAME = "pallets";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -13,9 +18,13 @@ function openDatabase(): Promise<IDBDatabase> {
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      const store = db.objectStoreNames.contains(STORE_NAME)
+        ? request.transaction!.objectStore(STORE_NAME)
+        : db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      if (!store.indexNames.contains("createdAt")) {
         store.createIndex("createdAt", "createdAt", { unique: false });
+      }
+      if (!store.indexNames.contains("name")) {
         store.createIndex("name", "name", { unique: false });
       }
     };
@@ -82,36 +91,25 @@ async function withStore<T>(
   });
 }
 
-export interface StoredPallet<T = unknown> {
-  id: string;
-  name: string;
-  createdAt: number;
-  data: T;
-  rawText?: string;
-  originalRawText?: string;
-}
-
-export async function getAllPallets<T = unknown>(): Promise<StoredPallet<T>[]> {
-  return withStore("readonly", (store) => {
-    return new Promise<StoredPallet<T>[]>((resolve, reject) => {
-      const req = store.getAll();
-      req.onsuccess = () => {
-        const rows = (req.result as StoredPallet<T>[]) ?? [];
-        rows.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
-        resolve(rows);
-      };
-      req.onerror = () =>
-        reject(req.error ?? new Error("IndexedDB getAll failed"));
+export async function getAllPallets(): Promise<PalletStorageLoadResult> {
+  const rows = await withStore<unknown[]>("readonly", (store) => {
+    return new Promise<unknown[]>((resolve, reject) => {
+      const request = store.getAll();
+      request.onsuccess = () => resolve(request.result ?? []);
+      request.onerror = () =>
+        reject(request.error ?? new Error("IndexedDB getAll failed"));
     });
   });
+  const result = validateStoredPallets(rows);
+  result.pallets.sort((a, b) => b.createdAt - a.createdAt);
+  return result;
 }
 
-export async function putPallets<T = unknown>(
-  entries: Array<StoredPallet<T>>,
-): Promise<void> {
-  if (!entries || entries.length === 0) return;
+export async function putPallets(entries: SavedPallet[]): Promise<void> {
+  if (entries.length === 0) return;
+  const validated = entries.map((entry) => savedPalletSchema.parse(entry));
   await withStore("readwrite", (store) => {
-    for (const entry of entries) store.put(entry);
+    validated.forEach((entry) => store.put(entry));
   });
 }
 
@@ -130,10 +128,10 @@ export async function clearPallets(): Promise<void> {
 export async function countPallets(): Promise<number> {
   return withStore("readonly", (store) => {
     return new Promise<number>((resolve, reject) => {
-      const req = store.count();
-      req.onsuccess = () => resolve(req.result ?? 0);
-      req.onerror = () =>
-        reject(req.error ?? new Error("IndexedDB count failed"));
+      const request = store.count();
+      request.onsuccess = () => resolve(request.result ?? 0);
+      request.onerror = () =>
+        reject(request.error ?? new Error("IndexedDB count failed"));
     });
   });
 }

@@ -1,17 +1,8 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import {
-  ZWISCHENLAGE_HEIGHT_MM,
-  findGripCollision,
-  layerPlaceZ,
-  layerZBottom,
-  mergeGrips,
-  parseRobText,
-  serializeRobText,
-  splitGrip,
-  toRobInt,
-  type Grip,
-  type PalletData,
-} from "~/lib/robParser";
+import type { Grip, PalletData } from "~/domain/palletTypes";
+import { parseRobText, serializeRobText } from "~/lib/robParser";
 
 /** Minimal 1-layer plan with one single package grip. */
 function sampleRob(opts?: {
@@ -43,22 +34,15 @@ function sampleRob(opts?: {
   ].join(nl);
 }
 
+function fixture(name: "anonymized-plan-lf.rob" | "anonymized-plan-crlf.rob") {
+  return readFileSync(
+    resolve(process.cwd(), "src", "lib", "__fixtures__", name),
+    "utf8",
+  );
+}
+
 function multiLayerRob(): string {
-  return [
-    "1200 800 144",
-    "200 300 150",
-    "2",
-    "3",
-    "0 1",
-    "1 0",
-    "2 1",
-    "1 0",
-    "1",
-    "100 50 0 400 300 0 1 1 0",
-    "2",
-    "100 50 0 500 300 90 2 0 -1",
-    "120 60 0 700 400 0 1 0 1",
-  ].join("\n");
+  return fixture("anonymized-plan-lf.rob");
 }
 
 function stripGripIds(data: PalletData): Omit<PalletData, "uniqueLayers"> & {
@@ -72,10 +56,15 @@ function stripGripIds(data: PalletData): Omit<PalletData, "uniqueLayers"> & {
 }
 
 describe("parseRobText characterization", () => {
-  it("parses LF and CRLF identically for supported plans", () => {
-    const lf = parseRobText(sampleRob({ newline: "\n" }));
-    const crlf = parseRobText(sampleRob({ newline: "\r\n" }));
-    expect(stripGripIds(lf)).toEqual(stripGripIds(crlf));
+  it("parses durable LF and CRLF fixtures identically", () => {
+    const lfText = fixture("anonymized-plan-lf.rob");
+    const crlfText = fixture("anonymized-plan-crlf.rob");
+
+    expect(lfText).not.toContain("\r\n");
+    expect(crlfText).toContain("\r\n");
+    expect(stripGripIds(parseRobText(lfText))).toEqual(
+      stripGripIds(parseRobText(crlfText)),
+    );
   });
 
   it("keeps optional input direction when explicit", () => {
@@ -125,23 +114,6 @@ describe("parseRobText characterization", () => {
   });
 });
 
-describe("Z math", () => {
-  it("excludes pallet height and applies 3 mm Zwischenlagen", () => {
-    const data = parseRobText(multiLayerRob());
-    const h = data.package.height;
-    // Layer 0: zw=1 → bottom = 3
-    expect(layerZBottom(data.layers, 0, h)).toBe(ZWISCHENLAGE_HEIGHT_MM);
-    expect(layerPlaceZ(data.layers, 0, h)).toBe(ZWISCHENLAGE_HEIGHT_MM + h);
-    // Layer 1: zw under layer0 (3) + package + zw under layer1 (0)
-    expect(layerZBottom(data.layers, 1, h)).toBe(ZWISCHENLAGE_HEIGHT_MM + h);
-    expect(layerPlaceZ(data.layers, 1, h)).toBe(ZWISCHENLAGE_HEIGHT_MM + h + h);
-    // Layer 2: + another package + zw=1 under layer2
-    expect(layerZBottom(data.layers, 2, h)).toBe(
-      ZWISCHENLAGE_HEIGHT_MM + h + h + ZWISCHENLAGE_HEIGHT_MM,
-    );
-  });
-});
-
 describe("parseRobText validation", () => {
   it("rejects missing coordinate fields with line and field context", () => {
     const text = sampleRob().replace(
@@ -187,136 +159,5 @@ describe("parseRobText validation", () => {
       "100 50 0 600 400 0 1 0 0",
     ].join("\n");
     expect(() => parseRobText(text)).toThrow(/unique layer id 9/i);
-  });
-});
-
-describe("toRobInt", () => {
-  it("truncates half-millimeter editor candidates", () => {
-    expect(toRobInt(100.5)).toBe(100);
-    expect(toRobInt(-100.5)).toBe(-100);
-  });
-});
-
-describe("grip operations", () => {
-  const pkg = { width: 200, length: 300, inputDirection: 0 as const };
-
-  it("splits a multi-package grip into singles", () => {
-    const grip: Grip = {
-      id: "g1",
-      pickX: 200,
-      pickY: -150,
-      pickRotation: 0,
-      x: 600,
-      y: 400,
-      rotation: 0,
-      numPackages: 2,
-      dx: 0,
-      dy: 0,
-    };
-    const split = splitGrip(grip, pkg.width, pkg.length, pkg.inputDirection);
-    expect(split).toHaveLength(2);
-    expect(split.every((g) => g.numPackages === 1)).toBe(true);
-  });
-
-  it("merges aligned touching singles", () => {
-    const a: Grip = {
-      id: "a",
-      pickX: 100,
-      pickY: -150,
-      pickRotation: 0,
-      x: 500,
-      y: 400,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    const b: Grip = {
-      id: "b",
-      pickX: 100,
-      pickY: -150,
-      pickRotation: 0,
-      x: 700,
-      y: 400,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    const merged = mergeGrips(
-      [a, b],
-      pkg.width,
-      pkg.length,
-      pkg.inputDirection,
-    );
-    expect(merged).not.toBeNull();
-    expect(merged?.numPackages).toBe(2);
-    expect(merged?.x).toBe(600);
-    expect(merged?.y).toBe(400);
-  });
-
-  it("treats edge-touching footprints as non-colliding with 0.5 mm tolerance", () => {
-    const left: Grip = {
-      id: "l",
-      pickX: 0,
-      pickY: 0,
-      pickRotation: 0,
-      x: 100,
-      y: 150,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    const right: Grip = {
-      id: "r",
-      pickX: 0,
-      pickY: 0,
-      pickRotation: 0,
-      x: 300,
-      y: 150,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    expect(
-      findGripCollision(
-        [left, right],
-        pkg.width,
-        pkg.length,
-        pkg.inputDirection,
-      ),
-    ).toBeNull();
-  });
-
-  it("detects true overlap", () => {
-    const a: Grip = {
-      id: "a",
-      pickX: 0,
-      pickY: 0,
-      pickRotation: 0,
-      x: 200,
-      y: 150,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    const b: Grip = {
-      id: "b",
-      pickX: 0,
-      pickY: 0,
-      pickRotation: 0,
-      x: 250,
-      y: 150,
-      rotation: 0,
-      numPackages: 1,
-      dx: 0,
-      dy: 0,
-    };
-    expect(
-      findGripCollision([a, b], pkg.width, pkg.length, pkg.inputDirection),
-    ).not.toBeNull();
   });
 });

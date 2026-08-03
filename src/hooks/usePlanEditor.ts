@@ -1,13 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useReducer, useState } from "react";
-import type { BoxSelection } from "~/components/RobViewer";
-import {
-  applyGripEdit,
-  parseRobText,
-  serializeRobText,
-  type Grip,
-} from "~/lib/robParser";
+import type { BoxSelection } from "~/components/rob-viewer/viewerTypes";
+import { applyGripEdit } from "~/domain/palletEdits";
+import type { Grip } from "~/domain/palletTypes";
+import { parseRobText, serializeRobText } from "~/lib/robParser";
 import type { PalletData, PlanView, SavedPallet } from "~/lib/palletTypes";
 import { resolvePalletData } from "~/hooks/usePalletLibrary";
 

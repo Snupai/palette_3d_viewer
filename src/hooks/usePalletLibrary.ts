@@ -8,7 +8,12 @@ import {
   useState,
   type ChangeEvent,
 } from "react";
-import { parseRobText, serializeRobText } from "~/lib/robParser";
+import {
+  CURRENT_PALLET_SCHEMA_VERSION,
+  formatPalletStorageIssues,
+  parseLegacyPalletJson,
+} from "~/lib/palletPersistence";
+import { formatImportDiagnostics, parsePalletFiles } from "~/lib/palletImport";
 import type { PalletData, SavedPallet } from "~/lib/palletTypes";
 import {
   clearPallets,
@@ -19,42 +24,10 @@ import {
 
 const STORAGE_KEY = "saved_pallets_v1";
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function isSavedPallet(value: unknown): value is SavedPallet {
-  if (!isRecord(value)) return false;
-  return (
-    typeof value.id === "string" &&
-    typeof value.name === "string" &&
-    typeof value.createdAt === "number" &&
-    Number.isFinite(value.createdAt) &&
-    isRecord(value.data)
-  );
-}
-
-function parseMigratedPallets(raw: string): SavedPallet[] | null {
-  const parsed: unknown = JSON.parse(raw);
-  return Array.isArray(parsed) && parsed.every(isSavedPallet) ? parsed : null;
-}
-
-/** Re-parse from raw .rob when present so newer parser fields are available. */
 export function resolvePalletData(
-  entry: Pick<SavedPallet, "data" | "rawText">,
+  entry: Pick<SavedPallet, "data">,
 ): PalletData {
-  if (entry.rawText) {
-    try {
-      return parseRobText(entry.rawText);
-    } catch {
-      return entry.data;
-    }
-  }
-  try {
-    return parseRobText(serializeRobText(entry.data));
-  } catch {
-    return entry.data;
-  }
+  return entry.data;
 }
 
 export function usePalletLibrary() {
@@ -63,39 +36,58 @@ export function usePalletLibrary() {
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const refresh = useCallback(async (): Promise<SavedPallet[]> => {
-    const next = await getAllPallets<PalletData>();
-    setSaved(next);
-    return next;
+  const loadStoredPallets = useCallback(async () => {
+    const result = await getAllPallets();
+    if (result.repaired.length > 0) await putPallets(result.repaired);
+    return result;
   }, []);
+
+  const refresh = useCallback(async (): Promise<SavedPallet[]> => {
+    const result = await loadStoredPallets();
+    const warning = formatPalletStorageIssues(result.issues);
+    if (warning) setError(warning);
+    setSaved(result.pallets);
+    return result.pallets;
+  }, [loadStoredPallets]);
 
   useEffect(() => {
     void (async () => {
       try {
-        let existing = await getAllPallets<PalletData>();
+        const stored = await loadStoredPallets();
+        let existing = stored.pallets;
+        let warning = formatPalletStorageIssues(stored.issues);
+
         if (existing.length === 0) {
           const raw = localStorage.getItem(STORAGE_KEY);
           if (raw) {
-            const migrated = parseMigratedPallets(raw);
-            if (!migrated) {
+            const migrated = parseLegacyPalletJson(raw);
+            warning = formatPalletStorageIssues(migrated.issues) ?? warning;
+            if (!migrated.parsed) {
               setError(
-                "Unable to migrate saved pallets: stored data is invalid.",
+                warning ??
+                  "Unable to migrate saved pallets from legacy storage.",
               );
               return;
             }
-            await putPallets<PalletData>(migrated);
+            if (migrated.pallets.length > 0) {
+              await putPallets(migrated.pallets);
+            }
             localStorage.removeItem(STORAGE_KEY);
-            existing = await getAllPallets<PalletData>();
+            existing = [...migrated.pallets].sort(
+              (a, b) => b.createdAt - a.createdAt,
+            );
           }
         }
+
         setSaved(existing);
         setSelectedId(existing[0]?.id ?? null);
+        if (warning) setError(warning);
       } catch (cause) {
         console.error("Failed to load saved pallets", cause);
         setError("Unable to load saved pallets from browser storage.");
       }
     })();
-  }, []);
+  }, [loadStoredPallets]);
 
   const selectedEntry = useMemo(
     () => saved.find((pallet) => pallet.id === selectedId) ?? null,
@@ -108,36 +100,31 @@ export function usePalletLibrary() {
       const files = event.target.files ? Array.from(event.target.files) : [];
       try {
         if (files.length === 0) return;
-        const newEntries: SavedPallet[] = [];
-        const failed: string[] = [];
-
-        for (const file of files) {
-          try {
-            const text = await file.text();
-            const data = parseRobText(text);
-            newEntries.push({
-              id:
-                globalThis.crypto?.randomUUID?.() ??
-                `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-              name: file.name ?? `Pallet ${new Date().toLocaleString()}`,
-              createdAt: Date.now(),
-              data,
-              rawText: text,
-              originalRawText: text,
-            });
-          } catch {
-            failed.push(file.name);
-          }
-        }
+        const importResult = await parsePalletFiles(files);
+        const createdAt = Date.now();
+        const newEntries: SavedPallet[] = importResult.parsed.map(
+          ({ name, data, rawText }, index) => ({
+            schemaVersion: CURRENT_PALLET_SCHEMA_VERSION,
+            id:
+              globalThis.crypto?.randomUUID?.() ??
+              `${createdAt}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+            name,
+            createdAt,
+            data,
+            rawText,
+            originalRawText: rawText,
+          }),
+        );
 
         if (newEntries.length > 0) {
-          await putPallets<PalletData>(newEntries);
+          await putPallets(newEntries);
           await refresh();
           setSelectedId(newEntries.at(-1)!.id);
         }
-        if (failed.length > 0) {
-          setError(`Failed to parse: ${failed.join(", ")}`);
-        }
+        const diagnosticMessage = formatImportDiagnostics(
+          importResult.diagnostics,
+        );
+        if (diagnosticMessage) setError(diagnosticMessage);
       } catch (cause) {
         console.error("Failed to import pallet files", cause);
         setError("Unable to save imported pallets to browser storage.");
@@ -150,7 +137,7 @@ export function usePalletLibrary() {
 
   const savePallet = useCallback(async (entry: SavedPallet) => {
     try {
-      await putPallets<PalletData>([entry]);
+      await putPallets([entry]);
       setSaved((current) =>
         current.map((pallet) => (pallet.id === entry.id ? entry : pallet)),
       );

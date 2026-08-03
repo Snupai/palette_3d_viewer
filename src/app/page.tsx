@@ -12,8 +12,9 @@ import { usePlanEditor } from "~/hooks/usePlanEditor";
 import {
   applyBaseInterlayerEdit,
   applyInterlayerAfterLayerEdit,
-} from "~/lib/robParser";
+} from "~/domain/palletEdits";
 import type { PlanView } from "~/lib/palletTypes";
+import { rotateRobPlanBy180 } from "~/lib/planTransforms";
 
 const RobViewer = dynamic(
   () => import("~/components/RobViewer").then((module) => module.RobViewer),
@@ -43,25 +44,6 @@ const LayerEditor2D = dynamic(
 function planDownloadName(name: string, view: PlanView): string {
   const stem = name.toLowerCase().endsWith(".rob") ? name.slice(0, -4) : name;
   return view === "original" ? `${stem}.rob` : `${stem}.edited.rob`;
-}
-
-function rotateRobPlanBy180(rawText: string): string {
-  const newline = rawText.includes("\r\n") ? "\r\n" : "\n";
-  const lines = rawText.split(/\r?\n/);
-  const coordinatePattern = /^(\s*-?\d+(?:\s+-?\d+){4}\s+)(-?\d+)(.*)$/;
-  return lines
-    .map((line) => {
-      if (!coordinatePattern.test(line)) return line;
-      return line.replace(
-        coordinatePattern,
-        (_full, prefix: string, rotationRaw: string, suffix: string) => {
-          const rotation = Number.parseInt(rotationRaw, 10);
-          if (!Number.isFinite(rotation)) return line;
-          return `${prefix}${(((rotation + 180) % 360) + 360) % 360}${suffix}`;
-        },
-      );
-    })
-    .join(newline);
 }
 
 function triggerDownload(filename: string, contents: string) {
@@ -183,7 +165,10 @@ export default function HomePage() {
           modifyDisabled={!viewedData || !viewedRawText}
         />
         {library.error && (
-          <div className="rounded border border-red-400 bg-red-500/20 p-3 text-sm text-red-100">
+          <div
+            role="alert"
+            className="rounded border border-red-400 bg-red-500/20 p-3 text-sm whitespace-pre-line text-red-100"
+          >
             {library.error}
           </div>
         )}
@@ -283,8 +268,15 @@ export default function HomePage() {
                 <select
                   value={selectedUniqueLayerId}
                   onChange={(event) => {
-                    editor.setSelectedUniqueLayerId(Number(event.target.value));
-                    editor.setSelectedGripIndex(null);
+                    const nextUniqueLayerId = Number(event.target.value);
+                    const nextGripCount =
+                      data.uniqueLayers[nextUniqueLayerId]?.length ?? 0;
+                    editor.setSelectedUniqueLayerId(nextUniqueLayerId);
+                    editor.setSelectedGripIndex((current) =>
+                      nextGripCount === 0
+                        ? null
+                        : Math.min(current ?? 0, nextGripCount - 1),
+                    );
                   }}
                   className="cursor-pointer rounded border border-cyan-500/20 bg-slate-950/50 px-2 py-1.5 text-xs text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-0"
                 >

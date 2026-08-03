@@ -4,6 +4,12 @@ type Disposable = {
   dispose: () => void;
 };
 
+type ResourceSets = {
+  geometries: Set<THREE.BufferGeometry>;
+  materials: Set<THREE.Material>;
+  textures: Set<THREE.Texture>;
+};
+
 function isDisposable(value: unknown): value is Disposable {
   return (
     typeof value === "object" &&
@@ -13,14 +19,28 @@ function isDisposable(value: unknown): value is Disposable {
   );
 }
 
+function collectMaterialResources(
+  material: THREE.Material,
+  target: ResourceSets,
+): void {
+  const mat = material as THREE.Material & Record<string, unknown>;
+  target.materials.add(mat);
+  for (const value of Object.values(mat)) {
+    if (
+      isDisposable(value) &&
+      typeof value === "object" &&
+      value !== null &&
+      "isTexture" in value
+    ) {
+      target.textures.add(value as THREE.Texture);
+    }
+  }
+}
+
 /** Collect geometries/materials/textures from an object tree without disposing yet. */
 export function collectObjectResources(
   root: THREE.Object3D,
-  target: {
-    geometries: Set<THREE.BufferGeometry>;
-    materials: Set<THREE.Material>;
-    textures: Set<THREE.Texture>;
-  },
+  target: ResourceSets,
 ): void {
   root.traverse((obj) => {
     const maybeGeometry = (obj as { geometry?: unknown }).geometry;
@@ -36,28 +56,13 @@ export function collectObjectResources(
         : [];
     for (const material of materials) {
       if (!isDisposable(material)) continue;
-      const mat = material as THREE.Material & Record<string, unknown>;
-      target.materials.add(mat);
-      for (const value of Object.values(mat)) {
-        if (
-          isDisposable(value) &&
-          typeof value === "object" &&
-          value !== null &&
-          "isTexture" in value
-        ) {
-          target.textures.add(value as THREE.Texture);
-        }
-      }
+      collectMaterialResources(material as THREE.Material, target);
     }
   });
 }
 
 /** Dispose each resource exactly once (shared materials stay safe). */
-export function disposeResourceSets(sets: {
-  geometries: Set<THREE.BufferGeometry>;
-  materials: Set<THREE.Material>;
-  textures: Set<THREE.Texture>;
-}): void {
+export function disposeResourceSets(sets: ResourceSets): void {
   for (const texture of sets.textures) texture.dispose();
   for (const material of sets.materials) material.dispose();
   for (const geometry of sets.geometries) geometry.dispose();
@@ -87,7 +92,7 @@ export function createResourceTracker() {
       return geometry;
     },
     trackMaterial<T extends THREE.Material>(material: T) {
-      materials.add(material);
+      collectMaterialResources(material, { geometries, materials, textures });
       return material;
     },
     trackObject(root: THREE.Object3D) {
