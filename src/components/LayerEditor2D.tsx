@@ -10,14 +10,19 @@ import {
 } from "react";
 import type { Grip, Rotation } from "~/lib/robParser";
 import {
-  findGripCollision,
   footprintSize,
   gripsToBoxes,
   insertMergedGripByDeltaDependencies,
   mergeGrips,
   pickOffsetForCount,
   splitGrip,
+  toRobInt,
 } from "~/lib/robParser";
+import {
+  clampDragPosition,
+  hasGripCollision,
+  hasSufficientPalletSupport,
+} from "~/lib/layerEditorGeometry";
 
 type LayerEditor2DProps = {
   uniqueLayerId: number;
@@ -71,7 +76,6 @@ type NumericDraft = {
 
 const INPUT_CLASS =
   "w-full rounded border border-cyan-500/20 bg-slate-950/50 px-2 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-0";
-const MIN_PALLET_SUPPORT_RATIO = 0.65;
 const COLLISION_MESSAGE = "Boxes cannot overlap. Position restored.";
 const INSUFFICIENT_SUPPORT_MESSAGE =
   "At least 65% of every package must rest on the pallet. Position restored.";
@@ -294,128 +298,26 @@ export function LayerEditor2D({
     grips.map((grip, gripIndex) => (gripIndex === index ? nextGrip : grip));
 
   const hasCollision = (nextGrips: Grip[]) =>
-    findGripCollision(
+    hasGripCollision(
       nextGrips,
-      packageWidth,
-      packageLength,
+      { width: packageWidth, length: packageLength },
       inputDirection,
-    ) !== null;
-
-  const hasSufficientPalletSupport = (grip: Grip) =>
-    gripsToBoxes([grip], packageWidth, packageLength, 0, inputDirection).every(
-      (box) => {
-        const size = footprintSize(box);
-        const left = box.rect.x - size.width / 2;
-        const right = box.rect.x + size.width / 2;
-        const bottom = box.rect.y - size.length / 2;
-        const top = box.rect.y + size.length / 2;
-        const supportedWidth = Math.max(
-          0,
-          Math.min(right, palletWidth) - Math.max(left, 0),
-        );
-        const supportedLength = Math.max(
-          0,
-          Math.min(top, palletLength) - Math.max(bottom, 0),
-        );
-        return (
-          (supportedWidth * supportedLength) / (size.width * size.length) >=
-          MIN_PALLET_SUPPORT_RATIO
-        );
-      },
     );
 
-  const clampDragPosition = (
-    gripIndex: number,
-    grip: Grip,
-    fromX: number,
-    fromY: number,
-    toX: number,
-    toY: number,
-  ) => {
-    const steps = Math.max(Math.abs(toX - fromX), Math.abs(toY - fromY));
-    let x = fromX;
-    let y = fromY;
-    if (steps === 0)
-      return { x, y, collided: false, insufficientSupport: false };
-
-    // Precompute other grips once; only rebuild the dragged grip each step.
-    const otherBounds: Array<{
-      left: number;
-      right: number;
-      bottom: number;
-      top: number;
-    }> = [];
-    for (let index = 0; index < grips.length; index++) {
-      if (index === gripIndex) continue;
-      const other = grips[index];
-      if (!other) continue;
-      for (const box of gripsToBoxes(
-        [other],
-        packageWidth,
-        packageLength,
-        0,
-        inputDirection,
-      )) {
-        const size = footprintSize(box);
-        otherBounds.push({
-          left: box.rect.x - size.width / 2,
-          right: box.rect.x + size.width / 2,
-          bottom: box.rect.y - size.length / 2,
-          top: box.rect.y + size.length / 2,
-        });
-      }
-    }
-    const collisionTolerance = 0.500_001;
-
-    for (let step = 1; step <= steps; step++) {
-      const candidateX = Math.round(fromX + ((toX - fromX) * step) / steps);
-      const candidateY = Math.round(fromY + ((toY - fromY) * step) / steps);
-      if (candidateX === x && candidateY === y) continue;
-      const candidate = { ...grip, x: candidateX, y: candidateY };
-      const insufficientSupport = !hasSufficientPalletSupport(candidate);
-      let collides = false;
-      if (!insufficientSupport && otherBounds.length > 0) {
-        for (const box of gripsToBoxes(
-          [candidate],
-          packageWidth,
-          packageLength,
-          0,
-          inputDirection,
-        )) {
-          const size = footprintSize(box);
-          const left = box.rect.x - size.width / 2;
-          const right = box.rect.x + size.width / 2;
-          const bottom = box.rect.y - size.length / 2;
-          const top = box.rect.y + size.length / 2;
-          if (
-            otherBounds.some(
-              (other) =>
-                Math.min(right, other.right) - Math.max(left, other.left) >
-                  collisionTolerance &&
-                Math.min(top, other.top) - Math.max(bottom, other.bottom) >
-                  collisionTolerance,
-            )
-          ) {
-            collides = true;
-            break;
-          }
-        }
-      }
-      if (insufficientSupport || collides)
-        return { x, y, collided: collides, insufficientSupport };
-      x = candidateX;
-      y = candidateY;
-    }
-
-    return { x, y, collided: false, insufficientSupport: false };
-  };
+  const hasSufficientSupport = (grip: Grip) =>
+    hasSufficientPalletSupport(
+      grip,
+      { width: palletWidth, length: palletLength },
+      { width: packageWidth, length: packageLength },
+      inputDirection,
+    );
 
   const replaceGrip = (index: number, nextGrip: Grip) => {
     onCommitGrips(withReplacedGrip(index, nextGrip));
   };
 
   const replacePlacedGrip = (index: number, nextGrip: Grip) => {
-    if (!hasSufficientPalletSupport(nextGrip)) {
+    if (!hasSufficientSupport(nextGrip)) {
       setMessage(INSUFFICIENT_SUPPORT_MESSAGE);
       setDraft(gripDraft(grips[index] ?? null));
       return false;
@@ -478,14 +380,18 @@ export function LayerEditor2D({
     const y = Math.round(point.y - drag.offsetY);
     const currentGrip = grips[drag.gripIndex];
     if (!currentGrip || currentGrip.id !== drag.gripId) return;
-    const clamped = clampDragPosition(
-      drag.gripIndex,
-      currentGrip,
-      drag.x,
-      drag.y,
-      x,
-      y,
-    );
+    const clamped = clampDragPosition({
+      grips,
+      gripIndex: drag.gripIndex,
+      grip: currentGrip,
+      pallet: { width: palletWidth, length: palletLength },
+      packageSize: { width: packageWidth, length: packageLength },
+      inputDirection,
+      fromX: drag.x,
+      fromY: drag.y,
+      toX: x,
+      toY: y,
+    });
     setMessage(
       clamped.insufficientSupport
         ? DRAG_INSUFFICIENT_SUPPORT_MESSAGE
@@ -514,14 +420,18 @@ export function LayerEditor2D({
     if (!point || !currentGrip || currentGrip.id !== drag.gripId) return;
     const pointerX = Math.round(point.x - drag.offsetX);
     const pointerY = Math.round(point.y - drag.offsetY);
-    const clamped = clampDragPosition(
-      drag.gripIndex,
-      currentGrip,
-      drag.x,
-      drag.y,
-      pointerX,
-      pointerY,
-    );
+    const clamped = clampDragPosition({
+      grips,
+      gripIndex: drag.gripIndex,
+      grip: currentGrip,
+      pallet: { width: palletWidth, length: palletLength },
+      packageSize: { width: packageWidth, length: packageLength },
+      inputDirection,
+      fromX: drag.x,
+      fromY: drag.y,
+      toX: pointerX,
+      toY: pointerY,
+    });
     const { x, y } = clamped;
     if (clamped.insufficientSupport)
       setMessage(DRAG_INSUFFICIENT_SUPPORT_MESSAGE);
@@ -540,6 +450,10 @@ export function LayerEditor2D({
     if (selectedGripIndex === null) return;
     const grip = grips[selectedGripIndex];
     if (!grip) return;
+    if (draft[field].trim() === "") {
+      setDraft(gripDraft(grip));
+      return;
+    }
     const value = Number(draft[field]);
     if (!Number.isFinite(value)) {
       setDraft(gripDraft(grip));
@@ -734,27 +648,27 @@ export function LayerEditor2D({
     );
     const xCandidates = new Set<number>([
       Math.round(palletWidth / 2),
-      size.width / 2,
-      palletWidth - size.width / 2,
+      toRobInt(size.width / 2),
+      toRobInt(palletWidth - size.width / 2),
     ]);
     const yCandidates = new Set<number>([
       Math.round(palletLength / 2),
-      size.length / 2,
-      palletLength - size.length / 2,
+      toRobInt(size.length / 2),
+      toRobInt(palletLength - size.length / 2),
     ]);
     for (const existing of existingBoxes) {
       const existingSize = footprintSize(existing);
       xCandidates.add(
-        existing.rect.x - existingSize.width / 2 - size.width / 2,
+        toRobInt(existing.rect.x - existingSize.width / 2 - size.width / 2),
       );
       xCandidates.add(
-        existing.rect.x + existingSize.width / 2 + size.width / 2,
+        toRobInt(existing.rect.x + existingSize.width / 2 + size.width / 2),
       );
       yCandidates.add(
-        existing.rect.y - existingSize.length / 2 - size.length / 2,
+        toRobInt(existing.rect.y - existingSize.length / 2 - size.length / 2),
       );
       yCandidates.add(
-        existing.rect.y + existingSize.length / 2 + size.length / 2,
+        toRobInt(existing.rect.y + existingSize.length / 2 + size.length / 2),
       );
     }
     const candidates = [...xCandidates]
@@ -779,7 +693,11 @@ export function LayerEditor2D({
       setMessage("No non-overlapping position is available on the pallet.");
       return;
     }
-    const nextGrip = { ...baseGrip, ...freePosition };
+    const nextGrip = {
+      ...baseGrip,
+      x: toRobInt(freePosition.x),
+      y: toRobInt(freePosition.y),
+    };
     const next = [...grips, nextGrip];
     setMergeSelection(new Set([next.length - 1]));
     setMessage("Package added at the nearest free position.");

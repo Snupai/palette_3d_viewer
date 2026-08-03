@@ -75,7 +75,9 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
                 data-toc-active={active ? "" : undefined}
                 onClick={() => onChange(layerFromBottom)}
                 onMouseEnter={() => setHoveredIndex(i)}
-                style={{ transform: `translateY(${pushOffset(i, hoveredIndex)}px)` }}
+                style={{
+                  transform: `translateY(${pushOffset(i, hoveredIndex)}px)`,
+                }}
                 // ::before widens the hit area past the layout box, keeping ticks tightly spaced
                 className="relative flex w-9 shrink-0 cursor-pointer items-center justify-center py-0.5 transition-transform duration-150 ease-out before:absolute before:inset-x-0 before:-inset-y-[3px] before:content-['']"
               >
@@ -86,10 +88,10 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
                     active
                       ? "bg-cyan-300 shadow-[0_0_6px_rgba(103,232,249,0.6)]"
                       : hovered
-                      ? "bg-cyan-200"
-                      : included
-                      ? "bg-cyan-400/45"
-                      : "bg-slate-600/80"
+                        ? "bg-cyan-200"
+                        : included
+                          ? "bg-cyan-400/45"
+                          : "bg-slate-600/80"
                   }`}
                 />
               </button>
@@ -97,7 +99,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
           })}
         </div>
       </div>
-      <span className="font-mono text-[10px] tabular-nums text-cyan-200/70">
+      <span className="font-mono text-[10px] text-cyan-200/70 tabular-nums">
         {clamped}/{layerCount}
       </span>
     </div>

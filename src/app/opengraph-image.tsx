@@ -27,7 +27,9 @@ export default function Image() {
         }}
       >
         <div style={{ opacity: 0.9 }}>Pallet 3D Viewer</div>
-        <div style={{ fontSize: 24, fontWeight: 500, opacity: 0.85, marginTop: 8 }}>
+        <div
+          style={{ fontSize: 24, fontWeight: 500, opacity: 0.85, marginTop: 8 }}
+        >
           Visualize .rob pallet layouts in 3D
         </div>
       </div>
@@ -37,4 +39,3 @@ export default function Image() {
     },
   );
 }
-

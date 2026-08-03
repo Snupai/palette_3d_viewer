@@ -740,130 +740,274 @@ export function mergeGrips(
   };
 }
 
-function expectIndex<T>(arr: T[], idx: number, label: string): T {
-  const v = arr[idx];
-  if (v === undefined || v === null) {
-    throw new Error(`Unexpected .rob format: missing ${label}`);
+/** Truncate toward zero — .rob coordinates are integer tokens. */
+export function toRobInt(value: number): number {
+  return Math.trunc(value);
+}
+
+function robError(lineNumber: number, message: string): Error {
+  return new Error(`.rob line ${lineNumber}: ${message}`);
+}
+
+function splitTokens(line: string): string[] {
+  const trimmed = line.trim();
+  if (trimmed === "") return [];
+  return trimmed.split(/\s+/);
+}
+
+function parseRequiredIntToken(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+): number {
+  if (token === undefined || token === "") {
+    throw robError(lineNumber, `missing field "${field}"`);
   }
-  return v as T;
+  if (!/^-?\d+$/.test(token)) {
+    throw robError(
+      lineNumber,
+      `field "${field}" must be an integer (got "${token}")`,
+    );
+  }
+  const value = Number.parseInt(token, 10);
+  if (!Number.isFinite(value)) {
+    throw robError(lineNumber, `field "${field}" is not a finite integer`);
+  }
+  return value;
+}
+
+function parseOptionalNonNegIntToken(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+  fallback = 0,
+): number {
+  if (token === undefined || token === "") return fallback;
+  const value = parseRequiredIntToken(token, lineNumber, field);
+  if (value < 0) {
+    throw robError(lineNumber, `field "${field}" must be >= 0`);
+  }
+  return value;
+}
+
+function parsePositiveDimension(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+): number {
+  const value = parseRequiredIntToken(token, lineNumber, field);
+  if (value <= 0) {
+    throw robError(lineNumber, `field "${field}" must be > 0`);
+  }
+  return value;
+}
+
+function parseNonNegativeCount(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+): number {
+  const value = parseRequiredIntToken(token, lineNumber, field);
+  if (value < 0) {
+    throw robError(lineNumber, `field "${field}" must be >= 0`);
+  }
+  return value;
+}
+
+function parsePositiveCount(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+): number {
+  const value = parseRequiredIntToken(token, lineNumber, field);
+  if (value <= 0) {
+    throw robError(lineNumber, `field "${field}" must be > 0`);
+  }
+  return value;
+}
+
+function parseRotationToken(
+  token: string | undefined,
+  lineNumber: number,
+  field: string,
+): Rotation {
+  const value = parseRequiredIntToken(token, lineNumber, field);
+  if (value !== 0 && value !== 90 && value !== 180 && value !== 270) {
+    throw robError(
+      lineNumber,
+      `field "${field}" must be 0, 90, 180, or 270 (got ${value})`,
+    );
+  }
+  return value;
 }
 
 export function parseRobText(text: string): PalletData {
   // Do NOT filter blank lines; positions are significant in the Python version
   const lines = text.split(/\r?\n/);
-  if (lines.length < 6) throw new Error("Unexpected .rob format");
+  if (lines.length < 6) {
+    throw new Error("Unexpected .rob format: expected at least 6 lines");
+  }
 
-  const palletDimensionsRaw =
-    lines[0]
-      ?.trim()
-      ?.split(/\s+/)
-      .map((n) => parseInt(n, 10)) ?? [];
-  const palletDims =
-    palletDimensionsRaw.length >= 3
-      ? {
-          width: palletDimensionsRaw[0]!,
-          length: palletDimensionsRaw[1]!,
-          height: palletDimensionsRaw[2]!,
-        }
-      : null;
+  const palletTokens = splitTokens(lines[0] ?? "");
+  let palletDims: PalletData["pallet"] = null;
+  if (palletTokens.length > 0) {
+    const width = parseRequiredIntToken(palletTokens[0], 1, "pallet width");
+    const length = parseRequiredIntToken(palletTokens[1], 1, "pallet length");
+    const height = parseRequiredIntToken(palletTokens[2], 1, "pallet height");
+    if (width === 0 && length === 0 && height === 0) {
+      palletDims = null;
+    } else if (width <= 0 || length <= 0 || height <= 0) {
+      throw robError(1, "pallet dimensions must be > 0 (or 0 0 0 for unknown)");
+    } else {
+      palletDims = { width, length, height };
+    }
+  }
 
   const packageLine = lines[1];
-  if (!packageLine)
-    throw new Error("Unexpected .rob format: missing package dimensions line");
-  const packageDimensions = packageLine
-    .trim()
-    .split(/\s+/)
-    .map((n) => parseInt(n, 10));
-  const package_width = expectIndex(packageDimensions, 0, "package width");
-  const package_length = expectIndex(packageDimensions, 1, "package length");
-  const package_height = expectIndex(packageDimensions, 2, "package height");
+  if (packageLine === undefined) {
+    throw robError(2, "missing package dimensions line");
+  }
+  const packageTokens = splitTokens(packageLine);
+  const package_width = parsePositiveDimension(
+    packageTokens[0],
+    2,
+    "package width",
+  );
+  const package_length = parsePositiveDimension(
+    packageTokens[1],
+    2,
+    "package length",
+  );
+  const package_height = parsePositiveDimension(
+    packageTokens[2],
+    2,
+    "package height",
+  );
   // Optional input direction flag (packages come in rotated 90°). If 1, flip
   // width/length for boxes only (do not change stored package dims).
-  const input_direction: 0 | 1 =
-    packageDimensions.length > 3 && packageDimensions[3] === 1 ? 1 : 0;
-  const inputDirectionExplicit = packageDimensions.length > 3;
+  let input_direction: 0 | 1 = 0;
+  const inputDirectionExplicit = packageTokens.length > 3;
+  if (inputDirectionExplicit) {
+    const flag = parseRequiredIntToken(packageTokens[3], 2, "input direction");
+    if (flag !== 0 && flag !== 1) {
+      throw robError(2, `field "input direction" must be 0 or 1 (got ${flag})`);
+    }
+    input_direction = flag;
+  }
 
   const uniqueLayersLine = lines[2];
   const layersCountLine = lines[3];
-  if (!uniqueLayersLine || !layersCountLine)
-    throw new Error("Unexpected .rob format: missing layer count lines");
-  const num_unique_layers = parseInt(uniqueLayersLine.trim(), 10);
-  const num_layers = parseInt(layersCountLine.trim(), 10);
-  const layerOrderHeaderParts = (lines[4] ?? "")
-    .trim()
-    .split(/\s+/)
-    .map((n) => parseInt(n, 10));
-  const firstLayerZwischenlage = Number.isFinite(layerOrderHeaderParts[1])
-    ? layerOrderHeaderParts[1]!
-    : 0;
+  if (uniqueLayersLine === undefined || layersCountLine === undefined) {
+    throw robError(3, "missing layer count lines");
+  }
+  const num_unique_layers = parseNonNegativeCount(
+    splitTokens(uniqueLayersLine)[0],
+    3,
+    "unique layer count",
+  );
+  const num_layers = parseNonNegativeCount(
+    splitTokens(layersCountLine)[0],
+    4,
+    "total layer count",
+  );
+
+  const headerTokens = splitTokens(lines[4] ?? "");
+  const firstLayerZwischenlage = parseOptionalNonNegIntToken(
+    headerTokens[1],
+    5,
+    "base zwischenlage",
+  );
 
   const layer_order: Array<{ unique_layer_id: number; zwischenlage: number }> =
     [];
   let current_line = 5;
   for (let i = 0; i < num_layers; i++) {
+    const lineNumber = current_line + 1;
     const lo = lines[current_line];
-    if (!lo)
-      throw new Error("Unexpected .rob format: missing layer order entry");
-    const parts = lo
-      .trim()
-      .split(/\s+/)
-      .map((n) => parseInt(n, 10));
-    const unique_layer_id = expectIndex(parts, 0, "unique layer id");
-    const zwischenlage =
-      parts.length > 1 && Number.isFinite(parts[1]) ? parts[1]! : 0;
+    if (lo === undefined) {
+      throw robError(lineNumber, "missing layer order entry");
+    }
+    const parts = splitTokens(lo);
+    const unique_layer_id = parseRequiredIntToken(
+      parts[0],
+      lineNumber,
+      "unique layer id",
+    );
+    const zwischenlage = parseOptionalNonNegIntToken(
+      parts[1],
+      lineNumber,
+      "zwischenlage",
+    );
     layer_order.push({ unique_layer_id, zwischenlage });
     current_line += 1;
   }
 
-  const parseLayerGrips = (): Grip[] => {
+  const parseLayerGrips = (uniqueLayerId: number): Grip[] => {
     // Skip over any empty lines before the count line
     while (current_line < lines.length && lines[current_line]?.trim() === "")
       current_line += 1;
-    const countLine = lines[current_line] ?? "";
-    if (!countLine)
-      throw new Error("Unexpected .rob format: missing coordinates count");
-    const num_coordinates = parseInt(countLine.trim(), 10);
+    const countLineNumber = current_line + 1;
+    const countLine = lines[current_line];
+    if (countLine === undefined) {
+      throw robError(
+        countLineNumber,
+        `missing coordinates count for unique layer ${uniqueLayerId}`,
+      );
+    }
+    const num_coordinates = parseNonNegativeCount(
+      splitTokens(countLine)[0],
+      countLineNumber,
+      "coordinates count",
+    );
     current_line += 1;
     const grips: Grip[] = [];
     for (let i = 0; i < num_coordinates; i++) {
       // Move past accidental blank lines within coordinate block
       while (current_line < lines.length && lines[current_line]?.trim() === "")
         current_line += 1;
-      const coordLine = lines[current_line] ?? "";
-      if (!coordLine)
-        throw new Error("Unexpected .rob format: missing coordinate line");
-      const rawParts = coordLine
-        .trim()
-        .split(/\s+/)
-        .map((n) => parseInt(n, 10));
-      // ensure array has at least 9 entries, with explicit numeric copy
-      const parts: number[] = new Array<number>(9);
-      for (let p = 0; p < 9; p++) {
-        const v = rawParts[p];
-        parts[p] = typeof v === "number" && Number.isFinite(v) ? v : 0;
+      const lineNumber = current_line + 1;
+      const coordLine = lines[current_line];
+      if (coordLine === undefined) {
+        throw robError(lineNumber, "missing coordinate line");
+      }
+      const rawParts = splitTokens(coordLine);
+      if (rawParts.length < 9) {
+        throw robError(
+          lineNumber,
+          `coordinate line needs 9 integer fields (got ${rawParts.length})`,
+        );
       }
       grips.push({
         id: createGripId(),
-        pickX: expectIndex(parts, 0, "pick x"),
-        pickY: expectIndex(parts, 1, "pick y"),
-        pickRotation: expectIndex(parts, 2, "pick rotation") as Rotation,
-        x: expectIndex(parts, 3, "x"),
-        y: expectIndex(parts, 4, "y"),
-        rotation: expectIndex(parts, 5, "rotation") as Rotation,
-        numPackages: expectIndex(parts, 6, "num_packages"),
-        dx: expectIndex(parts, 7, "dx"),
-        dy: expectIndex(parts, 8, "dy"),
+        pickX: parseRequiredIntToken(rawParts[0], lineNumber, "pick x"),
+        pickY: parseRequiredIntToken(rawParts[1], lineNumber, "pick y"),
+        pickRotation: parseRotationToken(
+          rawParts[2],
+          lineNumber,
+          "pick rotation",
+        ),
+        x: parseRequiredIntToken(rawParts[3], lineNumber, "x"),
+        y: parseRequiredIntToken(rawParts[4], lineNumber, "y"),
+        rotation: parseRotationToken(rawParts[5], lineNumber, "rotation"),
+        numPackages: parsePositiveCount(
+          rawParts[6],
+          lineNumber,
+          "num_packages",
+        ),
+        dx: parseRequiredIntToken(rawParts[7], lineNumber, "dx"),
+        dy: parseRequiredIntToken(rawParts[8], lineNumber, "dy"),
       });
       current_line += 1;
     }
     return grips;
   };
 
+  const uniqueLayerBlockCount = Math.max(1, num_unique_layers);
   const uniqueLayers: Record<number, Grip[]> = {};
   const unique_layers: Layer[] = [];
-  for (let i = 0; i < Math.max(1, num_unique_layers); i++) {
+  for (let i = 0; i < uniqueLayerBlockCount; i++) {
     const uniqueLayerId = i + 1;
-    const grips = parseLayerGrips();
+    const grips = parseLayerGrips(uniqueLayerId);
     uniqueLayers[uniqueLayerId] = grips;
     unique_layers.push({
       unique_layer_id: uniqueLayerId,
@@ -881,12 +1025,27 @@ export function parseRobText(text: string): PalletData {
   const layers: Layer[] = [];
   for (let layerIndex = 0; layerIndex < layer_order.length; layerIndex++) {
     const entry = layer_order[layerIndex]!;
+    const lineNumber = 6 + layerIndex;
     let idx = entry.unique_layer_id - 1;
-    if (idx < 0) idx = unique_layers.length - 1; // mimic Python negative index behavior when num==0
+    if (entry.unique_layer_id === 0) {
+      // mimic Python negative-index behavior when id==0
+      idx = unique_layers.length - 1;
+    } else if (idx < 0 || idx >= unique_layers.length) {
+      throw robError(
+        lineNumber,
+        `unique layer id ${entry.unique_layer_id} is not defined (have 1..${unique_layers.length})`,
+      );
+    }
     const src = unique_layers[idx];
+    if (!src) {
+      throw robError(
+        lineNumber,
+        `unique layer id ${entry.unique_layer_id} is not defined`,
+      );
+    }
     layers.push({
       unique_layer_id: entry.unique_layer_id,
-      boxes: src ? src.boxes : [],
+      boxes: src.boxes,
       zwischenlage:
         layerIndex === 0
           ? firstLayerZwischenlage

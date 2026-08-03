@@ -1,28 +1,53 @@
 # Pallet 3D Viewer
 
-Visualize `.rob` pallet layouts in a fast, interactive 3D scene powered by Three.js.
+Import, inspect, and edit `.rob` pallet plans in the browser.
 
-### Features
-- Import `.rob` files and render layered pallet layouts
-- Save multiple pallets locally and switch between them
-- 3D navigation with orbit controls, grid, axes, and pallet base
-- OpenGraph/Twitter embeds with dynamic OG image
+## Features
 
-### Getting Started
-- **Install**: `bun install` or `pnpm install` or `npm install`
-- **Dev**: `bun run dev` (or `pnpm dev` / `npm run dev`)
-- **Build**: `bun run build` (or `pnpm build` / `npm run build`)
+- Interactive Three.js 3D view with package selection
+- Layer rail for controlling the visible stack cutoff
+- 2D edit mode for package grips and interlayers
+- Local pallet library persisted in IndexedDB
+- Raw `.rob` text retained for round-trip editing and downloads
 
-Open `http://localhost:3000` and use the “Import .rob file” button.
+## Requirements
 
-### Tech Stack
-- **Next.js 15** app router
-- **Three.js** for rendering
-- **TypeScript**
-- **Tailwind CSS**
+This project uses [Bun](https://bun.sh/) as its package manager. The pinned
+version is `bun@1.3.14`, as declared by the `packageManager` field in
+`package.json`.
 
-### OpenGraph
-- Site metadata and a dynamic OG image are configured. Update the icon at `public/favicon.ico`.
+## Development
 
-### License
+```sh
+bun install
+bun run dev
+```
+
+Open `http://localhost:3000` and import a `.rob` file.
+
+Available verification commands:
+
+```sh
+bun run test:run
+bun run typecheck
+bun run lint
+bun run build
+```
+
+## Supported `.rob` invariants
+
+- Blank lines are positionally significant and are preserved while parsing.
+- Package coordinates are integers.
+- Supported package rotations are `0`, `90`, `180`, and `270` degrees.
+- Each `Zwischenlage` contributes 3 mm to the stack height.
+- Imported raw text is retained so plans can be parsed again and round-tripped
+  without discarding source formatting.
+
+## Stack
+
+Next.js 15 App Router, React 19, Three.js, Tailwind CSS 4, TypeScript, and
+Vitest.
+
+## License
+
 MIT

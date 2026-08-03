@@ -12,6 +12,10 @@ import {
   layerZBottom,
   ZWISCHENLAGE_HEIGHT_MM,
 } from "~/lib/robParser";
+import {
+  createResourceTracker,
+  disposeObject3D,
+} from "~/components/rob-viewer/sceneResources";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
 const GRIPPER_OBJ = "10_01_43_00016.obj";
@@ -309,45 +313,56 @@ export function RobViewer({
     const blue = new THREE.Color("#3388ff");
     const faceColorSet = { green, white, red, blue };
 
-    const solidMat = new THREE.MeshPhongMaterial({
-      vertexColors: true,
-      shininess: 5,
-      side: THREE.DoubleSide,
-      transparent: false,
-      depthTest: true,
-      depthWrite: true,
-    });
+    const resources = createResourceTracker();
+    const solidMat = resources.trackMaterial(
+      new THREE.MeshPhongMaterial({
+        vertexColors: true,
+        shininess: 5,
+        side: THREE.DoubleSide,
+        transparent: false,
+        depthTest: true,
+        depthWrite: true,
+      }),
+    );
     solidMat.polygonOffset = true;
     solidMat.polygonOffsetFactor = 2;
     solidMat.polygonOffsetUnits = 4;
 
-    const solidEdgeMat = new THREE.LineBasicMaterial({
-      color: 0x0f172a,
-      opacity: 0.85,
-      transparent: true,
-      depthTest: true,
-      depthWrite: false,
-    });
-    const interlayerMat = new THREE.MeshPhongMaterial({
-      color: 0xd6c49a,
-      shininess: 3,
-      side: THREE.DoubleSide,
-    });
-    const topInterlayerMat = new THREE.MeshPhongMaterial({
-      color: 0xd6c49a,
-      shininess: 3,
-      side: THREE.DoubleSide,
-      transparent: true,
-      opacity: 0.35,
-      depthWrite: false,
-    });
-    const interlayerEdgeMat = new THREE.LineBasicMaterial({
-      color: 0xffedbd,
-      transparent: true,
-      opacity: 0.9,
-      depthTest: true,
-      depthWrite: false,
-    });
+    const solidEdgeMat = resources.trackMaterial(
+      new THREE.LineBasicMaterial({
+        color: 0x0f172a,
+        opacity: 0.85,
+        transparent: true,
+        depthTest: true,
+        depthWrite: false,
+      }),
+    );
+    const interlayerMat = resources.trackMaterial(
+      new THREE.MeshPhongMaterial({
+        color: 0xd6c49a,
+        shininess: 3,
+        side: THREE.DoubleSide,
+      }),
+    );
+    const topInterlayerMat = resources.trackMaterial(
+      new THREE.MeshPhongMaterial({
+        color: 0xd6c49a,
+        shininess: 3,
+        side: THREE.DoubleSide,
+        transparent: true,
+        opacity: 0.35,
+        depthWrite: false,
+      }),
+    );
+    const interlayerEdgeMat = resources.trackMaterial(
+      new THREE.LineBasicMaterial({
+        color: 0xffedbd,
+        transparent: true,
+        opacity: 0.9,
+        depthTest: true,
+        depthWrite: false,
+      }),
+    );
 
     const layerRenders: LayerRender[] = [];
     const interlayerRenders: InterlayerRender[] = [];
@@ -447,7 +462,7 @@ export function RobViewer({
 
       if (positions.length === 0) continue;
 
-      const geometry = new THREE.BufferGeometry();
+      const geometry = resources.trackGeometry(new THREE.BufferGeometry());
       geometry.setAttribute(
         "position",
         new THREE.Float32BufferAttribute(positions, 3),
@@ -467,7 +482,7 @@ export function RobViewer({
       const solidMesh = new THREE.Mesh(geometry, solidMat);
       scene.add(solidMesh);
 
-      const edgeGeom = new THREE.BufferGeometry();
+      const edgeGeom = resources.trackGeometry(new THREE.BufferGeometry());
       edgeGeom.setAttribute(
         "position",
         new THREE.Float32BufferAttribute(edgePositions, 3),
@@ -497,10 +512,8 @@ export function RobViewer({
       const normalizedCount = Math.max(0, Math.trunc(count));
       if (normalizedCount === 0) return;
       const height = normalizedCount * ZWISCHENLAGE_HEIGHT_MM;
-      const geometry = new THREE.BoxGeometry(
-        interlayerWidth,
-        interlayerLength,
-        height,
+      const geometry = resources.trackGeometry(
+        new THREE.BoxGeometry(interlayerWidth, interlayerLength, height),
       );
       const mesh = new THREE.Mesh(geometry, interlayerMat);
       mesh.position.set(
@@ -512,7 +525,7 @@ export function RobViewer({
       scene.add(mesh);
 
       const edges = new THREE.LineSegments(
-        new THREE.EdgesGeometry(geometry),
+        resources.trackGeometry(new THREE.EdgesGeometry(geometry)),
         interlayerEdgeMat,
       );
       edges.position.copy(mesh.position);
@@ -583,16 +596,16 @@ export function RobViewer({
     applyLayerVisibility(visibleUpToRef.current);
 
     const euroHeight = 144;
-    const palletGeom = new THREE.BoxGeometry(
-      palletWidth,
-      palletLength,
-      euroHeight,
+    const palletGeom = resources.trackGeometry(
+      new THREE.BoxGeometry(palletWidth, palletLength, euroHeight),
     );
-    const palletMat = new THREE.MeshPhongMaterial({
-      color: 0xb38b6d,
-      shininess: 10,
-      side: THREE.DoubleSide,
-    });
+    const palletMat = resources.trackMaterial(
+      new THREE.MeshPhongMaterial({
+        color: 0xb38b6d,
+        shininess: 10,
+        side: THREE.DoubleSide,
+      }),
+    );
     const palletMesh = new THREE.Mesh(palletGeom, palletMat);
     palletMesh.position.set(palletWidth / 2, palletLength / 2, -euroHeight / 2);
     palletMat.polygonOffset = true;
@@ -600,12 +613,14 @@ export function RobViewer({
     palletMat.polygonOffsetUnits = 2;
     scene.add(palletMesh);
     const palletEdges = new THREE.LineSegments(
-      new THREE.EdgesGeometry(palletGeom),
-      new THREE.LineBasicMaterial({
-        color: 0x2b2b2b,
-        transparent: true,
-        opacity: 0.9,
-      }),
+      resources.trackGeometry(new THREE.EdgesGeometry(palletGeom)),
+      resources.trackMaterial(
+        new THREE.LineBasicMaterial({
+          color: 0x2b2b2b,
+          transparent: true,
+          opacity: 0.9,
+        }),
+      ),
     );
     palletEdges.position.copy(palletMesh.position);
     palletEdges.renderOrder = 2;
@@ -614,35 +629,43 @@ export function RobViewer({
     const grid = new THREE.GridHelper(1200, 24, 0x1f2a37, 0x111827);
     grid.rotation.x = Math.PI / 2;
     scene.add(grid);
+    resources.trackObject(grid);
 
     const axes = new THREE.AxesHelper(400);
     scene.add(axes);
+    resources.trackObject(axes);
 
     const highlightGroup = new THREE.Group();
     highlightGroup.renderOrder = 3;
     scene.add(highlightGroup);
     highlightGroupRef.current = highlightGroup;
 
-    const highlightMat = new THREE.MeshBasicMaterial({
-      color: 0xffdd33,
-      transparent: true,
-      opacity: 0.35,
-      depthTest: true,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    });
-    const highlightEdgeMat = new THREE.LineBasicMaterial({
-      color: 0xffee66,
-      transparent: true,
-      opacity: 0.95,
-      depthTest: true,
-      depthWrite: false,
-    });
-    const placeMarkerMat = new THREE.MeshBasicMaterial({
-      color: 0xffcc00,
-      depthTest: true,
-      depthWrite: false,
-    });
+    const highlightMat = resources.trackMaterial(
+      new THREE.MeshBasicMaterial({
+        color: 0xffdd33,
+        transparent: true,
+        opacity: 0.35,
+        depthTest: true,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    );
+    const highlightEdgeMat = resources.trackMaterial(
+      new THREE.LineBasicMaterial({
+        color: 0xffee66,
+        transparent: true,
+        opacity: 0.95,
+        depthTest: true,
+        depthWrite: false,
+      }),
+    );
+    const placeMarkerMat = resources.trackMaterial(
+      new THREE.MeshBasicMaterial({
+        color: 0xffcc00,
+        depthTest: true,
+        depthWrite: false,
+      }),
+    );
 
     const gripperHolder = new THREE.Group();
     gripperHolder.visible = false;
@@ -669,7 +692,13 @@ export function RobViewer({
           .then((objText) => {
             if (cancelled) return;
             const obj = objLoader.parse(stripObjLineElements(objText));
-            gripperModel = prepareGripperModel(obj);
+            const prepared = prepareGripperModel(obj);
+            if (cancelled) {
+              disposeObject3D(prepared);
+              return;
+            }
+            gripperModel = prepared;
+            resources.trackObject(gripperModel);
             gripperHolder.clear();
             gripperHolder.add(gripperModel);
             const selected = selectedEntryRef.current;
@@ -720,17 +749,19 @@ export function RobViewer({
       for (const grip of gripBoxes) {
         const { width, length } = footprintSize(grip);
         const z = grip.zBottom;
-        const geo = new THREE.BoxGeometry(
-          width * 1.02,
-          length * 1.02,
-          grip.height * 1.02,
+        const geo = resources.trackGeometry(
+          new THREE.BoxGeometry(
+            width * 1.02,
+            length * 1.02,
+            grip.height * 1.02,
+          ),
         );
         const overlay = new THREE.Mesh(geo, highlightMat);
         overlay.position.set(grip.rect.x, grip.rect.y, z + grip.height / 2);
         highlightGroup.add(overlay);
 
         const edges = new THREE.LineSegments(
-          new THREE.EdgesGeometry(geo),
+          resources.trackGeometry(new THREE.EdgesGeometry(geo)),
           highlightEdgeMat,
         );
         edges.position.copy(overlay.position);
@@ -750,16 +781,18 @@ export function RobViewer({
       } else {
         const markerZ = entry.placeZ + 20;
         const marker = new THREE.Mesh(
-          new THREE.SphereGeometry(18, 12, 12),
+          resources.trackGeometry(new THREE.SphereGeometry(18, 12, 12)),
           placeMarkerMat,
         );
         marker.position.set(entry.placeX, entry.placeY, markerZ);
         highlightGroup.add(marker);
 
-        const stemGeom = new THREE.BufferGeometry().setFromPoints([
-          new THREE.Vector3(entry.placeX, entry.placeY, entry.placeZ),
-          new THREE.Vector3(entry.placeX, entry.placeY, markerZ),
-        ]);
+        const stemGeom = resources.trackGeometry(
+          new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(entry.placeX, entry.placeY, entry.placeZ),
+            new THREE.Vector3(entry.placeX, entry.placeY, markerZ),
+          ]),
+        );
         highlightGroup.add(new THREE.Line(stemGeom, highlightEdgeMat));
       }
     };
@@ -883,10 +916,16 @@ export function RobViewer({
     const onResize = () => {
       if (!container || !rendererRef.current || !cameraRef.current) return;
       const { clientWidth, clientHeight } = container;
+      if (clientWidth === 0 || clientHeight === 0) return;
       rendererRef.current.setSize(clientWidth, clientHeight);
       cameraRef.current.aspect = clientWidth / clientHeight;
       cameraRef.current.updateProjectionMatrix();
     };
+    const resizeObserver =
+      typeof ResizeObserver !== "undefined"
+        ? new ResizeObserver(onResize)
+        : null;
+    resizeObserver?.observe(container);
     window.addEventListener("resize", onResize);
 
     let raf = 0;
@@ -907,33 +946,13 @@ export function RobViewer({
     return () => {
       cancelled = true;
       cancelAnimationFrame(raf);
+      resizeObserver?.disconnect();
       window.removeEventListener("resize", onResize);
       renderer.domElement.removeEventListener("pointerdown", onPointerDown);
       renderer.domElement.removeEventListener("pointerup", onPointerUp);
       selectedEntryRef.current = null;
       clearHighlight();
-      highlightMat.dispose();
-      highlightEdgeMat.dispose();
-      placeMarkerMat.dispose();
-      solidMat.dispose();
-      solidEdgeMat.dispose();
-      interlayerMat.dispose();
-      topInterlayerMat.dispose();
-      interlayerEdgeMat.dispose();
-      for (const interlayer of interlayerRenders) {
-        interlayer.mesh.geometry.dispose();
-        interlayer.edges.geometry.dispose();
-      }
-      gripperHolder.traverse((obj) => {
-        if (!(obj instanceof THREE.Mesh)) return;
-        (obj.geometry as THREE.BufferGeometry).dispose();
-        const mats = Array.isArray(obj.material)
-          ? obj.material
-          : [obj.material];
-        for (const mat of mats) {
-          (mat as THREE.Material).dispose();
-        }
-      });
+      resources.disposeAll();
       layerRendersRef.current = [];
       interlayerRendersRef.current = [];
       highlightGroupRef.current = null;

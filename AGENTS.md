@@ -12,16 +12,17 @@
 - Wants compact status readouts next to controls (e.g. a `3/4` current-layer indicator below the slider).
 - Clicking a package should set the visible-layer cutoff to that package's layer (e.g. click on layer 2 → show only layers 1–2).
 - Expects a typecheck run after each change, with the result reported.
+- Gripper selection marker should stay semi-transparent (~30% opacity), not solid.
 
 ## Learned Workspace Facts
 
-- Next.js 15 App Router, React 19, Three.js, Tailwind CSS v4, TypeScript; T3 scaffold with Bun as the lockfile manager.
-- Verify with `npm run typecheck` (`tsc --noEmit`); `npm run check` also runs lint, and `npm run format:write` applies Prettier.
-- Key files: `src/lib/robParser.ts` (.rob parsing and Z math), `src/components/RobViewer.tsx` (Three.js scene), `src/components/LayerSlider.tsx` (layer rail), `src/lib/storage.ts` (IndexedDB persistence), `src/app/page.tsx`.
+- Next.js 15 App Router, React 19, Three.js, Tailwind CSS v4, TypeScript; T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`).
+- Verify with `npm run typecheck` (`tsc --noEmit`); `npm run check` also runs lint; `npm run test` / `npm run test:run` runs Vitest; `npm run format:write` applies Prettier.
+- Key files: `src/lib/robParser.ts` (.rob parse/serialize and Z math), `src/lib/layerEditorGeometry.ts` (2D editor geometry), `src/hooks/usePalletLibrary.ts` + `src/hooks/usePlanEditor.ts` (IndexedDB library + plan editing), `src/components/RobViewer.tsx` / `LayerEditor2D.tsx` (loaded via `next/dynamic` with `ssr: false`), `src/components/LayerSlider.tsx`, `src/lib/storage.ts`, `src/app/page.tsx`.
 - `.rob` layout: line 0 pallet dims, line 1 package dims with an optional 4th input-direction flag (`1` = packages arrive rotated 90°), line 2 unique layer count, line 3 total layer count, then one layer-order row per layer whose second column is the Zwischenlage flag, then per-layer coordinate blocks.
-- Blank lines in `.rob` are positionally significant and must not be filtered out during parsing.
+- Blank lines in `.rob` are positionally significant and must not be filtered out during parsing; numeric fields are integer-based and parser errors include line numbers.
 - Each coordinate line holds x, y, rotation (0/90/180/270), package count, and dx/dy encoding the blue-line side or corner; a multi-package line is a single grip, so all its boxes share the same `placeX`/`placeY`; clicking a box highlights the whole grip and shows place coords.
 - Bottom-face Z (`layerZBottom`) is the sum of package heights below plus Zwischenlagen (3 mm each, `ZWISCHENLAGE_HEIGHT_MM`, matching the robot's `Dicke_ZwLagen`); robot place Z (`layerPlaceZ`) is bottom-face Z plus the current package height (top of the box); pallet height is excluded.
-- Selection marker is the gripper OBJ+MTL under `public/models/gripper/` (Y-up CAD → scene Z-up); strip OBJ `l` edge lines for a solid look, but do not dispose shared MTL materials when removing those lines.
+- Selection marker is the gripper OBJ+MTL under `public/models/gripper/` (Y-up CAD → scene Z-up); strip OBJ `l` edge lines for a solid look, but do not dispose shared MTL materials when removing those lines; use ~30% opacity; rotate yaw 90° when the grip is a single package and package length is below 265 mm.
 - Saved pallets keep their raw `.rob` text and are re-parsed on load so older entries pick up newer parser fields.
 - Sample `.rob` files are not committed; they live in the user's local pallet-plan folders outside the repo.

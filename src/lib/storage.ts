@@ -4,8 +4,12 @@ const DB_NAME = "pallets-db";
 const DB_VERSION = 1;
 const STORE_NAME = "pallets";
 
+let dbPromise: Promise<IDBDatabase> | null = null;
+
 function openDatabase(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise;
+
+  dbPromise = new Promise<IDBDatabase>((resolve, reject) => {
     const request = window.indexedDB.open(DB_NAME, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
@@ -15,10 +19,25 @@ function openDatabase(): Promise<IDBDatabase> {
         store.createIndex("name", "name", { unique: false });
       }
     };
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () =>
+    request.onsuccess = () => {
+      const db = request.result;
+      db.onversionchange = () => {
+        db.close();
+        dbPromise = null;
+      };
+      resolve(db);
+    };
+    request.onerror = () => {
+      dbPromise = null;
       reject(request.error ?? new Error("IndexedDB open failed"));
+    };
+    request.onblocked = () => {
+      dbPromise = null;
+      reject(new Error("IndexedDB open blocked"));
+    };
   });
+
+  return dbPromise;
 }
 
 async function withStore<T>(
@@ -27,18 +46,39 @@ async function withStore<T>(
 ): Promise<T> {
   const db = await openDatabase();
   return new Promise<T>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, mode);
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      reject(error instanceof Error ? error : new Error(String(error)));
+    };
+    const succeed = (value: T) => {
+      if (settled) return;
+      settled = true;
+      resolve(value);
+    };
+
+    let tx: IDBTransaction;
+    try {
+      tx = db.transaction(STORE_NAME, mode);
+    } catch (error) {
+      dbPromise = null;
+      fail(error);
+      return;
+    }
+
     const store = tx.objectStore(STORE_NAME);
-    Promise.resolve(fn(store))
-      .then((result) => {
-        tx.oncomplete = () => resolve(result);
-        tx.onerror = () => reject(tx.error ?? new Error("IndexedDB tx error"));
-        tx.onabort = () =>
-          reject(tx.error ?? new Error("IndexedDB tx aborted"));
+    let result: T;
+
+    tx.oncomplete = () => succeed(result);
+    tx.onerror = () => fail(tx.error ?? new Error("IndexedDB tx error"));
+    tx.onabort = () => fail(tx.error ?? new Error("IndexedDB tx aborted"));
+
+    void Promise.resolve(fn(store))
+      .then((value) => {
+        result = value;
       })
-      .catch((err) =>
-        reject(err instanceof Error ? err : new Error(String(err))),
-      );
+      .catch(fail);
   });
 }
 
@@ -57,7 +97,6 @@ export async function getAllPallets<T = unknown>(): Promise<StoredPallet<T>[]> {
       const req = store.getAll();
       req.onsuccess = () => {
         const rows = (req.result as StoredPallet<T>[]) ?? [];
-        // Sort newest first
         rows.sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
         resolve(rows);
       };

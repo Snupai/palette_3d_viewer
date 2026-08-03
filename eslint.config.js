@@ -7,7 +7,7 @@ const compat = new FlatCompat({
 
 export default tseslint.config(
   {
-    ignores: [".next"],
+    ignores: [".next", "next-env.d.ts"],
   },
   ...compat.extends("next/core-web-vitals"),
   {
@@ -33,6 +33,12 @@ export default tseslint.config(
         "error",
         { checksVoidReturn: { attributes: false } },
       ],
+    },
+  },
+  {
+    files: ["postcss.config.js", "prettier.config.js"],
+    rules: {
+      "import/no-anonymous-default-export": "off",
     },
   },
   {
