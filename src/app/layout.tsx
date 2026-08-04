@@ -12,7 +12,6 @@ export const metadata: Metadata = {
     template: "%s | Pallet 3D Viewer",
   },
   description: "Visualize .rob pallet layouts in 3D.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
     title: "Pallet 3D Viewer",
     description: "Visualize .rob pallet layouts in 3D.",

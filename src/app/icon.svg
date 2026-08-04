@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="13" fill="#18181b" />
+  <!-- pallet slab -->
+  <polygon points="10,37 32,26 54,37 32,48" fill="#b38b6d" />
+  <polygon points="10,37 32,48 32,53 10,42" fill="#8a674f" />
+  <polygon points="32,48 54,37 54,42 32,53" fill="#6e5240" />
+  <!-- box -->
+  <polygon points="18,23 32,16 46,23 32,30" fill="#fcd34d" />
+  <polygon points="18,23 32,30 32,44 18,37" fill="#b45309" />
+  <polygon points="32,30 46,23 46,37 32,44" fill="#d97706" />
+</svg>
