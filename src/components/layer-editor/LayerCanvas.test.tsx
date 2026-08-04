@@ -169,7 +169,7 @@ describe("LayerCanvas", () => {
     svg.focus();
     expect(document.activeElement).toBe(svg);
     expect(svg.tabIndex).toBe(0);
-    expect(svg.getAttribute("class")).toContain("focus-visible:outline-4");
+    expect(svg.getAttribute("class")).toContain("focus-visible:outline-2");
     expect(svg.getAttribute("aria-describedby")?.split(" ")).toHaveLength(2);
     expect(
       screen.getByText(/Keyboard controls: Tab to focus the canvas/)

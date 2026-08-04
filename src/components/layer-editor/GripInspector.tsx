@@ -17,7 +17,7 @@ export type GripInspectorProps = {
 };
 
 const INPUT_CLASS =
-  "w-full rounded border border-cyan-500/20 bg-slate-950/50 px-2 py-1.5 font-mono text-xs text-slate-100 outline-none focus:border-cyan-400/60 focus:ring-0";
+  "w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-zinc-500 focus:ring-0";
 
 export function GripInspector({
   selectedGripIndex,
@@ -33,9 +33,13 @@ export function GripInspector({
   const fieldInput = (
     label: string,
     field: LayerEditorDraftField,
-    options?: { readOnly?: boolean },
+    options?: { readOnly?: boolean; fullWidth?: boolean },
   ) => (
-    <label className="flex flex-col gap-1 text-xs text-slate-400">
+    <label
+      className={`flex flex-col gap-1 text-xs text-zinc-500 ${
+        options?.fullWidth ? "col-span-2" : ""
+      }`}
+    >
       <span>{label}</span>
       <input
         type="number"
@@ -49,50 +53,44 @@ export function GripInspector({
           if (event.key === "Escape") onDraftReset();
         }}
         className={`${INPUT_CLASS} disabled:cursor-not-allowed disabled:opacity-45 ${
-          options?.readOnly ? "cursor-default text-slate-400" : ""
+          options?.readOnly ? "cursor-default text-zinc-500" : ""
         }`}
       />
     </label>
   );
 
   return (
-    <aside className="rounded border border-cyan-500/10 bg-slate-950/35 p-3">
+    <aside className="rounded-md border border-zinc-800 bg-zinc-950 p-3">
       <div className="mb-3 flex items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold text-cyan-200">Grip details</h3>
-        <span className="font-mono text-[10px] text-cyan-200/70">
+        <h3 className="text-sm font-semibold text-zinc-100">Grip details</h3>
+        <span className="font-mono text-[10px] text-zinc-500">
           {selectedGripIndex === null
             ? "none"
             : `${selectedGripIndex + 1}/${gripCount}`}
         </span>
       </div>
-      <p className="mb-2 text-[11px] font-medium tracking-wide text-slate-300 uppercase">
-        Place pose
-      </p>
-      <div className="grid grid-cols-2 gap-2">
+      <p className="mb-2 text-xs font-medium text-zinc-400">Place pose</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
         {fieldInput("Place X", "x")}
         {fieldInput("Place Y", "y")}
-        {fieldInput("Place rotation", "rotation")}
+        {fieldInput("Place rotation", "rotation", { fullWidth: true })}
       </div>
-      <p className="mt-4 mb-2 text-[11px] font-medium tracking-wide text-slate-300 uppercase">
-        Pick pose
-      </p>
-      <div className="grid grid-cols-2 gap-2">
+      <p className="mt-4 mb-2 text-xs font-medium text-zinc-400">Pick pose</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
         {fieldInput("Pick X", "pickX")}
         {fieldInput("Pick Y", "pickY")}
-        {fieldInput("Pick rotation", "pickRotation")}
+        {fieldInput("Pick rotation", "pickRotation", { fullWidth: true })}
       </div>
-      <p className="mt-4 mb-2 text-[11px] font-medium tracking-wide text-slate-300 uppercase">
-        Grip
-      </p>
-      <div className="grid grid-cols-2 gap-2">
-        <label className="flex flex-col gap-1 text-xs text-slate-400">
+      <p className="mt-4 mb-2 text-xs font-medium text-zinc-400">Grip</p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
+        <label className="col-span-2 flex flex-col gap-1 text-xs text-zinc-500">
           <span>Packages</span>
           <input
             type="number"
             value={selectedGrip?.numPackages ?? ""}
             readOnly
             disabled={!selectedGrip}
-            className={`${INPUT_CLASS} cursor-default text-slate-400 disabled:cursor-not-allowed disabled:opacity-45`}
+            className={`${INPUT_CLASS} cursor-default text-zinc-500 disabled:cursor-not-allowed disabled:opacity-45`}
           />
         </label>
         {fieldInput("dx", "dx")}
@@ -102,12 +100,12 @@ export function GripInspector({
         type="button"
         onClick={onRotate}
         disabled={!selectedGrip}
-        className="mt-3 w-full cursor-pointer rounded border border-cyan-500/30 px-3 py-1.5 text-xs font-medium text-cyan-100 transition hover:bg-cyan-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-3 w-full cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Rotate 90°
       </button>
       {message ? (
-        <p className="mt-3 text-xs leading-relaxed text-cyan-100" role="status">
+        <p className="mt-3 text-xs leading-relaxed text-zinc-300" role="status">
           {message}
         </p>
       ) : null}

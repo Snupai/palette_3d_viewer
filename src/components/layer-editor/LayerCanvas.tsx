@@ -274,7 +274,7 @@ export function LayerCanvas({
   };
 
   return (
-    <div className="min-h-[60vh] overflow-hidden rounded border border-cyan-500/15 bg-slate-950/70 p-3 focus-within:border-cyan-200 focus-within:ring-2 focus-within:ring-cyan-300/80 lg:min-h-0">
+    <div className="min-h-[60vh] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 p-3 focus-within:border-zinc-500 lg:min-h-0">
       <p id={instructionsId} className="sr-only">
         Keyboard controls: Tab to focus the canvas. Home and End select the
         first and last grip. Page Up or left bracket selects the previous grip;
@@ -302,7 +302,7 @@ export function LayerCanvas({
         aria-label={`Top-down editor for unique layer ${uniqueLayerId}`}
         aria-describedby={`${instructionsId} ${selectionStatusId}`}
         tabIndex={0}
-        className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-4 focus-visible:outline-offset-[-4px] focus-visible:outline-cyan-300 lg:min-h-0"
+        className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-400 lg:min-h-0"
         onFocus={ensureKeyboardSelection}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
@@ -328,9 +328,9 @@ export function LayerCanvas({
           y={1}
           width={Math.max(0, palletWidth - 2)}
           height={Math.max(0, palletLength - 2)}
-          rx={10}
-          fill="#0f2237"
-          stroke="#64748b"
+          rx={4}
+          fill="#18181b"
+          stroke="#52525b"
           strokeWidth={3}
           vectorEffect="non-scaling-stroke"
           pointerEvents="none"
@@ -345,7 +345,7 @@ export function LayerCanvas({
                 y1={0}
                 x2={x}
                 y2={palletLength}
-                stroke="#67e8f9"
+                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -360,7 +360,7 @@ export function LayerCanvas({
                 y1={y}
                 x2={palletWidth}
                 y2={y}
-                stroke="#67e8f9"
+                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -397,13 +397,13 @@ export function LayerCanvas({
                       rx={4}
                       fill={
                         isPrimary
-                          ? "#155e75"
+                          ? "#42350f"
                           : isMergeSelected
-                            ? "#164e63"
-                            : "#1e293b"
+                            ? "#332a10"
+                            : "#2f2f36"
                       }
                       stroke={
-                        isPrimary || isMergeSelected ? "#67e8f9" : "#94a3b8"
+                        isPrimary || isMergeSelected ? "#fbbf24" : "#a1a1aa"
                       }
                       strokeWidth={isPrimary ? 3 : 2}
                       vectorEffect="non-scaling-stroke"
@@ -420,7 +420,7 @@ export function LayerCanvas({
                         d={path}
                         fill="none"
                         stroke="#38bdf8"
-                        strokeWidth={5}
+                        strokeWidth={3.5}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         vectorEffect="non-scaling-stroke"
@@ -438,17 +438,18 @@ export function LayerCanvas({
                     x2={deltaArrow.endX}
                     y2={deltaArrow.endY}
                     stroke="#fbbf24"
-                    strokeWidth={isPrimary ? 5 : 3}
+                    strokeWidth={isPrimary ? 5 : 2.5}
                     strokeLinecap="round"
                     markerEnd={`url(#grip-delta-arrow-${uniqueLayerId})`}
                     vectorEffect="non-scaling-stroke"
-                    opacity={isPrimary ? 1 : 0.8}
+                    opacity={isPrimary ? 1 : 0.55}
                   />
                   <circle
                     cx={deltaArrow.centerX}
                     cy={deltaArrow.centerY}
                     r={isPrimary ? 6 : 4}
                     fill="#fbbf24"
+                    opacity={isPrimary ? 1 : 0.55}
                     vectorEffect="non-scaling-stroke"
                   />
                   {isPrimary ? (
@@ -458,7 +459,7 @@ export function LayerCanvas({
                       textAnchor="middle"
                       dominantBaseline="middle"
                       fill="#fef3c7"
-                      stroke="#0f172a"
+                      stroke="#18181b"
                       strokeWidth={5}
                       paintOrder="stroke"
                       fontSize={17}
@@ -476,7 +477,7 @@ export function LayerCanvas({
                   y={palletLength - firstBox.rect.y}
                   dy="0.35em"
                   textAnchor="middle"
-                  fill="#e0f2fe"
+                  fill="#d4d4d8"
                   fontSize={Math.max(
                     18,
                     Math.min(firstBoxSize.width, firstBoxSize.length) * 0.16,

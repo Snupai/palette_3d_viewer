@@ -40,10 +40,10 @@ export function ViewerToolbar({
 }: ViewerToolbarProps) {
   return (
     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h1 className="text-center text-2xl font-bold text-cyan-100 sm:text-left">
+      <h1 className="text-center text-lg font-semibold text-zinc-100 sm:text-left">
         Pallet 3D Viewer (.rob)
       </h1>
-      <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+      <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
         <input
           ref={fileInputRef}
           type="file"
@@ -54,26 +54,26 @@ export function ViewerToolbar({
         />
         <button
           onClick={requestFileImport}
-          className="w-full cursor-pointer rounded bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm transition hover:bg-cyan-400 sm:w-auto"
+          className="col-span-2 w-full cursor-pointer rounded-md bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-900 transition hover:bg-white sm:w-auto"
         >
           Import .rob file(s)
         </button>
         <div
           role="group"
           aria-label="Plan view"
-          className="grid w-full grid-cols-2 rounded border border-cyan-400/30 bg-slate-950/60 p-0.5 sm:w-auto"
+          className="grid w-full grid-cols-2 rounded-md border border-zinc-800 bg-zinc-950 p-0.5 sm:w-auto"
         >
           <button
             type="button"
             onClick={() => selectPlanView("original")}
             disabled={!originalRawText}
             aria-pressed={planView === "original"}
-            className={`rounded px-3 py-1.5 text-sm font-semibold transition ${
+            className={`rounded px-3 py-1.5 text-sm font-medium transition ${
               !originalRawText
-                ? "cursor-not-allowed text-slate-600"
+                ? "cursor-not-allowed text-zinc-600"
                 : planView === "original"
-                  ? "cursor-pointer bg-cyan-400 text-slate-950"
-                  : "cursor-pointer text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100"
+                  ? "cursor-pointer bg-zinc-800 text-zinc-100"
+                  : "cursor-pointer text-zinc-400 hover:text-zinc-200"
             }`}
           >
             Original
@@ -83,18 +83,18 @@ export function ViewerToolbar({
             onClick={() => selectPlanView("edited")}
             disabled={!selectedRawText}
             aria-pressed={planView === "edited"}
-            className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-semibold transition ${
+            className={`flex items-center justify-center gap-1.5 rounded px-3 py-1.5 text-sm font-medium transition ${
               !selectedRawText
-                ? "cursor-not-allowed text-slate-600"
+                ? "cursor-not-allowed text-zinc-600"
                 : planView === "edited"
-                  ? "cursor-pointer bg-cyan-400 text-slate-950"
-                  : "cursor-pointer text-slate-300 hover:bg-cyan-500/10 hover:text-cyan-100"
+                  ? "cursor-pointer bg-zinc-800 text-zinc-100"
+                  : "cursor-pointer text-zinc-400 hover:text-zinc-200"
             }`}
           >
             Edited
             {hasUnsavedEdits ? (
               <span
-                className="h-2 w-2 rounded-full bg-amber-300"
+                className="h-2 w-2 rounded-full bg-amber-400"
                 aria-label="Unsaved changes"
               />
             ) : null}
@@ -104,10 +104,10 @@ export function ViewerToolbar({
           type="button"
           onClick={onDownloadCurrent}
           disabled={downloadDisabled}
-          className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
+          className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition sm:w-auto ${
             downloadDisabled
-              ? "cursor-not-allowed bg-slate-700 text-slate-400"
-              : "cursor-pointer bg-slate-200 text-slate-900 hover:bg-white"
+              ? "cursor-not-allowed border-zinc-800 text-zinc-600"
+              : "cursor-pointer border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           }`}
         >
           Download current plan
@@ -116,10 +116,10 @@ export function ViewerToolbar({
           type="button"
           onClick={onModifyPlan}
           disabled={modifyDisabled}
-          className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
+          className={`w-full rounded-md border px-4 py-2 text-sm font-medium transition sm:w-auto ${
             modifyDisabled
-              ? "cursor-not-allowed bg-slate-700 text-slate-400"
-              : "cursor-pointer bg-emerald-500 text-slate-900 hover:bg-emerald-400"
+              ? "cursor-not-allowed border-zinc-800 text-zinc-600"
+              : "cursor-pointer border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           }`}
         >
           Modify plan (rotate 180°)
@@ -129,12 +129,12 @@ export function ViewerToolbar({
           onClick={toggleEditMode}
           disabled={!hasData}
           aria-pressed={editMode}
-          className={`w-full rounded px-4 py-2 text-sm font-semibold shadow-sm transition sm:w-auto ${
+          className={`w-full rounded-md px-4 py-2 text-sm font-medium transition sm:w-auto ${
             !hasData
-              ? "cursor-not-allowed bg-slate-700 text-slate-400"
+              ? "cursor-not-allowed border border-zinc-800 text-zinc-600"
               : editMode
-                ? "cursor-pointer bg-amber-300 text-slate-950 hover:bg-amber-200"
-                : "cursor-pointer border border-cyan-400/40 bg-slate-900 text-cyan-100 hover:bg-cyan-500/10"
+                ? "cursor-pointer bg-amber-400 text-zinc-950 hover:bg-amber-300"
+                : "cursor-pointer border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
           }`}
         >
           {editMode ? "Exit edit mode" : "Edit mode"}

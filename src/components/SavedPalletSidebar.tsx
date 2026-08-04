@@ -43,13 +43,13 @@ export function SavedPalletSidebar({
   };
 
   return (
-    <aside className="order-2 w-full rounded border border-cyan-500/10 bg-slate-900/70 p-4 text-sm shadow-lg shadow-cyan-500/10 backdrop-blur xl:order-1 xl:w-[240px] xl:shrink-0">
+    <aside className="order-2 w-full rounded-md border border-zinc-800 bg-zinc-900 p-4 text-sm md:min-w-0 md:flex-1 xl:order-1 xl:w-[240px] xl:shrink-0">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-base font-semibold text-cyan-200">Saved Pallets</h2>
+        <h2 className="text-sm font-semibold text-zinc-100">Saved Pallets</h2>
         {saved.length > 0 && (
           <button
             onClick={(event) => void clearAll(event)}
-            className="cursor-pointer rounded border border-cyan-500/20 bg-transparent px-2 py-1 text-xs font-medium text-cyan-200 transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+            className="cursor-pointer rounded-md border border-zinc-700 bg-transparent px-2 py-1 text-xs font-medium text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200"
           >
             Clear All
           </button>
@@ -62,7 +62,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="L"
           aria-label="Filter length"
-          className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:ring-0 focus:outline-none"
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 focus:ring-0 focus:outline-none"
         />
         <input
           value={filterW}
@@ -70,7 +70,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="W"
           aria-label="Filter width"
-          className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:ring-0 focus:outline-none"
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 focus:ring-0 focus:outline-none"
         />
         <input
           value={filterH}
@@ -78,7 +78,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="H"
           aria-label="Filter height"
-          className="w-full rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-100 placeholder-slate-500 outline-none focus:border-cyan-400/40 focus:ring-0 focus:outline-none"
+          className="w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1 text-xs text-zinc-200 placeholder-zinc-600 outline-none focus:border-zinc-500 focus:ring-0 focus:outline-none"
         />
         <button
           onClick={() => {
@@ -86,22 +86,22 @@ export function SavedPalletSidebar({
             setFilterW("");
             setFilterH("");
           }}
-          className="col-span-2 cursor-pointer rounded border border-cyan-500/20 bg-slate-950/30 px-2 py-1 text-xs text-slate-200 transition hover:border-cyan-400/40 hover:bg-slate-900/50 sm:col-span-3"
+          className="col-span-2 cursor-pointer rounded-md border border-zinc-700 px-2 py-1 text-xs text-zinc-400 transition hover:bg-zinc-800 hover:text-zinc-200 sm:col-span-3"
         >
           Reset Filters
         </button>
       </div>
       <div className="scrollbar-thin flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1">
         {filteredSaved.length === 0 && (
-          <div className="text-slate-400">No saved pallets yet.</div>
+          <div className="text-zinc-500">No saved pallets yet.</div>
         )}
         {filteredSaved.map((pallet) => (
           <div
             key={pallet.id}
-            className={`group flex items-start justify-between gap-2 rounded border px-3 py-2 transition ${
+            className={`group flex items-start justify-between gap-2 rounded-md border px-3 py-2 transition ${
               pallet.id === selectedId
-                ? "border-cyan-400/60 bg-cyan-500/10 shadow-lg shadow-cyan-500/20"
-                : "border-cyan-500/10 bg-slate-900/50 hover:border-cyan-400/40 hover:bg-slate-900/70"
+                ? "border-zinc-600 bg-zinc-800"
+                : "border-transparent hover:bg-zinc-800/60"
             }`}
           >
             <button
@@ -117,15 +117,15 @@ export function SavedPalletSidebar({
                 onSelect(pallet);
               }}
             >
-              <span className="truncate text-slate-100">{pallet.name}</span>
-              <span className="text-xs text-slate-400">
+              <span className="truncate text-zinc-200">{pallet.name}</span>
+              <span className="text-xs text-zinc-500">
                 {pallet.data.layer_count} layers x {pallet.data.total_boxes}{" "}
                 boxes
               </span>
             </button>
             <button
               aria-label="Delete"
-              className="cursor-pointer rounded bg-rose-500/15 px-2 py-1 text-xs text-rose-200 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-rose-500/25"
+              className="cursor-pointer rounded-md px-2 py-1 text-xs text-red-300 opacity-0 transition group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-red-500/15"
               onClick={(event) => {
                 const allow =
                   event.ctrlKey || window.confirm(`Delete "${pallet.name}"?`);

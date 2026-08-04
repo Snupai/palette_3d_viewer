@@ -186,7 +186,7 @@ export function createViewerSceneController({
 
   const createRuntime = (data: PalletData): ViewerRuntime => {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x050b18);
+    scene.background = new THREE.Color(0x101013);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -201,7 +201,7 @@ export function createViewerSceneController({
     const renderer = createRenderer();
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(Math.min(browserWindow.devicePixelRatio, 2));
-    renderer.setClearColor(0x050b18, 1);
+    renderer.setClearColor(0x101013, 1);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -217,6 +217,7 @@ export function createViewerSceneController({
     let pointerDown: PointerPosition | null = null;
     let selectedEntry: BoxPickEntry | null = null;
     let maxVisibleLayer = 1;
+    let visibleCenterZ: number | null = null;
     let resizeListenerAttached = false;
     let pointerListenersAttached = false;
     const gripperAbortController = new AbortController();
@@ -266,6 +267,39 @@ export function createViewerSceneController({
       emitSelection(toBoxSelection(entry, gripEntries));
     };
 
+    // Top face Z of the highest visible box, from pick entries (no mesh traversal).
+    const visibleStackTopZ = (): number | null => {
+      if (!sceneBuild) return null;
+      let top = Number.NEGATIVE_INFINITY;
+      for (const layer of sceneBuild.layerRenders) {
+        if (layer.layerNum + 1 > maxVisibleLayer) continue;
+        for (const entry of layer.pickEntries) {
+          top = Math.max(top, entry.zBottom + entry.height);
+        }
+      }
+      return Number.isFinite(top) ? top : null;
+    };
+
+    // Keep the orbit centered on the visible part of the stack: when layers are
+    // hidden, shift camera and target down together so zooming in still frames
+    // the remaining boxes instead of the empty space above them.
+    const recenterOnVisibleStack = () => {
+      if (!sceneBuild?.bounds || sceneBuild.bounds.isEmpty()) return;
+      const top = visibleStackTopZ();
+      if (top === null) return;
+      const nextCenterZ = (sceneBuild.bounds.min.z + top) / 2;
+      if (visibleCenterZ !== null && controls) {
+        const deltaZ = nextCenterZ - visibleCenterZ;
+        if (deltaZ !== 0) {
+          controls.target.z += deltaZ;
+          camera.position.z += deltaZ;
+          controls.update();
+          animationLoop?.requestRender();
+        }
+      }
+      visibleCenterZ = nextCenterZ;
+    };
+
     const updateVisibility = (nextVisibleUpToLayer: number) => {
       if (!sceneBuild || !highlighter) return;
       maxVisibleLayer = applyLayerVisibility({
@@ -274,6 +308,7 @@ export function createViewerSceneController({
         visibleUpToLayer: nextVisibleUpToLayer,
         layerCount: data.layers.length,
       });
+      recenterOnVisibleStack();
 
       if (selectedEntry && isPickEntryVisible(selectedEntry, maxVisibleLayer)) {
         highlighter.show(
@@ -339,6 +374,13 @@ export function createViewerSceneController({
       controls.screenSpacePanning = true;
       controls.maxDistance = maxOrbitDistance;
       controls.target.copy(center ?? new THREE.Vector3(600, 400, 300));
+      // fitCameraToScene framed the full stack; shift to the visible portion
+      // when the viewer mounts with layers already hidden.
+      if (center && visibleCenterZ !== null) {
+        const deltaZ = visibleCenterZ - center.z;
+        controls.target.z += deltaZ;
+        camera.position.z += deltaZ;
+      }
       controls.update();
 
       renderer.domElement.addEventListener("pointerdown", onPointerDown);

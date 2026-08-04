@@ -15,16 +15,16 @@ function InterlayerButton({
       aria-pressed={enabled}
       aria-label={`${label}: Zwischenlage ${enabled ? "yes" : "no"}`}
       onClick={onClick}
-      className={`flex cursor-pointer items-center gap-2 rounded border px-2.5 py-1.5 text-xs font-medium transition ${
+      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
         enabled
-          ? "border-amber-300/60 bg-amber-400/15 text-amber-100 hover:bg-amber-400/25"
-          : "border-slate-600/70 bg-slate-950/40 text-slate-300 hover:border-amber-300/40 hover:text-amber-100"
+          ? "border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
+          : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
       }`}
     >
       <span>{label}</span>
       <span
-        className={`font-mono text-[10px] uppercase ${
-          enabled ? "text-amber-200" : "text-slate-500"
+        className={`font-mono text-[10px] ${
+          enabled ? "text-amber-300" : "text-zinc-600"
         }`}
       >
         {enabled ? "yes" : "no"}
@@ -49,20 +49,15 @@ export function InterlayerControls({
   return (
     <section
       aria-labelledby="interlayer-controls-title"
-      className="mb-4 rounded border border-amber-300/20 bg-amber-400/[0.04] px-3 py-2.5"
+      className="mb-3 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2"
     >
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <div className="min-w-[160px]">
-          <h3
-            id="interlayer-controls-title"
-            className="text-sm font-semibold text-amber-100"
-          >
-            Zwischenlagen
-          </h3>
-          <p className="text-[11px] text-slate-400">
-            3 mm on the pallet or selected layer
-          </p>
-        </div>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <h3
+          id="interlayer-controls-title"
+          className="text-xs font-medium text-zinc-300"
+        >
+          Zwischenlagen <span className="font-normal text-zinc-600">(3 mm)</span>
+        </h3>
         <div className="flex flex-wrap gap-1.5">
           <InterlayerButton
             label="Pallet"

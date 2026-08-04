@@ -188,7 +188,7 @@ export function buildViewerScene(
 
   const solidEdgeMaterial = resources.trackMaterial(
     new THREE.LineBasicMaterial({
-      color: 0x0f172a,
+      color: 0x18181b,
       opacity: 0.85,
       transparent: true,
       depthTest: true,
@@ -447,7 +447,7 @@ export function buildViewerScene(
   palletEdges.renderOrder = 2;
   root.add(palletEdges);
 
-  const grid = new THREE.GridHelper(1200, 24, 0x1f2a37, 0x111827);
+  const grid = new THREE.GridHelper(1200, 24, 0x2a2a2e, 0x1c1c1f);
   grid.rotation.x = Math.PI / 2;
   root.add(grid);
   resources.trackObject(grid);
