@@ -18,11 +18,11 @@ export default function Image() {
           flexDirection: "column",
           alignItems: "flex-start",
           justifyContent: "flex-end",
-          background: "linear-gradient(135deg, #2e026d 0%, #15162c 100%)",
-          color: "white",
+          background: "#101013",
+          color: "#f4f4f5",
           padding: 64,
           fontSize: 56,
-          fontWeight: 800,
+          fontWeight: 700,
           letterSpacing: -1,
         }}
       >

@@ -31,6 +31,7 @@ Available verification commands:
 bun run test:run
 bun run typecheck
 bun run lint
+bun run format:check
 bun run build
 ```
 
@@ -50,4 +51,4 @@ Vitest.
 
 ## License
 
-MIT
+[MIT](LICENSE)

@@ -1,8 +1,9 @@
-import type { PalletData } from "~/lib/robParser";
+import type { PalletData } from "~/domain/palletTypes";
 
-export type { PalletData };
+export type { PalletData } from "~/domain/palletTypes";
 
 export type SavedPallet = {
+  schemaVersion: 1;
   id: string;
   name: string;
   createdAt: number;

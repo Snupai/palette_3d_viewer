@@ -86,12 +86,12 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
                     hovered ? "h-[3px] w-7" : "h-0.5 w-4.5"
                   } ${
                     active
-                      ? "bg-cyan-300 shadow-[0_0_6px_rgba(103,232,249,0.6)]"
+                      ? "bg-zinc-100"
                       : hovered
-                        ? "bg-cyan-200"
+                        ? "bg-zinc-300"
                         : included
-                          ? "bg-cyan-400/45"
-                          : "bg-slate-600/80"
+                          ? "bg-zinc-500"
+                          : "bg-zinc-700"
                   }`}
                 />
               </button>
@@ -99,7 +99,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
           })}
         </div>
       </div>
-      <span className="font-mono text-[10px] text-cyan-200/70 tabular-nums">
+      <span className="font-mono text-[10px] text-zinc-500 tabular-nums">
         {clamped}/{layerCount}
       </span>
     </div>

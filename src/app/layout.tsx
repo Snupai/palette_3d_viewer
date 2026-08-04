@@ -12,7 +12,6 @@ export const metadata: Metadata = {
     template: "%s | Pallet 3D Viewer",
   },
   description: "Visualize .rob pallet layouts in 3D.",
-  icons: [{ rel: "icon", url: "/favicon.ico" }],
   openGraph: {
     title: "Pallet 3D Viewer",
     description: "Visualize .rob pallet layouts in 3D.",
@@ -44,7 +43,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable}`}>
-      <body>{children}</body>
+      <body className="bg-zinc-950">{children}</body>
     </html>
   );
 }

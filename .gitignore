@@ -46,3 +46,6 @@ yarn-error.log*
 .idea
 
 *.py
+
+# local tool state
+/.cursor/hooks/state/
