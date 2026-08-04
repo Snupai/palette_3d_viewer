@@ -5,7 +5,13 @@ import { resolvePalletData } from "~/hooks/usePalletLibrary";
 import { parseRobText } from "~/lib/robParser";
 
 const rawText = readFileSync(
-  resolve(process.cwd(), "src", "lib", "__fixtures__", "anonymized-plan-lf.rob"),
+  resolve(
+    process.cwd(),
+    "src",
+    "lib",
+    "__fixtures__",
+    "anonymized-plan-lf.rob",
+  ),
   "utf8",
 );
 const parsed = parseRobText(rawText);
