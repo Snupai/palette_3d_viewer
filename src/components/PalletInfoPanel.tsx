@@ -15,8 +15,7 @@ export function PalletInfoPanel({ data, boxSelection }: PalletInfoPanelProps) {
           <span className="text-zinc-500">Layers:</span> {data.layer_count}
         </div>
         <div>
-          <span className="text-zinc-500">Total boxes:</span>{" "}
-          {data.total_boxes}
+          <span className="text-zinc-500">Total boxes:</span> {data.total_boxes}
         </div>
         <div className="pt-2 font-medium text-zinc-300">Package (LxWxH)</div>
         <div>

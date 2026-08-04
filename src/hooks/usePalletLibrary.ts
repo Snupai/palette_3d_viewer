@@ -15,6 +15,7 @@ import {
 } from "~/lib/palletPersistence";
 import { formatImportDiagnostics, parsePalletFiles } from "~/lib/palletImport";
 import type { PalletData, SavedPallet } from "~/lib/palletTypes";
+import { parseRobText, serializeRobText } from "~/lib/robParser";
 import {
   clearPallets,
   deletePalletById,
@@ -24,10 +25,26 @@ import {
 
 const STORAGE_KEY = "saved_pallets_v1";
 
+/**
+ * Re-parse from raw .rob when present so entries saved by an older parser pick
+ * up newer fields. Optional fields like `trailingZwischenlage` pass storage
+ * validation when absent, so the persisted `data` alone can be stale.
+ */
 export function resolvePalletData(
-  entry: Pick<SavedPallet, "data">,
+  entry: Pick<SavedPallet, "data" | "rawText">,
 ): PalletData {
-  return entry.data;
+  if (entry.rawText) {
+    try {
+      return parseRobText(entry.rawText);
+    } catch {
+      return entry.data;
+    }
+  }
+  try {
+    return parseRobText(serializeRobText(entry.data));
+  } catch {
+    return entry.data;
+  }
 }
 
 export function usePalletLibrary() {

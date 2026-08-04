@@ -56,7 +56,8 @@ export function InterlayerControls({
           id="interlayer-controls-title"
           className="text-xs font-medium text-zinc-300"
         >
-          Zwischenlagen <span className="font-normal text-zinc-600">(3 mm)</span>
+          Zwischenlagen{" "}
+          <span className="font-normal text-zinc-600">(3 mm)</span>
         </h3>
         <div className="flex flex-wrap gap-1.5">
           <InterlayerButton
