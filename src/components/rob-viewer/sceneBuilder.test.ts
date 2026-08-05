@@ -68,6 +68,9 @@ describe("viewer scene builder", () => {
     expect(built.pickEntries.map((entry) => entry.placeZ)).toEqual([
       103, 103, 203,
     ]);
+    expect(built.pickEntries.map((entry) => entry.zwischenlage)).toEqual([
+      0, 0, 1,
+    ]);
 
     const bottomGeometry = built.layerRenders[0]!.solidMesh.geometry;
     expect(bottomGeometry.index?.count).toBe(72);
@@ -81,6 +84,21 @@ describe("viewer scene builder", () => {
       layerNum: 1,
       isAboveLayer: true,
     });
+
+    built.dispose();
+  });
+
+  it("reports the Zwischenlage directly above each package layer", () => {
+    const scene = new THREE.Scene();
+    const data = palletData();
+    data.layers[1]!.zwischenlage = 1;
+    data.trailingZwischenlage = 0;
+
+    const built = buildViewerScene(scene, data);
+
+    expect(built.pickEntries.map((entry) => entry.zwischenlage)).toEqual([
+      1, 1, 0,
+    ]);
 
     built.dispose();
   });

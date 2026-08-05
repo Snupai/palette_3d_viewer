@@ -88,12 +88,13 @@ export type ViewerSceneControllerDependencies = {
 };
 
 export type ViewerSceneController = {
-  setData(data: PalletData): void;
+  setData(data: PalletData, options?: { preserveView?: boolean }): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   dispose(): void;
 };
 
 type ViewerRuntime = {
+  setData(data: PalletData, preserveView: boolean): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   dispose(): void;
 };
@@ -207,6 +208,7 @@ export function createViewerSceneController({
     renderer.domElement.style.display = "block";
     container.appendChild(renderer.domElement);
 
+    let currentData = data;
     let sceneBuild: BuiltViewerScene | null = null;
     let highlighter: ViewerHighlighter | null = null;
     let controls: ViewerControls | null = null;
@@ -306,7 +308,7 @@ export function createViewerSceneController({
         layerRenders: sceneBuild.layerRenders,
         interlayerRenders: sceneBuild.interlayerRenders,
         visibleUpToLayer: nextVisibleUpToLayer,
-        layerCount: data.layers.length,
+        layerCount: currentData.layers.length,
       });
       recenterOnVisibleStack();
 
@@ -323,6 +325,53 @@ export function createViewerSceneController({
       } else {
         highlighter.clear();
       }
+    };
+
+    const replaceSceneData = (nextData: PalletData, preserveView: boolean) => {
+      const nextSceneBuild = buildScene(scene, nextData);
+      let nextHighlighter: ViewerHighlighter;
+      try {
+        nextHighlighter = createHighlighter({
+          scene,
+          packageLength: nextData.package.length,
+        });
+      } catch (error) {
+        nextSceneBuild.dispose();
+        throw error;
+      }
+
+      highlighter?.dispose();
+      sceneBuild?.dispose();
+      currentData = nextData;
+      sceneBuild = nextSceneBuild;
+      highlighter = nextHighlighter;
+      pointerDown = null;
+      selectedEntry = null;
+      maxVisibleLayer = 1;
+      visibleCenterZ = null;
+
+      if (loadedGripper) {
+        highlighter.setGripperModel(loadedGripper.model);
+      }
+      updateVisibility(visibleUpToLayer);
+
+      if (!preserveView && controls) {
+        const { center, maxOrbitDistance } = fitCameraToScene(
+          camera,
+          sceneBuild.bounds,
+        );
+        controls.maxDistance = maxOrbitDistance;
+        controls.target.copy(center ?? new THREE.Vector3(600, 400, 300));
+        if (center && visibleCenterZ !== null) {
+          const deltaZ = visibleCenterZ - center.z;
+          controls.target.z += deltaZ;
+          camera.position.z += deltaZ;
+        }
+        controls.update();
+      }
+
+      emitSelection(null);
+      animationLoop?.requestRender();
     };
 
     const cleanup = () => {
@@ -357,31 +406,11 @@ export function createViewerSceneController({
     };
 
     try {
-      sceneBuild = buildScene(scene, data);
-      highlighter = createHighlighter({
-        scene,
-        packageLength: data.package.length,
-      });
-      updateVisibility(visibleUpToLayer);
-
-      const { center, maxOrbitDistance } = fitCameraToScene(
-        camera,
-        sceneBuild.bounds,
-      );
       controls = createControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.screenSpacePanning = true;
-      controls.maxDistance = maxOrbitDistance;
-      controls.target.copy(center ?? new THREE.Vector3(600, 400, 300));
-      // fitCameraToScene framed the full stack; shift to the visible portion
-      // when the viewer mounts with layers already hidden.
-      if (center && visibleCenterZ !== null) {
-        const deltaZ = visibleCenterZ - center.z;
-        controls.target.z += deltaZ;
-        camera.position.z += deltaZ;
-      }
-      controls.update();
+      replaceSceneData(data, false);
 
       renderer.domElement.addEventListener("pointerdown", onPointerDown);
       renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -404,7 +433,6 @@ export function createViewerSceneController({
 
       animationLoop.start();
       onResize();
-      emitSelection(null);
 
       void loadGripper({
         basePath: GRIPPER_MODEL_PATH,
@@ -430,16 +458,23 @@ export function createViewerSceneController({
     }
 
     return {
+      setData(nextData, preserveView) {
+        if (runtimeDisposed) return;
+        replaceSceneData(nextData, preserveView);
+      },
       setVisibleUpToLayer: updateVisibility,
       dispose: cleanup,
     };
   };
 
   return {
-    setData(data) {
+    setData(data, options) {
       if (disposed) return;
-      disposeRuntime();
-      runtime = createRuntime(data);
+      if (!runtime) {
+        runtime = createRuntime(data);
+        return;
+      }
+      runtime.setData(data, options?.preserveView ?? false);
     },
     setVisibleUpToLayer(nextVisibleUpToLayer) {
       if (disposed) return;

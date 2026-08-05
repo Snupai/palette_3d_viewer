@@ -88,7 +88,7 @@ export default function HomePage() {
 
   useEffect(() => {
     if (layerCount > 0) setVisibleUpToLayer(layerCount);
-  }, [layerCount, planView, library.selectedId]);
+  }, [layerCount, library.selectedId]);
 
   const requestFileImport = useCallback(() => {
     if (
@@ -199,6 +199,7 @@ export default function HomePage() {
               <div className="relative min-h-[320px] min-w-0 flex-1 overflow-hidden rounded-md border border-zinc-800 bg-[#101013] sm:min-h-[420px] md:min-h-[55vh] xl:h-[70vh]">
                 <RobViewer
                   data={viewedData}
+                  cameraResetKey={library.selectedId}
                   visibleUpToLayer={visibleUpToLayer}
                   onBoxSelect={(selection) => {
                     editor.setBoxSelection(selection);

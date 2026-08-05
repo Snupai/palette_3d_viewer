@@ -232,6 +232,10 @@ export function buildViewerScene(
     const layerNum = layerIndex;
     const zBottom = layerZBottom(data.layers, layerIndex, data.package.height);
     const placeZ = layerPlaceZ(data.layers, layerIndex, data.package.height);
+    const zwischenlageAbove =
+      layerIndex === data.layers.length - 1
+        ? (data.trailingZwischenlage ?? 0)
+        : (data.layers[layerIndex + 1]?.zwischenlage ?? 0);
 
     const positions: number[] = [];
     const vertexColors: number[] = [];
@@ -307,7 +311,7 @@ export function buildViewerScene(
         rect: box.rect,
         height: box.height,
         layerNum,
-        zwischenlage: layer.zwischenlage ?? 0,
+        zwischenlage: zwischenlageAbove,
         firstFace,
         faceCount: 12,
       });

@@ -11,12 +11,15 @@ export type { BoxSelection } from "~/components/rob-viewer/viewerTypes";
 
 export function RobViewer({
   data,
+  cameraResetKey,
   visibleUpToLayer,
   onBoxSelect,
 }: RobViewerProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const controllerRef = useRef<ViewerSceneController | null>(null);
   const onBoxSelectRef = useRef(onBoxSelect);
+  const cameraResetKeyRef = useRef(cameraResetKey);
+  const resetOnNextDataRef = useRef(false);
   onBoxSelectRef.current = onBoxSelect;
 
   useEffect(() => {
@@ -36,7 +39,15 @@ export function RobViewer({
   }, []);
 
   useEffect(() => {
-    controllerRef.current?.setData(data);
+    if (cameraResetKeyRef.current === cameraResetKey) return;
+    cameraResetKeyRef.current = cameraResetKey;
+    resetOnNextDataRef.current = true;
+  }, [cameraResetKey]);
+
+  useEffect(() => {
+    const resetView = resetOnNextDataRef.current;
+    resetOnNextDataRef.current = false;
+    controllerRef.current?.setData(data, { preserveView: !resetView });
   }, [data]);
 
   useEffect(() => {

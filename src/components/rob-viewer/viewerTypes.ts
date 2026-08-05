@@ -14,11 +14,13 @@ export type BoxSelection = {
   rect: Box["rect"];
   height: number;
   gripBoxCount: number;
+  /** Zwischenlage directly above this package layer. */
   zwischenlage: number;
 };
 
 export type RobViewerProps = {
   data: PalletData;
+  cameraResetKey?: string | null;
   /** 1-based from bottom: layers 1..N solid, above hidden. */
   visibleUpToLayer: number;
   onBoxSelect?: (selection: BoxSelection | null) => void;
@@ -40,6 +42,7 @@ export type BoxPickEntry = {
   height: number;
   /** 0-based stack index from bottom. */
   layerNum: number;
+  /** Zwischenlage directly above this package layer. */
   zwischenlage: number;
   firstFace: number;
   faceCount: number;
