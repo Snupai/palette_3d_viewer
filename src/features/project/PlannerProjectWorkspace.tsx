@@ -31,6 +31,7 @@ import { ProjectLibrary } from "~/features/project/ProjectLibrary";
 import { RoboticsWorkspace } from "~/features/robotics/RoboticsWorkspace";
 import {
   createInitialRobotWorkspaceSettings,
+  createRobotReadiness,
   materializeRobotWorkspace,
   type RobotWorkspaceSettings,
 } from "~/features/robotics/robotWorkspaceModel";
@@ -983,10 +984,46 @@ export function PlannerProjectWorkspace({
         : currentPreview
           ? "OBSERVED"
           : "BLOCKED";
-    const robotReady =
-      workspaceProject?.selectedGripperId !== null &&
-      workspaceProject?.selectedPalletStationId !== null &&
-      robotMaterialization?.valid === true;
+    const robotReadinessItems =
+      workspaceProject && robotMaterialization && resolvedRobotSettings
+        ? createRobotReadiness(
+            workspaceProject,
+            robotMaterialization,
+            resolvedRobotSettings,
+            false,
+            0,
+          ).filter(({ id }) => id !== "export")
+        : [];
+    const robotReadinessBlocked =
+      robotReadinessItems.length !== 5 ||
+      robotReadinessItems.some(({ status }) =>
+        ["blocked", "needs-input", "engineering"].includes(status),
+      );
+    const robotReadinessWarning = robotReadinessItems.some(
+      ({ status }) => status === "warning",
+    );
+    const robotReadinessNotChecked = robotReadinessItems.some(
+      ({ status }) => status === "not-checked",
+    );
+    const robotReadinessStatus: ValidationLedgerRow["status"] =
+      robotReadinessBlocked
+        ? "BLOCKED"
+        : robotReadinessWarning
+          ? "OBSERVED"
+          : robotReadinessNotChecked
+            ? "SKIPPED"
+            : "PASS";
+    const observedEquipmentSelected = robotReadinessItems.some(
+      ({ id, status }) => id === "equipment" && status === "warning",
+    );
+    const robotReadinessDetail = [
+      ...robotReadinessItems.map(
+        ({ label, status, evidence }) =>
+          `${status.toUpperCase()} ${label}: ${evidence}`,
+      ),
+      ...(robotMaterialization?.diagnostics.map(({ message }) => message) ??
+        []),
+    ].join("\n");
     return [
       {
         id: "reference-parse",
@@ -1079,14 +1116,24 @@ export function PlannerProjectWorkspace({
       {
         id: "robot-readiness",
         label: "Robot readiness",
-        status: robotReady ? "PASS" : "BLOCKED",
-        evidence: robotReady ? "G" : "?",
-        claim: robotReady
-          ? "Selected resources and robot materialization passed current checks."
-          : "A gripper, pallet station, complete stack, and valid robot materialization are required.",
-        detail: robotMaterialization?.diagnostics
-          .map(({ message }) => message)
-          .join("\n"),
+        status: robotReadinessStatus,
+        evidence:
+          robotReadinessStatus === "PASS"
+            ? "G"
+            : robotReadinessStatus === "OBSERVED" && observedEquipmentSelected
+              ? "O"
+              : "?",
+        claim:
+          robotReadinessStatus === "PASS"
+            ? "Plan, equipment, pickup point, station workspace, and modeled obstacles passed the available internal checks."
+            : robotReadinessStatus === "OBSERVED"
+              ? observedEquipmentSelected
+                ? "The observed Multipack equipment profile is selected; current checks do not establish calibrated production readiness."
+                : "Robot checks completed with unverified or uncalibrated limitations."
+              : robotReadinessStatus === "SKIPPED"
+                ? "No robot-readiness pass is claimed because at least one workspace check was not run."
+                : "Complete the plan, equipment, pickup point, and station workspace checks before robot readiness can pass.",
+        detail: robotReadinessDetail || undefined,
       },
       {
         id: "export-readiness",
@@ -1103,6 +1150,7 @@ export function PlannerProjectWorkspace({
     currentPreview,
     inputAssessment,
     reference,
+    resolvedRobotSettings,
     robotMaterialization,
     selectedCandidate,
     workspaceProject,

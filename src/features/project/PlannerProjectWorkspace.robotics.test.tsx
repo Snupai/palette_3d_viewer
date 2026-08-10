@@ -38,6 +38,61 @@ function plannerProject(id: string, projectNumber: string, now: number) {
   );
 }
 
+function plannerProjectWithStack() {
+  return createProject(
+    {
+      id: "robot-project-profile",
+      projectNumber: "M5-ROBOT-PROFILE",
+      package: {
+        dimensionsMm: { length: 400, width: 300, height: 200 },
+        multiPickAllowed: false,
+      },
+      pallet: "euro",
+      solutions: [
+        {
+          id: "solution-1",
+          name: "Calculated solution",
+          origin: "calculated",
+          patterns: [
+            {
+              id: "pattern-1",
+              name: "Pattern 1",
+              grips: [],
+              placements: [
+                {
+                  id: "placement-1",
+                  sequence: 0,
+                  positionMm: { x: 300, y: 200 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: null,
+                },
+              ],
+            },
+          ],
+          stack: {
+            interlayerThicknessMm: 3,
+            layers: [
+              {
+                id: "layer-1",
+                patternId: "pattern-1",
+                interlayerBefore: 0,
+              },
+            ],
+            trailingInterlayer: 0,
+          },
+          robotCycles: [],
+        },
+      ],
+      activeSolutionId: "solution-1",
+    },
+    {
+      now: () => 1,
+      createId: (kind) => `${kind}-profile`,
+    },
+  );
+}
+
 async function repositoryWithProjects() {
   let now = 10;
   const repository = new ProjectRepository(new MemoryPlannerRecordStorage(), {
@@ -60,6 +115,12 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(
       await screen.findByRole("heading", { name: "M5-ROBOT-B" }),
     ).toBeTruthy();
+    expect(
+      screen.getByText("Robot readiness").closest("summary")?.textContent,
+    ).toContain("BLOCKED");
+    expect(
+      screen.getByText("Robot readiness").closest("summary")?.textContent,
+    ).toContain("Complete the plan");
     fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
@@ -89,5 +150,41 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("");
+  });
+
+  it("keeps observed Multipack equipment out of a robot-readiness pass", async () => {
+    let now = 10;
+    const repository = new ProjectRepository(new MemoryPlannerRecordStorage(), {
+      now: () => now++,
+      createId: (kind) => `${kind}-repository`,
+    });
+    await repository.saveProject(plannerProjectWithStack());
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+
+    expect(
+      await screen.findByRole("heading", { name: "M5-ROBOT-PROFILE" }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
+    expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("X (mm)"), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText("Y (mm)"), {
+      target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText("Z (mm)"), {
+      target: { value: "300" },
+    });
+
+    await waitFor(() => {
+      const row = screen.getByText("Robot readiness").closest("summary");
+      expect(row?.textContent).toContain("OBSERVED");
+      expect(row?.textContent).toContain(
+        "observed Multipack equipment profile",
+      );
+      expect(row?.textContent).not.toContain("PASS");
+    });
   });
 });
