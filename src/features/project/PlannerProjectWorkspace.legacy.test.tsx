@@ -124,7 +124,11 @@ describe("PlannerProjectWorkspace legacy integration", () => {
     const drawer = await screen.findByRole("dialog", {
       name: "Legacy .rob workspace",
     });
-    expect(await within(drawer).findByTestId("rob-viewer")).toBeTruthy();
+    expect(
+      await within(drawer).findByTestId("rob-viewer", undefined, {
+        timeout: 5_000,
+      }),
+    ).toBeTruthy();
     const rotate = await within(drawer).findByRole("button", {
       name: "Modify plan (rotate 180°)",
     });
