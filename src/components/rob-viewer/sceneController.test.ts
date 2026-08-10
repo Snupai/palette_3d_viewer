@@ -8,6 +8,7 @@ import {
   type ViewerWindow,
 } from "~/components/rob-viewer/sceneController";
 import type { LoadedGripperModel } from "~/components/rob-viewer/gripperLoader";
+import type { ViewerEquipmentController } from "~/components/rob-viewer/sceneEquipment";
 import type { ViewerHighlighter } from "~/components/rob-viewer/sceneHighlight";
 import type { ViewerAnimationLoop } from "~/components/rob-viewer/viewerAnimationLoop";
 import type {
@@ -65,6 +66,7 @@ describe("viewer scene controller cleanup", () => {
       bounds: null,
       layerRenders: [],
       interlayerRenders: [],
+      layerLabels: [],
       pickEntries: [],
       dispose: sceneDispose,
     };
@@ -116,6 +118,18 @@ describe("viewer scene controller cleanup", () => {
       model: new THREE.Group(),
       dispose: loadedDispose,
     };
+    const equipmentSetConfig = vi.fn();
+    const equipmentSetModel = vi.fn();
+    const equipmentSetPose = vi.fn();
+    const equipmentDispose = vi.fn();
+    const equipment: ViewerEquipmentController = {
+      root: new THREE.Group(),
+      setConfig: equipmentSetConfig,
+      setGripperModel: equipmentSetModel,
+      setSimulationPose: equipmentSetPose,
+      getBounds: () => null,
+      dispose: equipmentDispose,
+    };
     const onBoxSelect = vi.fn<(selection: BoxSelection | null) => void>();
 
     const controller = createViewerSceneController({
@@ -125,6 +139,7 @@ describe("viewer scene controller cleanup", () => {
         createRenderer: () => renderer,
         createControls: () => controls,
         buildScene: () => builtScene,
+        createEquipment: () => equipment,
         createHighlighter: () => highlighter,
         createAnimationLoop: () => animationLoop,
         loadGripper,
@@ -134,7 +149,13 @@ describe("viewer scene controller cleanup", () => {
     });
 
     controller.setVisibleUpToLayer(2);
-    controller.setData(palletData());
+    controller.setSimulationPose({
+      positionMm: { x: 10, y: 20, z: 30 },
+      yawDeg: 90,
+    });
+    controller.setData(palletData(), {
+      sceneOptions: { equipment: { robot: null } },
+    });
 
     expect(container.contains(canvas)).toBe(true);
     expect(animationStart).toHaveBeenCalledTimes(1);
@@ -142,6 +163,11 @@ describe("viewer scene controller cleanup", () => {
     expect(addWindowListener).toHaveBeenCalledTimes(1);
     expect(onBoxSelect).toHaveBeenCalledWith(null);
     expect(gripperLoad.signal?.aborted).toBe(false);
+    expect(equipmentSetConfig).toHaveBeenCalledWith({ robot: null });
+    expect(equipmentSetPose).toHaveBeenLastCalledWith({
+      positionMm: { x: 10, y: 20, z: 30 },
+      yawDeg: 90,
+    });
 
     controller.dispose();
     controller.dispose();
@@ -162,6 +188,7 @@ describe("viewer scene controller cleanup", () => {
     expect(sceneDispose).toHaveBeenCalledTimes(1);
     expect(rendererDispose).toHaveBeenCalledTimes(1);
     expect(controlsDispose).toHaveBeenCalledTimes(1);
+    expect(equipmentDispose).toHaveBeenCalledTimes(1);
     expect(container.contains(canvas)).toBe(false);
 
     resolveGripper(loadedGripper);
@@ -170,6 +197,7 @@ describe("viewer scene controller cleanup", () => {
 
     expect(loadedDispose).toHaveBeenCalledTimes(1);
     expect(setGripperModel).not.toHaveBeenCalled();
+    expect(equipmentSetModel).not.toHaveBeenCalled();
     container.remove();
   });
 
@@ -182,9 +210,15 @@ describe("viewer scene controller cleanup", () => {
     document.body.appendChild(container);
 
     const canvas = document.createElement("canvas");
+    const toDataURL = vi.fn(() => "data:image/png;base64,viewer-report");
+    Object.defineProperty(canvas, "toDataURL", {
+      configurable: true,
+      value: toDataURL,
+    });
+    const rendererSetSize = vi.fn();
     const renderer: ViewerRenderer = {
       domElement: canvas,
-      setSize: vi.fn(),
+      setSize: rendererSetSize,
       setPixelRatio: vi.fn(),
       setClearColor: vi.fn(),
       render: vi.fn(),
@@ -226,6 +260,7 @@ describe("viewer scene controller cleanup", () => {
         bounds: bounds[index]!,
         layerRenders: [],
         interlayerRenders: [],
+        layerLabels: [],
         pickEntries: [],
         dispose: sceneDisposals[index]!,
       };
@@ -300,10 +335,53 @@ describe("viewer scene controller cleanup", () => {
     expect(highlighterDisposals[1]).not.toHaveBeenCalled();
     expect(container.querySelectorAll("canvas")).toHaveLength(1);
 
+    controller.setCameraPreset("top");
+    expect(camera!.position.x).toBeCloseTo(1000);
+    expect(camera!.position.y).toBeCloseTo(700);
+    expect(camera!.position.z).toBeGreaterThan(900);
+    expect(camera!.up.toArray()).toEqual([0, 1, 0]);
+    const presetPosition = camera!.position.clone();
+    const presetTarget = controls.target.clone();
+
+    const capture = controller.captureReportFrame({
+      width: 900,
+      height: 600,
+      cameraPreset: "front",
+    });
+    expect(capture).toEqual({
+      status: "captured",
+      dataUrl: "data:image/png;base64,viewer-report",
+      width: 900,
+      height: 600,
+      cameraPreset: "front",
+    });
+    expect(toDataURL).toHaveBeenCalledWith("image/png");
+    expect(rendererSetSize).toHaveBeenCalledWith(900, 600, false);
+    expect(camera!.position).toEqual(presetPosition);
+    expect(controls.target).toEqual(presetTarget);
+
     controller.dispose();
 
     expect(sceneDisposals[1]).toHaveBeenCalledTimes(1);
     expect(highlighterDisposals[1]).toHaveBeenCalledTimes(1);
     container.remove();
+  });
+
+  it("returns a deterministic SVG fallback before WebGL is available", () => {
+    const container = document.createElement("div");
+    const controller = createViewerSceneController({
+      container,
+      getOnBoxSelect: () => undefined,
+    });
+
+    expect(controller.captureReportFrame()).toEqual({
+      status: "fallback",
+      reason: "viewer-unavailable",
+      fallback: "layer-pattern-svg",
+      message:
+        "The 3D viewer is not ready; render the supplied layer-pattern SVG instead.",
+    });
+
+    controller.dispose();
   });
 });

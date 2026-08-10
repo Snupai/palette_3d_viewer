@@ -4,10 +4,46 @@ import type {
   Grip,
   GripCollision,
   Layer,
+  PalletData,
   Rotation,
   Side,
 } from "~/domain/palletTypes";
 import { ZWISCHENLAGE_HEIGHT_MM } from "~/domain/palletTypes";
+
+function exactInterlayerHeightMm(values: readonly number[]): number | null {
+  return values.every((value) => Number.isFinite(value) && value >= 0)
+    ? values.reduce((total, value) => total + value, 0)
+    : null;
+}
+
+export function layerInterlayerHeightMm(
+  layer: Layer | undefined,
+  legacyThicknessMm = ZWISCHENLAGE_HEIGHT_MM,
+): number {
+  if (!layer) return 0;
+  const exact = layer.interlayerThicknessesMm
+    ? exactInterlayerHeightMm(layer.interlayerThicknessesMm)
+    : null;
+  return (
+    exact ?? Math.max(0, Math.trunc(layer.zwischenlage)) * legacyThicknessMm
+  );
+}
+
+export function trailingInterlayerHeightMm(
+  data: Pick<
+    PalletData,
+    "trailingZwischenlage" | "trailingInterlayerThicknessesMm"
+  >,
+  legacyThicknessMm = ZWISCHENLAGE_HEIGHT_MM,
+): number {
+  const exact = data.trailingInterlayerThicknessesMm
+    ? exactInterlayerHeightMm(data.trailingInterlayerThicknessesMm)
+    : null;
+  return (
+    exact ??
+    Math.max(0, Math.trunc(data.trailingZwischenlage ?? 0)) * legacyThicknessMm
+  );
+}
 
 /**
  * Z of the bottom face of packages on `layerIndex` (0 = bottom layer).
@@ -23,7 +59,7 @@ export function layerZBottom(
   let z = 0;
   const last = Math.min(layerIndex, layers.length - 1);
   for (let i = 0; i <= last; i++) {
-    z += (layers[i]?.zwischenlage ?? 0) * zwischenlageHeight;
+    z += layerInterlayerHeightMm(layers[i], zwischenlageHeight);
     if (i < layerIndex) z += packageHeight;
   }
   return z;

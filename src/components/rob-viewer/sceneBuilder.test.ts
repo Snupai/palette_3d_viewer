@@ -103,14 +103,91 @@ describe("viewer scene builder", () => {
     built.dispose();
   });
 
+  it("renders exact variable base, interlayer, and deck thicknesses", () => {
+    const scene = new THREE.Scene();
+    const data = palletData();
+    data.layers[0]!.interlayerThicknessesMm = [5];
+    data.layers[1]!.zwischenlage = 1;
+    data.layers[1]!.interlayerThicknessesMm = [7];
+    data.trailingInterlayerThicknessesMm = [11];
+
+    const built = buildViewerScene(scene, data);
+
+    expect(
+      built.pickEntries.map(({ zBottom, placeZ }) => [zBottom, placeZ]),
+    ).toEqual([
+      [5, 105],
+      [5, 105],
+      [112, 212],
+    ]);
+    expect(
+      built.interlayerRenders.map(
+        ({ mesh }) => (mesh.geometry as THREE.BoxGeometry).parameters.depth,
+      ),
+    ).toEqual([5, 7, 11]);
+
+    built.dispose();
+  });
+
+  it("uses variable pallet and sheet footprints, lifted layer offsets, and optional labels", () => {
+    const scene = new THREE.Scene();
+    const data = palletData();
+    data.pallet = { width: 1000, length: 700, height: 180 };
+    data.interlayer = { width: 900, length: 650 };
+    data.layers[0]!.interlayerDimensions = { width: 850, length: 600 };
+    data.layers[1]!.zwischenlage = 1;
+    data.layers[1]!.interlayerDimensions = { width: 825, length: 575 };
+    data.trailingInterlayerDimensions = { width: 800, length: 550 };
+
+    const built = buildViewerScene(scene, data, {
+      layerOffsetsZMm: [0, 250],
+      showLayerLabels: true,
+    });
+
+    expect(
+      built.pickEntries.map(({ zBottom, placeZ }) => [zBottom, placeZ]),
+    ).toEqual([
+      [3, 103],
+      [3, 103],
+      [356, 456],
+    ]);
+    expect(built.layerLabels).toHaveLength(2);
+    expect(built.layerLabels[1]?.object.position.z).toBe(406);
+    expect(
+      (built.root.getObjectByName("pallet") as THREE.Mesh<THREE.BoxGeometry>)
+        .geometry.parameters,
+    ).toMatchObject({ width: 1000, height: 700, depth: 180 });
+    expect(
+      built.interlayerRenders.map(({ mesh }) => {
+        const parameters = (mesh.geometry as THREE.BoxGeometry).parameters;
+        return [parameters.width, parameters.height, parameters.depth];
+      }),
+    ).toEqual([
+      [850, 600, 3],
+      [825, 575, 3],
+      [800, 550, 3],
+    ]);
+    expect(built.bounds?.max.z).toBe(459);
+
+    built.dispose();
+  });
+
   it("removes its root and disposes shared scene resources idempotently", () => {
     const scene = new THREE.Scene();
-    const built = buildViewerScene(scene, palletData());
+    const built = buildViewerScene(scene, palletData(), {
+      showLayerLabels: true,
+    });
     const geometry = built.layerRenders[0]!.solidMesh.geometry;
     const material = built.layerRenders[0]!.solidMesh
       .material as THREE.Material;
+    const labelMesh = built.layerLabels[0]!.object.children[1] as THREE.Mesh;
     const geometryDispose = vi.spyOn(geometry, "dispose");
     const materialDispose = vi.spyOn(material, "dispose");
+    const labelGeometryDispose = vi.spyOn(labelMesh.geometry, "dispose");
+    const labelMaterialDispose = vi.spyOn(
+      labelMesh.material as THREE.Material,
+      "dispose",
+    );
 
     built.dispose();
     built.dispose();
@@ -118,5 +195,7 @@ describe("viewer scene builder", () => {
     expect(scene.children).not.toContain(built.root);
     expect(geometryDispose).toHaveBeenCalledTimes(1);
     expect(materialDispose).toHaveBeenCalledTimes(1);
+    expect(labelGeometryDispose).toHaveBeenCalledTimes(1);
+    expect(labelMaterialDispose).toHaveBeenCalledTimes(1);
   });
 });

@@ -8,12 +8,12 @@ type BoxBounds = {
   top: number;
 };
 
-type GripDependency = {
+export type GripDependency = {
   prerequisiteIndex: number;
   dependentIndex: number;
 };
 
-function buildGripDeltaDependencies(
+export function buildGripDeltaDependencies(
   grips: Grip[],
   packageWidth: number,
   packageLength: number,

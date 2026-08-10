@@ -7,6 +7,8 @@
   "scripts": {
     "build": "next build",
     "check": "eslint . && tsc --noEmit",
+    "corpus:rob": "bun run src/lib/parity/cli.node.ts",
+    "corpus:rob:sentinel": "bun run src/lib/parity/sentinelCli.node.ts",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,md,mdx}\" --cache",
@@ -15,6 +17,7 @@
     "preview": "next build && next start",
     "start": "next start",
     "test": "vitest",
+    "test:corpus": "vitest run src/lib/parity/externalCorpus.node.test.ts",
     "test:run": "vitest run",
     "typecheck": "tsc --noEmit"
   },

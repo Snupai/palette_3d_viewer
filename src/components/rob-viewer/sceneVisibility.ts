@@ -1,6 +1,7 @@
 import type {
   BoxPickEntry,
   InterlayerRender,
+  LayerLabelRender,
   LayerRender,
 } from "~/components/rob-viewer/viewerTypes";
 
@@ -14,11 +15,13 @@ export function visibleLayerCount(
 export function applyLayerVisibility({
   layerRenders,
   interlayerRenders,
+  layerLabels = [],
   visibleUpToLayer,
   layerCount,
 }: {
   layerRenders: LayerRender[];
   interlayerRenders: InterlayerRender[];
+  layerLabels?: LayerLabelRender[];
   visibleUpToLayer: number;
   layerCount: number;
 }): number {
@@ -40,6 +43,10 @@ export function applyLayerVisibility({
       ? interlayer.exposedMaterial
       : interlayer.opaqueMaterial;
     interlayer.mesh.renderOrder = exposed ? 1 : 0;
+  }
+
+  for (const label of layerLabels) {
+    label.object.visible = label.layerNum + 1 <= maxSolid;
   }
 
   return maxSolid;

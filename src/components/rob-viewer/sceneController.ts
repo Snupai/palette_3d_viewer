@@ -1,11 +1,16 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import type { PalletData } from "~/domain/palletTypes";
+import { applyCameraPreset } from "~/components/rob-viewer/cameraPresets";
 import {
   loadGripperModel,
   type LoadedGripperModel,
 } from "~/components/rob-viewer/gripperLoader";
 import { buildViewerScene } from "~/components/rob-viewer/sceneBuilder";
+import {
+  createViewerEquipment,
+  type ViewerEquipmentController,
+} from "~/components/rob-viewer/sceneEquipment";
 import {
   createViewerHighlighter,
   type ViewerHighlighter,
@@ -30,6 +35,11 @@ import type {
   BoxPickEntry,
   BoxSelection,
   BuiltViewerScene,
+  ViewerCameraPreset,
+  ViewerCaptureOptions,
+  ViewerCaptureResult,
+  ViewerSceneOptions,
+  ViewerScenePose,
 } from "~/components/rob-viewer/viewerTypes";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
@@ -38,7 +48,7 @@ const GRIPPER_MTL = "10_01_43_00016.mtl";
 
 export type ViewerRenderer = {
   domElement: HTMLCanvasElement;
-  setSize(width: number, height: number): void;
+  setSize(width: number, height: number, updateStyle?: boolean): void;
   setPixelRatio(value: number): void;
   setClearColor(color: THREE.ColorRepresentation, alpha?: number): void;
   render(scene: THREE.Scene, camera: THREE.Camera): void;
@@ -72,7 +82,15 @@ export type ViewerSceneControllerDependencies = {
     camera: THREE.PerspectiveCamera,
     element: HTMLElement,
   ) => ViewerControls;
-  buildScene: (scene: THREE.Scene, data: PalletData) => BuiltViewerScene;
+  buildScene: (
+    scene: THREE.Scene,
+    data: PalletData,
+    options?: ViewerSceneOptions,
+  ) => BuiltViewerScene;
+  createEquipment: (
+    scene: THREE.Scene,
+    config: NonNullable<ViewerSceneOptions["equipment"]>,
+  ) => ViewerEquipmentController;
   createHighlighter: (options: {
     scene: THREE.Scene;
     packageLength: number;
@@ -88,45 +106,63 @@ export type ViewerSceneControllerDependencies = {
 };
 
 export type ViewerSceneController = {
-  setData(data: PalletData, options?: { preserveView?: boolean }): void;
+  setData(
+    data: PalletData,
+    options?: { preserveView?: boolean; sceneOptions?: ViewerSceneOptions },
+  ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
+  setSimulationPose(pose: ViewerScenePose | null): void;
+  setCameraPreset(preset: ViewerCameraPreset): void;
+  captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
 };
 
 type ViewerRuntime = {
-  setData(data: PalletData, preserveView: boolean): void;
+  setData(
+    data: PalletData,
+    preserveView: boolean,
+    sceneOptions: ViewerSceneOptions,
+  ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
+  setSimulationPose(pose: ViewerScenePose | null): void;
+  setCameraPreset(preset: ViewerCameraPreset): void;
+  captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
 };
 
-function fitCameraToScene(
-  camera: THREE.PerspectiveCamera,
-  bounds: THREE.Box3 | null,
-): { center: THREE.Vector3 | null; maxOrbitDistance: number } {
-  let center: THREE.Vector3 | null = null;
-  let maxOrbitDistance = camera.far * 0.8;
-
-  if (bounds && !bounds.isEmpty()) {
-    const size = bounds.getSize(new THREE.Vector3());
-    center = bounds.getCenter(new THREE.Vector3());
-    const boundingSphere = bounds.getBoundingSphere(new THREE.Sphere());
-    const maxSize = Math.max(size.x, size.y, size.z);
-    const distance = maxSize * 1.8 + 500;
-    camera.position.set(
-      center.x + distance,
-      center.y + distance,
-      center.z + distance,
-    );
-    camera.lookAt(center);
-
-    const initialOrbitDistance = camera.position.distanceTo(center);
-    maxOrbitDistance = initialOrbitDistance * 3;
-    camera.near = THREE.MathUtils.clamp(boundingSphere.radius / 100, 1, 10);
-    camera.far = maxOrbitDistance + boundingSphere.radius * 2;
-    camera.updateProjectionMatrix();
+function combinedViewerBounds(
+  sceneBuild: BuiltViewerScene | null,
+  equipment: ViewerEquipmentController | null,
+): THREE.Box3 | null {
+  const bounds = new THREE.Box3();
+  let hasBounds = false;
+  if (sceneBuild?.bounds && !sceneBuild.bounds.isEmpty()) {
+    bounds.union(sceneBuild.bounds);
+    hasBounds = true;
   }
+  const equipmentBounds = equipment?.getBounds() ?? null;
+  if (equipmentBounds && !equipmentBounds.isEmpty()) {
+    bounds.union(equipmentBounds);
+    hasBounds = true;
+  }
+  return hasBounds ? bounds : null;
+}
 
-  return { center, maxOrbitDistance };
+function captureFallback(
+  reason: Extract<ViewerCaptureResult, { status: "fallback" }>["reason"],
+  message: string,
+): ViewerCaptureResult {
+  return {
+    status: "fallback",
+    reason,
+    fallback: "layer-pattern-svg",
+    message,
+  };
+}
+
+function captureDimension(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) return fallback;
+  return Math.max(1, Math.min(4096, Math.round(value)));
 }
 
 function defaultResizeObserverFactory(
@@ -163,6 +199,12 @@ export function createViewerSceneController({
     ((camera: THREE.PerspectiveCamera, element: HTMLElement) =>
       new OrbitControls(camera, element));
   const buildScene = dependencies.buildScene ?? buildViewerScene;
+  const createEquipment =
+    dependencies.createEquipment ??
+    ((
+      scene: THREE.Scene,
+      config: NonNullable<ViewerSceneOptions["equipment"]>,
+    ) => createViewerEquipment(scene, config));
   const createHighlighter =
     dependencies.createHighlighter ?? createViewerHighlighter;
   const createAnimationLoop =
@@ -174,6 +216,8 @@ export function createViewerSceneController({
 
   let runtime: ViewerRuntime | null = null;
   let visibleUpToLayer = 1;
+  let sceneOptions: ViewerSceneOptions = {};
+  let simulationPose: ViewerScenePose | null = null;
   let disposed = false;
 
   const emitSelection = (selection: BoxSelection | null) => {
@@ -200,8 +244,9 @@ export function createViewerSceneController({
     camera.lookAt(new THREE.Vector3(600, 400, 300));
 
     const renderer = createRenderer();
+    const displayPixelRatio = Math.min(browserWindow.devicePixelRatio, 2);
     renderer.setSize(container.clientWidth, container.clientHeight);
-    renderer.setPixelRatio(Math.min(browserWindow.devicePixelRatio, 2));
+    renderer.setPixelRatio(displayPixelRatio);
     renderer.setClearColor(0x101013, 1);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
@@ -215,6 +260,7 @@ export function createViewerSceneController({
     let animationLoop: ViewerAnimationLoop | null = null;
     let resizeObserver: ViewerResizeObserver | null = null;
     let loadedGripper: LoadedGripperModel | null = null;
+    let equipment: ViewerEquipmentController | null = null;
     let runtimeDisposed = false;
     let pointerDown: PointerPosition | null = null;
     let selectedEntry: BoxPickEntry | null = null;
@@ -269,6 +315,25 @@ export function createViewerSceneController({
       emitSelection(toBoxSelection(entry, gripEntries));
     };
 
+    const updateLayerLabelFacing = () => {
+      if (!sceneBuild) return;
+      for (const label of sceneBuild.layerLabels) {
+        label.object.quaternion.copy(camera.quaternion);
+      }
+    };
+
+    const setCameraPreset = (preset: ViewerCameraPreset) => {
+      if (!controls) return;
+      applyCameraPreset(
+        camera,
+        controls,
+        combinedViewerBounds(sceneBuild, equipment),
+        preset,
+      );
+      updateLayerLabelFacing();
+      animationLoop?.requestRender();
+    };
+
     // Top face Z of the highest visible box, from pick entries (no mesh traversal).
     const visibleStackTopZ = (): number | null => {
       if (!sceneBuild) return null;
@@ -307,6 +372,7 @@ export function createViewerSceneController({
       maxVisibleLayer = applyLayerVisibility({
         layerRenders: sceneBuild.layerRenders,
         interlayerRenders: sceneBuild.interlayerRenders,
+        layerLabels: sceneBuild.layerLabels,
         visibleUpToLayer: nextVisibleUpToLayer,
         layerCount: currentData.layers.length,
       });
@@ -327,17 +393,29 @@ export function createViewerSceneController({
       }
     };
 
-    const replaceSceneData = (nextData: PalletData, preserveView: boolean) => {
-      const nextSceneBuild = buildScene(scene, nextData);
-      let nextHighlighter: ViewerHighlighter;
+    const replaceSceneData = (
+      nextData: PalletData,
+      preserveView: boolean,
+      nextSceneOptions: ViewerSceneOptions,
+    ) => {
+      const nextSceneBuild = buildScene(scene, nextData, nextSceneOptions);
+      let nextHighlighter: ViewerHighlighter | null = null;
       try {
         nextHighlighter = createHighlighter({
           scene,
           packageLength: nextData.package.length,
         });
+        equipment?.setConfig(nextSceneOptions.equipment ?? {});
+        equipment?.setSimulationPose(simulationPose);
       } catch (error) {
+        nextHighlighter?.dispose();
         nextSceneBuild.dispose();
         throw error;
+      }
+
+      if (!nextHighlighter) {
+        nextSceneBuild.dispose();
+        throw new Error("Viewer highlighter was not created.");
       }
 
       highlighter?.dispose();
@@ -352,24 +430,26 @@ export function createViewerSceneController({
 
       if (loadedGripper) {
         highlighter.setGripperModel(loadedGripper.model);
+        equipment?.setGripperModel(loadedGripper.model);
       }
       updateVisibility(visibleUpToLayer);
 
       if (!preserveView && controls) {
-        const { center, maxOrbitDistance } = fitCameraToScene(
+        const { center } = applyCameraPreset(
           camera,
-          sceneBuild.bounds,
+          controls,
+          combinedViewerBounds(sceneBuild, equipment),
+          "right-top",
         );
-        controls.maxDistance = maxOrbitDistance;
-        controls.target.copy(center ?? new THREE.Vector3(600, 400, 300));
-        if (center && visibleCenterZ !== null) {
+        if (visibleCenterZ !== null) {
           const deltaZ = visibleCenterZ - center.z;
           controls.target.z += deltaZ;
           camera.position.z += deltaZ;
+          controls.update();
         }
-        controls.update();
       }
 
+      updateLayerLabelFacing();
       emitSelection(null);
       animationLoop?.requestRender();
     };
@@ -394,6 +474,8 @@ export function createViewerSceneController({
       selectedEntry = null;
       highlighter?.dispose();
       highlighter = null;
+      equipment?.dispose();
+      equipment = null;
       loadedGripper?.dispose();
       loadedGripper = null;
       sceneBuild?.dispose();
@@ -410,7 +492,9 @@ export function createViewerSceneController({
       controls.enableDamping = true;
       controls.dampingFactor = 0.05;
       controls.screenSpacePanning = true;
-      replaceSceneData(data, false);
+      equipment = createEquipment(scene, sceneOptions.equipment ?? {});
+      equipment.setSimulationPose(simulationPose);
+      replaceSceneData(data, false, sceneOptions);
 
       renderer.domElement.addEventListener("pointerdown", onPointerDown);
       renderer.domElement.addEventListener("pointerup", onPointerUp);
@@ -420,6 +504,7 @@ export function createViewerSceneController({
         target: renderer.domElement,
         onFrame: () => {
           controls?.update();
+          updateLayerLabelFacing();
           renderer.render(scene, camera);
         },
       });
@@ -447,6 +532,7 @@ export function createViewerSceneController({
           }
           loadedGripper = loaded;
           highlighter?.setGripperModel(loaded.model);
+          equipment?.setGripperModel(loaded.model);
           animationLoop?.requestRender();
         })
         .catch(() => {
@@ -457,12 +543,108 @@ export function createViewerSceneController({
       throw error;
     }
 
+    const captureReportFrame = (
+      options: ViewerCaptureOptions = {},
+    ): ViewerCaptureResult => {
+      if (runtimeDisposed || !controls || !sceneBuild) {
+        return captureFallback(
+          "viewer-unavailable",
+          "The 3D viewer is not ready; render the supplied layer-pattern SVG instead.",
+        );
+      }
+      const width = captureDimension(options.width, 1200);
+      const height = captureDimension(options.height, 800);
+      const cameraPreset = options.cameraPreset ?? "right-top";
+      const previous = {
+        position: camera.position.clone(),
+        quaternion: camera.quaternion.clone(),
+        up: camera.up.clone(),
+        near: camera.near,
+        far: camera.far,
+        aspect: camera.aspect,
+        zoom: camera.zoom,
+        target: controls.target.clone(),
+        maxDistance: controls.maxDistance,
+      };
+
+      try {
+        renderer.setPixelRatio(1);
+        renderer.setSize(width, height, false);
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        applyCameraPreset(
+          camera,
+          controls,
+          combinedViewerBounds(sceneBuild, equipment),
+          cameraPreset,
+        );
+        updateLayerLabelFacing();
+        renderer.render(scene, camera);
+        if (typeof renderer.domElement.toDataURL !== "function") {
+          return captureFallback(
+            "canvas-capture-unavailable",
+            "This browser cannot capture the WebGL canvas; render the supplied layer-pattern SVG instead.",
+          );
+        }
+        const dataUrl = renderer.domElement.toDataURL("image/png");
+        if (
+          !dataUrl ||
+          dataUrl === "data:," ||
+          !dataUrl.startsWith("data:image/")
+        ) {
+          return captureFallback(
+            "empty-canvas-capture",
+            "The WebGL canvas returned no image; render the supplied layer-pattern SVG instead.",
+          );
+        }
+        return {
+          status: "captured",
+          dataUrl,
+          width,
+          height,
+          cameraPreset,
+        };
+      } catch {
+        return captureFallback(
+          "canvas-capture-failed",
+          "The WebGL canvas could not be captured; render the supplied layer-pattern SVG instead.",
+        );
+      } finally {
+        camera.position.copy(previous.position);
+        camera.quaternion.copy(previous.quaternion);
+        camera.up.copy(previous.up);
+        camera.near = previous.near;
+        camera.far = previous.far;
+        camera.aspect = previous.aspect;
+        camera.zoom = previous.zoom;
+        camera.updateProjectionMatrix();
+        controls.target.copy(previous.target);
+        controls.maxDistance = previous.maxDistance;
+        controls.update();
+        renderer.setPixelRatio(displayPixelRatio);
+        renderer.setSize(
+          Math.max(1, container.clientWidth),
+          Math.max(1, container.clientHeight),
+          false,
+        );
+        updateLayerLabelFacing();
+        animationLoop?.requestRender();
+      }
+    };
+
     return {
-      setData(nextData, preserveView) {
+      setData(nextData, preserveView, nextSceneOptions) {
         if (runtimeDisposed) return;
-        replaceSceneData(nextData, preserveView);
+        replaceSceneData(nextData, preserveView, nextSceneOptions);
       },
       setVisibleUpToLayer: updateVisibility,
+      setSimulationPose(pose) {
+        if (runtimeDisposed) return;
+        equipment?.setSimulationPose(pose);
+        animationLoop?.requestRender();
+      },
+      setCameraPreset,
+      captureReportFrame,
       dispose: cleanup,
     };
   };
@@ -470,16 +652,35 @@ export function createViewerSceneController({
   return {
     setData(data, options) {
       if (disposed) return;
+      sceneOptions = options?.sceneOptions ?? sceneOptions;
       if (!runtime) {
         runtime = createRuntime(data);
         return;
       }
-      runtime.setData(data, options?.preserveView ?? false);
+      runtime.setData(data, options?.preserveView ?? false, sceneOptions);
     },
     setVisibleUpToLayer(nextVisibleUpToLayer) {
       if (disposed) return;
       visibleUpToLayer = nextVisibleUpToLayer;
       runtime?.setVisibleUpToLayer(nextVisibleUpToLayer);
+    },
+    setSimulationPose(pose) {
+      if (disposed) return;
+      simulationPose = pose;
+      runtime?.setSimulationPose(pose);
+    },
+    setCameraPreset(preset) {
+      if (disposed) return;
+      runtime?.setCameraPreset(preset);
+    },
+    captureReportFrame(options) {
+      if (disposed || !runtime) {
+        return captureFallback(
+          "viewer-unavailable",
+          "The 3D viewer is not ready; render the supplied layer-pattern SVG instead.",
+        );
+      }
+      return runtime.captureReportFrame(options);
     },
     dispose() {
       if (disposed) return;

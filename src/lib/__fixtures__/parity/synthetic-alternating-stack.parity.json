@@ -1,0 +1,252 @@
+{
+  "schemaVersion": 2,
+  "id": "synthetic-alternating-stack",
+  "title": "Synthetic alternating-stack import baseline",
+  "provenance": {
+    "kind": "synthetic",
+    "description": "Repository-authored .rob fixture with two alternating patterns, explicit interlayers, and no MultiPack provenance."
+  },
+  "artifacts": [
+    {
+      "id": "synthetic-alternating-stack-rob",
+      "kind": "rob-input",
+      "availability": "repository",
+      "path": "src/lib/__fixtures__/parity/synthetic-alternating-stack.rob",
+      "mediaType": "text/plain",
+      "description": "Synthetic executable .rob input used by Vitest and optional application diagnostics."
+    }
+  ],
+  "input": {
+    "kind": "rob-import",
+    "artifactId": "synthetic-alternating-stack-rob"
+  },
+  "expected": {
+    "importBaseline": {
+      "evidence": {
+        "status": "Golden",
+        "asOf": "2026-08-05",
+        "basis": "The committed synthetic .rob text is parsed and semantically round-tripped in the automated corpus.",
+        "artifactIds": ["synthetic-alternating-stack-rob"]
+      },
+      "summary": {
+        "pallet": { "width": 1000, "length": 800, "height": 150 },
+        "package": { "width": 250, "length": 200, "height": 100 },
+        "inputDirection": 0,
+        "inputDirectionExplicit": true,
+        "uniqueLayerCount": 2,
+        "physicalLayerCount": 4,
+        "totalPackages": 14,
+        "layerPatternIds": [1, 2, 1, 2],
+        "packagesPerPhysicalLayer": [4, 3, 4, 3],
+        "robotCyclesPerPhysicalLayer": [2, 2, 2, 2],
+        "uniqueLayers": [
+          {
+            "uniqueLayerId": 1,
+            "gripCount": 2,
+            "packageCount": 4,
+            "gripSizeHistogram": [{ "packagesPerGrip": 2, "gripCount": 2 }],
+            "grips": [
+              {
+                "pickX": 250,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 250,
+                "y": 200,
+                "rotation": 0,
+                "numPackages": 2,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "pickX": 250,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 750,
+                "y": 600,
+                "rotation": 0,
+                "numPackages": 2,
+                "dx": 0,
+                "dy": 0
+              }
+            ]
+          },
+          {
+            "uniqueLayerId": 2,
+            "gripCount": 2,
+            "packageCount": 3,
+            "gripSizeHistogram": [
+              { "packagesPerGrip": 1, "gripCount": 1 },
+              { "packagesPerGrip": 2, "gripCount": 1 }
+            ],
+            "grips": [
+              {
+                "pickX": 125,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 250,
+                "y": 200,
+                "rotation": 90,
+                "numPackages": 1,
+                "dx": 1,
+                "dy": 0
+              },
+              {
+                "pickX": 250,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 625,
+                "y": 600,
+                "rotation": 0,
+                "numPackages": 2,
+                "dx": 0,
+                "dy": -1
+              }
+            ]
+          }
+        ],
+        "interlayers": {
+          "underPhysicalLayers": [1, 0, 1, 0],
+          "trailing": 1
+        }
+      },
+      "semanticRoundTrip": true
+    },
+    "metrics": {
+      "uniquePatternCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "The fixture declares two coordinate blocks.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": 2,
+        "unit": "patterns"
+      },
+      "physicalLayerCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "The fixture declares four physical layer-order rows.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": 4,
+        "unit": "layers"
+      },
+      "packagesPerPhysicalLayer": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "The two synthetic patterns contain four and three packages and alternate twice.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": [4, 3, 4, 3],
+        "unit": "packages"
+      },
+      "totalPackages": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "4 + 3 + 4 + 3 packages.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": 14,
+        "unit": "packages"
+      },
+      "robotCyclesPerPhysicalLayer": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Each synthetic pattern contains two grip rows.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": [2, 2, 2, 2],
+        "unit": "cycles"
+      },
+      "totalRobotCycles": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Two cycles on each of four physical layers.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": 8,
+        "unit": "cycles"
+      },
+      "loadHeightMm": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Four 100 mm package layers plus three 3 mm interlayers, including the trailing layer and excluding pallet height.",
+          "artifactIds": ["synthetic-alternating-stack-rob"]
+        },
+        "value": 409,
+        "unit": "mm"
+      }
+    }
+  },
+  "scorecard": {
+    "input": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "The synthetic .rob input is committed and parser-executable.",
+      "artifactIds": ["synthetic-alternating-stack-rob"],
+      "applicable": true
+    },
+    "geometry": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "All grip coordinates and package counts are exact import expectations.",
+      "artifactIds": ["synthetic-alternating-stack-rob"],
+      "applicable": true
+    },
+    "diversity": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "This is an import fixture, not a generated candidate set.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "ranking": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No candidate ranking is present in .rob data.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "stack": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "Layer sequence and interlayers are exact import expectations.",
+      "artifactIds": ["synthetic-alternating-stack-rob"],
+      "applicable": true
+    },
+    "robotics": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "Imported grip rows and cycle counts are exact fixture values, without claiming robot feasibility.",
+      "artifactIds": ["synthetic-alternating-stack-rob"],
+      "applicable": true
+    },
+    "export": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "Semantic parser/serializer roundtrip is executable for the synthetic fixture.",
+      "artifactIds": ["synthetic-alternating-stack-rob"],
+      "applicable": true
+    },
+    "usability": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No UI workflow is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "performance": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No runtime baseline is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    }
+  }
+}

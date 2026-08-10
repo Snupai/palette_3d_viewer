@@ -1,0 +1,141 @@
+import {
+  envelopePreservingSymmetries,
+  transformPlacements,
+  type LayerSymmetry,
+  type PlacementGeometry,
+  type RectangleSizeMm,
+} from "~/domain/geometry";
+import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
+import { matchPhysicalFootprintPlacements } from "~/lib/parity/physicalGeometry";
+
+export const ROB_REFERENCE_TOLERANCE_MM = 0.500001;
+
+export const PLANNING_STAGES = [
+  ["inputs", "Inputs"],
+  ["reference", "Reference"],
+  ["generate", "Generate"],
+  ["compare", "Compare"],
+  ["stack", "Stack"],
+  ["validate", "Validate"],
+] as const;
+
+export type PlanningStage = (typeof PLANNING_STAGES)[number][0];
+
+export type PatternComparisonStatus =
+  | "unavailable"
+  | "count-mismatch"
+  | "no-match"
+  | "integer-compatible"
+  | "exact";
+
+export type PatternComparison = {
+  status: PatternComparisonStatus;
+  referenceCount: number;
+  currentCount: number;
+  missingCount: number;
+  extraCount: number;
+  acceptedSymmetry: LayerSymmetry | null;
+  maximumAxisDisplacementMm: number | null;
+  toleranceMm: number;
+};
+
+function previewPlacements(preview: LayerPatternPreview): PlacementGeometry[] {
+  return preview.items.map((item) => ({
+    positionMm: { ...item.centerMm },
+    rotation: item.rotation,
+  }));
+}
+
+export function comparePatternPreviews(
+  reference: LayerPatternPreview | null,
+  current: LayerPatternPreview | null,
+  packageSize: RectangleSizeMm,
+): PatternComparison {
+  const referenceCount = reference?.items.length ?? 0;
+  const currentCount = current?.items.length ?? 0;
+  const base = {
+    referenceCount,
+    currentCount,
+    missingCount: Math.max(0, referenceCount - currentCount),
+    extraCount: Math.max(0, currentCount - referenceCount),
+    acceptedSymmetry: null,
+    maximumAxisDisplacementMm: null,
+    toleranceMm: ROB_REFERENCE_TOLERANCE_MM,
+  };
+
+  if (!reference || !current) return { ...base, status: "unavailable" };
+  if (referenceCount !== currentCount) {
+    return { ...base, status: "count-mismatch" };
+  }
+
+  const currentPlacements = previewPlacements(current);
+  const referencePlacements = previewPlacements(reference);
+  const symmetries = envelopePreservingSymmetries(
+    reference.palletBoundsMm,
+    true,
+  );
+
+  for (const symmetry of symmetries) {
+    const transformed = transformPlacements(
+      referencePlacements,
+      reference.palletBoundsMm,
+      symmetry,
+    );
+    const match = matchPhysicalFootprintPlacements(
+      transformed,
+      currentPlacements,
+      packageSize,
+      0,
+    );
+    if (match.matched) {
+      return {
+        ...base,
+        status: "exact",
+        acceptedSymmetry: symmetry,
+        maximumAxisDisplacementMm: 0,
+      };
+    }
+  }
+
+  for (const symmetry of symmetries) {
+    const transformed = transformPlacements(
+      referencePlacements,
+      reference.palletBoundsMm,
+      symmetry,
+    );
+    const match = matchPhysicalFootprintPlacements(
+      transformed,
+      currentPlacements,
+      packageSize,
+      ROB_REFERENCE_TOLERANCE_MM,
+    );
+    if (match.matched) {
+      return {
+        ...base,
+        status: "integer-compatible",
+        acceptedSymmetry: symmetry,
+        maximumAxisDisplacementMm: match.maximumAxisDisplacementMm,
+      };
+    }
+  }
+
+  return { ...base, status: "no-match" };
+}
+
+export type ValidationStatus =
+  | "PASS"
+  | "FAIL"
+  | "BLOCKED"
+  | "OBSERVED"
+  | "SKIPPED";
+
+export type ValidationEvidence = "G" | "O" | "?";
+
+export type ValidationLedgerRow = {
+  id: string;
+  label: string;
+  status: ValidationStatus;
+  evidence: ValidationEvidence;
+  claim: string;
+  detail?: string;
+};

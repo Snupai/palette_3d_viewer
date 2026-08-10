@@ -41,6 +41,11 @@ export interface Grip {
   rawLead?: [number, number, number];
 }
 
+export interface PlanarDimensions {
+  width: number;
+  length: number;
+}
+
 export interface Layer {
   unique_layer_id: number;
   boxes: Box[];
@@ -51,6 +56,33 @@ export interface Layer {
    * Typically 0 or 1; multiplied by {@link ZWISCHENLAGE_HEIGHT_MM} for Z.
    */
   zwischenlage: number;
+  /** Exact physical sheet thicknesses for materialized stacks; legacy .rob uses count × 3 mm. */
+  interlayerThicknessesMm?: number[];
+  /** Optional sheet footprint before this layer; falls back to the shared interlayer or pallet footprint. */
+  interlayerDimensions?: PlanarDimensions;
+}
+
+export interface PlannerLayerPreviewMetadata {
+  id: string;
+  label: string;
+  patternRef: string;
+  candidateId: string | null;
+  isSpecialTop: boolean;
+}
+
+export interface PlannerPreviewMetadata {
+  projectId: string | null;
+  solutionId: string | null;
+  layers: PlannerLayerPreviewMetadata[];
+  metrics: {
+    packageCount: number;
+    cycleCount: number | null;
+    loadStackHeightMm: number;
+    areaUtilizationPercent: number | null;
+    volumeUtilizationPercent: number | null;
+    grossWeightKg: number | null;
+  };
+  warningCodes: string[];
 }
 
 export interface PalletData {
@@ -61,11 +93,19 @@ export interface PalletData {
   total_boxes: number;
   package: { width: number; length: number; height: number };
   pallet: { width: number; length: number; height: number } | null;
+  /** Shared sheet footprint for previews; legacy plans fall back to pallet dimensions. */
+  interlayer?: PlanarDimensions | null;
+  /** Optional planner-only identity and metric data; ignored by .rob serialization. */
+  planner?: PlannerPreviewMetadata;
   inputDirection: 0 | 1;
   /** Whether the optional input-direction value was present on package line 2. */
   inputDirectionExplicit?: boolean;
   /** Final .rob layer-order flag after the top layer; kept for round-tripping. */
   trailingZwischenlage?: number;
+  /** Exact deck-sheet thicknesses for materialized stacks; omitted by legacy .rob. */
+  trailingInterlayerThicknessesMm?: number[];
+  /** Optional deck-sheet footprint; falls back to the shared interlayer or pallet footprint. */
+  trailingInterlayerDimensions?: PlanarDimensions;
 }
 
 export type GripCollision = {
