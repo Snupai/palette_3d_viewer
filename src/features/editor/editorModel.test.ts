@@ -424,6 +424,53 @@ describe("Project editor pattern geometry", () => {
     });
   });
 
+  it("keeps generated grip assignments cycle-free after a pattern edit", () => {
+    const generated = generatedGripProject();
+    const sourcePattern = pattern(generated);
+
+    const edited = applyProjectEditorCommand(generated, {
+      type: "move-placements",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: sourcePattern.id,
+      placementIds: ["p1", "p2"],
+      deltaMm: { x: 10, y: 0 },
+    });
+    const editedSolution = edited.solutions[0]!;
+    const editedPattern = editedSolution.patterns[0]!;
+    const gripIds = new Set(editedPattern.grips.map(({ id }) => id));
+
+    expect(editedSolution.origin).toBe("calculated");
+    expect(editedSolution.robotCycles).toEqual([]);
+    expect(editedPattern.groupOrder).toEqual(sourcePattern.groupOrder);
+    expect(
+      editedPattern.grips.map(({ id, x, y, numPackages }) => ({
+        id,
+        x,
+        y,
+        numPackages,
+      })),
+    ).toEqual([
+      { id: "generated-grip:1+2", x: 110, y: 50, numPackages: 2 },
+      { id: "generated-grip:3+4", x: 100, y: 150, numPackages: 2 },
+    ]);
+    expect(
+      editedPattern.placements.every(
+        ({ gripId }) => gripId !== null && gripIds.has(gripId),
+      ),
+    ).toBe(true);
+    expect(
+      editedPattern.grips.map(({ id, numPackages }) => [
+        id,
+        numPackages,
+        editedPattern.placements.filter(({ gripId }) => gripId === id).length,
+      ]),
+    ).toEqual([
+      ["generated-grip:1+2", 2, 2],
+      ["generated-grip:3+4", 2, 2],
+    ]);
+  });
+
   it("preserves imported raw dx/dy through unrelated editor commands", () => {
     let project = importedGripProject();
     const rawOffsets = () =>
