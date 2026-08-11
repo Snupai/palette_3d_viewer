@@ -333,18 +333,18 @@ describe("stack workspace persistence", () => {
       },
     });
 
-    expect(multipickCandidate.grips.map(({ numPackages }) => numPackages)).toEqual(
-      [2, 1],
-    );
+    expect(
+      multipickCandidate.grips.map(({ numPackages }) => numPackages),
+    ).toEqual([2, 1]);
     expect(multipickCandidate.placements.map(({ gripId }) => gripId)).toEqual([
       "generated-grip:1+2",
       "generated-grip:1+2",
       "generated-grip:3",
     ]);
     expect(persistedSolution.robotCycles).toEqual([]);
-    expect(persistedPattern.grips.map(({ numPackages }) => numPackages)).toEqual([
-      2, 1,
-    ]);
+    expect(
+      persistedPattern.grips.map(({ numPackages }) => numPackages),
+    ).toEqual([2, 1]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
     );

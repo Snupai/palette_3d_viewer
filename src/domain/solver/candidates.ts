@@ -268,7 +268,9 @@ export function finalizeGeneratedCandidates(
         });
       } else {
         validDraftCount += 1;
-        const geometryFingerprint = candidateGeometryFingerprint({ placements });
+        const geometryFingerprint = candidateGeometryFingerprint({
+          placements,
+        });
         const existing = aggregateByGeometry.get(geometryFingerprint);
         if (existing) {
           geometricDuplicateCount += 1;
