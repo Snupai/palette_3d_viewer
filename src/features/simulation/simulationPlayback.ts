@@ -106,7 +106,9 @@ export function createSimulationFrame(
   timeline: RobotTimeline,
   requestedTimeMs: number,
   materialization: Pick<RobotCycleMaterialization, "cycles" | "stack">,
-  toViewerPose: (pose: RobotCycleMaterialization["cycles"][number]["pickPose"]) => ViewerScenePose,
+  toViewerPose: (
+    pose: RobotCycleMaterialization["cycles"][number]["pickPose"],
+  ) => ViewerScenePose,
 ): SimulationFrame {
   const timeMs = clampTimelineCursor(timeline, requestedTimeMs);
   const sample = seekRobotTimeline(timeline, timeMs, "forward");
@@ -147,9 +149,7 @@ export function createSimulationFrame(
   const feedSet = new Set(feedPlacementIds);
   const attachedSet = new Set(attachedPlacementIds);
   const currentTcpPose = sample ? toViewerPose(sample.pose) : null;
-  const finalTcpPose = activeCycle
-    ? toViewerPose(activeCycle.placePose)
-    : null;
+  const finalTcpPose = activeCycle ? toViewerPose(activeCycle.placePose) : null;
   const feedTcpPose = activeCycle ? toViewerPose(activeCycle.pickPose) : null;
   const packages: ViewerSimulationPackage[] = [];
 

@@ -20,14 +20,14 @@ everything in a Three.js viewer.
 
 ## Commands
 
-| Purpose | Command |
-| --- | --- |
-| Typecheck (run after **every** change, report the result) | `npm run typecheck` |
-| Lint + typecheck | `npm run check` |
-| Tests (watch / once) | `npm run test` / `npm run test:run` |
-| Format | `npm run format:write` |
-| Dev server | `npm run dev` |
-| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`) | `npm run test:corpus`, `npm run corpus:rob`, `npm run corpus:rob:sentinel` |
+| Purpose                                                   | Command                                                                    |
+| --------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Typecheck (run after **every** change, report the result) | `npm run typecheck`                                                        |
+| Lint + typecheck                                          | `npm run check`                                                            |
+| Tests (watch / once)                                      | `npm run test` / `npm run test:run`                                        |
+| Format                                                    | `npm run format:write`                                                     |
+| Dev server                                                | `npm run dev`                                                              |
+| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)   | `npm run test:corpus`, `npm run corpus:rob`, `npm run corpus:rob:sentinel` |
 
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,

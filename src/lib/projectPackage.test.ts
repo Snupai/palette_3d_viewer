@@ -70,7 +70,9 @@ describe("portable project packages", () => {
     const parsed = parseProjectPackageJson(raw);
 
     expect(parsed.diagnostics).toEqual([]);
-    expect(parsed.value?.projects[0]?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(parsed.value?.projects[0]?.schemaVersion).toBe(
+      CURRENT_PROJECT_SCHEMA_VERSION,
+    );
   });
 
   it("returns diagnostics for malformed JSON, unknown versions, and invalid rows", () => {

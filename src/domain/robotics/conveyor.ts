@@ -14,8 +14,7 @@ export const CALCULATED_CONVEYOR_DIMENSIONS_MM = {
   height: 140,
 } as const;
 
-export const CALCULATED_CONVEYOR_OBSTACLE_ID =
-  "calculated-feed-conveyor-bed";
+export const CALCULATED_CONVEYOR_OBSTACLE_ID = "calculated-feed-conveyor-bed";
 
 export type CalculatedRobotConveyorInput = {
   projectSourceKind: Project["source"]["kind"];

@@ -86,9 +86,7 @@ describe("project schema migration", () => {
     expect(migrated.grippers).toHaveLength(1);
     expect(migrated.palletStations).toHaveLength(1);
     expect(migrated.selectedGripperId).toBe(MULTIPACK_GRIPPER_ID);
-    expect(migrated.selectedPalletStationId).toBe(
-      MULTIPACK_PALLET_STATION_ID,
-    );
+    expect(migrated.selectedPalletStationId).toBe(MULTIPACK_PALLET_STATION_ID);
     expect(resolveMultipackEquipmentProfile(migrated)?.version).toBe(1);
   });
 

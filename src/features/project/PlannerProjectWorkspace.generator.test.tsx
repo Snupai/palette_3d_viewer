@@ -188,6 +188,125 @@ afterEach(() => {
 });
 
 describe("PlannerProjectWorkspace generator integration", () => {
+  it("creates a project, opens Generate, solves once, and selects the first suggestion", async () => {
+    const repository = emptyRepository();
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    const createButtons = await screen.findAllByRole(
+      "button",
+      { name: "Create manual project" },
+      { timeout: 5_000 },
+    );
+    fireEvent.click(createButtons[0]!);
+
+    fireEvent.change(screen.getByLabelText("Project number"), {
+      target: { value: "AUTO-GENERATE" },
+    });
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
+      timeout: 5_000,
+    });
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: {
+        minimumPackageCount: 4,
+        maximumPackageCount: 4,
+      },
+    });
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "AUTO-GENERATE" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: /03 Generate/i })
+        .getAttribute("aria-current"),
+    ).toBe("step");
+    const selectedSuggestion = await screen.findByRole("option", {
+      selected: true,
+    });
+    expect(selectedSuggestion.textContent).toContain("#1");
+    expect(selectedSuggestion.textContent).toContain("Geometry OK");
+    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+
+    const savedProjects = (await repository.listProjects()).projects;
+    expect(savedProjects).toHaveLength(1);
+    expect(savedProjects[0]?.solutions).toHaveLength(1);
+    expect(savedProjects[0]?.solutions[0]).toMatchObject({
+      origin: "manual",
+      patterns: [],
+      stack: { layers: [] },
+      robotCycles: [],
+    });
+  });
+
+  it("creates without solving when Create only is chosen", async () => {
+    const repository = emptyRepository();
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    const createButtons = await screen.findAllByRole(
+      "button",
+      { name: "Create manual project" },
+      { timeout: 5_000 },
+    );
+    fireEvent.click(createButtons[0]!);
+    fireEvent.change(screen.getByLabelText("Project number"), {
+      target: { value: "MANUAL-ONLY" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
+
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "MANUAL-ONLY" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    expect(clientMocks.run).not.toHaveBeenCalled();
+    expect(
+      screen
+        .getByRole("button", { name: /01 Inputs/i })
+        .getAttribute("aria-current"),
+    ).toBe("step");
+    expect((await repository.listProjects()).projects).toHaveLength(1);
+  });
+
+  it("does not auto-run when reopening an imported ROB project", async () => {
+    const repository = emptyRepository();
+    const importedProject = createProject(
+      {
+        id: "imported-generator-project",
+        projectNumber: "ROB-IMPORTED",
+        source: { kind: "rob-import", fileName: "fixture.rob" },
+      },
+      { now: () => 1, createId: (kind) => `${kind}-imported` },
+    );
+    await repository.saveProject(importedProject);
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "ROB-IMPORTED" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    expect(clientMocks.run).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
+    expect(
+      await screen.findByRole("heading", { name: "Layer solver" }),
+    ).toBeTruthy();
+    await Promise.resolve();
+    expect(clientMocks.run).not.toHaveBeenCalled();
+  });
+
   it("runs zero-allowance generation as compact without changing the saved pallet policy", async () => {
     const { project, repository } = await repositoryWithProject();
 
@@ -199,6 +318,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
+    expect(clientMocks.run).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },

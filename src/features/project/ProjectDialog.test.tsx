@@ -39,9 +39,7 @@ describe("ProjectDialog", () => {
     fireEvent.change(screen.getByLabelText("Maximum gross (kg)"), {
       target: { value: "10" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create & generate" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
 
     expect(
       await screen.findByText(
@@ -139,17 +137,10 @@ describe("ProjectDialog", () => {
     const onSave = vi.fn();
     const onClose = vi.fn();
     render(
-      <ProjectDialog
-        open
-        project={null}
-        onClose={onClose}
-        onSave={onSave}
-      />,
+      <ProjectDialog open project={null} onClose={onClose} onSave={onSave} />,
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create & generate" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
     expect(
       await screen.findByText(
         "Enter the exact packages per layer, or choose Create only.",
@@ -165,15 +156,15 @@ describe("ProjectDialog", () => {
         .getByRole("button", { name: "Create & generate" })
         .closest("form")!,
     );
-    expect(await screen.findByText("Enter a positive whole number.")).toBeTruthy();
+    expect(
+      await screen.findByText("Enter a positive whole number."),
+    ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
 
     fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
       target: { value: "4" },
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Create & generate" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave.mock.calls[0]?.[0]).toMatchObject({

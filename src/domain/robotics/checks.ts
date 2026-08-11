@@ -185,10 +185,7 @@ function routeEntries(
   if (!previous) return carried;
   const transition = createRobotCycleTransitionRoute(previous, cycle);
   return {
-    waypoints: [
-      ...transition.waypoints.slice(1, -1),
-      ...carried.waypoints,
-    ],
+    waypoints: [...transition.waypoints.slice(1, -1), ...carried.waypoints],
     segments: [...transition.segments, ...carried.segments],
   };
 }

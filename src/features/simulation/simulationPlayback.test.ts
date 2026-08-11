@@ -13,12 +13,7 @@ import {
   timelinePhaseLabel,
 } from "~/features/simulation/simulationPlayback";
 
-function pose(
-  x: number,
-  y: number,
-  yawDeg = 0,
-  z = 100,
-): RobotPose {
+function pose(x: number, y: number, yawDeg = 0, z = 100): RobotPose {
   return {
     frame: "station",
     positionMm: { x, y, z },
@@ -216,8 +211,9 @@ describe("absolute-time package state", () => {
         },
       },
     ]);
-    expect(frame.packages.some(({ placementId }) => placementId === "placement-3"))
-      .toBe(false);
+    expect(
+      frame.packages.some(({ placementId }) => placementId === "placement-3"),
+    ).toBe(false);
   });
 
   it("attaches exactly at pickup and keeps multipick offsets rigid with the TCP", () => {
@@ -228,10 +224,7 @@ describe("absolute-time package state", () => {
       toViewerPose,
     );
     expect(pickup.feedPlacementIds).toEqual([]);
-    expect(pickup.attachedPlacementIds).toEqual([
-      "placement-1",
-      "placement-2",
-    ]);
+    expect(pickup.attachedPlacementIds).toEqual(["placement-1", "placement-2"]);
     expect(pickup.packages.every(({ phase }) => phase === "attached")).toBe(
       true,
     );
@@ -249,10 +242,7 @@ describe("absolute-time package state", () => {
     const [left, right] = moving.packages;
     const tcp = moving.tcpPose!;
 
-    expect(moving.attachedPlacementIds).toEqual([
-      "placement-1",
-      "placement-2",
-    ]);
+    expect(moving.attachedPlacementIds).toEqual(["placement-1", "placement-2"]);
     expect(
       Math.hypot(
         right!.pose.positionMm.x - left!.pose.positionMm.x,
@@ -309,12 +299,13 @@ describe("absolute-time package state", () => {
       toViewerPose,
     );
     expect(nextCycle.completedPackageLayerIndexes).toEqual([0]);
-    expect(nextCycle.packages.map(({ placementId, phase }) => [placementId, phase]))
-      .toEqual([
-        ["placement-1", "placed"],
-        ["placement-2", "placed"],
-        ["placement-3", "feed"],
-      ]);
+    expect(
+      nextCycle.packages.map(({ placementId, phase }) => [placementId, phase]),
+    ).toEqual([
+      ["placement-1", "placed"],
+      ["placement-2", "placed"],
+      ["placement-3", "feed"],
+    ]);
 
     const finished = createSimulationFrame(
       timeline,

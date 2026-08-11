@@ -114,11 +114,15 @@ describe("viewer scene builder", () => {
       completedPackageLayerIndexes: [],
     });
 
-    const packageA = built.root.getObjectByName("simulation-package:package-a")!;
-    const packageB = built.root.getObjectByName("simulation-package:package-b")!;
-    expect(built.layerRenders.every(({ solidMesh }) => !solidMesh.visible)).toBe(
-      true,
-    );
+    const packageA = built.root.getObjectByName(
+      "simulation-package:package-a",
+    )!;
+    const packageB = built.root.getObjectByName(
+      "simulation-package:package-b",
+    )!;
+    expect(
+      built.layerRenders.every(({ solidMesh }) => !solidMesh.visible),
+    ).toBe(true);
     expect(
       built.layerRenders.every(({ solidEdges }) => !solidEdges.visible),
     ).toBe(true);
