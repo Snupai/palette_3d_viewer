@@ -27,6 +27,9 @@ describe("ProjectDialog", () => {
       />,
     );
 
+    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+      target: { value: "4" },
+    });
     fireEvent.change(screen.getByLabelText("Length (mm)"), {
       target: { value: "0" },
     });
@@ -36,7 +39,9 @@ describe("ProjectDialog", () => {
     fireEvent.change(screen.getByLabelText("Maximum gross (kg)"), {
       target: { value: "10" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create & generate" }),
+    );
 
     expect(
       await screen.findByText(
@@ -65,7 +70,8 @@ describe("ProjectDialog", () => {
         open
         project={null}
         onClose={onClose}
-        onSave={async (project) => {
+        onSave={async ({ project, generationIntent }) => {
+          expect(generationIntent).toBeNull();
           savedProject = await repository.saveProject(project);
         }}
       />,
@@ -87,7 +93,7 @@ describe("ProjectDialog", () => {
       target: { value: "150" },
     });
     fireEvent.click(screen.getByLabelText("Allow multipick"));
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(savedProject).not.toBeNull();
@@ -101,12 +107,13 @@ describe("ProjectDialog", () => {
       },
     });
 
+    const onEditSave = vi.fn();
     view.rerender(
       <ProjectDialog
         open
         project={reopened.project}
         onClose={() => undefined}
-        onSave={() => undefined}
+        onSave={onEditSave}
       />,
     );
     expect(
@@ -118,5 +125,60 @@ describe("ProjectDialog", () => {
     expect(
       screen.getByLabelText<HTMLInputElement>("Allow multipick").checked,
     ).toBe(true);
+    expect(screen.queryByLabelText("Packages per layer")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    await waitFor(() => expect(onEditSave).toHaveBeenCalledTimes(1));
+    expect(onEditSave.mock.calls[0]?.[0]).toMatchObject({
+      project: { id: reopened.project?.id },
+      generationIntent: null,
+    });
+  });
+
+  it("submits an exact package count only for Create & generate", async () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    render(
+      <ProjectDialog
+        open
+        project={null}
+        onClose={onClose}
+        onSave={onSave}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create & generate" }),
+    );
+    expect(
+      await screen.findByText(
+        "Enter the exact packages per layer, or choose Create only.",
+      ),
+    ).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+      target: { value: "2.5" },
+    });
+    fireEvent.submit(
+      screen
+        .getByRole("button", { name: "Create & generate" })
+        .closest("form")!,
+    );
+    expect(await screen.findByText("Enter a positive whole number.")).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create & generate" }),
+    );
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+      generationIntent: { exactPackageCount: 4 },
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });

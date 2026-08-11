@@ -11,7 +11,10 @@ import type {
   SolverResult,
 } from "~/domain/solver";
 import { CandidateBrowser } from "~/features/candidates/CandidateBrowser";
-import type { GeneratorPackageInputs } from "~/features/candidates/SolverControls";
+import type {
+  GeneratorLaunchRequest,
+  GeneratorPackageInputs,
+} from "~/features/candidates/SolverControls";
 import { ProjectEditorWorkspace } from "~/features/editor/ProjectEditorWorkspace";
 import { MpbInspector } from "~/features/legacy-mpb/MpbInspector";
 import { CaseDrawer } from "~/features/planning-case/PlanningCaseChrome";
@@ -26,7 +29,10 @@ import {
   type PlanningStage,
   type ValidationLedgerRow,
 } from "~/features/planning-case/planningCaseModel";
-import { ProjectDialog } from "~/features/project/ProjectDialog";
+import {
+  ProjectDialog,
+  type ProjectDialogSubmission,
+} from "~/features/project/ProjectDialog";
 import { ProjectLibrary } from "~/features/project/ProjectLibrary";
 import { RoboticsWorkspace } from "~/features/robotics/RoboticsWorkspace";
 import {
@@ -277,6 +283,8 @@ export function PlannerProjectWorkspace({
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
     null,
   );
+  const [generatorLaunchRequest, setGeneratorLaunchRequest] =
+    useState<GeneratorLaunchRequest | null>(null);
   const [repositoryReady, setRepositoryReady] = useState(false);
   const [stackDirty, setStackDirty] = useState(false);
   const [editorDirty, setEditorDirty] = useState(false);
@@ -285,6 +293,15 @@ export function PlannerProjectWorkspace({
   );
   const listRequest = useRef(0);
   const projectRequest = useRef(0);
+  const generatorLaunchSequence = useRef(0);
+  const selectedProjectIdRef = useRef<string | null>(selectedId);
+  selectedProjectIdRef.current = selectedId;
+
+  const consumeGeneratorLaunchRequest = useCallback((requestId: string) => {
+    setGeneratorLaunchRequest((current) =>
+      current?.requestId === requestId ? null : current,
+    );
+  }, []);
 
   useEffect(() => {
     onUnsavedChange?.(stackDirty || editorDirty || legacyDirty);
@@ -427,6 +444,7 @@ export function PlannerProjectWorkspace({
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
     const saved = await repository.saveProject(project);
+    selectedProjectIdRef.current = saved.id;
     setSelectedId(saved.id);
     setSelectedProject(saved);
     setEditorDraftProject(null);
@@ -487,6 +505,8 @@ export function PlannerProjectWorkspace({
     if (id === selectedId) return;
     if (!confirmDiscardUnsaved("Switch projects")) return;
     discardUnsavedPlannerChanges();
+    setGeneratorLaunchRequest(null);
+    selectedProjectIdRef.current = id;
     setActiveStage("inputs");
     setProjectDrawerOpen(false);
     setSelectedId(id);
@@ -523,6 +543,8 @@ export function PlannerProjectWorkspace({
         );
       }
       discardUnsavedPlannerChanges();
+      setGeneratorLaunchRequest(null);
+      selectedProjectIdRef.current = result.project.id;
       setSelectedId(result.project.id);
       setSelectedProject(result.project);
       setActiveStage("inputs");
@@ -567,6 +589,8 @@ export function PlannerProjectWorkspace({
         productNumber,
       });
       discardUnsavedPlannerChanges();
+      setGeneratorLaunchRequest(null);
+      selectedProjectIdRef.current = saved.id;
       setSelectedId(saved.id);
       setSelectedProject(saved);
       setActiveStage("inputs");
@@ -601,6 +625,8 @@ export function PlannerProjectWorkspace({
       const deleted = await repository.deleteProject(selectedProject.id);
       if (!deleted) throw new Error("The project no longer exists.");
       discardUnsavedPlannerChanges();
+      setGeneratorLaunchRequest(null);
+      selectedProjectIdRef.current = null;
       setSelectedProject(null);
       setSelectedId(null);
       setStatusMessage("Project deleted.");
@@ -676,6 +702,8 @@ export function PlannerProjectWorkspace({
         );
       }
       if (result.projects[0] && !hasUnsavedChanges) {
+        setGeneratorLaunchRequest(null);
+        selectedProjectIdRef.current = result.projects[0].id;
         setActiveStage("inputs");
         setSelectedId(result.projects[0].id);
       }
@@ -840,7 +868,8 @@ export function PlannerProjectWorkspace({
   };
 
   const onSolverResult = useCallback(
-    (result: SolverResult, input: LayerSolverInput) => {
+    (projectId: string, result: SolverResult, input: LayerSolverInput) => {
+      if (selectedProjectIdRef.current !== projectId) return;
       setSolverResult(result);
       setSolverInput(input);
       setSelectedCandidateId(result.candidates[0]?.id ?? null);
@@ -1218,6 +1247,8 @@ export function PlannerProjectWorkspace({
         solverInput={solverInput}
         selectedCandidate={selectedCandidate}
         selectedCandidateId={selectedCandidateId}
+        generatorLaunchRequest={generatorLaunchRequest}
+        onGeneratorLaunchRequestConsumed={consumeGeneratorLaunchRequest}
         onApplyGeneratorPackageInputs={applyGeneratorPackageInputs}
         onSolverResult={onSolverResult}
         onResetSolver={resetSolver}
@@ -1375,8 +1406,23 @@ export function PlannerProjectWorkspace({
         open={dialogMode !== "closed"}
         project={dialogMode === "edit" ? workspaceProject : null}
         onClose={() => setDialogMode("closed")}
-        onSave={async (project) => {
-          await saveProject(project);
+        onSave={async ({
+          project,
+          generationIntent,
+        }: ProjectDialogSubmission) => {
+          const saved = await saveProject(project);
+          if (!generationIntent) {
+            setGeneratorLaunchRequest(null);
+            return;
+          }
+
+          setGeneratorLaunchRequest({
+            requestId: `${saved.id}:${++generatorLaunchSequence.current}`,
+            projectId: saved.id,
+            exactPackageCount: generationIntent.exactPackageCount,
+          });
+          setActiveStage("generate");
+          setActiveTool(null);
         }}
       />
     </div>

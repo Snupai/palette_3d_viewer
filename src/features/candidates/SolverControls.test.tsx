@@ -365,6 +365,98 @@ describe("SolverControls", () => {
     });
   });
 
+  it("launches a matching creation request exactly once with the requested count", async () => {
+    const sourceProject = project();
+    const configuredProject = updateProject(sourceProject, {
+      package: {
+        ...sourceProject.package,
+        multiPickAllowed: true,
+      },
+      grippers: [gripper],
+      selectedGripperId: gripper.id,
+    });
+    const launchRequest = {
+      requestId: "creation-request-1",
+      projectId: configuredProject.id,
+      exactPackageCount: 3,
+    };
+    const onApplyPackageInputs = vi.fn(async () => configuredProject);
+    const onLaunchRequestConsumed = vi.fn();
+    const onResult = vi.fn();
+    const onReset = vi.fn();
+    const view = render(
+      <SolverControls
+        project={configuredProject}
+        launchRequest={launchRequest}
+        onLaunchRequestConsumed={onLaunchRequestConsumed}
+        onApplyPackageInputs={onApplyPackageInputs}
+        onResult={onResult}
+        onReset={onReset}
+      />,
+    );
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(onLaunchRequestConsumed).toHaveBeenCalledTimes(1);
+    expect(onLaunchRequestConsumed).toHaveBeenCalledWith(
+      launchRequest.requestId,
+    );
+    expect(onApplyPackageInputs).toHaveBeenCalledTimes(1);
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: {
+        minimumPackageCount: 3,
+        maximumPackageCount: 3,
+        provisionalPackagesPerCycle: 1,
+      },
+    });
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
+
+    view.rerender(
+      <SolverControls
+        project={configuredProject}
+        launchRequest={launchRequest}
+        onLaunchRequestConsumed={onLaunchRequestConsumed}
+        onApplyPackageInputs={onApplyPackageInputs}
+        onResult={onResult}
+        onReset={onReset}
+      />,
+    );
+    await Promise.resolve();
+
+    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+    expect(onLaunchRequestConsumed).toHaveBeenCalledTimes(1);
+    expect(onApplyPackageInputs).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores creation requests for another project", async () => {
+    const sourceProject = project();
+    const onLaunchRequestConsumed = vi.fn();
+    const onReset = vi.fn();
+
+    render(
+      <SolverControls
+        project={sourceProject}
+        launchRequest={{
+          requestId: "creation-request-other",
+          projectId: "another-project",
+          exactPackageCount: 4,
+        }}
+        onLaunchRequestConsumed={onLaunchRequestConsumed}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={vi.fn()}
+        onReset={onReset}
+      />,
+    );
+    await Promise.resolve();
+
+    expect(clientMocks.run).not.toHaveBeenCalled();
+    expect(onLaunchRequestConsumed).not.toHaveBeenCalled();
+    expect(onReset).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Packages per layer")).toHaveProperty(
+      "value",
+      "",
+    );
+  });
+
   it("disables multipick controls while a solver run is pending", async () => {
     let resolveResult!: (result: SolverResult) => void;
     const pendingResult = new Promise<SolverResult>((resolve) => {
@@ -527,8 +619,7 @@ describe("SolverControls", () => {
       />,
     );
 
-    await waitFor(() => expect(onReset).toHaveBeenCalled());
-    onReset.mockClear();
+    expect(onReset).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", {
         name: "Select label on displayed bottom edge",
