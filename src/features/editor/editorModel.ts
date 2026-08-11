@@ -461,11 +461,12 @@ function projectGroupingSpan(project: Project): number {
 function groupGeometryError(
   project: Project,
   placements: readonly PackagePlacement[],
+  allowObservedMultipick = false,
 ): string | null {
   const first = placements[0];
   if (!first) return "A group must contain at least one package placement.";
   if (placements.length === 1) return null;
-  if (!project.package.multiPickAllowed) {
+  if (!project.package.multiPickAllowed && !allowObservedMultipick) {
     return "This project does not allow multiple packages in one grip group.";
   }
   if (placements.some(({ rotation }) => rotation !== first.rotation)) {
@@ -505,9 +506,14 @@ function gripFromPlacements(
     groupNumber: number;
     existing?: LayerPattern["grips"][number] | null;
     deriveLabelOffset?: boolean;
+    allowObservedMultipick?: boolean;
   },
 ): LayerPattern["grips"][number] {
-  const geometryError = groupGeometryError(project, placements);
+  const geometryError = groupGeometryError(
+    project,
+    placements,
+    input.allowObservedMultipick,
+  );
   if (geometryError) {
     throw new ProjectEditorCommandError(geometryError, [
       {
@@ -821,13 +827,16 @@ function synchronizePatternGrips(
   const grips = nextPattern.grips.flatMap((grip, index) => {
     const placements = assignments.get(grip.id) ?? [];
     if (placements.length === 0) return [];
+    const previousGrip = previousById.get(grip.id) ?? null;
     return [
       gripFromPlacements(project, placements, {
         id: grip.id,
         groupNumber: grip.groupNumber ?? index + 1,
-        existing: previousById.get(grip.id) ?? grip,
+        existing: previousGrip ?? grip,
         deriveLabelOffset:
           options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
+        allowObservedMultipick:
+          project.source.kind === "rob-import" && previousGrip !== null,
       }),
     ];
   });
@@ -1605,7 +1614,11 @@ export function validateProjectPattern(
       });
       return;
     }
-    const geometryError = groupGeometryError(project, placements);
+    const geometryError = groupGeometryError(
+      project,
+      placements,
+      project.source.kind === "rob-import",
+    );
     if (geometryError) {
       diagnostics.push({
         severity: "error",

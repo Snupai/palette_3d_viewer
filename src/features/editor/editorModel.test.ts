@@ -153,6 +153,10 @@ function importedGripProject(): Project {
   const sourcePattern = solution.patterns[0]!;
   return projectSchema.parse({
     ...project,
+    package: {
+      ...project.package,
+      multiPickAllowed: false,
+    },
     source: {
       kind: "rob-import",
       fileName: "imported-editor.rob",
@@ -609,6 +613,21 @@ describe("Project editor groups and order", () => {
         afterGripId: "g2",
       }),
     ).toThrow(/inferred from legacy dx\/dy offsets cannot be removed/i);
+  });
+
+  it("preserves imported groups without authorizing new multipick groups", () => {
+    const project = importedGripProject();
+
+    expect(project.package.multiPickAllowed).toBe(false);
+    expect(() =>
+      applyProjectEditorCommand(project, {
+        type: "merge-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        gripIds: ["g1", "g2"],
+      }),
+    ).toThrow(/does not allow multiple packages in one grip group/i);
   });
 
   it("adds, removes, splits, and merges groups without deleting packages", () => {
