@@ -27,6 +27,7 @@ export type {
   ViewerCameraPreset,
   ViewerEquipmentConfig,
   ViewerScenePose,
+  ViewerSimulationPackage,
 } from "~/components/rob-viewer/viewerTypes";
 
 function nonNegative(value: number | undefined): number {
@@ -62,6 +63,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
       showSceneControls = true,
       equipment,
       simulationPose,
+      simulationPackages,
       onBoxSelect,
     },
     ref,
@@ -151,6 +153,10 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
     useEffect(() => {
       controllerRef.current?.setSimulationPose(simulationPose ?? null);
     }, [simulationPose]);
+
+    useEffect(() => {
+      controllerRef.current?.setSimulationPackages(simulationPackages ?? null);
+    }, [simulationPackages]);
 
     useEffect(() => {
       if (!cameraPreset) return;

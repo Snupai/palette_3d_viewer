@@ -370,18 +370,20 @@ export function createRobotReadiness(
     {
       id: "obstacles",
       label: "Fixed obstacles",
-      status:
-        settings.obstacles.length === 0
-          ? "not-checked"
-          : collisionBlocked
-            ? "blocked"
-            : "complete",
-      evidence:
-        settings.obstacles.length === 0
-          ? "No fixed obstacles are modeled. Collision against individual station objects has not been checked."
-          : collisionBlocked
-            ? "A calculated motion intersects an entered obstacle or an obstacle is invalid."
-            : `${settings.obstacles.length} entered obstacle${settings.obstacles.length === 1 ? "" : "s"} checked.`,
+      status: collisionBlocked
+        ? "blocked"
+        : settings.obstacles.length > 0
+          ? "complete"
+          : materialization.conveyor
+            ? "warning"
+            : "not-checked",
+      evidence: collisionBlocked
+        ? "A calculated motion intersects the modeled feed conveyor or an entered obstacle, or an obstacle is invalid."
+        : settings.obstacles.length > 0
+          ? `${settings.obstacles.length} entered obstacle${settings.obstacles.length === 1 ? "" : "s"} checked${materialization.conveyor ? " together with the calculated feed conveyor bed" : ""}.`
+          : materialization.conveyor
+            ? "The calculated feed conveyor bed was checked. No additional station obstacles are modeled."
+            : "No fixed obstacles are modeled. Collision against individual station objects has not been checked.",
     },
     {
       id: "export",

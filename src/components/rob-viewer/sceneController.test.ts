@@ -61,13 +61,30 @@ describe("viewer scene controller cleanup", () => {
     };
 
     const sceneDispose = vi.fn();
+    const simulationSolid = new THREE.Mesh();
+    const simulationEdges = new THREE.LineSegments();
+    const setSimulationPackages = vi.fn(
+      (packages: Parameters<BuiltViewerScene["setSimulationPackages"]>[0]) => {
+        if (packages === null) return;
+        simulationSolid.visible = false;
+        simulationEdges.visible = false;
+      },
+    );
     const builtScene: BuiltViewerScene = {
       root: new THREE.Group(),
       bounds: null,
-      layerRenders: [],
+      layerRenders: [
+        {
+          layerNum: 0,
+          solidMesh: simulationSolid,
+          solidEdges: simulationEdges,
+          pickEntries: [],
+        },
+      ],
       interlayerRenders: [],
       layerLabels: [],
       pickEntries: [],
+      setSimulationPackages,
       dispose: sceneDispose,
     };
     const highlighterDispose = vi.fn();
@@ -169,6 +186,24 @@ describe("viewer scene controller cleanup", () => {
       yawDeg: 90,
     });
 
+    controller.setSimulationPackages([
+      {
+        placementId: "placement-1",
+        phase: "attached",
+        pose: {
+          positionMm: { x: 10, y: 20, z: 30 },
+          yawDeg: 90,
+        },
+      },
+    ]);
+    expect(simulationSolid.visible).toBe(false);
+    expect(simulationEdges.visible).toBe(false);
+
+    controller.setSimulationPackages(null);
+    expect(simulationSolid.visible).toBe(true);
+    expect(simulationEdges.visible).toBe(true);
+    expect(setSimulationPackages).toHaveBeenLastCalledWith(null);
+
     controller.dispose();
     controller.dispose();
 
@@ -262,6 +297,7 @@ describe("viewer scene controller cleanup", () => {
         interlayerRenders: [],
         layerLabels: [],
         pickEntries: [],
+        setSimulationPackages: vi.fn(),
         dispose: sceneDisposals[index]!,
       };
     });

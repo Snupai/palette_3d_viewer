@@ -132,8 +132,11 @@ export function createViewerEquipment(
     const length = positive(conveyor.dimensionsMm.length, 1200);
     const width = positive(conveyor.dimensionsMm.width, 500);
     const height = positive(conveyor.dimensionsMm.height, 180);
+    const travelAxis = conveyor.travelAxis ?? "x";
+    const bedSizeX = travelAxis === "x" ? length : width;
+    const bedSizeY = travelAxis === "x" ? width : length;
     const bedGeometry = resources.trackGeometry(
-      new THREE.BoxGeometry(length, width, height),
+      new THREE.BoxGeometry(bedSizeX, bedSizeY, height),
     );
     const bedMaterial = resources.trackMaterial(
       new THREE.MeshPhongMaterial({ color: 0x3f3f46, shininess: 8 }),
@@ -157,9 +160,8 @@ export function createViewerEquipment(
     edges.position.copy(bed.position);
     root.add(edges);
 
-    const travelAxis = conveyor.travelAxis ?? "x";
-    const travelLength = travelAxis === "x" ? length : width;
-    const crossWidth = travelAxis === "x" ? width : length;
+    const travelLength = length;
+    const crossWidth = width;
     const rollerCount = Math.max(
       4,
       Math.min(12, Math.round(travelLength / 140)),

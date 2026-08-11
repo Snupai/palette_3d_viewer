@@ -2,6 +2,12 @@ import {
   interpolateRobotPose,
   shortestYawDeltaDeg,
 } from "~/domain/robotics/frames";
+import {
+  createRobotCycleMotionRoute,
+  createRobotCycleTransitionRoute,
+  type RobotMotionSegment,
+  type RobotMotionSegmentKind,
+} from "~/domain/robotics/motionRoute";
 import type {
   RobotCycle,
   RobotDiagnostic,
@@ -25,10 +31,8 @@ export const DEFAULT_ROBOT_TIMELINE_CONFIG: RobotTimelineConfig = {
 };
 
 export type RobotTimelineSegmentKind =
-  | "cycle-transition"
+  | RobotMotionSegmentKind
   | "pick-dwell"
-  | "pick-transfer"
-  | "transfer-place"
   | "place-dwell"
   | "between-cycle-dwell";
 
@@ -45,11 +49,21 @@ export type RobotTimelineSegment = {
   toPose: RobotPose;
 };
 
+export type RobotTimelineCycleWindow = {
+  cycleId: string;
+  cycleIndex: number;
+  startMs: number;
+  pickupMs: number;
+  placeMs: number;
+  endMs: number;
+};
+
 export type RobotTimeline = {
   kind: "robot-timeline";
   cycles: readonly RobotCycle[];
   config: RobotTimelineConfig;
   segments: readonly RobotTimelineSegment[];
+  cycleWindows: readonly RobotTimelineCycleWindow[];
   boundariesMs: readonly number[];
   durationMs: number;
   diagnostics: readonly RobotDiagnostic[];
@@ -127,6 +141,7 @@ export function createRobotTimeline(
 ): RobotTimeline {
   const { config, diagnostics } = validatedConfig(configInput);
   const segments: RobotTimelineSegment[] = [];
+  const cycleWindows: RobotTimelineCycleWindow[] = [];
   let cursorMs = 0;
 
   const append = (
@@ -139,7 +154,7 @@ export function createRobotTimeline(
   ): void => {
     if (!Number.isFinite(durationMs) || durationMs <= 0) return;
     const segment: RobotTimelineSegment = {
-      id: `${cycle.id}:${kind}`,
+      id: `${cycle.id}:${kind}:${segments.length}`,
       index: segments.length,
       kind,
       cycleId: cycle.id,
@@ -154,91 +169,89 @@ export function createRobotTimeline(
     segments.push(segment);
   };
 
+  const appendMotionRoute = (
+    routeSegments: readonly RobotMotionSegment[],
+    cycle: RobotCycle,
+    cycleIndex: number,
+  ): void => {
+    for (const segment of routeSegments) {
+      append(
+        segment.kind,
+        cycle,
+        cycleIndex,
+        segment.from.pose,
+        segment.to.pose,
+        movementDurationMs(segment.from.pose, segment.to.pose, config),
+      );
+    }
+  };
+
   if (!diagnostics.some(({ severity }) => severity === "error")) {
     for (let cycleIndex = 0; cycleIndex < cycles.length; cycleIndex += 1) {
       const cycle = cycles[cycleIndex]!;
       const previous = cycles[cycleIndex - 1];
-      if (previous) {
-        if (previous.placePose.frame !== cycle.pickPose.frame) {
-          diagnostics.push({
-            severity: "error",
-            phase: "timeline",
-            code: "timeline-frame-mismatch",
-            message: `Cannot connect cycle "${previous.id}" (${previous.placePose.frame}) to "${cycle.id}" (${cycle.pickPose.frame}).`,
-            cycleId: cycle.id,
-          });
-          break;
+      const startMs = cursorMs;
+      try {
+        if (previous) {
+          appendMotionRoute(
+            createRobotCycleTransitionRoute(previous, cycle).segments,
+            cycle,
+            cycleIndex,
+          );
         }
         append(
-          "cycle-transition",
+          "pick-dwell",
           cycle,
           cycleIndex,
-          previous.placePose,
           cycle.pickPose,
-          movementDurationMs(previous.placePose, cycle.pickPose, config),
+          cycle.pickPose,
+          config.pickDwellMs,
         );
-      }
-      append(
-        "pick-dwell",
-        cycle,
-        cycleIndex,
-        cycle.pickPose,
-        cycle.pickPose,
-        config.pickDwellMs,
-      );
-      if (cycle.pickPose.frame !== cycle.transferPose.frame) {
-        diagnostics.push({
-          severity: "error",
-          phase: "timeline",
-          code: "timeline-frame-mismatch",
-          message: `Cycle "${cycle.id}" pick and transfer poses use different frames.`,
-          cycleId: cycle.id,
-        });
-        break;
-      }
-      append(
-        "pick-transfer",
-        cycle,
-        cycleIndex,
-        cycle.pickPose,
-        cycle.transferPose,
-        movementDurationMs(cycle.pickPose, cycle.transferPose, config),
-      );
-      if (cycle.transferPose.frame !== cycle.placePose.frame) {
-        diagnostics.push({
-          severity: "error",
-          phase: "timeline",
-          code: "timeline-frame-mismatch",
-          message: `Cycle "${cycle.id}" transfer and place poses use different frames.`,
-          cycleId: cycle.id,
-        });
-        break;
-      }
-      append(
-        "transfer-place",
-        cycle,
-        cycleIndex,
-        cycle.transferPose,
-        cycle.placePose,
-        movementDurationMs(cycle.transferPose, cycle.placePose, config),
-      );
-      append(
-        "place-dwell",
-        cycle,
-        cycleIndex,
-        cycle.placePose,
-        cycle.placePose,
-        config.placeDwellMs,
-      );
-      if (cycleIndex < cycles.length - 1) {
+        const pickupMs = cursorMs;
+        appendMotionRoute(
+          createRobotCycleMotionRoute(cycle).segments,
+          cycle,
+          cycleIndex,
+        );
+        const placeMs = cursorMs;
         append(
-          "between-cycle-dwell",
+          "place-dwell",
           cycle,
           cycleIndex,
           cycle.placePose,
           cycle.placePose,
-          config.betweenCycleDwellMs,
+          config.placeDwellMs,
         );
+        if (cycleIndex < cycles.length - 1) {
+          append(
+            "between-cycle-dwell",
+            cycle,
+            cycleIndex,
+            cycle.placePose,
+            cycle.placePose,
+            config.betweenCycleDwellMs,
+          );
+        }
+        cycleWindows.push({
+          cycleId: cycle.id,
+          cycleIndex,
+          startMs,
+          pickupMs,
+          placeMs,
+          endMs: cursorMs,
+        });
+      } catch (cause) {
+        diagnostics.push({
+          severity: "error",
+          phase: "timeline",
+          code: "timeline-frame-mismatch",
+          message:
+            cause instanceof Error
+              ? cause.message
+              : `Cycle "${cycle.id}" route uses incompatible frames.`,
+          cycleId: cycle.id,
+        });
+        break;
       }
     }
   }
@@ -251,6 +264,7 @@ export function createRobotTimeline(
     cycles,
     config,
     segments,
+    cycleWindows,
     boundariesMs,
     durationMs: cursorMs,
     diagnostics,
@@ -302,15 +316,10 @@ export function seekRobotTimeline(
       ? forwardSegment(timeline, timeMs)
       : reverseSegment(timeline, timeMs);
   if (!segment) return null;
-  const progress =
-    segment.durationMs === 0
-      ? direction === "forward"
-        ? 0
-        : 1
-      : Math.max(
-          0,
-          Math.min(1, (timeMs - segment.startMs) / segment.durationMs),
-        );
+  const progress = Math.max(
+    0,
+    Math.min(1, (timeMs - segment.startMs) / segment.durationMs),
+  );
   return {
     requestedTimeMs,
     timeMs,

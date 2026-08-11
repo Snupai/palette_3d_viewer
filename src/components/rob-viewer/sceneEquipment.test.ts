@@ -108,6 +108,39 @@ describe("viewer equipment", () => {
     expect(conveyorGeometryDispose).toHaveBeenCalledTimes(1);
   });
 
+  it("orients a Y-axis conveyor bed and rollers consistently with travel", () => {
+    const scene = new THREE.Scene();
+    const yAxisConfig = config();
+    yAxisConfig.conveyor = {
+      ...yAxisConfig.conveyor!,
+      travelAxis: "y",
+    };
+    const equipment = createViewerEquipment(scene, yAxisConfig);
+
+    const bed = equipment.root.getObjectByName(
+      "conveyor-bed",
+    ) as THREE.Mesh<THREE.BoxGeometry>;
+    expect(bed.geometry.parameters).toMatchObject({
+      width: 420,
+      height: 900,
+      depth: 160,
+    });
+
+    const rollers = equipment.root.children.filter(({ name }) =>
+      name.startsWith("conveyor-roller-"),
+    );
+    expect(rollers).toHaveLength(6);
+    expect(rollers[0]!.position.x).toBe(-300);
+    expect(rollers[0]!.position.y).toBeCloseTo(25);
+    expect(rollers.at(-1)!.position.x).toBe(-300);
+    expect(rollers.at(-1)!.position.y).toBeCloseTo(775);
+    for (const roller of rollers) {
+      expect(roller.rotation.z).toBeCloseTo(Math.PI / 2);
+    }
+
+    equipment.dispose();
+  });
+
   it("clones the loaded gripper without taking ownership of shared CAD resources", () => {
     const scene = new THREE.Scene();
     const equipment = createViewerEquipment(scene, config());

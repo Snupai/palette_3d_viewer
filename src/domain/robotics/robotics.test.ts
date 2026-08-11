@@ -8,13 +8,17 @@ import type {
   PalletSpec,
   PalletStation,
   PlanningSolution,
+  Project,
 } from "~/domain/project/projectSchema";
 import {
+  CALCULATED_CONVEYOR_OBSTACLE_ID,
   boundsContained,
   checkObstacleAlongSegment,
   checkObstacleAtPose,
   checkReachBoundary,
+  createRobotCycleMotionRoute,
   createRobotCycleReport,
+  createRobotCycleTransitionRoute,
   createRobotEditorFlow,
   createRobotTimeline,
   exportProjectRob,
@@ -123,6 +127,7 @@ function calculatedProject(input: {
   robotCycles?: PlanningSolution["robotCycles"];
   grippers?: Gripper[];
   selectedGripperId?: string;
+  source?: Project["source"];
 }) {
   const patternId = "pattern-1";
   const solutionId = "solution-1";
@@ -130,6 +135,7 @@ function calculatedProject(input: {
   return createProject(
     {
       id: "robot-project",
+      ...(input.source ? { source: input.source } : {}),
       package: {
         dimensionsMm: input.dimensionsMm ?? {
           length: 100,
@@ -238,7 +244,7 @@ function placement(
 }
 
 const pickReference = {
-  originMm: { x: 0, y: 0, z: 100 },
+  originMm: { x: -1_000, y: 0, z: 100 },
   yawDeg: 0,
   provenance: { status: "verified" as const, source: "test-conveyor" },
 };
@@ -443,6 +449,12 @@ describe("robotics materialization and ordering", () => {
     );
 
     expect(materialized.valid).toBe(true);
+    expect(materialized.conveyor).toMatchObject({
+      id: "calculated-feed-conveyor",
+      centerMm: { x: -950, y: -25, z: -10 },
+      dimensionsMm: { length: 1_200, width: 500, height: 140 },
+      travelAxis: "x",
+    });
     expect(materialized.cycles[0]).toMatchObject({
       pickPose: { frame: "station" },
       provenance: {
@@ -450,6 +462,29 @@ describe("robotics materialization and ordering", () => {
       },
     });
     expect(exported.ok).toBe(true);
+  });
+
+  it("checks the generated conveyor bed in materialization collision diagnostics", () => {
+    const project = calculatedProject({
+      placements: [placement("package-1", 0, 100, 50)],
+    });
+    const materialized = materializeRobotCycles(project, {
+      pickReference: {
+        ...pickReference,
+        originMm: { x: 0, y: 0, z: 100 },
+      },
+    });
+
+    expect(materialized.conveyor).not.toBeNull();
+    expect(materialized.valid).toBe(false);
+    expect(materialized.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        phase: "collision",
+        code: "obstacle-collision",
+        resourceId: CALCULATED_CONVEYOR_OBSTACLE_ID,
+      }),
+    );
   });
 
   it("returns a dependency-aware suggestion and keeps edited violations visible", () => {
@@ -527,6 +562,7 @@ describe("robotics materialization and ordering", () => {
     const project = calculatedProject({
       placements,
       origin: "imported",
+      source: { kind: "rob-import", fileName: "fixture.rob" },
       grippers: [suctionGripper("suction-1"), suctionGripper("suction-2")],
       selectedGripperId: "suction-1",
       robotCycles: [
@@ -547,6 +583,7 @@ describe("robotics materialization and ordering", () => {
     const materialized = materializeRobotCycles(project, { pickReference });
 
     expect(materialized.valid).toBe(false);
+    expect(materialized.conveyor).toBeNull();
     expect(materialized.diagnostics.map(({ code }) => code)).toContain(
       "cycle-gripper-mismatch",
     );
@@ -745,6 +782,119 @@ describe("coordinate frames and safety boundaries", () => {
       ),
     ).toBe(true);
   });
+
+  it("builds carried and between-cycle motion with vertical approaches and elevated traversal", () => {
+    const carried = createRobotCycleMotionRoute(
+      cycle(
+        "carried",
+        0,
+        pose(0, 10, 100, 0),
+        pose(200, 30, 450, 90),
+        pose(400, 500, 150, 180),
+      ),
+    );
+
+    expect(carried.segments.map(({ kind }) => kind)).toEqual([
+      "pick-lift",
+      "pick-traverse",
+      "transfer-traverse",
+      "place-approach",
+    ]);
+    expect(carried.segments[0]).toMatchObject({
+      from: { pose: { positionMm: { x: 0, y: 10, z: 100 } } },
+      to: { pose: { positionMm: { x: 0, y: 10, z: 450 } } },
+    });
+    for (const segment of carried.segments.slice(1, 3)) {
+      expect(segment.from.pose.positionMm.z).toBe(450);
+      expect(segment.to.pose.positionMm.z).toBe(450);
+    }
+    expect(carried.segments[3]).toMatchObject({
+      from: { pose: { positionMm: { x: 400, y: 500, z: 450 } } },
+      to: { pose: { positionMm: { x: 400, y: 500, z: 150 } } },
+    });
+
+    const transition = createRobotCycleTransitionRoute(
+      cycle(
+        "previous",
+        0,
+        pose(-100, 0, 80, 0),
+        pose(100, 200, 400, 90),
+        pose(300, 400, 120, 180),
+      ),
+      cycle(
+        "next",
+        1,
+        pose(-200, -300, 60, 0),
+        pose(50, 75, 500, 90),
+        pose(600, 700, 160, 180),
+      ),
+    );
+
+    expect(transition.segments.map(({ kind }) => kind)).toEqual([
+      "cycle-retract",
+      "cycle-traverse",
+      "pick-approach",
+    ]);
+    expect(transition.segments[0]).toMatchObject({
+      from: { pose: { positionMm: { x: 300, y: 400, z: 120 } } },
+      to: { pose: { positionMm: { x: 300, y: 400, z: 500 } } },
+    });
+    expect(transition.segments[1]!.from.pose.positionMm.z).toBe(500);
+    expect(transition.segments[1]!.to.pose.positionMm.z).toBe(500);
+    expect(transition.segments[2]).toMatchObject({
+      from: { pose: { positionMm: { x: -200, y: -300, z: 500 } } },
+      to: { pose: { positionMm: { x: -200, y: -300, z: 60 } } },
+    });
+  });
+
+  it("checks the same safe route used by timeline playback", () => {
+    const testCycle = cycle(
+      "safe-route",
+      0,
+      pose(0, 0, 0, 0),
+      pose(100, 0, 300, 0),
+      pose(100, 100, 0, 0),
+    );
+    const envelope = {
+      negativeX: 5,
+      positiveX: 5,
+      negativeY: 5,
+      positiveY: 5,
+    };
+    const verticalLiftObstacle = {
+      id: "lift-guard",
+      boundsMm: { minX: -5, minY: -5, maxX: 5, maxY: 5 },
+      minZMm: 100,
+      maxZMm: 200,
+    };
+    const belowSafeTraverse = {
+      id: "low-conveyor",
+      boundsMm: { minX: 40, minY: -10, maxX: 60, maxY: 10 },
+      minZMm: 0,
+      maxZMm: 100,
+    };
+
+    const diagnostics = validateCycleMotionBoundaries(
+      [testCycle],
+      station(),
+      envelope,
+      [verticalLiftObstacle, belowSafeTraverse],
+    );
+
+    expect(diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "obstacle-collision",
+        resourceId: "lift-guard",
+        details: {
+          phase: "pick-lift",
+          check: "conservative-swept-aabb",
+        },
+      }),
+    );
+    expect(
+      diagnostics.some(({ resourceId }) => resourceId === "low-conveyor"),
+    ).toBe(false);
+  });
 });
 
 describe("deterministic robot timeline", () => {
@@ -777,7 +927,7 @@ describe("deterministic robot timeline", () => {
     const boundary = timeline.segments[0]!.endMs;
     const forward = seekRobotTimeline(timeline, boundary, "forward")!;
     const reverse = seekRobotTimeline(timeline, boundary, "reverse")!;
-    expect(forward.segment.kind).toBe("pick-transfer");
+    expect(forward.segment.kind).toBe("pick-traverse");
     expect(forward.segmentProgress).toBe(0);
     expect(reverse.segment.kind).toBe("pick-dwell");
     expect(reverse.segmentProgress).toBe(1);

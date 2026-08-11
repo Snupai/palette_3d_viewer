@@ -130,6 +130,19 @@ export type RobotObstacle = {
   maxZMm?: number;
 };
 
+export type RobotConveyorModel = {
+  id: "calculated-feed-conveyor";
+  frame: "station";
+  centerMm: Vector3Mm;
+  dimensionsMm: { length: number; width: number; height: number };
+  travelAxis: "x" | "y";
+  provenance: {
+    status: "derived";
+    source: "calculated-cycle-feed-reference-v1";
+    detail: string;
+  };
+};
+
 export type RobotOrderDependency = {
   beforeGroupId: string;
   afterGroupId: string;
@@ -267,6 +280,7 @@ export type RobotCycleMaterialization = {
   station: PalletStation | null;
   direction: PalletizingDirection | null;
   stack: MaterializedStackResult | null;
+  conveyor: RobotConveyorModel | null;
   layers: readonly RobotCycleLayer[];
   cycles: readonly RobotCycle[];
   diagnostics: readonly RobotDiagnostic[];

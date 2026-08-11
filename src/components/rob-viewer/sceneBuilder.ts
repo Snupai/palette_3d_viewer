@@ -16,6 +16,7 @@ import type {
   LayerLabelRender,
   LayerRender,
   ViewerSceneBuildOptions,
+  ViewerSimulationPackage,
 } from "~/components/rob-viewer/viewerTypes";
 
 type FaceColors = {
@@ -236,6 +237,73 @@ export function buildViewerScene(
       depthWrite: false,
     }),
   );
+  const simulationPackageMaterial = resources.trackMaterial(
+    new THREE.MeshPhongMaterial({
+      color: 0xd7a66a,
+      shininess: 5,
+      side: THREE.DoubleSide,
+    }),
+  );
+  const simulationPackageGeometry = resources.trackGeometry(
+    new THREE.BoxGeometry(
+      data.package.width,
+      data.package.length,
+      data.package.height,
+    ),
+  );
+  const simulationPackageEdgeGeometry = resources.trackGeometry(
+    new THREE.EdgesGeometry(simulationPackageGeometry),
+  );
+  const simulationPackageRoot = new THREE.Group();
+  simulationPackageRoot.name = "simulation-packages";
+  root.add(simulationPackageRoot);
+  const simulationPackageGroups = new Map<string, THREE.Group>();
+  const simulationPackageGroup = (placementId: string): THREE.Group => {
+    const existing = simulationPackageGroups.get(placementId);
+    if (existing) return existing;
+    const group = new THREE.Group();
+    group.name = `simulation-package:${placementId}`;
+    const mesh = new THREE.Mesh(
+      simulationPackageGeometry,
+      simulationPackageMaterial,
+    );
+    mesh.name = `simulation-package-solid:${placementId}`;
+    group.add(mesh);
+    const edges = new THREE.LineSegments(
+      simulationPackageEdgeGeometry,
+      solidEdgeMaterial,
+    );
+    edges.name = `simulation-package-edges:${placementId}`;
+    edges.renderOrder = 2;
+    group.add(edges);
+    group.visible = false;
+    simulationPackageRoot.add(group);
+    simulationPackageGroups.set(placementId, group);
+    return group;
+  };
+  const setSimulationPackages = (
+    packages: readonly ViewerSimulationPackage[] | null,
+  ) => {
+    for (const group of simulationPackageGroups.values()) {
+      group.visible = false;
+    }
+    if (packages === null) return;
+    for (const layer of layerRenders) {
+      layer.solidMesh.visible = false;
+      layer.solidEdges.visible = false;
+    }
+    for (const item of packages) {
+      const group = simulationPackageGroup(item.placementId);
+      group.position.set(
+        item.pose.positionMm.x,
+        item.pose.positionMm.y,
+        item.pose.positionMm.z,
+      );
+      group.rotation.z = THREE.MathUtils.degToRad(item.pose.yawDeg);
+      group.userData.phase = item.phase;
+      group.visible = true;
+    }
+  };
   const interlayerMaterial = resources.trackMaterial(
     new THREE.MeshPhongMaterial({
       color: 0xd6c49a,
@@ -590,6 +658,7 @@ export function buildViewerScene(
     interlayerRenders,
     layerLabels,
     pickEntries: layerRenders.flatMap((layer) => layer.pickEntries),
+    setSimulationPackages,
     dispose() {
       scene.remove(root);
       root.clear();

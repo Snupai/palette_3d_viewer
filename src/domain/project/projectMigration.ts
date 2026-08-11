@@ -1,7 +1,13 @@
 import { z } from "zod";
 import { gripsToBoxes } from "~/domain/palletGeometry";
 import {
+  createMultipackEquipmentProfileResources,
+  MULTIPACK_GRIPPER_ID,
+  MULTIPACK_PALLET_STATION_ID,
+} from "~/domain/project/equipmentProfiles";
+import {
   CURRENT_PROJECT_SCHEMA_VERSION,
+  PREVIOUS_PROJECT_SCHEMA_VERSION,
   PROJECT_SCHEMA_VERSION,
   projectSchema,
   projectV2Schema,
@@ -131,7 +137,29 @@ function gripsWithDeterministicGroupNumbers<
   });
 }
 
-/** Deterministically adds first-class placements and cycles to a ProjectV2. */
+function seedMigratedMultipackEquipment(project: Project): Project {
+  if (
+    project.source.kind !== "new" ||
+    project.grippers.length !== 0 ||
+    project.palletStations.length !== 0 ||
+    project.selectedGripperId !== null ||
+    project.selectedPalletStationId !== null
+  ) {
+    return project;
+  }
+
+  const { grippers, palletStations } =
+    createMultipackEquipmentProfileResources();
+  return projectSchema.parse({
+    ...project,
+    grippers,
+    palletStations,
+    selectedGripperId: MULTIPACK_GRIPPER_ID,
+    selectedPalletStationId: MULTIPACK_PALLET_STATION_ID,
+  });
+}
+
+/** Deterministically adds first-class placements, cycles, and ordinary defaults to ProjectV2. */
 export function migrateProjectV2(projectInput: ProjectV2): Project {
   const project = projectV2Schema.parse(projectInput);
   const solutions = project.solutions.map((solution) => {
@@ -158,11 +186,27 @@ export function migrateProjectV2(projectInput: ProjectV2): Project {
     } satisfies PlanningSolution;
   });
 
-  return projectSchema.parse({
-    ...project,
-    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-    solutions,
-  });
+  return seedMigratedMultipackEquipment(
+    projectSchema.parse({
+      ...project,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      solutions,
+    }),
+  );
+}
+
+/** Adds the observed Multipack defaults only to fully unconfigured ordinary V3 projects. */
+export function migrateProjectV3(value: unknown): Project {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return projectSchema.parse(value);
+  }
+
+  return seedMigratedMultipackEquipment(
+    projectSchema.parse({
+      ...value,
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+    }),
+  );
 }
 
 /**
@@ -173,6 +217,9 @@ export function migrateProject(value: unknown): Project {
   const schemaVersion = schemaVersionOf(value);
   if (schemaVersion === PROJECT_SCHEMA_VERSION) {
     return migrateProjectV2(projectV2Schema.parse(value));
+  }
+  if (schemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION) {
+    return migrateProjectV3(value);
   }
   if (schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION) {
     return projectSchema.parse(value);
@@ -193,7 +240,9 @@ export function safeMigrateProject(value: unknown):
     return {
       success: true,
       project: migrateProject(value),
-      migrated: schemaVersion === PROJECT_SCHEMA_VERSION,
+      migrated:
+        schemaVersion === PROJECT_SCHEMA_VERSION ||
+        schemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION,
       diagnostics: [],
     };
   } catch (cause) {

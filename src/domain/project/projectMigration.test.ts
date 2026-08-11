@@ -2,12 +2,19 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  MULTIPACK_GRIPPER_ID,
+  MULTIPACK_PALLET_STATION_ID,
+  resolveMultipackEquipmentProfile,
+} from "~/domain/project/equipmentProfiles";
+import { createProject } from "~/domain/project/projectFactory";
+import {
   migrateProject,
   projectToProjectV2,
   safeMigrateProject,
 } from "~/domain/project/projectMigration";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
+  PREVIOUS_PROJECT_SCHEMA_VERSION,
   PROJECT_SCHEMA_VERSION,
   projectSchema,
 } from "~/domain/project/projectSchema";
@@ -55,6 +62,72 @@ describe("project schema migration", () => {
       gripId: "imported-grip-2-1",
       placementIds: ["placement-2-1", "placement-2-2"],
     });
+  });
+
+  it("backfills exact Multipack defaults for fully unconfigured ordinary V3 projects", () => {
+    const ordinary = createProject(
+      {
+        id: "ordinary-v3",
+        grippers: [],
+        palletStations: [],
+        selectedGripperId: null,
+        selectedPalletStationId: null,
+      },
+      { createId: (kind) => `${kind}-ordinary`, now: () => 123 },
+    );
+
+    const migrated = migrateProject({
+      ...ordinary,
+      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+    });
+
+    expect(migrated.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(migrated.updatedAt).toBe(ordinary.updatedAt);
+    expect(migrated.grippers).toHaveLength(1);
+    expect(migrated.palletStations).toHaveLength(1);
+    expect(migrated.selectedGripperId).toBe(MULTIPACK_GRIPPER_ID);
+    expect(migrated.selectedPalletStationId).toBe(
+      MULTIPACK_PALLET_STATION_ID,
+    );
+    expect(resolveMultipackEquipmentProfile(migrated)?.version).toBe(1);
+  });
+
+  it("does not infer equipment for V3 ROB imports or overwrite configured projects", () => {
+    const imported = createProject(
+      {
+        id: "imported-v3",
+        source: { kind: "rob-import", fileName: "fixture.rob" },
+      },
+      { createId: (kind) => `${kind}-imported`, now: () => 10 },
+    );
+    const configured = createProject(
+      { id: "configured-v3" },
+      { createId: (kind) => `${kind}-configured`, now: () => 20 },
+    );
+
+    const migratedImport = migrateProject({
+      ...imported,
+      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+    });
+    const migratedConfigured = migrateProject({
+      ...configured,
+      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+    });
+
+    expect(migratedImport.grippers).toEqual([]);
+    expect(migratedImport.palletStations).toEqual([]);
+    expect(migratedImport.selectedGripperId).toBeNull();
+    expect(migratedImport.selectedPalletStationId).toBeNull();
+    expect(migratedConfigured.grippers).toEqual(configured.grippers);
+    expect(migratedConfigured.palletStations).toEqual(
+      configured.palletStations,
+    );
+    expect(migratedConfigured.selectedGripperId).toBe(
+      configured.selectedGripperId,
+    );
+    expect(migratedConfigured.selectedPalletStationId).toBe(
+      configured.selectedPalletStationId,
+    );
   });
 
   it("assigns missing grip group numbers from unused positive integers", () => {

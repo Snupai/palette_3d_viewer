@@ -13,6 +13,7 @@ import {
 } from "~/domain/robotics";
 import {
   advanceTimelineCursor,
+  createSimulationFrame,
   stepTimelineCursor,
   timelinePhaseLabel,
   type PlaybackDirection,
@@ -105,14 +106,28 @@ export function SimulationWorkspace({
   const cycle = sample
     ? (timeline.cycles[sample.segment.cycleIndex] ?? null)
     : null;
-  const viewerPose = sample
-    ? robotPoseToViewerPose(sample.pose, project, materialization)
-    : null;
+  const simulationFrame = createSimulationFrame(
+    timeline,
+    cursorMs,
+    materialization,
+    (pose) => robotPoseToViewerPose(pose, project, materialization),
+  );
 
   const equipment = useMemo<ViewerEquipmentConfig>(() => {
     const firstPick = materialization.cycles[0]?.pickPose ?? null;
-    const conveyorPose = firstPick
+    const robotHomePose = firstPick
       ? robotPoseToViewerPose(firstPick, project, materialization)
+      : null;
+    const conveyorPose = materialization.conveyor
+      ? robotPoseToViewerPose(
+          {
+            frame: materialization.conveyor.frame,
+            positionMm: materialization.conveyor.centerMm,
+            yawDeg: 0,
+          },
+          project,
+          materialization,
+        )
       : null;
     let robotBase = { x: 0, y: 0, z: 0 };
     if (
@@ -137,18 +152,14 @@ export function SimulationWorkspace({
     );
     const envelope = materialization.gripper?.envelopeMm;
     return {
-      conveyor: conveyorPose
-        ? {
-            centerMm: {
-              x: conveyorPose.positionMm.x,
-              y: conveyorPose.positionMm.y,
-              z: Math.max(60, conveyorPose.positionMm.z - 90),
-            },
-            dimensionsMm: { length: 1_200, width: 500, height: 140 },
-            travelAxis:
-              project.package.inletOrientation === "lengthwise" ? "x" : "y",
-          }
-        : null,
+      conveyor:
+        conveyorPose && materialization.conveyor
+          ? {
+              centerMm: conveyorPose.positionMm,
+              dimensionsMm: materialization.conveyor.dimensionsMm,
+              travelAxis: materialization.conveyor.travelAxis,
+            }
+          : null,
       selectedGripper: materialization.gripper
         ? {
             pose: null,
@@ -168,7 +179,7 @@ export function SimulationWorkspace({
             baseHeightMm: 320,
             upperArmLengthMm: armReach,
             forearmLengthMm: armReach,
-            homePose: conveyorPose,
+            homePose: robotHomePose,
           }
         : null,
     };
@@ -430,7 +441,8 @@ export function SimulationWorkspace({
               visibleUpToLayer={previewData.layer_count}
               showSceneControls
               equipment={equipment}
-              simulationPose={viewerPose}
+              simulationPose={simulationFrame.tcpPose}
+              simulationPackages={simulationFrame.packages}
             />
           ) : (
             <div className="flex min-h-[560px] items-center justify-center px-4 text-center text-sm text-zinc-600">

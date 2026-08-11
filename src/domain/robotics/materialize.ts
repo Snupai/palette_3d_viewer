@@ -8,6 +8,10 @@ import type {
 import { validateCycleMotionBoundaries } from "~/domain/robotics/checks";
 import { validateSuctionCompatibility } from "~/domain/robotics/compatibility";
 import {
+  createCalculatedRobotConveyorModel,
+  robotConveyorObstacle,
+} from "~/domain/robotics/conveyor";
+import {
   groupPlacementsForSuction,
   groupsFromExplicitCycles,
   groupsFromPatternGrips,
@@ -62,6 +66,7 @@ function emptyMaterialization(
     station: null,
     direction: null,
     stack: null,
+    conveyor: null,
     layers: [],
     cycles: [],
     diagnostics,
@@ -542,13 +547,26 @@ export function materializeRobotCycles(
 
   diagnostics.push(...duplicateCycleIdDiagnostics(cycles));
   diagnostics.push(...finitePoseDiagnostics(cycles));
+  const conveyor = resources.gripper
+    ? createCalculatedRobotConveyorModel({
+        projectSourceKind: project.source.kind,
+        inletOrientation: project.package.inletOrientation,
+        gripperTcpMm: resources.gripper.tcpMm,
+        cycles,
+        stack,
+      })
+    : null;
+  const collisionObstacles = [
+    ...(options.obstacles ?? []),
+    ...(conveyor ? [robotConveyorObstacle(conveyor)] : []),
+  ];
   if (resources.station && resources.gripper) {
     diagnostics.push(
       ...validateCycleMotionBoundaries(
         cycles.filter(({ pickPose }) => pickPose.frame === "station"),
         resources.station,
         resources.gripper.envelopeMm,
-        options.obstacles ?? [],
+        collisionObstacles,
         options.collisionToleranceMm ?? 0,
       ),
     );
@@ -563,6 +581,7 @@ export function materializeRobotCycles(
     station: resources.station,
     direction: resources.direction,
     stack,
+    conveyor,
     layers,
     cycles,
     diagnostics,

@@ -1,10 +1,18 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import {
+  MULTIPACK_GRIPPER_ID,
+  MULTIPACK_PALLET_STATION_ID,
+} from "~/domain/project/equipmentProfiles";
 import {
   createProject,
   createProjectV2,
 } from "~/domain/project/projectFactory";
+import {
+  CURRENT_PROJECT_SCHEMA_VERSION,
+  PREVIOUS_PROJECT_SCHEMA_VERSION,
+} from "~/domain/project/projectSchema";
 import { createProjectResource } from "~/domain/project/projectResource";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
 import { projectSolutionToPalletData } from "~/lib/projectAdapters";
@@ -152,8 +160,49 @@ describe("project repository", () => {
       "v2-project",
     )) as { schemaVersion: number };
 
-    expect(result.project?.schemaVersion).toBe(3);
-    expect(persisted.schemaVersion).toBe(3);
+    expect(result.project?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+    expect(persisted.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
+  });
+
+  it("repairs an older ordinary empty project with selected Multipack defaults exactly once", async () => {
+    const currentEmpty = createProject(
+      {
+        id: "ordinary-v3-empty",
+        grippers: [],
+        palletStations: [],
+        selectedGripperId: null,
+        selectedPalletStationId: null,
+      },
+      { createId: (kind) => `${kind}-ordinary-v3`, now: () => 11 },
+    );
+    const storedV3 = {
+      ...currentEmpty,
+      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+    };
+    const storage = new MemoryPlannerRecordStorage({
+      [PROJECTS_STORE_NAME]: [storedV3],
+    });
+    const put = vi.spyOn(storage, "put");
+    const repository = new ProjectRepository(storage);
+
+    const first = await repository.getProject(storedV3.id);
+    const second = await repository.getProject(storedV3.id);
+    const persisted = await storage.get(PROJECTS_STORE_NAME, storedV3.id);
+
+    expect(first.project).toMatchObject({
+      schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      selectedGripperId: MULTIPACK_GRIPPER_ID,
+      selectedPalletStationId: MULTIPACK_PALLET_STATION_ID,
+      createdAt: 11,
+      updatedAt: 11,
+      source: { kind: "new" },
+    });
+    expect(first.project?.grippers).toHaveLength(1);
+    expect(first.project?.palletStations).toHaveLength(1);
+    expect(second.project).toEqual(first.project);
+    expect(persisted).toEqual(first.project);
+    expect(put).toHaveBeenCalledTimes(1);
+    expect(put).toHaveBeenCalledWith(PROJECTS_STORE_NAME, first.project);
   });
 
   it("quarantines malformed rows and returns exact diagnostics", async () => {
@@ -264,7 +313,10 @@ describe("project repository", () => {
     const repository = new ProjectRepository(new MemoryPlannerRecordStorage());
 
     await expect(
-      repository.saveProject({ id: "bad", schemaVersion: 3 }),
+      repository.saveProject({
+        id: "bad",
+        schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+      }),
     ).rejects.toThrow();
     expect((await repository.listProjects()).projects).toEqual([]);
   });

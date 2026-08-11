@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import type { Gripper, PalletStation } from "~/domain/project/projectSchema";
-import { materializeRobotCycles } from "~/domain/robotics";
+import {
+  CALCULATED_CONVEYOR_OBSTACLE_ID,
+  materializeRobotCycles,
+} from "~/domain/robotics";
 import {
   createInitialRobotExportSettings,
   createInitialRobotWorkspaceSettings,
@@ -133,7 +136,7 @@ describe("robotics workspace validation and export gate", () => {
 
     const completeUnverifiedWorkspace = {
       ...workspace,
-      pickX: "-500",
+      pickX: "-1000",
       pickY: "100",
       pickZ: "300",
       pickYaw: "0",
@@ -219,7 +222,7 @@ describe("robotics workspace validation and export gate", () => {
     const project = projectFixture();
     const workspace = {
       ...createInitialRobotWorkspaceSettings(project),
-      pickX: "-500",
+      pickX: "-1000",
       pickY: "100",
       pickZ: "300",
       obstacles: [
@@ -284,7 +287,7 @@ describe("robotics workspace input validation", () => {
     const project = projectFixture();
     const settings = {
       ...createInitialRobotWorkspaceSettings(project),
-      pickX: "-500",
+      pickX: "-1000",
       pickY: "100",
       pickZ: "300",
       pickReferenceStatus: "verified" as const,
@@ -320,7 +323,7 @@ describe("robotics readiness", () => {
     );
     const settings = {
       ...createInitialRobotWorkspaceSettings(project),
-      pickX: "-500",
+      pickX: "-1000",
       pickY: "100",
       pickZ: "300",
       pickReferenceStatus: "verified" as const,
@@ -362,7 +365,7 @@ describe("robotics readiness", () => {
     };
     const settings = {
       ...createInitialRobotWorkspaceSettings(project),
-      pickX: "-500",
+      pickX: "-1000",
       pickY: "100",
       pickZ: "300",
     };
@@ -389,6 +392,112 @@ describe("robotics readiness", () => {
         id: "export",
         status: "engineering",
         evidence: "3 export settings still require engineering review.",
+      }),
+    );
+  });
+
+  it("reports the calculated conveyor separately from additional station obstacles", () => {
+    const project = projectFixture();
+    const baseSettings = {
+      ...createInitialRobotWorkspaceSettings(project),
+      pickX: "-1000",
+      pickY: "100",
+      pickZ: "300",
+      pickReferenceStatus: "verified" as const,
+      pickReferenceSource: "Fixture station survey",
+    };
+    const conveyorOnly = materializeRobotWorkspace(project, baseSettings);
+    const conveyorOnlyReadiness = createRobotReadiness(
+      project,
+      conveyorOnly,
+      baseSettings,
+      false,
+      1,
+    );
+
+    expect(conveyorOnly.valid).toBe(true);
+    expect(conveyorOnly.conveyor).not.toBeNull();
+    expect(conveyorOnlyReadiness).toContainEqual(
+      expect.objectContaining({
+        id: "obstacles",
+        status: "warning",
+        evidence:
+          "The calculated feed conveyor bed was checked. No additional station obstacles are modeled.",
+      }),
+    );
+
+    const settingsWithObstacle = {
+      ...baseSettings,
+      obstacles: [
+        {
+          id: "far-guard",
+          name: "Far guard",
+          boundsMm: {
+            minX: 3_000,
+            minY: 3_000,
+            maxX: 3_100,
+            maxY: 3_100,
+          },
+          minZMm: 0,
+          maxZMm: 1_000,
+        },
+      ],
+    };
+    const withObstacle = materializeRobotWorkspace(
+      project,
+      settingsWithObstacle,
+    );
+    const withObstacleReadiness = createRobotReadiness(
+      project,
+      withObstacle,
+      settingsWithObstacle,
+      false,
+      1,
+    );
+
+    expect(withObstacle.valid).toBe(true);
+    expect(withObstacleReadiness).toContainEqual(
+      expect.objectContaining({
+        id: "obstacles",
+        status: "complete",
+        evidence:
+          "1 entered obstacle checked together with the calculated feed conveyor bed.",
+      }),
+    );
+  });
+
+  it("blocks readiness when the calculated route intersects the feed bed", () => {
+    const project = projectFixture();
+    const settings = {
+      ...createInitialRobotWorkspaceSettings(project),
+      pickX: "0",
+      pickY: "0",
+      pickZ: "100",
+      pickReferenceStatus: "verified" as const,
+      pickReferenceSource: "Fixture co-located pickup",
+    };
+    const materialization = materializeRobotWorkspace(project, settings);
+    const readiness = createRobotReadiness(
+      project,
+      materialization,
+      settings,
+      false,
+      1,
+    );
+
+    expect(materialization.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        phase: "collision",
+        resourceId: CALCULATED_CONVEYOR_OBSTACLE_ID,
+      }),
+    );
+    expect(readiness).toContainEqual(
+      expect.objectContaining({
+        id: "obstacles",
+        status: "blocked",
+        evidence:
+          "A calculated motion intersects the modeled feed conveyor or an entered obstacle, or an obstacle is invalid.",
       }),
     );
   });

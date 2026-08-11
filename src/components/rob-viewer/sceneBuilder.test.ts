@@ -88,6 +88,68 @@ describe("viewer scene builder", () => {
     built.dispose();
   });
 
+  it("updates stable simulation package groups and hides merged package layers", () => {
+    const scene = new THREE.Scene();
+    const built = buildViewerScene(scene, palletData());
+
+    built.setSimulationPackages([
+      {
+        placementId: "package-a",
+        phase: "attached",
+        pose: {
+          positionMm: { x: 10, y: 20, z: 300 },
+          yawDeg: 90,
+        },
+      },
+      {
+        placementId: "package-b",
+        phase: "placed",
+        pose: {
+          positionMm: { x: 100, y: 200, z: 50 },
+          yawDeg: 0,
+        },
+      },
+    ]);
+
+    const packageA = built.root.getObjectByName("simulation-package:package-a")!;
+    const packageB = built.root.getObjectByName("simulation-package:package-b")!;
+    expect(built.layerRenders.every(({ solidMesh }) => !solidMesh.visible)).toBe(
+      true,
+    );
+    expect(
+      built.layerRenders.every(({ solidEdges }) => !solidEdges.visible),
+    ).toBe(true);
+    expect(packageA.visible).toBe(true);
+    expect(packageA.position.toArray()).toEqual([10, 20, 300]);
+    expect(packageA.rotation.z).toBeCloseTo(Math.PI / 2);
+    expect(packageA.userData.phase).toBe("attached");
+
+    built.setSimulationPackages([
+      {
+        placementId: "package-a",
+        phase: "placed",
+        pose: {
+          positionMm: { x: 30, y: 40, z: 50 },
+          yawDeg: 180,
+        },
+      },
+    ]);
+
+    expect(built.root.getObjectByName("simulation-package:package-a")).toBe(
+      packageA,
+    );
+    expect(packageA.position.toArray()).toEqual([30, 40, 50]);
+    expect(packageA.rotation.z).toBeCloseTo(Math.PI);
+    expect(packageA.userData.phase).toBe("placed");
+    expect(packageB.visible).toBe(false);
+
+    built.setSimulationPackages(null);
+    expect(packageA.visible).toBe(false);
+    expect(packageB.visible).toBe(false);
+
+    built.dispose();
+  });
+
   it("reports the Zwischenlage directly above each package layer", () => {
     const scene = new THREE.Scene();
     const data = palletData();

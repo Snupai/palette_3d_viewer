@@ -3,6 +3,12 @@ import {
   envelopeToBounds,
   horizontalEnvelopeBounds,
 } from "~/domain/robotics/frames";
+import {
+  createRobotCycleMotionRoute,
+  createRobotCycleTransitionRoute,
+  type RobotMotionSegment,
+  type RobotMotionWaypoint,
+} from "~/domain/robotics/motionRoute";
 import type {
   HorizontalBoundsMm,
   HorizontalEnvelopeMm,
@@ -166,15 +172,25 @@ export function checkObstacleAlongSegment(
   );
 }
 
-function poseEntries(cycle: RobotCycle): Array<{
-  name: "pick" | "transfer" | "place";
-  pose: RobotPose;
-}> {
-  return [
-    { name: "pick", pose: cycle.pickPose },
-    { name: "transfer", pose: cycle.transferPose },
-    { name: "place", pose: cycle.placePose },
-  ];
+function routeEntries(
+  cycles: readonly RobotCycle[],
+  cycleIndex: number,
+): {
+  waypoints: readonly RobotMotionWaypoint[];
+  segments: readonly RobotMotionSegment[];
+} {
+  const cycle = cycles[cycleIndex]!;
+  const carried = createRobotCycleMotionRoute(cycle);
+  const previous = cycles[cycleIndex - 1];
+  if (!previous) return carried;
+  const transition = createRobotCycleTransitionRoute(previous, cycle);
+  return {
+    waypoints: [
+      ...transition.waypoints.slice(1, -1),
+      ...carried.waypoints,
+    ],
+    segments: [...transition.segments, ...carried.segments],
+  };
 }
 
 export function validateCycleMotionBoundaries(
@@ -198,8 +214,26 @@ export function validateCycleMotionBoundaries(
     });
   }
 
-  for (const cycle of cycles) {
-    for (const { name, pose } of poseEntries(cycle)) {
+  for (let cycleIndex = 0; cycleIndex < cycles.length; cycleIndex += 1) {
+    const cycle = cycles[cycleIndex]!;
+    let route: ReturnType<typeof routeEntries>;
+    try {
+      route = routeEntries(cycles, cycleIndex);
+    } catch (cause) {
+      diagnostics.push({
+        severity: "error",
+        phase: "timeline",
+        code: "timeline-frame-mismatch",
+        message:
+          cause instanceof Error
+            ? cause.message
+            : `Cycle "${cycle.id}" route uses incompatible frames.`,
+        cycleId: cycle.id,
+        layerId: cycle.physicalLayerId,
+      });
+      continue;
+    }
+    for (const { name, pose } of route.waypoints) {
       const reach = checkReachBoundary(pose, station, toleranceMm);
       if (
         reach.status === "checked" &&
@@ -291,20 +325,12 @@ export function validateCycleMotionBoundaries(
       }
     }
 
-    const segments = [
-      { name: "pick-transfer", from: cycle.pickPose, to: cycle.transferPose },
-      {
-        name: "transfer-place",
-        from: cycle.transferPose,
-        to: cycle.placePose,
-      },
-    ] as const;
-    for (const segment of segments) {
+    for (const segment of route.segments) {
       for (const obstacle of obstacles) {
         if (
           !checkObstacleAlongSegment(
-            segment.from,
-            segment.to,
+            segment.from.pose,
+            segment.to.pose,
             toolEnvelope,
             obstacle,
             toleranceMm,
@@ -316,11 +342,14 @@ export function validateCycleMotionBoundaries(
           severity: "error",
           phase: "collision",
           code: "obstacle-collision",
-          message: `Cycle "${cycle.id}" ${segment.name} swept envelope intersects obstacle "${obstacle.name ?? obstacle.id}".`,
+          message: `Cycle "${cycle.id}" ${segment.kind} swept envelope intersects obstacle "${obstacle.name ?? obstacle.id}".`,
           cycleId: cycle.id,
           layerId: cycle.physicalLayerId,
           resourceId: obstacle.id,
-          details: { phase: segment.name, check: "conservative-swept-aabb" },
+          details: {
+            phase: segment.kind,
+            check: "conservative-swept-aabb",
+          },
         });
       }
     }

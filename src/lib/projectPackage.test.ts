@@ -5,6 +5,7 @@ import {
 } from "~/domain/project/projectFactory";
 import { createProjectResource } from "~/domain/project/projectResource";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
+import { CURRENT_PROJECT_SCHEMA_VERSION } from "~/domain/project/projectSchema";
 import {
   PROJECT_PACKAGE_FORMAT,
   PROJECT_PACKAGE_SCHEMA_VERSION,
@@ -69,7 +70,7 @@ describe("portable project packages", () => {
     const parsed = parseProjectPackageJson(raw);
 
     expect(parsed.diagnostics).toEqual([]);
-    expect(parsed.value?.projects[0]?.schemaVersion).toBe(3);
+    expect(parsed.value?.projects[0]?.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
   it("returns diagnostics for malformed JSON, unknown versions, and invalid rows", () => {
@@ -99,7 +100,9 @@ describe("portable project packages", () => {
         format: PROJECT_PACKAGE_FORMAT,
         schemaVersion: PROJECT_PACKAGE_SCHEMA_VERSION,
         exportedAt: 1,
-        projects: [{ id: "bad", schemaVersion: 3 }],
+        projects: [
+          { id: "bad", schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION },
+        ],
         resources: [{ id: "bad-resource", schemaVersion: 999 }],
       }),
     );

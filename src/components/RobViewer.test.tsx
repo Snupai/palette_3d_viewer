@@ -18,6 +18,7 @@ const controller = vi.hoisted(() => ({
   setData: vi.fn(),
   setVisibleUpToLayer: vi.fn(),
   setSimulationPose: vi.fn(),
+  setSimulationPackages: vi.fn(),
   setCameraPreset: vi.fn(),
   captureReportFrame: vi.fn<() => ViewerCaptureResult>(() => ({
     status: "fallback",

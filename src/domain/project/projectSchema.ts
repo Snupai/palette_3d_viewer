@@ -2,8 +2,10 @@ import { z } from "zod";
 
 /** Compatibility version used by the existing ProjectV2 fixtures and adapters. */
 export const PROJECT_SCHEMA_VERSION = 2 as const;
+/** Previous canonical version, retained for one-time persisted-project upgrades. */
+export const PREVIOUS_PROJECT_SCHEMA_VERSION = 3 as const;
 /** Canonical version persisted by the planning repository. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 3 as const;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 4 as const;
 
 const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
