@@ -19,11 +19,20 @@ import {
   type ProjectFormValues,
 } from "~/features/project/projectForm";
 
+export type ProjectGenerationIntent = {
+  exactPackageCount: number;
+};
+
+export type ProjectDialogSubmission = {
+  project: Project;
+  generationIntent: ProjectGenerationIntent | null;
+};
+
 export type ProjectDialogProps = {
   open: boolean;
   project: Project | null;
   onClose: () => void;
-  onSave: (project: Project) => Promise<void> | void;
+  onSave: (submission: ProjectDialogSubmission) => Promise<void> | void;
 };
 
 type FieldProps = {
@@ -64,6 +73,7 @@ export function ProjectDialog({
   const [values, setValues] = useState<ProjectFormValues>(() =>
     projectToFormValues(project),
   );
+  const [exactPackageCount, setExactPackageCount] = useState("");
   const [fieldErrors, setFieldErrors] = useState<ProjectFieldErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -71,6 +81,7 @@ export function ProjectDialog({
   useEffect(() => {
     if (!open) return;
     setValues(projectToFormValues(project));
+    setExactPackageCount("");
     setFieldErrors({});
     setFailure(null);
     setSaving(false);
@@ -108,8 +119,32 @@ export function ProjectDialog({
     setFailure(null);
     setSaving(true);
     try {
+      const submitter = (event.nativeEvent as SubmitEvent).submitter;
+      const shouldGenerate =
+        project === null &&
+        (!(submitter instanceof HTMLButtonElement) ||
+          submitter.value !== "create-only");
+      const packageCount = Number(exactPackageCount);
+      if (
+        shouldGenerate &&
+        (!Number.isInteger(packageCount) || packageCount <= 0)
+      ) {
+        setFieldErrors({
+          exactPackageCount: "Enter a positive whole number.",
+        });
+        setFailure(
+          "Enter the exact packages per layer, or choose Create only.",
+        );
+        return;
+      }
+
       const next = buildProjectFromForm(values, project);
-      await onSave(next);
+      await onSave({
+        project: next,
+        generationIntent: shouldGenerate
+          ? { exactPackageCount: packageCount }
+          : null,
+      });
       onClose();
     } catch (cause) {
       if (cause instanceof z.ZodError) {
@@ -212,7 +247,7 @@ export function ProjectDialog({
               <legend className="px-1 text-sm font-semibold text-zinc-200">
                 Cuboid package
               </legend>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                 <Field
                   label="Length (mm)"
                   error={errorFor(fieldErrors, "package.dimensionsMm.length")}
@@ -258,6 +293,25 @@ export function ProjectDialog({
                     className={inputClass}
                   />
                 </Field>
+                {project === null ? (
+                  <Field
+                    label="Packages per layer"
+                    error={errorFor(fieldErrors, "exactPackageCount")}
+                  >
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={exactPackageCount}
+                      onChange={(event) => {
+                        setExactPackageCount(event.target.value);
+                        setFieldErrors({});
+                      }}
+                      className={inputClass}
+                      placeholder="Required to generate"
+                    />
+                  </Field>
+                ) : null}
                 <Field
                   label="Weight (kg)"
                   error={errorFor(fieldErrors, "package.weightKg")}
@@ -567,12 +621,29 @@ export function ProjectDialog({
             >
               Cancel
             </button>
+            {project === null ? (
+              <button
+                type="submit"
+                name="creationAction"
+                value="create-only"
+                disabled={saving}
+                className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 focus:ring-2 focus:ring-amber-400/40 focus:outline-none disabled:cursor-wait disabled:opacity-50"
+              >
+                Create only
+              </button>
+            ) : null}
             <button
               type="submit"
+              name="creationAction"
+              value={project ? "save" : "generate"}
               disabled={saving}
               className="rounded-md bg-amber-400 px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-wait disabled:opacity-60"
             >
-              {saving ? "Saving…" : "Save project"}
+              {saving
+                ? "Saving…"
+                : project
+                  ? "Save project"
+                  : "Create & generate"}
             </button>
           </footer>
         </form>

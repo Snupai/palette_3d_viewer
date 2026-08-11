@@ -11,6 +11,7 @@ import type {
 } from "~/domain/solver";
 import {
   SolverControls,
+  type GeneratorLaunchRequest,
   type GeneratorPackageInputs,
 } from "~/features/candidates/SolverControls";
 import {
@@ -125,10 +126,16 @@ export type PlanningCaseWorkbenchProps = {
   solverInput: LayerSolverInput | null;
   selectedCandidate: SolverCandidate | null;
   selectedCandidateId: string | null;
+  generatorLaunchRequest?: GeneratorLaunchRequest | null;
+  onGeneratorLaunchRequestConsumed?: (requestId: string) => void;
   onApplyGeneratorPackageInputs: (
     inputs: GeneratorPackageInputs,
   ) => Promise<Project>;
-  onSolverResult: (result: SolverResult, input: LayerSolverInput) => void;
+  onSolverResult: (
+    projectId: string,
+    result: SolverResult,
+    input: LayerSolverInput,
+  ) => void;
   onResetSolver: () => void;
   onCandidateChange: (candidateId: string) => void;
   referencePreview: LayerPatternPreview | null;
@@ -167,6 +174,8 @@ export function PlanningCaseWorkbench({
   solverInput,
   selectedCandidate,
   selectedCandidateId,
+  generatorLaunchRequest,
+  onGeneratorLaunchRequestConsumed,
   onApplyGeneratorPackageInputs,
   onSolverResult,
   onResetSolver,
@@ -349,8 +358,12 @@ export function PlanningCaseWorkbench({
         <div className="grid min-h-0 gap-3">
           <SolverControls
             project={project}
+            launchRequest={generatorLaunchRequest}
+            onLaunchRequestConsumed={onGeneratorLaunchRequestConsumed}
             onApplyPackageInputs={onApplyGeneratorPackageInputs}
-            onResult={onSolverResult}
+            onResult={(result, input) =>
+              onSolverResult(project.id, result, input)
+            }
             onReset={onResetSolver}
           />
           <PlanningCandidateIndex

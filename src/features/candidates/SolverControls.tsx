@@ -31,8 +31,16 @@ export type GeneratorPackageInputs = {
   multiPickAllowed: boolean;
 };
 
+export type GeneratorLaunchRequest = {
+  requestId: string;
+  projectId: string;
+  exactPackageCount: number;
+};
+
 export type SolverControlsProps = {
   project: Project;
+  launchRequest?: GeneratorLaunchRequest | null;
+  onLaunchRequestConsumed?: (requestId: string) => void;
   onApplyPackageInputs: (inputs: GeneratorPackageInputs) => Promise<Project>;
   onResult: (result: SolverResult, input: LayerSolverInput) => void;
   onReset: () => void;
@@ -298,6 +306,8 @@ function DimensionInput({
 
 export function SolverControls({
   project,
+  launchRequest = null,
+  onLaunchRequestConsumed,
   onApplyPackageInputs,
   onResult,
   onReset,
@@ -306,6 +316,8 @@ export function SolverControls({
   const handleRef = useRef<SolverRunHandle | null>(null);
   const generationRef = useRef(0);
   const hasRunRef = useRef(false);
+  const claimedLaunchRequestIdsRef = useRef(new Set<string>());
+  const startRef = useRef<() => Promise<void>>(async () => undefined);
   const previousProjectIdRef = useRef(project.id);
   const previousPackageDimensionsRef = useRef(
     JSON.stringify(project.package.dimensionsMm),
@@ -341,6 +353,8 @@ export function SolverControls({
   const [resultSummary, setResultSummary] = useState<SolverResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [staleNotice, setStaleNotice] = useState<string | null>(null);
+  const [pendingLaunchRequest, setPendingLaunchRequest] =
+    useState<GeneratorLaunchRequest | null>(null);
 
   useEffect(() => {
     const client = createLayerSolverClient();
@@ -384,6 +398,7 @@ export function SolverControls({
       setDraft(initialDraft(project));
       setAllowMixedPackageOrientations(true);
       setIncludeSymmetryVariants(true);
+      setPendingLaunchRequest(null);
       return;
     }
     setDraft((current) => ({
@@ -415,6 +430,8 @@ export function SolverControls({
   }, [project]);
 
   useEffect(() => {
+    if (runKeyRef.current === currentRunKey) return;
+
     const hadRun = hasRunRef.current;
     generationRef.current += 1;
     handleRef.current?.cancel();
@@ -583,6 +600,48 @@ export function SolverControls({
         );
       });
   };
+
+  useEffect(() => {
+    startRef.current = start;
+  });
+
+  useEffect(() => {
+    if (
+      !launchRequest ||
+      launchRequest.projectId !== project.id ||
+      claimedLaunchRequestIdsRef.current.has(launchRequest.requestId)
+    ) {
+      return;
+    }
+
+    claimedLaunchRequestIdsRef.current.add(launchRequest.requestId);
+    setDraft((current) => ({
+      ...current,
+      packageCount: String(launchRequest.exactPackageCount),
+    }));
+    setPendingLaunchRequest(launchRequest);
+  }, [launchRequest, project.id]);
+
+  useEffect(() => {
+    if (
+      !pendingLaunchRequest ||
+      pendingLaunchRequest.projectId !== project.id ||
+      draft.packageCount !== String(pendingLaunchRequest.exactPackageCount) ||
+      !canSolve
+    ) {
+      return;
+    }
+
+    setPendingLaunchRequest(null);
+    onLaunchRequestConsumed?.(pendingLaunchRequest.requestId);
+    void startRef.current();
+  }, [
+    canSolve,
+    draft.packageCount,
+    onLaunchRequestConsumed,
+    pendingLaunchRequest,
+    project.id,
+  ]);
 
   const cancel = () => {
     if (status !== "running") return;
