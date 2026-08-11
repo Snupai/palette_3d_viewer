@@ -136,11 +136,15 @@ const solverResult: SolverResult = {
   },
 };
 
-async function repositoryWithProject() {
-  const repository = new ProjectRepository(new MemoryPlannerRecordStorage(), {
+function emptyRepository() {
+  return new ProjectRepository(new MemoryPlannerRecordStorage(), {
     now: () => 10,
     createId: (kind) => `${kind}-repository`,
   });
+}
+
+async function repositoryWithProject() {
+  const repository = emptyRepository();
   const project = createProject(
     {
       id: "generator-project",
