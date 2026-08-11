@@ -40,7 +40,7 @@ import type {
   ViewerCaptureResult,
   ViewerSceneOptions,
   ViewerScenePose,
-  ViewerSimulationPackage,
+  ViewerSimulationState,
 } from "~/components/rob-viewer/viewerTypes";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
@@ -113,9 +113,7 @@ export type ViewerSceneController = {
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
-  setSimulationPackages(
-    packages: readonly ViewerSimulationPackage[] | null,
-  ): void;
+  setSimulationState(state: ViewerSimulationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
   captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
@@ -129,9 +127,7 @@ type ViewerRuntime = {
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
-  setSimulationPackages(
-    packages: readonly ViewerSimulationPackage[] | null,
-  ): void;
+  setSimulationState(state: ViewerSimulationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
   captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
@@ -225,7 +221,7 @@ export function createViewerSceneController({
   let visibleUpToLayer = 1;
   let sceneOptions: ViewerSceneOptions = {};
   let simulationPose: ViewerScenePose | null = null;
-  let simulationPackages: readonly ViewerSimulationPackage[] | null = null;
+  let simulationState: ViewerSimulationState | null = null;
   let disposed = false;
 
   const emitSelection = (selection: BoxSelection | null) => {
@@ -384,7 +380,7 @@ export function createViewerSceneController({
         visibleUpToLayer: nextVisibleUpToLayer,
         layerCount: currentData.layers.length,
       });
-      sceneBuild.setSimulationPackages(simulationPackages);
+      sceneBuild.setSimulationState(simulationState);
       recenterOnVisibleStack();
 
       if (selectedEntry && isPickEntryVisible(selectedEntry, maxVisibleLayer)) {
@@ -652,10 +648,10 @@ export function createViewerSceneController({
         equipment?.setSimulationPose(pose);
         animationLoop?.requestRender();
       },
-      setSimulationPackages(packages) {
+      setSimulationState(state) {
         if (runtimeDisposed || !sceneBuild) return;
-        sceneBuild.setSimulationPackages(packages);
-        if (packages === null) {
+        sceneBuild.setSimulationState(state);
+        if (state === null) {
           updateVisibility(visibleUpToLayer);
         } else if (selectedEntry) {
           selectedEntry = null;
@@ -690,10 +686,10 @@ export function createViewerSceneController({
       simulationPose = pose;
       runtime?.setSimulationPose(pose);
     },
-    setSimulationPackages(packages) {
+    setSimulationState(state) {
       if (disposed) return;
-      simulationPackages = packages;
-      runtime?.setSimulationPackages(packages);
+      simulationState = state;
+      runtime?.setSimulationState(state);
     },
     setCameraPreset(preset) {
       if (disposed) return;

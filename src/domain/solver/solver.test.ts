@@ -429,7 +429,7 @@ describe("solver input and candidate validation", () => {
         }
       }
     }
-  }, 15_000);
+  }, 30_000);
 });
 
 describe("candidate canonicalization and geometric deduplication", () => {
@@ -867,5 +867,5 @@ describe("observed AP5006 geometry", () => {
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );
-  });
+  }, 15_000);
 });

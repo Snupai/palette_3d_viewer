@@ -92,24 +92,27 @@ describe("viewer scene builder", () => {
     const scene = new THREE.Scene();
     const built = buildViewerScene(scene, palletData());
 
-    built.setSimulationPackages([
-      {
-        placementId: "package-a",
-        phase: "attached",
-        pose: {
-          positionMm: { x: 10, y: 20, z: 300 },
-          yawDeg: 90,
+    built.setSimulationState({
+      packages: [
+        {
+          placementId: "package-a",
+          phase: "attached",
+          pose: {
+            positionMm: { x: 10, y: 20, z: 300 },
+            yawDeg: 90,
+          },
         },
-      },
-      {
-        placementId: "package-b",
-        phase: "placed",
-        pose: {
-          positionMm: { x: 100, y: 200, z: 50 },
-          yawDeg: 0,
+        {
+          placementId: "package-b",
+          phase: "placed",
+          pose: {
+            positionMm: { x: 100, y: 200, z: 50 },
+            yawDeg: 0,
+          },
         },
-      },
-    ]);
+      ],
+      completedPackageLayerIndexes: [],
+    });
 
     const packageA = built.root.getObjectByName("simulation-package:package-a")!;
     const packageB = built.root.getObjectByName("simulation-package:package-b")!;
@@ -124,16 +127,19 @@ describe("viewer scene builder", () => {
     expect(packageA.rotation.z).toBeCloseTo(Math.PI / 2);
     expect(packageA.userData.phase).toBe("attached");
 
-    built.setSimulationPackages([
-      {
-        placementId: "package-a",
-        phase: "placed",
-        pose: {
-          positionMm: { x: 30, y: 40, z: 50 },
-          yawDeg: 180,
+    built.setSimulationState({
+      packages: [
+        {
+          placementId: "package-a",
+          phase: "placed",
+          pose: {
+            positionMm: { x: 30, y: 40, z: 50 },
+            yawDeg: 180,
+          },
         },
-      },
-    ]);
+      ],
+      completedPackageLayerIndexes: [0],
+    });
 
     expect(built.root.getObjectByName("simulation-package:package-a")).toBe(
       packageA,
@@ -143,9 +149,49 @@ describe("viewer scene builder", () => {
     expect(packageA.userData.phase).toBe("placed");
     expect(packageB.visible).toBe(false);
 
-    built.setSimulationPackages(null);
+    built.setSimulationState(null);
     expect(packageA.visible).toBe(false);
     expect(packageB.visible).toBe(false);
+
+    built.dispose();
+  });
+
+  it("reveals each upper interlayer only after its lower package layer is complete", () => {
+    const scene = new THREE.Scene();
+    const data = palletData();
+    data.layers[1]!.zwischenlage = 1;
+    const built = buildViewerScene(scene, data);
+    const [baseSheet, betweenSheet, deckSheet] = built.interlayerRenders;
+
+    built.setSimulationState({
+      packages: [],
+      completedPackageLayerIndexes: [],
+    });
+    expect(baseSheet?.mesh.visible).toBe(true);
+    expect(betweenSheet?.mesh.visible).toBe(false);
+    expect(deckSheet?.mesh.visible).toBe(false);
+
+    built.setSimulationState({
+      packages: [],
+      completedPackageLayerIndexes: [0],
+    });
+    expect(baseSheet?.mesh.visible).toBe(true);
+    expect(betweenSheet?.mesh.visible).toBe(true);
+    expect(deckSheet?.mesh.visible).toBe(false);
+
+    built.setSimulationState({
+      packages: [],
+      completedPackageLayerIndexes: [0, 1],
+    });
+    expect(betweenSheet?.mesh.visible).toBe(true);
+    expect(deckSheet?.mesh.visible).toBe(true);
+
+    built.setSimulationState({
+      packages: [],
+      completedPackageLayerIndexes: [],
+    });
+    expect(betweenSheet?.mesh.visible).toBe(false);
+    expect(deckSheet?.mesh.visible).toBe(false);
 
     built.dispose();
   });

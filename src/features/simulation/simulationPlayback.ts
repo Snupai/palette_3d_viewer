@@ -11,6 +11,7 @@ import {
 import type {
   ViewerScenePose,
   ViewerSimulationPackage,
+  ViewerSimulationState,
 } from "~/components/rob-viewer/viewerTypes";
 
 export type PlaybackDirection = "forward" | "reverse";
@@ -20,14 +21,13 @@ export type TimelineCursorAdvance = {
   reachedEnd: boolean;
 };
 
-export type SimulationFrame = {
+export type SimulationFrame = ViewerSimulationState & {
   cycleId: string | null;
   phase: RobotTimelineSegmentKind | null;
   tcpPose: ViewerScenePose | null;
   completedPlacementIds: ReadonlySet<string>;
   feedPlacementIds: readonly string[];
   attachedPlacementIds: readonly string[];
-  packages: readonly ViewerSimulationPackage[];
 };
 
 export function clampTimelineCursor(
@@ -125,6 +125,14 @@ export function createSimulationFrame(
     );
   }
 
+  const completedPackageLayerIndexes = (
+    materialization.stack?.packageLayers ?? []
+  ).flatMap((layer) =>
+    layer.placements.length > 0 &&
+    layer.placements.every(({ id }) => completedPlacementIds.has(id))
+      ? [layer.packageLayerIndex]
+      : [],
+  );
   const feedPlacementIds =
     activeCycle && activeWindow && timeMs < activeWindow.pickupMs
       ? [...activeCycle.placementIds]
@@ -189,6 +197,7 @@ export function createSimulationFrame(
     feedPlacementIds,
     attachedPlacementIds,
     packages,
+    completedPackageLayerIndexes,
   };
 }
 

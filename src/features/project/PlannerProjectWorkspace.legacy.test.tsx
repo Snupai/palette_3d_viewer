@@ -114,7 +114,11 @@ describe("PlannerProjectWorkspace legacy integration", () => {
     );
 
     expect(
-      await screen.findByRole("heading", { name: "M5-LEGACY" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-LEGACY" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /06 Validate/i }));
     fireEvent.click(

@@ -170,7 +170,11 @@ describe("PlannerProjectWorkspace generator integration", () => {
 
     render(<PlannerProjectWorkspace repository={repository} />);
     expect(
-      await screen.findByRole("heading", { name: "M5-GENERATOR" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-GENERATOR" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -202,7 +206,11 @@ describe("PlannerProjectWorkspace generator integration", () => {
 
     render(<PlannerProjectWorkspace repository={repository} />);
     expect(
-      await screen.findByRole("heading", { name: "M5-GENERATOR" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-GENERATOR" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
 

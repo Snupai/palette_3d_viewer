@@ -336,7 +336,7 @@ export function SimulationWorkspace({
             </div>
           </div>
 
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-1 border-t border-zinc-800 pt-3 text-xs md:grid-cols-5 xl:grid-cols-10">
+          <dl className="grid auto-rows-[1.25rem] grid-cols-2 items-center gap-x-4 gap-y-1 border-t border-zinc-800 pt-3 text-xs md:grid-cols-5 xl:grid-cols-10">
             <dt className="text-zinc-500">Cycle</dt>
             <dd className="font-mono text-zinc-200">
               {cycle
@@ -351,7 +351,10 @@ export function SimulationWorkspace({
               {cycle?.groupId ?? "—"}
             </dd>
             <dt className="text-zinc-500">Phase</dt>
-            <dd className="text-zinc-200">
+            <dd
+              className="min-w-0 truncate whitespace-nowrap text-zinc-200"
+              title={sample ? timelinePhaseLabel(sample.segment.kind) : undefined}
+            >
               {sample ? timelinePhaseLabel(sample.segment.kind) : "—"}
             </dd>
             <dt className="text-zinc-500">Direction</dt>
@@ -442,7 +445,7 @@ export function SimulationWorkspace({
               showSceneControls
               equipment={equipment}
               simulationPose={simulationFrame.tcpPose}
-              simulationPackages={simulationFrame.packages}
+              simulationState={simulationFrame}
             />
           ) : (
             <div className="flex min-h-[560px] items-center justify-center px-4 text-center text-sm text-zinc-600">

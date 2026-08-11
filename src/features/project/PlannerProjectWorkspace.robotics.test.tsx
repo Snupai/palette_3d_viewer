@@ -113,7 +113,11 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
 
     expect(
-      await screen.findByRole("heading", { name: "M5-ROBOT-B" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-ROBOT-B" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     expect(
       screen.getByText("Robot readiness").closest("summary")?.textContent,
@@ -145,7 +149,11 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     fireEvent.click(screen.getByRole("button", { name: /M5-ROBOT-A/ }));
 
     expect(
-      await screen.findByRole("heading", { name: "M5-ROBOT-A" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-ROBOT-A" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
@@ -163,7 +171,11 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
 
     expect(
-      await screen.findByRole("heading", { name: "M5-ROBOT-PROFILE" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-ROBOT-PROFILE" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();

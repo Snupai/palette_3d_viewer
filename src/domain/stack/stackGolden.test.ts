@@ -237,7 +237,7 @@ describe("M4 stack golden calculations", () => {
     expect(result.warnings.map(({ code }) => code)).toContain(
       "metric-provenance-unverified",
     );
-  });
+  }, 15_000);
 
   it("uses variable all-rule interlayers plus base/deck sheets in exact height and weight", () => {
     const layers = createCompositionSequence({

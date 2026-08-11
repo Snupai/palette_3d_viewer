@@ -16,7 +16,7 @@ import type {
   LayerLabelRender,
   LayerRender,
   ViewerSceneBuildOptions,
-  ViewerSimulationPackage,
+  ViewerSimulationState,
 } from "~/components/rob-viewer/viewerTypes";
 
 type FaceColors = {
@@ -281,18 +281,17 @@ export function buildViewerScene(
     simulationPackageGroups.set(placementId, group);
     return group;
   };
-  const setSimulationPackages = (
-    packages: readonly ViewerSimulationPackage[] | null,
-  ) => {
+  const setSimulationState = (state: ViewerSimulationState | null) => {
     for (const group of simulationPackageGroups.values()) {
       group.visible = false;
     }
-    if (packages === null) return;
+    if (state === null) return;
+
     for (const layer of layerRenders) {
       layer.solidMesh.visible = false;
       layer.solidEdges.visible = false;
     }
-    for (const item of packages) {
+    for (const item of state.packages) {
       const group = simulationPackageGroup(item.placementId);
       group.position.set(
         item.pose.positionMm.x,
@@ -302,6 +301,26 @@ export function buildViewerScene(
       group.rotation.z = THREE.MathUtils.degToRad(item.pose.yawDeg);
       group.userData.phase = item.phase;
       group.visible = true;
+    }
+
+    const completedLayers = new Set(state.completedPackageLayerIndexes);
+    const exposedLayerIndex = Math.max(
+      -1,
+      ...state.completedPackageLayerIndexes,
+    );
+    for (const interlayer of interlayerRenders) {
+      const visible =
+        !interlayer.isAboveLayer || completedLayers.has(interlayer.layerNum);
+      const exposed =
+        visible &&
+        interlayer.isAboveLayer &&
+        interlayer.layerNum === exposedLayerIndex;
+      interlayer.mesh.visible = visible;
+      interlayer.edges.visible = visible;
+      interlayer.mesh.material = exposed
+        ? interlayer.exposedMaterial
+        : interlayer.opaqueMaterial;
+      interlayer.mesh.renderOrder = exposed ? 1 : 0;
     }
   };
   const interlayerMaterial = resources.trackMaterial(
@@ -658,7 +677,7 @@ export function buildViewerScene(
     interlayerRenders,
     layerLabels,
     pickEntries: layerRenders.flatMap((layer) => layer.pickEntries),
-    setSimulationPackages,
+    setSimulationState,
     dispose() {
       scene.remove(root);
       root.clear();

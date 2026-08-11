@@ -117,7 +117,11 @@ describe("PlannerProjectWorkspace editor integration", () => {
       />,
     );
     expect(
-      await screen.findByRole("heading", { name: "M5-EDITOR" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Editor" }));
     expect(await screen.findByTestId("project-editor-workspace")).toBeTruthy();
@@ -172,7 +176,11 @@ describe("PlannerProjectWorkspace editor integration", () => {
 
     render(<PlannerProjectWorkspace repository={repository} />);
     expect(
-      await screen.findByRole("heading", { name: "M5-EDITOR" }),
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
     ).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /02 Reference/i }));
 

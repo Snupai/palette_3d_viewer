@@ -19,6 +19,11 @@ export type ViewerSimulationPackage = {
   pose: ViewerScenePose;
 };
 
+export type ViewerSimulationState = {
+  packages: readonly ViewerSimulationPackage[];
+  completedPackageLayerIndexes: readonly number[];
+};
+
 export type ViewerConveyorConfig = {
   centerMm: { x: number; y: number; z: number };
   dimensionsMm: { length: number; width: number; height: number };
@@ -131,7 +136,7 @@ export type RobViewerProps = {
   showSceneControls?: boolean;
   equipment?: ViewerEquipmentConfig;
   simulationPose?: ViewerScenePose | null;
-  simulationPackages?: readonly ViewerSimulationPackage[] | null;
+  simulationState?: ViewerSimulationState | null;
   onBoxSelect?: (selection: BoxSelection | null) => void;
 };
 
@@ -185,8 +190,6 @@ export type BuiltViewerScene = {
   interlayerRenders: InterlayerRender[];
   layerLabels: LayerLabelRender[];
   pickEntries: BoxPickEntry[];
-  setSimulationPackages(
-    packages: readonly ViewerSimulationPackage[] | null,
-  ): void;
+  setSimulationState(state: ViewerSimulationState | null): void;
   dispose(): void;
 };

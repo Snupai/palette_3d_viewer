@@ -97,6 +97,7 @@ function simulationMaterialization(): Pick<
     stack: {
       packageLayers: [
         {
+          packageLayerIndex: 0,
           zBottomMm: 0,
           zTopMm: 100,
           placements: [
@@ -110,6 +111,13 @@ function simulationMaterialization(): Pick<
               positionMm: { x: 120, y: 100 },
               rotation: 0,
             },
+          ],
+        },
+        {
+          packageLayerIndex: 1,
+          zBottomMm: 103,
+          zTopMm: 203,
+          placements: [
             {
               id: "placement-3",
               positionMm: { x: 200, y: 100 },
@@ -187,6 +195,7 @@ describe("absolute-time package state", () => {
     );
 
     expect([...frame.completedPlacementIds]).toEqual([]);
+    expect(frame.completedPackageLayerIndexes).toEqual([]);
     expect(frame.feedPlacementIds).toEqual(["placement-1", "placement-2"]);
     expect(frame.attachedPlacementIds).toEqual([]);
     expect(frame.packages).toEqual([
@@ -273,6 +282,7 @@ describe("absolute-time package state", () => {
       "placement-1",
       "placement-2",
     ]);
+    expect(released.completedPackageLayerIndexes).toEqual([0]);
     expect(released.packages).toEqual([
       {
         placementId: "placement-1",
@@ -298,6 +308,7 @@ describe("absolute-time package state", () => {
       materialization,
       toViewerPose,
     );
+    expect(nextCycle.completedPackageLayerIndexes).toEqual([0]);
     expect(nextCycle.packages.map(({ placementId, phase }) => [placementId, phase]))
       .toEqual([
         ["placement-1", "placed"],
@@ -311,6 +322,7 @@ describe("absolute-time package state", () => {
       materialization,
       toViewerPose,
     );
+    expect(finished.completedPackageLayerIndexes).toEqual([0, 1]);
     expect(finished.packages.map(({ phase }) => phase)).toEqual([
       "placed",
       "placed",
