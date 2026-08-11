@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
 import {
   createViewerSceneController,
   type ViewerControls,
@@ -8,6 +9,7 @@ import {
   type ViewerWindow,
 } from "~/components/rob-viewer/sceneController";
 import type { LoadedGripperModel } from "~/components/rob-viewer/gripperLoader";
+import type { LoadedRobotCell } from "~/components/rob-viewer/robotCellLoader";
 import type { ViewerEquipmentController } from "~/components/rob-viewer/sceneEquipment";
 import type { ViewerHighlighter } from "~/components/rob-viewer/sceneHighlight";
 import type { ViewerAnimationLoop } from "~/components/rob-viewer/viewerAnimationLoop";
@@ -135,14 +137,36 @@ describe("viewer scene controller cleanup", () => {
       model: new THREE.Group(),
       dispose: loadedDispose,
     };
+    const robotCellLoad = { signal: null as AbortSignal | null };
+    let resolveRobotCell!: (loaded: LoadedRobotCell) => void;
+    const pendingRobotCell = new Promise<LoadedRobotCell>((resolve) => {
+      resolveRobotCell = resolve;
+    });
+    const loadRobotCell = vi.fn<
+      ViewerSceneControllerDependencies["loadRobotCell"]
+    >((options) => {
+      robotCellLoad.signal = options?.signal ?? null;
+      return pendingRobotCell;
+    });
+    const robotCellDispose = vi.fn();
+    const setLiftCarriageMm = vi.fn(() => 450);
+    const loadedRobotCell: LoadedRobotCell = {
+      root: new THREE.Group(),
+      fixed: new THREE.Group(),
+      liftCarriage: new THREE.Group(),
+      setLiftCarriageMm,
+      dispose: robotCellDispose,
+    };
     const equipmentSetConfig = vi.fn();
     const equipmentSetModel = vi.fn();
+    const equipmentSetRobotCell = vi.fn();
     const equipmentSetPose = vi.fn();
     const equipmentDispose = vi.fn();
     const equipment: ViewerEquipmentController = {
       root: new THREE.Group(),
       setConfig: equipmentSetConfig,
       setGripperModel: equipmentSetModel,
+      setRobotCell: equipmentSetRobotCell,
       setSimulationPose: equipmentSetPose,
       getBounds: () => null,
       dispose: equipmentDispose,
@@ -160,18 +184,22 @@ describe("viewer scene controller cleanup", () => {
         createHighlighter: () => highlighter,
         createAnimationLoop: () => animationLoop,
         loadGripper,
+        loadRobotCell,
         createResizeObserver: () => resizeObserver,
         window: viewerWindow,
       },
     });
 
     controller.setVisibleUpToLayer(2);
+    controller.setLiftCarriageMm(450);
     controller.setSimulationPose({
       positionMm: { x: 10, y: 20, z: 30 },
       yawDeg: 90,
     });
     controller.setData(palletData(), {
-      sceneOptions: { equipment: { robot: null } },
+      sceneOptions: {
+        equipment: { robot: null, robotCell: BUNDLED_ROBOT_CELL },
+      },
     });
 
     expect(container.contains(canvas)).toBe(true);
@@ -180,7 +208,11 @@ describe("viewer scene controller cleanup", () => {
     expect(addWindowListener).toHaveBeenCalledTimes(1);
     expect(onBoxSelect).toHaveBeenCalledWith(null);
     expect(gripperLoad.signal?.aborted).toBe(false);
-    expect(equipmentSetConfig).toHaveBeenCalledWith({ robot: null });
+    expect(robotCellLoad.signal?.aborted).toBe(false);
+    expect(equipmentSetConfig).toHaveBeenCalledWith({
+      robot: null,
+      robotCell: BUNDLED_ROBOT_CELL,
+    });
     expect(equipmentSetPose).toHaveBeenLastCalledWith({
       positionMm: { x: 10, y: 20, z: 30 },
       yawDeg: 90,
@@ -211,6 +243,7 @@ describe("viewer scene controller cleanup", () => {
     controller.dispose();
 
     expect(gripperLoad.signal?.aborted).toBe(true);
+    expect(robotCellLoad.signal?.aborted).toBe(true);
     expect(animationStop).toHaveBeenCalledTimes(1);
     expect(resizeDisconnect).toHaveBeenCalledTimes(1);
     expect(removeWindowListener).toHaveBeenCalledTimes(1);
@@ -230,12 +263,18 @@ describe("viewer scene controller cleanup", () => {
     expect(container.contains(canvas)).toBe(false);
 
     resolveGripper(loadedGripper);
+    resolveRobotCell(loadedRobotCell);
     await Promise.resolve();
     await Promise.resolve();
 
     expect(loadedDispose).toHaveBeenCalledTimes(1);
+    expect(robotCellDispose).toHaveBeenCalledTimes(1);
+    expect(setLiftCarriageMm).not.toHaveBeenCalled();
     expect(setGripperModel).not.toHaveBeenCalled();
     expect(equipmentSetModel).not.toHaveBeenCalled();
+    expect(equipmentSetRobotCell).not.toHaveBeenCalledWith(
+      loadedRobotCell.root,
+    );
     container.remove();
   });
 

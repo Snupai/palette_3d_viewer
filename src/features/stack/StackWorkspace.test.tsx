@@ -52,7 +52,21 @@ function candidate(rank: number, count: number): SolverCandidate {
       positionMm: { x: 100 + index * 150, y: 100 },
       rotation: 0 as const,
       labelSide: index % 2 === 0 ? ("top" as const) : ("right" as const),
-      gripId: null,
+      gripId: `generated-grip:${index + 1}`,
+    })),
+    grips: Array.from({ length: count }, (_, index) => ({
+      id: `generated-grip:${index + 1}`,
+      groupNumber: index + 1,
+      sequence: index,
+      pickX: 0,
+      pickY: 0,
+      pickRotation: 0 as const,
+      x: 100 + index * 150,
+      y: 100,
+      rotation: 0 as const,
+      numPackages: 1,
+      dx: 0,
+      dy: 0,
     })),
     provenance: [],
     validation: { valid: true, issues: [] },
@@ -65,7 +79,7 @@ function candidate(rank: number, count: number): SolverCandidate {
       boundingBlockWidthMm: 100,
       boundingBlockAreaMm2: count * 15_000,
       provisionalCycleCount: count,
-      provisionalCycleBasis: "fixed-capacity",
+      provisionalCycleBasis: "generated-grip-groups",
       multiPackBlocks: null,
       multiPackBlocksVerification: "unverified",
     },
@@ -172,7 +186,7 @@ describe("stack workspace persistence", () => {
           positionMm: { x: 100, y: 100 },
           rotation: 0,
           labelSide: "top",
-          gripId: null,
+          gripId: "generated-grip:1",
         },
       ],
     };
@@ -198,6 +212,10 @@ describe("stack workspace persistence", () => {
       state,
     );
     const reopened = materializeProjectSolutionStack(persisted);
+    const persistedSolution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = persistedSolution.patterns[0]!;
 
     expect(materialized.packageLayers[0]?.placements[0]).toMatchObject({
       positionMm: { x: 100, y: 700 },
@@ -207,6 +225,13 @@ describe("stack workspace persistence", () => {
     expect(materializedPlacementGeometry(reopened)).toEqual(
       materializedPlacementGeometry(materialized),
     );
+    expect(persistedPattern.grips).toHaveLength(1);
+    expect(persistedPattern.grips[0]?.rotation).toBe(180);
+    expect(persistedPattern.placements[0]?.gripId).toBe(
+      persistedPattern.grips[0]?.id,
+    );
+    expect(persistedSolution.robotCycles).toEqual([]);
+    expect(reopened.packageLayers[0]?.grips[0]?.rotation).toBe(180);
   });
 
   it("persists transforms around the requested generation frame", () => {

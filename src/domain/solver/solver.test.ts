@@ -493,6 +493,92 @@ describe("candidate canonicalization and geometric deduplication", () => {
     ).toBe(true);
   });
 
+  it("changes operational grouping without changing candidate geometry", () => {
+    const draft: GeneratedCandidateDraft = {
+      placements: [
+        { positionMm: { x: 50, y: 25 }, rotation: 0 },
+        { positionMm: { x: 150, y: 25 }, rotation: 0 },
+        { positionMm: { x: 250, y: 25 }, rotation: 0 },
+      ],
+      provenance: [{ family: "row", variant: "three-adjacent" }],
+    };
+    const input = {
+      package: {
+        shape: "cuboid" as const,
+        dimensionsMm: { length: 100, width: 50 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 300, maxY: 50 },
+      constraints: {
+        allowedRotations: [0] as const,
+        minimumPackageCount: 3,
+        maximumPackageCount: 3,
+      },
+    };
+    const singleton = finalizeGeneratedCandidates(
+      normalized({
+        ...input,
+        constraints: {
+          ...input.constraints,
+          provisionalPackagesPerCycle: 1,
+        },
+      }),
+      [draft],
+    ).candidates[0]!;
+    const multipick = finalizeGeneratedCandidates(
+      normalized({
+        ...input,
+        constraints: {
+          ...input.constraints,
+          provisionalPackagesPerCycle: 2,
+        },
+      }),
+      [draft],
+    ).candidates[0]!;
+
+    expect(singleton.geometryFingerprint).toBe(multipick.geometryFingerprint);
+    expect(singleton.geometryId).toBe(multipick.geometryId);
+    expect(singleton.identityFingerprint).not.toBe(
+      multipick.identityFingerprint,
+    );
+    expect(singleton.id).not.toBe(multipick.id);
+    expect(
+      singleton.grips.map(({ id, numPackages }) => [id, numPackages]),
+    ).toEqual([
+      ["generated-grip:1", 1],
+      ["generated-grip:2", 1],
+      ["generated-grip:3", 1],
+    ]);
+    expect(
+      multipick.grips.map(({ id, numPackages }) => [id, numPackages]),
+    ).toEqual([
+      ["generated-grip:1+2", 2],
+      ["generated-grip:3", 1],
+    ]);
+    expect(multipick.placements.map(({ gripId }) => gripId)).toEqual([
+      "generated-grip:1+2",
+      "generated-grip:1+2",
+      "generated-grip:3",
+    ]);
+    expect(
+      multipick.placements.every(({ gripId }) =>
+        multipick.grips.some(({ id }) => id === gripId),
+      ),
+    ).toBe(true);
+    expect(singleton.metrics).toMatchObject({
+      provisionalCycleCount: 3,
+      provisionalCycleBasis: "generated-grip-groups",
+      multiPackBlocks: null,
+      multiPackBlocksVerification: "unverified",
+    });
+    expect(multipick.metrics).toMatchObject({
+      provisionalCycleCount: 2,
+      provisionalCycleBasis: "generated-grip-groups",
+      multiPackBlocks: null,
+      multiPackBlocksVerification: "unverified",
+    });
+  });
+
   it("retains multiple geometrically different candidates at the same maximum count", () => {
     const result = solveLayer({
       package: {
@@ -778,8 +864,21 @@ describe("deterministic solve orchestration", () => {
       expect(candidate.metrics.multiPackBlocks).toBeNull();
       expect(candidate.metrics.multiPackBlocksVerification).toBe("unverified");
       expect(candidate.metrics.provisionalCycleCount).toBe(
-        Math.ceil(candidate.metrics.packageCount / 2),
+        candidate.grips.length,
       );
+      expect(candidate.metrics.provisionalCycleBasis).toBe(
+        "generated-grip-groups",
+      );
+      expect(
+        candidate.grips.every(
+          ({ numPackages }) => numPackages >= 1 && numPackages <= 2,
+        ),
+      ).toBe(true);
+      expect(
+        candidate.placements.every(({ gripId }) =>
+          candidate.grips.some(({ id }) => id === gripId),
+        ),
+      ).toBe(true);
       expect(candidate.score.multiPackBlocks).toBeNull();
     }
   });

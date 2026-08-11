@@ -17,6 +17,7 @@ export type ViewerEquipmentController = {
   root: THREE.Group;
   setConfig(config: ViewerEquipmentConfig): void;
   setGripperModel(model: THREE.Group | null): void;
+  setRobotCell(root: THREE.Object3D | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   getBounds(): THREE.Box3 | null;
   dispose(): void;
@@ -107,6 +108,7 @@ export function createViewerEquipment(
   let config = initialConfig;
   let simulationPose: ViewerScenePose | null = null;
   let externalGripperModel: THREE.Group | null = null;
+  let robotCellRoot: THREE.Object3D | null = null;
   let gripperHolder: THREE.Group | null = null;
   let gripperModelHolder: THREE.Group | null = null;
   let upperArm: THREE.Mesh | null = null;
@@ -128,7 +130,12 @@ export function createViewerEquipment(
 
   const buildConveyor = () => {
     const conveyor = config.conveyor;
-    if (!conveyor) return;
+    if (
+      !conveyor ||
+      (robotCellRoot && config.robotCell?.replacesProcedural.conveyor)
+    ) {
+      return;
+    }
     const length = positive(conveyor.dimensionsMm.length, 1200);
     const width = positive(conveyor.dimensionsMm.width, 500);
     const height = positive(conveyor.dimensionsMm.height, 180);
@@ -240,7 +247,12 @@ export function createViewerEquipment(
 
   const buildRobot = () => {
     const robot = config.robot;
-    if (!robot) return;
+    if (
+      !robot ||
+      (robotCellRoot && config.robotCell?.replacesProcedural.robot)
+    ) {
+      return;
+    }
     const baseHeight = positive(robot.baseHeightMm, 300);
     const linkRadius = Math.max(
       35,
@@ -354,6 +366,9 @@ export function createViewerEquipment(
     shoulderJoint = null;
     elbowJoint = null;
     wristJoint = null;
+    if (robotCellRoot) {
+      root.add(robotCellRoot);
+    }
     buildConveyor();
     buildGripper();
     buildRobot();
@@ -374,6 +389,11 @@ export function createViewerEquipment(
       externalGripperModel = model;
       attachGripperModel();
     },
+    setRobotCell(nextRoot) {
+      if (disposed || robotCellRoot === nextRoot) return;
+      robotCellRoot = nextRoot;
+      rebuild();
+    },
     setSimulationPose(pose) {
       if (disposed) return;
       simulationPose = pose;
@@ -392,6 +412,7 @@ export function createViewerEquipment(
       scene.remove(root);
       resources.disposeAll();
       externalGripperModel = null;
+      robotCellRoot = null;
     },
   };
 }

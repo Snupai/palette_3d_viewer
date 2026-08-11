@@ -1,6 +1,9 @@
 import type { PlacementGeometry, RectangleBoundsMm } from "~/domain/geometry";
 import type { LayerSymmetry } from "~/domain/geometry/transforms";
-import type { CandidateIdentityPlacement } from "~/domain/solver/candidateIdentity";
+import type {
+  CandidateIdentityGrip,
+  CandidateIdentityPlacement,
+} from "~/domain/solver/candidateIdentity";
 import type { Rotation, Side } from "~/domain/palletTypes";
 
 export const BASE_GENERATOR_FAMILIES = [
@@ -141,7 +144,7 @@ export type CandidateMetrics = {
   boundingBlockWidthMm: number;
   boundingBlockAreaMm2: number;
   provisionalCycleCount: number;
-  provisionalCycleBasis: "fixed-capacity";
+  provisionalCycleBasis: "generated-grip-groups";
   /** Unknown legacy MultiPack value: never inferred or used for ranking. */
   multiPackBlocks: null;
   multiPackBlocksVerification: "unverified";
@@ -161,7 +164,12 @@ export type CandidateScore = {
 export type SolverCandidatePlacement = CandidateIdentityPlacement & {
   sequence: number;
   labelSide: Side | null;
-  gripId: null;
+  gripId: string;
+};
+
+export type SolverCandidateGrip = CandidateIdentityGrip & {
+  groupNumber: number;
+  sequence: number;
 };
 
 export type SolverCandidate = {
@@ -171,6 +179,7 @@ export type SolverCandidate = {
   identityFingerprint: string;
   geometryFingerprint: string;
   placements: readonly SolverCandidatePlacement[];
+  grips: readonly SolverCandidateGrip[];
   provenance: readonly GeneratorProvenance[];
   validation: CandidateValidation;
   metrics: CandidateMetrics;

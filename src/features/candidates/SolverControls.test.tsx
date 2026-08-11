@@ -7,9 +7,12 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
-import type { Project } from "~/domain/project/projectSchema";
+import type { Gripper, Project } from "~/domain/project/projectSchema";
 import type { LayerSolverInput, SolverResult } from "~/domain/solver";
-import { SolverControls } from "~/features/candidates/SolverControls";
+import {
+  SolverControls,
+  type GeneratorPackageInputs,
+} from "~/features/candidates/SolverControls";
 
 const clientMocks = vi.hoisted(() => ({
   run: vi.fn(),
@@ -47,6 +50,29 @@ const completedResult: SolverResult = {
       symmetry: 0,
     },
   },
+};
+
+const gripper: Gripper = {
+  id: "solver-controls-gripper",
+  name: "Solver controls suction",
+  externalId: null,
+  isDefault: true,
+  maxPickupLengthMm: 150,
+  tcpMm: { x: 0, y: 0, z: 0 },
+  envelopeMm: {
+    negativeX: 20,
+    positiveX: 20,
+    negativeY: 20,
+    positiveY: 20,
+  },
+  inletOrientation: "any",
+  allowedPlaceRotations: [0, 90, 180, 270],
+  packageLimits: {
+    lengthMm: { min: 1, max: 1_000 },
+    widthMm: { min: 1, max: 1_000 },
+    heightMm: { min: 1, max: 1_000 },
+  },
+  settings: { type: "suction", multipickSinglePlace: false },
 };
 
 function project(): Project {
@@ -101,15 +127,14 @@ describe("SolverControls", () => {
       async ({
         dimensionsMm,
         inletOrientation,
-      }: {
-        dimensionsMm: Project["package"]["dimensionsMm"];
-        inletOrientation: Project["package"]["inletOrientation"];
-      }) =>
+        multiPickAllowed,
+      }: GeneratorPackageInputs) =>
         updateProject(sourceProject, {
           package: {
             ...sourceProject.package,
             dimensionsMm,
             inletOrientation,
+            multiPickAllowed,
           },
         }),
     );
@@ -136,6 +161,13 @@ describe("SolverControls", () => {
         name: "Allow mixed lengthwise / crosswise orientations",
       }),
     ).toHaveProperty("checked", true);
+    expect(
+      screen.getByRole("checkbox", { name: "Allow multipick" }),
+    ).toHaveProperty("checked", false);
+    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+      "disabled",
+      true,
+    );
     expect(screen.getByRole("radio", { name: "Lengthwise" })).toHaveProperty(
       "checked",
       true,
@@ -193,6 +225,7 @@ describe("SolverControls", () => {
       expect(onApplyPackageInputs).toHaveBeenCalledWith({
         dimensionsMm: { length: 100, width: 50, height: 40 },
         inletOrientation: "lengthwise",
+        multiPickAllowed: false,
       }),
     );
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -225,6 +258,205 @@ describe("SolverControls", () => {
       expect(onResult).toHaveBeenCalledWith(completedResult, solverInput),
     );
     expect(sourceProject.package.labelSidesAtPickup).toEqual([]);
+  });
+
+  it("authorizes multipick explicitly and defaults automatic grouping to doubles", async () => {
+    const sourceProject = project();
+    const onApplyPackageInputs = vi.fn(
+      async ({
+        dimensionsMm,
+        inletOrientation,
+        multiPickAllowed,
+      }: GeneratorPackageInputs) =>
+        updateProject(sourceProject, {
+          package: {
+            ...sourceProject.package,
+            dimensionsMm,
+            inletOrientation,
+            multiPickAllowed,
+          },
+        }),
+    );
+
+    render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={onApplyPackageInputs}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+
+    expect(
+      screen.getByRole("checkbox", { name: "Allow multipick" }),
+    ).toHaveProperty("checked", true);
+    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+      "disabled",
+      false,
+    );
+    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+      "value",
+      "2",
+    );
+    expect(screen.getByText(/automatic grouping enabled up to 2/)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+
+    await waitFor(() =>
+      expect(onApplyPackageInputs).toHaveBeenCalledWith({
+        dimensionsMm: { length: 120, width: 80, height: 60 },
+        inletOrientation: "lengthwise",
+        multiPickAllowed: true,
+      }),
+    );
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: { provisionalPackagesPerCycle: 2 },
+    });
+  });
+
+  it("caps generated groups by the selected gripper pickup length", async () => {
+    const sourceProject = project();
+    const configuredProject = updateProject(sourceProject, {
+      package: {
+        ...sourceProject.package,
+        multiPickAllowed: true,
+      },
+      grippers: [gripper],
+      selectedGripperId: gripper.id,
+    });
+
+    render(
+      <SolverControls
+        project={configuredProject}
+        onApplyPackageInputs={async () => configuredProject}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "2" },
+    });
+
+    expect(
+      screen.getByRole("checkbox", { name: "Allow multipick" }),
+    ).toHaveProperty("checked", true);
+    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+      "value",
+      "2",
+    );
+    expect(screen.getByText(/automatic grouping enabled up to 1/)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: { provisionalPackagesPerCycle: 1 },
+    });
+  });
+
+  it("disables multipick controls while a solver run is pending", async () => {
+    let resolveResult!: (result: SolverResult) => void;
+    const pendingResult = new Promise<SolverResult>((resolve) => {
+      resolveResult = resolve;
+    });
+    clientMocks.run.mockReturnValue({
+      runId: "solver-controls-pending-run",
+      cancel: clientMocks.cancel,
+      result: pendingResult,
+    });
+    const sourceProject = project();
+
+    render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "2" },
+    });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(
+      screen.getByRole("checkbox", { name: "Allow multipick" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+      "disabled",
+      true,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(clientMocks.cancel).toHaveBeenCalledTimes(1);
+    resolveResult(completedResult);
+    await Promise.resolve();
+  });
+
+  it("discards a completed run when saved multipick authorization changes", async () => {
+    const sourceProject = project();
+    const onReset = vi.fn();
+    const { rerender } = render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={vi.fn()}
+        onReset={onReset}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "1" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+    expect(await screen.findByText(/Completed: 0 candidates/)).toBeTruthy();
+    onReset.mockClear();
+
+    const authorizedProject = updateProject(sourceProject, {
+      package: {
+        ...sourceProject.package,
+        multiPickAllowed: true,
+      },
+    });
+    rerender(
+      <SolverControls
+        project={authorizedProject}
+        onApplyPackageInputs={async () => authorizedProject}
+        onResult={vi.fn()}
+        onReset={onReset}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.getByRole("checkbox", { name: "Allow multipick" }),
+      ).toHaveProperty("checked", true),
+    );
+    expect(screen.queryByText(/Completed: 0 candidates/)).toBeNull();
+    expect(
+      await screen.findByText(
+        "The previous solver run was discarded because generator inputs changed.",
+      ),
+    ).toBeTruthy();
+    expect(onReset).toHaveBeenCalled();
   });
 
   it("seeds only an unambiguous package label face and reseeds when that metadata changes", async () => {

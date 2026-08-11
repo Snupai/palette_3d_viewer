@@ -165,8 +165,26 @@ export function stackPatternFromSolverCandidate(
       gripId: placement.gripId,
       labelSide: placement.labelSide,
     })),
-    grips: [],
-    groupOrder: [],
+    grips: candidate.grips.map((grip) => ({
+      sourceGripId: grip.id,
+      groupNumber: grip.groupNumber,
+      sequence: grip.sequence,
+      pickX: grip.pickX,
+      pickY: grip.pickY,
+      pickRotation: grip.pickRotation,
+      x: grip.x,
+      y: grip.y,
+      rotation: grip.rotation,
+      numPackages: grip.numPackages,
+      dx: grip.dx,
+      dy: grip.dy,
+    })),
+    groupOrder: [...candidate.grips]
+      .sort(
+        (left, right) =>
+          left.sequence - right.sequence || left.id.localeCompare(right.id),
+      )
+      .map(({ id }) => id),
     orderDependencies: [],
     cycles: [],
     cycleCount: candidate.metrics.provisionalCycleCount,
@@ -174,7 +192,7 @@ export function stackPatternFromSolverCandidate(
       status: "unverified",
       source: `solver-candidate:${candidate.metrics.provisionalCycleBasis}`,
       detail:
-        "The solver cycle count is provisional and is not backed by materialized robot grip cycles.",
+        "The count equals the generated grip assignments; no explicit robot cycles or production timing are implied.",
     },
     transformFrameMm,
     transformFrameProvenance:

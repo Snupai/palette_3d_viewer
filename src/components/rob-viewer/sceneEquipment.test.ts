@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
 import {
   createViewerEquipment,
   resolveArticulatedRobotJoints,
@@ -139,6 +140,43 @@ describe("viewer equipment", () => {
     }
 
     equipment.dispose();
+  });
+
+  it("mounts the CAD cell, replaces matching fallbacks, and restores them on unload", () => {
+    const scene = new THREE.Scene();
+    const cellConfig = config();
+    cellConfig.robotCell = BUNDLED_ROBOT_CELL;
+    const equipment = createViewerEquipment(scene, cellConfig);
+    const cellRoot = new THREE.Group();
+    cellRoot.name = "robot-cell";
+    const geometry = new THREE.BoxGeometry(100, 100, 100);
+    const material = new THREE.MeshBasicMaterial();
+    const geometryDispose = vi.spyOn(geometry, "dispose");
+    cellRoot.add(new THREE.Mesh(geometry, material));
+
+    expect(equipment.root.getObjectByName("conveyor-bed")).toBeTruthy();
+    expect(equipment.root.getObjectByName("robot-upper-arm")).toBeTruthy();
+
+    equipment.setRobotCell(cellRoot);
+
+    expect(equipment.root.getObjectByName("robot-cell")).toBe(cellRoot);
+    expect(equipment.root.getObjectByName("conveyor-bed")).toBeUndefined();
+    expect(equipment.root.getObjectByName("robot-upper-arm")).toBeUndefined();
+    expect(
+      equipment.root.getObjectByName("selected-gripper-envelope"),
+    ).toBeTruthy();
+
+    equipment.setRobotCell(null);
+
+    expect(equipment.root.getObjectByName("robot-cell")).toBeUndefined();
+    expect(equipment.root.getObjectByName("conveyor-bed")).toBeTruthy();
+    expect(equipment.root.getObjectByName("robot-upper-arm")).toBeTruthy();
+    expect(geometryDispose).not.toHaveBeenCalled();
+
+    equipment.dispose();
+    expect(geometryDispose).not.toHaveBeenCalled();
+    geometry.dispose();
+    material.dispose();
   });
 
   it("clones the loaded gripper without taking ownership of shared CAD resources", () => {

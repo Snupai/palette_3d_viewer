@@ -8,6 +8,7 @@ import {
   createCandidateGeometryId,
   createCandidateId,
 } from "~/domain/solver/candidateIdentity";
+import { partitionPlacementsForSuction } from "~/domain/robotics/grouping";
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import {
   calculateCandidateMetrics,
@@ -49,6 +50,7 @@ export type CandidateFinalizationResult = {
 
 type CandidateAggregate = {
   placements: SolverCandidate["placements"];
+  grips: SolverCandidate["grips"];
   validation: SolverCandidate["validation"];
   provenanceByKey: Map<string, GeneratorProvenance>;
   geometryFingerprint: string;
@@ -72,8 +74,13 @@ function sortedUniqueProvenance(
     .map(([, value]) => value);
 }
 
+type UngroupedCandidatePlacement = Omit<
+  SolverCandidate["placements"][number],
+  "gripId"
+> & { gripId: null };
+
 type CanonicalCandidatePlacementResult =
-  | { placements: SolverCandidate["placements"]; issues: readonly [] }
+  | { placements: readonly UngroupedCandidatePlacement[]; issues: readonly [] }
   | { placements: null; issues: readonly SolverIssue[] };
 
 type LabeledGeneratedPlacement =
@@ -138,6 +145,57 @@ function canonicalCandidatePlacements(
       }),
     ),
     issues: [],
+  };
+}
+
+function groupCandidatePlacements(
+  input: NormalizedLayerSolverInput,
+  placements: readonly UngroupedCandidatePlacement[],
+): Pick<SolverCandidate, "placements" | "grips"> {
+  const groupable = placements.map((placement) => ({
+    ...placement,
+    id: `placement-${placement.sequence + 1}`,
+  }));
+  const partitions = partitionPlacementsForSuction(groupable, {
+    packageLengthMm: input.package.dimensionsMm.length,
+    maxPackagesPerPick: input.constraints.provisionalPackagesPerCycle,
+  });
+  const gripIdByPlacementSequence = new Map<number, string>();
+  const grips = partitions.map((members, sequence) => {
+    const id = `generated-grip:${members
+      .map(({ sequence: placementSequence }) => placementSequence + 1)
+      .join("+")}`;
+    const center = members.reduce(
+      (total, placement) => ({
+        x: total.x + placement.positionMm.x,
+        y: total.y + placement.positionMm.y,
+      }),
+      { x: 0, y: 0 },
+    );
+    members.forEach((placement) =>
+      gripIdByPlacementSequence.set(placement.sequence, id),
+    );
+    return {
+      id,
+      groupNumber: sequence + 1,
+      sequence,
+      pickX: 0,
+      pickY: 0,
+      pickRotation: 0 as const,
+      x: center.x / members.length,
+      y: center.y / members.length,
+      rotation: members[0]!.rotation,
+      numPackages: members.length,
+      dx: 0,
+      dy: 0,
+    };
+  });
+  return {
+    placements: placements.map((placement) => ({
+      ...placement,
+      gripId: gripIdByPlacementSequence.get(placement.sequence)!,
+    })),
+    grips,
   };
 }
 
@@ -210,8 +268,7 @@ export function finalizeGeneratedCandidates(
         });
       } else {
         validDraftCount += 1;
-        const identityInput = { placements, grips: [] as const };
-        const geometryFingerprint = candidateGeometryFingerprint(identityInput);
+        const geometryFingerprint = candidateGeometryFingerprint({ placements });
         const existing = aggregateByGeometry.get(geometryFingerprint);
         if (existing) {
           geometricDuplicateCount += 1;
@@ -228,8 +285,10 @@ export function finalizeGeneratedCandidates(
               "Draft matches an existing exact placement geometry and was merged into its provenance.",
           });
         } else {
+          const grouped = groupCandidatePlacements(input, placements);
           aggregateByGeometry.set(geometryFingerprint, {
-            placements,
+            placements: grouped.placements,
+            grips: grouped.grips,
             validation,
             provenanceByKey: new Map(
               sortedUniqueProvenance(draft.provenance).map((provenance) => [
@@ -294,7 +353,7 @@ export function finalizeGeneratedCandidates(
     const aggregate = aggregates[index]!;
     const identityInput = {
       placements: aggregate.placements,
-      grips: [] as const,
+      grips: aggregate.grips,
     };
     const identityFingerprint = candidateIdentityFingerprint(identityInput);
     const id = createCandidateId(identityInput);
@@ -323,13 +382,18 @@ export function finalizeGeneratedCandidates(
     }
     geometryByCompactId.set(geometryId, aggregate.geometryFingerprint);
 
-    const metrics = calculateCandidateMetrics(input, aggregate.placements);
+    const metrics = calculateCandidateMetrics(
+      input,
+      aggregate.placements,
+      aggregate.grips.length,
+    );
     unranked.push({
       id,
       geometryId,
       identityFingerprint,
       geometryFingerprint: aggregate.geometryFingerprint,
       placements: aggregate.placements,
+      grips: aggregate.grips,
       provenance: [...aggregate.provenanceByKey.entries()]
         .sort(([left], [right]) => compareStrings(left, right))
         .map(([, provenance]) => provenance),

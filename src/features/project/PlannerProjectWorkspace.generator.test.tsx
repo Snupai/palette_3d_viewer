@@ -46,30 +46,49 @@ const solverResult: SolverResult = {
           positionMm: { x: 150, y: 125 },
           rotation: 0,
           labelSide: null,
-          gripId: null,
+          gripId: "generated-grip:1",
         },
         {
           sequence: 1,
           positionMm: { x: 250, y: 125 },
           rotation: 0,
           labelSide: null,
-          gripId: null,
+          gripId: "generated-grip:2",
         },
         {
           sequence: 2,
           positionMm: { x: 150, y: 175 },
           rotation: 0,
           labelSide: null,
-          gripId: null,
+          gripId: "generated-grip:3",
         },
         {
           sequence: 3,
           positionMm: { x: 250, y: 175 },
           rotation: 0,
           labelSide: null,
-          gripId: null,
+          gripId: "generated-grip:4",
         },
       ],
+      grips: [
+        { x: 150, y: 125 },
+        { x: 250, y: 125 },
+        { x: 150, y: 175 },
+        { x: 250, y: 175 },
+      ].map(({ x, y }, sequence) => ({
+        id: `generated-grip:${sequence + 1}`,
+        groupNumber: sequence + 1,
+        sequence,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0 as const,
+        x,
+        y,
+        rotation: 0 as const,
+        numPackages: 1,
+        dx: 0,
+        dy: 0,
+      })),
       provenance: [{ family: "row", variant: "test" }],
       validation: { valid: true, issues: [] },
       metrics: {
@@ -81,7 +100,7 @@ const solverResult: SolverResult = {
         boundingBlockWidthMm: 100,
         boundingBlockAreaMm2: 20_000,
         provisionalCycleCount: 4,
-        provisionalCycleBasis: "fixed-capacity",
+        provisionalCycleBasis: "generated-grip-groups",
         multiPackBlocks: null,
         multiPackBlocksVerification: "unverified",
       },
@@ -201,7 +220,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     });
   });
 
-  it("persists package dimensions and generates the requested underhung rectangular layer", async () => {
+  it("persists package dimensions and multipick authorization before generating the requested layer", async () => {
     const { project, repository } = await repositoryWithProject();
 
     render(<PlannerProjectWorkspace repository={repository} />);
@@ -229,6 +248,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         name: "Select label on displayed left edge",
       }),
     );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
     fireEvent.change(
       screen.getByLabelText("Length overhang / underhang per side"),
       { target: { value: "-100" } },
@@ -256,6 +276,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         width: 0,
       });
       expect(saved.project?.package.inletOrientation).toBe("crosswise");
+      expect(saved.project?.package.multiPickAllowed).toBe(true);
       expect(saved.project?.package.labelSidesAtPickup).toEqual([]);
     });
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -277,6 +298,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         minimumPackageCount: 4,
         maximumPackageCount: 4,
         allowMixedPackageOrientations: true,
+        provisionalPackagesPerCycle: 2,
         unrotatedPackageLabelSide: "top",
         requiredShape: "rectangular-block",
         rectangularBlockFootprintPolicy: "fill-generation-bounds",

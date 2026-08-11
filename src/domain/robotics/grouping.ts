@@ -12,6 +12,17 @@ export type SuctionGroupingOptions = {
   maxPickupLengthMm?: number | null;
 };
 
+export type SuctionGroupingPlacement = Pick<
+  MaterializedStackPlacement,
+  "id" | "sequence" | "positionMm" | "rotation"
+>;
+
+export type SuctionPlacementPartitionOptions = {
+  packageLengthMm: number;
+  maxPackagesPerPick?: number;
+  toleranceMm?: number;
+};
+
 function finitePositive(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${field} must be positive and finite.`);
@@ -19,13 +30,97 @@ function finitePositive(value: number, field: string): number {
   return value;
 }
 
-function placementAxis(placement: MaterializedStackPlacement): {
+function placementAxis(placement: SuctionGroupingPlacement): {
   axis: number;
   perpendicular: number;
 } {
   return placement.rotation === 0 || placement.rotation === 180
     ? { axis: placement.positionMm.x, perpendicular: placement.positionMm.y }
     : { axis: placement.positionMm.y, perpendicular: placement.positionMm.x };
+}
+
+/**
+ * Pure deterministic partitioning shared by generated candidates and Robotics.
+ * Geometry is never changed: incompatible placements remain singleton groups.
+ */
+export function partitionPlacementsForSuction<
+  Placement extends SuctionGroupingPlacement,
+>(
+  placements: readonly Placement[],
+  options: SuctionPlacementPartitionOptions,
+): Placement[][] {
+  const tolerance = options.toleranceMm ?? 0.001;
+  if (!Number.isFinite(tolerance) || tolerance < 0) {
+    throw new Error("toleranceMm must be finite and non-negative.");
+  }
+  const packageSpan = finitePositive(
+    options.packageLengthMm,
+    "packageLengthMm",
+  );
+  const maxPackagesPerPick = Math.max(
+    1,
+    Math.trunc(options.maxPackagesPerPick ?? 2),
+  );
+  const sorted = [...placements].sort((left, right) => {
+    if (left.rotation !== right.rotation) return left.rotation - right.rotation;
+    const leftAxis = placementAxis(left);
+    const rightAxis = placementAxis(right);
+    if (leftAxis.perpendicular !== rightAxis.perpendicular) {
+      return leftAxis.perpendicular - rightAxis.perpendicular;
+    }
+    if (leftAxis.axis !== rightAxis.axis) return leftAxis.axis - rightAxis.axis;
+    if (left.sequence !== right.sequence) return left.sequence - right.sequence;
+    return left.id.localeCompare(right.id);
+  });
+
+  const rows: Placement[][] = [];
+  for (const placement of sorted) {
+    const coordinate = placementAxis(placement).perpendicular;
+    const row = rows.find((candidate) => {
+      const first = candidate[0];
+      return (
+        first !== undefined &&
+        first.rotation === placement.rotation &&
+        Math.abs(placementAxis(first).perpendicular - coordinate) <= tolerance
+      );
+    });
+    if (row) row.push(placement);
+    else rows.push([placement]);
+  }
+
+  const groups: Placement[][] = [];
+  for (const row of rows) {
+    row.sort((left, right) => {
+      const difference = placementAxis(left).axis - placementAxis(right).axis;
+      return difference !== 0 ? difference : left.id.localeCompare(right.id);
+    });
+    let runStart = 0;
+    for (let index = 1; index <= row.length; index += 1) {
+      const previous = row[index - 1];
+      const current = row[index];
+      const continues =
+        previous !== undefined &&
+        current !== undefined &&
+        Math.abs(
+          placementAxis(current).axis -
+            placementAxis(previous).axis -
+            packageSpan,
+        ) <= tolerance;
+      if (continues) continue;
+
+      const run = row.slice(runStart, index);
+      for (
+        let groupStart = 0;
+        groupStart < run.length;
+        groupStart += maxPackagesPerPick
+      ) {
+        groups.push(run.slice(groupStart, groupStart + maxPackagesPerPick));
+      }
+      runStart = index;
+    }
+  }
+
+  return groups;
 }
 
 function groupFromPlacements(
@@ -71,15 +166,7 @@ export function groupPlacementsForSuction(
   packageSpec: PackageSpec,
   options: SuctionGroupingOptions = {},
 ): RobotGripGroup[] {
-  const tolerance = options.toleranceMm ?? 0.001;
-  if (!Number.isFinite(tolerance) || tolerance < 0) {
-    throw new Error("toleranceMm must be finite and non-negative.");
-  }
   const requestedMax = Math.max(1, Math.trunc(options.maxPackagesPerPick ?? 2));
-  const packageSpan = finitePositive(
-    packageSpec.dimensionsMm.length,
-    "package.dimensionsMm.length",
-  );
   const pickupPackageSpan =
     packageSpec.inletOrientation === "lengthwise"
       ? packageSpec.dimensionsMm.length
@@ -98,72 +185,13 @@ export function groupPlacementsForSuction(
   const maxPackagesPerPick = packageSpec.multiPickAllowed
     ? Math.min(requestedMax, lengthLimitedMax)
     : 1;
-  const sorted = [...layer.placements].sort((left, right) => {
-    if (left.rotation !== right.rotation) return left.rotation - right.rotation;
-    const leftAxis = placementAxis(left);
-    const rightAxis = placementAxis(right);
-    if (leftAxis.perpendicular !== rightAxis.perpendicular) {
-      return leftAxis.perpendicular - rightAxis.perpendicular;
-    }
-    if (leftAxis.axis !== rightAxis.axis) return leftAxis.axis - rightAxis.axis;
-    if (left.sequence !== right.sequence) return left.sequence - right.sequence;
-    return left.id.localeCompare(right.id);
-  });
-
-  const rows: MaterializedStackPlacement[][] = [];
-  for (const placement of sorted) {
-    const coordinate = placementAxis(placement).perpendicular;
-    const row = rows.find((candidate) => {
-      const first = candidate[0];
-      return (
-        first !== undefined &&
-        first.rotation === placement.rotation &&
-        Math.abs(placementAxis(first).perpendicular - coordinate) <= tolerance
-      );
-    });
-    if (row) row.push(placement);
-    else rows.push([placement]);
-  }
-
-  const groups: RobotGripGroup[] = [];
-  for (const row of rows) {
-    row.sort((left, right) => {
-      const difference = placementAxis(left).axis - placementAxis(right).axis;
-      return difference !== 0 ? difference : left.id.localeCompare(right.id);
-    });
-    let runStart = 0;
-    for (let index = 1; index <= row.length; index += 1) {
-      const previous = row[index - 1];
-      const current = row[index];
-      const continues =
-        previous !== undefined &&
-        current !== undefined &&
-        Math.abs(
-          placementAxis(current).axis -
-            placementAxis(previous).axis -
-            packageSpan,
-        ) <= tolerance;
-      if (continues) continue;
-
-      const run = row.slice(runStart, index);
-      for (
-        let groupStart = 0;
-        groupStart < run.length;
-        groupStart += maxPackagesPerPick
-      ) {
-        groups.push(
-          groupFromPlacements(
-            layer,
-            run.slice(groupStart, groupStart + maxPackagesPerPick),
-            groups.length + 1,
-          ),
-        );
-      }
-      runStart = index;
-    }
-  }
-
-  return groups;
+  return partitionPlacementsForSuction(layer.placements, {
+    packageLengthMm: packageSpec.dimensionsMm.length,
+    maxPackagesPerPick,
+    toleranceMm: options.toleranceMm,
+  }).map((placements, index) =>
+    groupFromPlacements(layer, placements, index + 1),
+  );
 }
 
 /** Uses persisted pattern-grip assignments without turning them into legacy poses. */

@@ -40,11 +40,11 @@ describe("solver geometry metrics", () => {
           positionMm: { x, y },
           rotation: 0 as const,
           labelSide: null,
-          gripId: null,
+          gripId: `generated-grip:${row * 4 + column + 1}`,
         })),
     );
 
-    const metrics = calculateCandidateMetrics(input, placements);
+    const metrics = calculateCandidateMetrics(input, placements, 8);
     const score = scoreCandidateMetrics(metrics);
 
     expect(metrics.boundingBlockLengthMm).toBe(20);

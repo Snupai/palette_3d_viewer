@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { RobViewer, type ViewerEquipmentConfig } from "~/components/RobViewer";
+import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
 import type { PalletData } from "~/domain/palletTypes";
 import type { Project } from "~/domain/project/projectSchema";
 import {
@@ -62,6 +63,7 @@ export function SimulationWorkspace({
   const [direction, setDirection] = useState<PlaybackDirection>("forward");
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(false);
+  const [liftCarriageMm, setLiftCarriageMm] = useState(0);
   const lastFrameRef = useRef<number | null>(null);
   const cursorRef = useRef(0);
 
@@ -70,6 +72,10 @@ export function SimulationWorkspace({
     cursorRef.current = 0;
     setCursorMs(0);
   }, [timeline]);
+
+  useEffect(() => {
+    setLiftCarriageMm(0);
+  }, [project.id]);
 
   useEffect(() => {
     if (!playing || !timeline.valid || timeline.durationMs <= 0) return;
@@ -182,6 +188,7 @@ export function SimulationWorkspace({
             homePose: robotHomePose,
           }
         : null,
+      robotCell: project.source.kind === "new" ? BUNDLED_ROBOT_CELL : null,
     };
   }, [materialization, project]);
 
@@ -201,8 +208,8 @@ export function SimulationWorkspace({
           </h2>
           <p className="mt-0.5 text-xs text-zinc-500">
             Timeline interpolation is deterministic over the canonical
-            RobotCycle array. The articulated arm is a simplified visualization,
-            not verified robot kinematics.
+            RobotCycle array. Cell geometry and external-axis placement are
+            visualization evidence, not verified robot kinematics.
           </p>
         </header>
         <div className="grid gap-3 p-3">
@@ -353,7 +360,9 @@ export function SimulationWorkspace({
             <dt className="text-zinc-500">Phase</dt>
             <dd
               className="min-w-0 truncate whitespace-nowrap text-zinc-200"
-              title={sample ? timelinePhaseLabel(sample.segment.kind) : undefined}
+              title={
+                sample ? timelinePhaseLabel(sample.segment.kind) : undefined
+              }
             >
               {sample ? timelinePhaseLabel(sample.segment.kind) : "—"}
             </dd>
@@ -421,6 +430,45 @@ export function SimulationWorkspace({
               </label>
             ))}
           </div>
+          {project.source.kind === "new" ? (
+            <div className="mt-4 grid gap-2 border-t border-zinc-800 pt-3">
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor="lift-carriage-mm"
+                  className="text-xs font-medium text-zinc-300"
+                >
+                  Ewellix lift visualization
+                </label>
+                <output
+                  htmlFor="lift-carriage-mm"
+                  className="font-mono text-xs text-amber-300"
+                >
+                  {liftCarriageMm} mm
+                </output>
+              </div>
+              <input
+                id="lift-carriage-mm"
+                aria-label="Ewellix lift position"
+                type="range"
+                min={BUNDLED_ROBOT_CELL.liftTravelMm.min}
+                max={BUNDLED_ROBOT_CELL.liftTravelMm.max}
+                step={10}
+                value={liftCarriageMm}
+                onChange={(event) =>
+                  setLiftCarriageMm(Number(event.target.value))
+                }
+                className="w-full accent-amber-400"
+              />
+              <div className="flex justify-between font-mono text-[10px] text-zinc-600">
+                <span>0</span>
+                <span>450</span>
+                <span>900 mm</span>
+              </div>
+              <p className="text-[11px] leading-4 text-zinc-500">
+                {BUNDLED_ROBOT_CELL.evidence.lift}
+              </p>
+            </div>
+          ) : null}
           {timeline.diagnostics.length > 0 ? (
             <ul className="mt-3 grid gap-1 text-xs text-red-200">
               {timeline.diagnostics.map((diagnostic, index) => (
@@ -431,9 +479,9 @@ export function SimulationWorkspace({
             </ul>
           ) : null}
           <p className="mt-3 text-xs leading-5 text-zinc-500">
-            Conveyor, gripper envelope, pallet, and articulated arm are scene
-            aids. Reach and collision validity comes only from robotics
-            diagnostics, not from the simplified arm drawing.
+            {project.source.kind === "new"
+              ? `The CAD cell falls back to procedural scene aids if it cannot load. ${BUNDLED_ROBOT_CELL.evidence.limitations}`
+              : "Conveyor, gripper envelope, pallet, and articulated arm are scene aids. Reach and collision validity comes only from robotics diagnostics, not from the simplified arm drawing."}
           </p>
         </div>
         <div className="min-h-[560px] overflow-hidden bg-[#101013]">
@@ -444,6 +492,9 @@ export function SimulationWorkspace({
               visibleUpToLayer={previewData.layer_count}
               showSceneControls
               equipment={equipment}
+              liftCarriageMm={
+                project.source.kind === "new" ? liftCarriageMm : null
+              }
               simulationPose={simulationFrame.tcpPose}
               simulationState={simulationFrame}
             />

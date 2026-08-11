@@ -92,9 +92,7 @@ export function savedPalletToProjectV2(entry: SavedPallet): ProjectV2 {
       },
       weightKg: null,
       clearanceMm: 0,
-      multiPickAllowed: patternEntries.some(({ grips }) =>
-        grips.some(({ numPackages }) => numPackages > 1),
-      ),
+      multiPickAllowed: false,
       inletOrientation: data.inputDirection === 1 ? "crosswise" : "lengthwise",
       palletizingDirection: null,
       labelSidesAtPickup: [],

@@ -59,6 +59,20 @@ function candidate(
     identityFingerprint: `identity-${rank}`,
     geometryFingerprint: `geometry-fingerprint-${rank}`,
     placements,
+    grips: placements.map((placement, sequence) => ({
+      id: placement.gripId,
+      groupNumber: sequence + 1,
+      sequence,
+      pickX: 0,
+      pickY: 0,
+      pickRotation: 0,
+      x: placement.positionMm.x,
+      y: placement.positionMm.y,
+      rotation: placement.rotation,
+      numPackages: 1,
+      dx: 0,
+      dy: 0,
+    })),
     provenance: [],
     validation: { valid: true, issues: [] },
     metrics: {
@@ -70,7 +84,7 @@ function candidate(
       boundingBlockWidthMm: 0,
       boundingBlockAreaMm2: 0,
       provisionalCycleCount: packageCount,
-      provisionalCycleBasis: "fixed-capacity",
+      provisionalCycleBasis: "generated-grip-groups",
       multiPackBlocks: null,
       multiPackBlocksVerification: "unverified",
     },
@@ -122,7 +136,7 @@ function generatedPlacements(
     ...placement,
     sequence,
     labelSide: null,
-    gripId: null,
+    gripId: `generated-grip:${sequence + 1}`,
   }));
 }
 

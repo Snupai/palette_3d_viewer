@@ -26,6 +26,16 @@ next-env.d.ts
 .DS_Store
 *.pem
 
+# proprietary CAD source and neutral exchange files
+*.[Ss][Ll][Dd][Pp][Rr][Tt]
+*.[Ss][Ll][Dd][Aa][Ss][Mm]
+*.[Ss][Tt][Ee][Pp]
+*.[Ss][Tt][Pp]
+*.[Ii][Gg][Ee][Ss]
+*.[Ii][Gg][Ss]
+*.[Xx]_[Tt]
+*.[Xx]_[Bb]
+
 # debug
 npm-debug.log*
 yarn-debug.log*

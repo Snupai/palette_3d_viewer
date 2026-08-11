@@ -6,6 +6,10 @@ import {
   loadGripperModel,
   type LoadedGripperModel,
 } from "~/components/rob-viewer/gripperLoader";
+import {
+  loadBundledRobotCell,
+  type LoadedRobotCell,
+} from "~/components/rob-viewer/robotCellLoader";
 import { buildViewerScene } from "~/components/rob-viewer/sceneBuilder";
 import {
   createViewerEquipment,
@@ -38,6 +42,7 @@ import type {
   ViewerCameraPreset,
   ViewerCaptureOptions,
   ViewerCaptureResult,
+  ViewerRobotCellAssetConfig,
   ViewerSceneOptions,
   ViewerScenePose,
   ViewerSimulationState,
@@ -100,6 +105,7 @@ export type ViewerSceneControllerDependencies = {
     options: ViewerAnimationLoopOptions,
   ) => ViewerAnimationLoop;
   loadGripper: typeof loadGripperModel;
+  loadRobotCell: typeof loadBundledRobotCell;
   createResizeObserver: (
     callback: ResizeObserverCallback,
   ) => ViewerResizeObserver;
@@ -112,6 +118,7 @@ export type ViewerSceneController = {
     options?: { preserveView?: boolean; sceneOptions?: ViewerSceneOptions },
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
+  setLiftCarriageMm(value: number | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
@@ -126,6 +133,7 @@ type ViewerRuntime = {
     sceneOptions: ViewerSceneOptions,
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
+  setLiftCarriageMm(value: number | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
@@ -213,6 +221,7 @@ export function createViewerSceneController({
   const createAnimationLoop =
     dependencies.createAnimationLoop ?? createViewerAnimationLoop;
   const loadGripper = dependencies.loadGripper ?? loadGripperModel;
+  const loadRobotCell = dependencies.loadRobotCell ?? loadBundledRobotCell;
   const createResizeObserver =
     dependencies.createResizeObserver ??
     defaultResizeObserverFactory(container);
@@ -220,6 +229,7 @@ export function createViewerSceneController({
   let runtime: ViewerRuntime | null = null;
   let visibleUpToLayer = 1;
   let sceneOptions: ViewerSceneOptions = {};
+  let liftCarriageMm: number | null = 0;
   let simulationPose: ViewerScenePose | null = null;
   let simulationState: ViewerSimulationState | null = null;
   let disposed = false;
@@ -264,6 +274,10 @@ export function createViewerSceneController({
     let animationLoop: ViewerAnimationLoop | null = null;
     let resizeObserver: ViewerResizeObserver | null = null;
     let loadedGripper: LoadedGripperModel | null = null;
+    let loadedRobotCell: LoadedRobotCell | null = null;
+    let robotCellAbortController: AbortController | null = null;
+    let robotCellLoadKey: string | null = null;
+    let robotCellRequest = 0;
     let equipment: ViewerEquipmentController | null = null;
     let runtimeDisposed = false;
     let pointerDown: PointerPosition | null = null;
@@ -371,6 +385,51 @@ export function createViewerSceneController({
       visibleCenterZ = nextCenterZ;
     };
 
+    const syncRobotCell = (config: ViewerRobotCellAssetConfig | null) => {
+      const nextLoadKey = config
+        ? `${config.assetUrl}@${config.revision}`
+        : null;
+      if (nextLoadKey === robotCellLoadKey) return;
+
+      robotCellLoadKey = nextLoadKey;
+      robotCellRequest += 1;
+      const request = robotCellRequest;
+      robotCellAbortController?.abort();
+      robotCellAbortController = null;
+      equipment?.setRobotCell(null);
+      loadedRobotCell?.dispose();
+      loadedRobotCell = null;
+
+      if (!config) {
+        animationLoop?.requestRender();
+        return;
+      }
+
+      const abortController = new AbortController();
+      robotCellAbortController = abortController;
+      void loadRobotCell({ config, signal: abortController.signal })
+        .then((loaded) => {
+          if (
+            runtimeDisposed ||
+            abortController.signal.aborted ||
+            request !== robotCellRequest
+          ) {
+            loaded.dispose();
+            return;
+          }
+          robotCellAbortController = null;
+          loadedRobotCell = loaded;
+          loaded.setLiftCarriageMm(liftCarriageMm);
+          equipment?.setRobotCell(loaded.root);
+          animationLoop?.requestRender();
+        })
+        .catch(() => {
+          if (request === robotCellRequest) {
+            robotCellAbortController = null;
+          }
+        });
+    };
+
     const updateVisibility = (nextVisibleUpToLayer: number) => {
       if (!sceneBuild || !highlighter) return;
       maxVisibleLayer = applyLayerVisibility({
@@ -412,6 +471,7 @@ export function createViewerSceneController({
         });
         equipment?.setConfig(nextSceneOptions.equipment ?? {});
         equipment?.setSimulationPose(simulationPose);
+        syncRobotCell(nextSceneOptions.equipment?.robotCell ?? null);
       } catch (error) {
         nextHighlighter?.dispose();
         nextSceneBuild.dispose();
@@ -463,6 +523,9 @@ export function createViewerSceneController({
       if (runtimeDisposed) return;
       runtimeDisposed = true;
       gripperAbortController.abort();
+      robotCellRequest += 1;
+      robotCellAbortController?.abort();
+      robotCellAbortController = null;
       animationLoop?.stop();
       resizeObserver?.disconnect();
       resizeObserver = null;
@@ -479,8 +542,11 @@ export function createViewerSceneController({
       selectedEntry = null;
       highlighter?.dispose();
       highlighter = null;
+      equipment?.setRobotCell(null);
       equipment?.dispose();
       equipment = null;
+      loadedRobotCell?.dispose();
+      loadedRobotCell = null;
       loadedGripper?.dispose();
       loadedGripper = null;
       sceneBuild?.dispose();
@@ -643,6 +709,11 @@ export function createViewerSceneController({
         replaceSceneData(nextData, preserveView, nextSceneOptions);
       },
       setVisibleUpToLayer: updateVisibility,
+      setLiftCarriageMm(value) {
+        if (runtimeDisposed) return;
+        loadedRobotCell?.setLiftCarriageMm(value);
+        animationLoop?.requestRender();
+      },
       setSimulationPose(pose) {
         if (runtimeDisposed) return;
         equipment?.setSimulationPose(pose);
@@ -680,6 +751,11 @@ export function createViewerSceneController({
       if (disposed) return;
       visibleUpToLayer = nextVisibleUpToLayer;
       runtime?.setVisibleUpToLayer(nextVisibleUpToLayer);
+    },
+    setLiftCarriageMm(value) {
+      if (disposed) return;
+      liftCarriageMm = value;
+      runtime?.setLiftCarriageMm(value);
     },
     setSimulationPose(pose) {
       if (disposed) return;

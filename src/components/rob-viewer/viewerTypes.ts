@@ -53,11 +53,44 @@ export type ViewerRobotConfig = {
   homePose?: ViewerScenePose | null;
 };
 
+export type ViewerRobotCellAssetConfig = {
+  readonly assetUrl: string;
+  readonly revision: string;
+  readonly nodes: {
+    readonly root: string;
+    readonly fixed: string;
+    readonly liftCarriage: string;
+  };
+  readonly liftTravelMm: {
+    readonly min: number;
+    readonly max: number;
+  };
+  readonly sourceToViewer: {
+    readonly scaleMmPerMeter: number;
+    readonly rotationXRad: number;
+    readonly translationMm: {
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    };
+  };
+  readonly replacesProcedural: {
+    readonly robot: boolean;
+    readonly conveyor: boolean;
+  };
+  readonly evidence: {
+    readonly geometry: string;
+    readonly lift: string;
+    readonly limitations: string;
+  };
+};
+
 /** Neutral scene equipment DTO. Robotics and stack calculations stay outside Three.js. */
 export type ViewerEquipmentConfig = {
   conveyor?: ViewerConveyorConfig | null;
   selectedGripper?: ViewerSelectedGripperConfig | null;
   robot?: ViewerRobotConfig | null;
+  robotCell?: ViewerRobotCellAssetConfig | null;
 };
 
 export type ViewerSceneBuildOptions = {
@@ -135,6 +168,7 @@ export type RobViewerProps = {
   showLayerLabels?: boolean;
   showSceneControls?: boolean;
   equipment?: ViewerEquipmentConfig;
+  liftCarriageMm?: number | null;
   simulationPose?: ViewerScenePose | null;
   simulationState?: ViewerSimulationState | null;
   onBoxSelect?: (selection: BoxSelection | null) => void;

@@ -17,6 +17,7 @@ import type { PalletData } from "~/domain/palletTypes";
 const controller = vi.hoisted(() => ({
   setData: vi.fn(),
   setVisibleUpToLayer: vi.fn(),
+  setLiftCarriageMm: vi.fn(),
   setSimulationPose: vi.fn(),
   setSimulationState: vi.fn(),
   setCameraPreset: vi.fn(),
@@ -77,10 +78,16 @@ describe("RobViewer", () => {
   it("offers compact fixed views, lifted top display, and labels without changing data", async () => {
     const source = data();
     render(
-      <RobViewer data={source} cameraResetKey="plan-1" visibleUpToLayer={2} />,
+      <RobViewer
+        data={source}
+        cameraResetKey="plan-1"
+        visibleUpToLayer={2}
+        liftCarriageMm={450}
+      />,
     );
 
     await waitFor(() => expect(controller.setData).toHaveBeenCalled());
+    expect(controller.setLiftCarriageMm).toHaveBeenCalledWith(450);
     expect(
       screen.getByRole("toolbar", { name: "3D view controls" }),
     ).toBeTruthy();

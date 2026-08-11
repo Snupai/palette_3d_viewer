@@ -211,37 +211,54 @@ export function transformStackPattern(
     };
   }
 
-  return {
-    placements: pattern.placements.map((placement) => {
-      const transformed = transformPlacement(placement, frame, transform);
-      const labelSide = transformLabelSide(placement.labelSide, transform);
-      let rotation = transformed.rotation;
-      if (
-        pattern.labelOrientationPolicy &&
-        labelSide !== null &&
-        isPackageLabelSide(labelSide)
-      ) {
-        const authorizedRotation = selectAuthorizedYawForWorldLabel(
-          transformed.rotation,
-          pattern.labelOrientationPolicy.unrotatedPackageLabelSide,
-          labelSide,
-          pattern.labelOrientationPolicy.allowedRotations,
-        );
-        if (authorizedRotation === null) {
-          throw new Error(
-            `The ${transform} stack transform cannot preserve the selected physical label face with an allowed yaw in the transformed footprint orientation.`,
-          );
-        }
-        rotation = authorizedRotation;
-      }
-      return {
-        ...placement,
-        positionMm: transformed.positionMm,
-        rotation,
+  const placements = pattern.placements.map((placement) => {
+    const transformed = transformPlacement(placement, frame, transform);
+    const labelSide = transformLabelSide(placement.labelSide, transform);
+    let rotation = transformed.rotation;
+    if (
+      pattern.labelOrientationPolicy &&
+      labelSide !== null &&
+      isPackageLabelSide(labelSide)
+    ) {
+      const authorizedRotation = selectAuthorizedYawForWorldLabel(
+        transformed.rotation,
+        pattern.labelOrientationPolicy.unrotatedPackageLabelSide,
         labelSide,
-      };
-    }),
-    grips: pattern.grips.map((grip) => transformGrip(grip, frame, transform)),
+        pattern.labelOrientationPolicy.allowedRotations,
+      );
+      if (authorizedRotation === null) {
+        throw new Error(
+          `The ${transform} stack transform cannot preserve the selected physical label face with an allowed yaw in the transformed footprint orientation.`,
+        );
+      }
+      rotation = authorizedRotation;
+    }
+    return {
+      ...placement,
+      positionMm: transformed.positionMm,
+      rotation,
+      labelSide,
+    };
+  });
+  const grips = pattern.grips.map((grip) => {
+    const transformed = transformGrip(grip, frame, transform);
+    if (!pattern.labelOrientationPolicy) return transformed;
+    const assigned = placements.filter(
+      (placement) => placement.gripId === grip.sourceGripId,
+    );
+    const memberRotation = assigned[0]?.rotation;
+    if (memberRotation === undefined) return transformed;
+    if (assigned.some(({ rotation }) => rotation !== memberRotation)) {
+      throw new Error(
+        `The ${transform} stack transform produced inconsistent package yaws inside generated grip "${grip.sourceGripId}".`,
+      );
+    }
+    return { ...transformed, rotation: memberRotation };
+  });
+
+  return {
+    placements,
+    grips,
     cycles: pattern.cycles.map((cycle) =>
       transformCycle(cycle, frame, transform),
     ),

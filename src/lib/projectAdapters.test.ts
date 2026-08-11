@@ -49,7 +49,7 @@ describe("project v2 adapters", () => {
       width: 300,
       height: 150,
     });
-    expect(project.package.multiPickAllowed).toBe(true);
+    expect(project.package.multiPickAllowed).toBe(false);
     expect(project.package.inletOrientation).toBe("crosswise");
     expect(project.pallet?.dimensionsMm).toEqual({
       length: 1200,

@@ -339,19 +339,57 @@ export function projectWithPersistedStack(
         transform,
         project.package.dimensionsMm,
       );
+      const orderedGrips = [...transformed.grips].sort(
+        (left, right) =>
+          left.sequence - right.sequence ||
+          left.sourceGripId.localeCompare(right.sourceGripId),
+      );
+      const projectGripIdBySource = new Map(
+        orderedGrips.map((grip, gripIndex) => [
+          grip.sourceGripId,
+          `${patternId}-grip-${gripIndex + 1}`,
+        ]),
+      );
       patternIdByVariant.set(variantKey, patternId);
       return {
         id: patternId,
         name: projectPatternName(candidate, transform),
-        grips: [],
-        placements: transformed.placements.map((placement, placementIndex) => ({
-          id: `${patternId}-placement-${placementIndex + 1}`,
-          sequence: placement.sequence,
-          positionMm: { ...placement.positionMm },
-          rotation: placement.rotation,
-          gripId: null,
-          labelSide: placement.labelSide,
+        grips: orderedGrips.map((grip) => ({
+          id: projectGripIdBySource.get(grip.sourceGripId)!,
+          groupNumber: grip.groupNumber,
+          pickX: grip.pickX,
+          pickY: grip.pickY,
+          pickRotation: grip.pickRotation,
+          x: grip.x,
+          y: grip.y,
+          rotation: grip.rotation,
+          numPackages: grip.numPackages,
+          dx: grip.dx,
+          dy: grip.dy,
         })),
+        placements: transformed.placements.map((placement, placementIndex) => {
+          const gripId =
+            placement.gripId === null
+              ? null
+              : projectGripIdBySource.get(placement.gripId);
+          if (gripId === undefined) {
+            throw new Error(
+              `Generated placement references a missing grip: ${placement.gripId}`,
+            );
+          }
+          return {
+            id: `${patternId}-placement-${placementIndex + 1}`,
+            sequence: placement.sequence,
+            positionMm: { ...placement.positionMm },
+            rotation: placement.rotation,
+            gripId,
+            labelSide: placement.labelSide,
+          };
+        }),
+        groupOrder: orderedGrips.map(
+          (grip) => projectGripIdBySource.get(grip.sourceGripId)!,
+        ),
+        orderDependencies: [],
       };
     },
   );

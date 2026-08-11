@@ -16,6 +16,7 @@ import type {
 export function calculateCandidateMetrics(
   input: NormalizedLayerSolverInput,
   placements: readonly SolverCandidatePlacement[],
+  generatedGripCount: number,
 ): CandidateMetrics {
   const packageCount = placements.length;
   const occupiedAreaMm2 =
@@ -53,10 +54,8 @@ export function calculateCandidateMetrics(
     boundingBlockLengthMm,
     boundingBlockWidthMm,
     boundingBlockAreaMm2,
-    provisionalCycleCount: Math.ceil(
-      packageCount / input.constraints.provisionalPackagesPerCycle,
-    ),
-    provisionalCycleBasis: "fixed-capacity",
+    provisionalCycleCount: generatedGripCount,
+    provisionalCycleBasis: "generated-grip-groups",
     multiPackBlocks: null,
     multiPackBlocksVerification: "unverified",
   };

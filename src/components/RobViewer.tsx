@@ -26,6 +26,7 @@ export type {
   RobViewerReportCaptureResult,
   ViewerCameraPreset,
   ViewerEquipmentConfig,
+  ViewerRobotCellAssetConfig,
   ViewerScenePose,
   ViewerSimulationPackage,
   ViewerSimulationState,
@@ -63,6 +64,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
       showLayerLabels,
       showSceneControls = true,
       equipment,
+      liftCarriageMm,
       simulationPose,
       simulationState,
       onBoxSelect,
@@ -150,6 +152,10 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
     useEffect(() => {
       controllerRef.current?.setVisibleUpToLayer(visibleUpToLayer);
     }, [visibleUpToLayer]);
+
+    useEffect(() => {
+      controllerRef.current?.setLiftCarriageMm(liftCarriageMm ?? null);
+    }, [liftCarriageMm]);
 
     useEffect(() => {
       controllerRef.current?.setSimulationPose(simulationPose ?? null);

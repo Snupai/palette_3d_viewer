@@ -28,6 +28,7 @@ import {
 export type GeneratorPackageInputs = {
   dimensionsMm: Project["package"]["dimensionsMm"];
   inletOrientation: PackageInletOrientation;
+  multiPickAllowed: boolean;
 };
 
 export type SolverControlsProps = {
@@ -44,6 +45,7 @@ type SolverDraft = {
   packageWidth: string;
   packageHeight: string;
   inletOrientation: PackageInletOrientation;
+  multiPickAllowed: boolean;
   lengthAllowancePerSide: string;
   widthAllowancePerSide: string;
   packageCount: string;
@@ -76,27 +78,32 @@ function configuredLabelSide(project: Project): "" | Side {
 }
 
 function solverProjectKey(project: Project): string {
+  const selectedGripper =
+    project.selectedGripperId === null
+      ? null
+      : (project.grippers.find(({ id }) => id === project.selectedGripperId) ??
+        null);
   try {
     const input = createLayerSolverInputFromProject(project);
     return JSON.stringify([
       project.id,
       project.package.shape,
       project.package.clearanceMm,
-      project.package.multiPickAllowed,
       project.package.labelSidesAtPickup,
       input.physicalPalletBoundsMm,
       input.envelopeMm,
       input.constraints?.allowedRotations,
+      selectedGripper?.id ?? null,
+      selectedGripper?.maxPickupLengthMm ?? null,
     ]);
   } catch {
     return JSON.stringify([
       project.id,
       project.package.shape,
       project.package.clearanceMm,
-      project.package.multiPickAllowed,
       project.package.labelSidesAtPickup,
       project.pallet,
-      project.selectedGripperId,
+      selectedGripper,
     ]);
   }
 }
@@ -107,6 +114,7 @@ function initialDraft(project: Project): SolverDraft {
     packageWidth: String(project.package.dimensionsMm.width),
     packageHeight: String(project.package.dimensionsMm.height),
     inletOrientation: project.package.inletOrientation,
+    multiPickAllowed: project.package.multiPickAllowed,
     lengthAllowancePerSide: String(
       project.pallet?.allowedOverhangMm.length ?? 0,
     ),
@@ -176,10 +184,33 @@ function prepareSolverInput(
       draft.maxCandidatesPerGenerator,
       "Candidates per generator",
     );
-    const provisionalPackagesPerCycle = positiveInteger(
-      draft.provisionalPackagesPerCycle,
-      "Packages per cycle",
-    );
+    const requestedAutomaticGroupLimit = draft.multiPickAllowed
+      ? positiveInteger(
+          draft.provisionalPackagesPerCycle,
+          "Automatic group limit",
+        )
+      : 1;
+    const selectedGripper =
+      project.selectedGripperId === null
+        ? null
+        : (project.grippers.find(
+            ({ id }) => id === project.selectedGripperId,
+          ) ?? null);
+    const pickupPackageSpan =
+      draft.inletOrientation === "lengthwise"
+        ? packageDimensionsMm.length
+        : packageDimensionsMm.width;
+    const pickupLengthLimitedMaximum =
+      selectedGripper?.maxPickupLengthMm === null ||
+      selectedGripper?.maxPickupLengthMm === undefined
+        ? requestedAutomaticGroupLimit
+        : Math.max(
+            1,
+            Math.floor(selectedGripper.maxPickupLengthMm / pickupPackageSpan),
+          );
+    const provisionalPackagesPerCycle = draft.multiPickAllowed
+      ? Math.min(requestedAutomaticGroupLimit, pickupLengthLimitedMaximum)
+      : 1;
     const baseInput = createLayerSolverInputFromProject(project);
     if (!project.pallet) {
       throw new Error("A pallet is required before generation.");
@@ -219,6 +250,7 @@ function prepareSolverInput(
       packageInputs: {
         dimensionsMm: packageDimensionsMm,
         inletOrientation: draft.inletOrientation,
+        multiPickAllowed: draft.multiPickAllowed,
       },
       error: null,
     };
@@ -279,6 +311,7 @@ export function SolverControls({
     JSON.stringify(project.package.dimensionsMm),
   );
   const previousInletOrientationRef = useRef(project.package.inletOrientation);
+  const previousMultiPickAllowedRef = useRef(project.package.multiPickAllowed);
   const previousLabelMetadataRef = useRef(
     JSON.stringify(project.package.labelSidesAtPickup),
   );
@@ -327,6 +360,8 @@ export function SolverControls({
       previousPackageDimensionsRef.current !== packageDimensions;
     const inletOrientationChanged =
       previousInletOrientationRef.current !== project.package.inletOrientation;
+    const multiPickAllowedChanged =
+      previousMultiPickAllowedRef.current !== project.package.multiPickAllowed;
     const labelMetadata = JSON.stringify(project.package.labelSidesAtPickup);
     const labelMetadataChanged =
       previousLabelMetadataRef.current !== labelMetadata;
@@ -334,6 +369,7 @@ export function SolverControls({
       !projectChanged &&
       !packageDimensionsChanged &&
       !inletOrientationChanged &&
+      !multiPickAllowedChanged &&
       !labelMetadataChanged
     ) {
       return;
@@ -342,6 +378,7 @@ export function SolverControls({
     previousProjectIdRef.current = project.id;
     previousPackageDimensionsRef.current = packageDimensions;
     previousInletOrientationRef.current = project.package.inletOrientation;
+    previousMultiPickAllowedRef.current = project.package.multiPickAllowed;
     previousLabelMetadataRef.current = labelMetadata;
     if (projectChanged) {
       setDraft(initialDraft(project));
@@ -363,6 +400,14 @@ export function SolverControls({
       inletOrientation: inletOrientationChanged
         ? project.package.inletOrientation
         : current.inletOrientation,
+      multiPickAllowed: multiPickAllowedChanged
+        ? project.package.multiPickAllowed
+        : current.multiPickAllowed,
+      provisionalPackagesPerCycle: multiPickAllowedChanged
+        ? project.package.multiPickAllowed
+          ? "2"
+          : "1"
+        : current.provisionalPackagesPerCycle,
       unrotatedPackageLabelSide: labelMetadataChanged
         ? configuredLabelSide(project)
         : current.unrotatedPackageLabelSide,
@@ -388,13 +433,6 @@ export function SolverControls({
     onReset();
   }, [currentRunKey, onReset]);
 
-  useEffect(() => {
-    setDraft((current) => ({
-      ...current,
-      provisionalPackagesPerCycle: project.package.multiPickAllowed ? "2" : "1",
-    }));
-  }, [project.id, project.package.multiPickAllowed]);
-
   const prepared = useMemo(
     () => prepareSolverInput(project, draft, allowMixedPackageOrientations),
     [allowMixedPackageOrientations, draft, project],
@@ -407,6 +445,8 @@ export function SolverControls({
     prepared.input !== null &&
     prepared.packageInputs !== null &&
     prepared.validation?.valid === true;
+  const effectiveAutomaticGroupLimit =
+    prepared.input?.constraints?.provisionalPackagesPerCycle ?? 1;
 
   const updateDraft = (update: Partial<SolverDraft>) => {
     setDraft((current) => ({ ...current, ...update }));
@@ -668,22 +708,39 @@ export function SolverControls({
           </p>
         ) : null}
 
-        <label className="flex min-h-9 items-center gap-2 rounded-sm border border-zinc-700 px-2.5 text-xs text-zinc-300">
-          <input
-            type="checkbox"
-            checked={allowMixedPackageOrientations}
-            disabled={inputsDisabled}
-            onChange={(event) =>
-              setAllowMixedPackageOrientations(event.target.checked)
-            }
-            className="h-4 w-4 accent-amber-400"
-          />
-          Allow mixed lengthwise / crosswise orientations
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="flex min-h-9 items-center gap-2 rounded-sm border border-zinc-700 px-2.5 text-xs text-zinc-300">
+            <input
+              type="checkbox"
+              checked={allowMixedPackageOrientations}
+              disabled={inputsDisabled}
+              onChange={(event) =>
+                setAllowMixedPackageOrientations(event.target.checked)
+              }
+              className="h-4 w-4 accent-amber-400"
+            />
+            Allow mixed lengthwise / crosswise orientations
+          </label>
+          <label className="flex min-h-9 items-center gap-2 rounded-sm border border-zinc-700 px-2.5 text-xs text-zinc-300">
+            <input
+              type="checkbox"
+              checked={draft.multiPickAllowed}
+              disabled={inputsDisabled}
+              onChange={(event) =>
+                updateDraft({
+                  multiPickAllowed: event.target.checked,
+                  provisionalPackagesPerCycle: event.target.checked ? "2" : "1",
+                })
+              }
+              className="h-4 w-4 accent-amber-400"
+            />
+            Allow multipick
+          </label>
+        </div>
         <p className="text-[10px] leading-4 text-zinc-500">
-          Packages are spaced slightly, within a bounded limit, so every valid
-          result reaches all four block corners. Some exact counts may have no
-          clean rectangular result.
+          Every valid result remains a clean rectangle. Multipick groups only
+          equal-yaw packages that are directly adjacent along their package
+          length; incompatible packages remain single picks.
         </p>
 
         <details className="border-t border-zinc-800 pt-2">
@@ -708,13 +765,13 @@ export function SolverControls({
               />
             </label>
             <label className="grid gap-1 text-[10px] text-zinc-500">
-              Packages / cycle
+              Automatic group limit
               <input
                 type="number"
                 min="1"
                 step="1"
                 value={draft.provisionalPackagesPerCycle}
-                disabled={inputsDisabled}
+                disabled={inputsDisabled || !draft.multiPickAllowed}
                 onChange={(event) =>
                   updateDraft({
                     provisionalPackagesPerCycle: event.target.value,
@@ -782,7 +839,12 @@ export function SolverControls({
               ? labelFaceDescription[draft.unrotatedPackageLabelSide]
               : "not constrained"}{" "}
             · mixed orientations{" "}
-            {allowMixedPackageOrientations ? "allowed" : "disabled"}.
+            {allowMixedPackageOrientations ? "allowed" : "disabled"} · automatic
+            grouping{" "}
+            {draft.multiPickAllowed
+              ? `enabled up to ${effectiveAutomaticGroupLimit}`
+              : "disabled; singleton picks only"}
+            .
           </p>
         )}
 

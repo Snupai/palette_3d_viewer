@@ -804,6 +804,7 @@ export function PlannerProjectWorkspace({
   const applyGeneratorPackageInputs = async ({
     dimensionsMm,
     inletOrientation,
+    multiPickAllowed,
   }: GeneratorPackageInputs): Promise<Project> => {
     if (!selectedProject) {
       throw new Error("A current project is required before generation.");
@@ -818,7 +819,8 @@ export function PlannerProjectWorkspace({
       current.dimensionsMm.length === dimensionsMm.length &&
       current.dimensionsMm.width === dimensionsMm.width &&
       current.dimensionsMm.height === dimensionsMm.height &&
-      current.inletOrientation === inletOrientation
+      current.inletOrientation === inletOrientation &&
+      current.multiPickAllowed === multiPickAllowed
     ) {
       return selectedProject;
     }
@@ -827,11 +829,12 @@ export function PlannerProjectWorkspace({
         ...current,
         dimensionsMm: { ...dimensionsMm },
         inletOrientation,
+        multiPickAllowed,
       },
     });
     const saved = await saveProject(updated);
     setStatusMessage(
-      `Generator package inputs applied: ${dimensionsMm.length} × ${dimensionsMm.width} × ${dimensionsMm.height} mm · ${inletOrientation} infeed left to right.`,
+      `Generator package inputs applied: ${dimensionsMm.length} × ${dimensionsMm.width} × ${dimensionsMm.height} mm · ${inletOrientation} infeed left to right · automatic multipick grouping ${multiPickAllowed ? "enabled" : "disabled"}.`,
     );
     return saved;
   };
