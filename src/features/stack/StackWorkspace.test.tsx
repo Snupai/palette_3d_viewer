@@ -7,8 +7,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createProject } from "~/domain/project/projectFactory";
+import { createProject, updateProject } from "~/domain/project/projectFactory";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
+import { materializeRobotCycles } from "~/domain/robotics";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import {
   materializeProjectSolutionStack,
@@ -232,6 +233,157 @@ describe("stack workspace persistence", () => {
     );
     expect(persistedSolution.robotCycles).toEqual([]);
     expect(reopened.packageLayers[0]?.grips[0]?.rotation).toBe(180);
+  });
+
+  it("persists generated multipick grips and Robotics consumes them without project robot cycles", () => {
+    const baseCandidate = candidate(3, 3);
+    const multipickCandidate: SolverCandidate = {
+      ...baseCandidate,
+      placements: [
+        {
+          sequence: 0,
+          positionMm: { x: 50, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:1+2",
+        },
+        {
+          sequence: 1,
+          positionMm: { x: 150, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:1+2",
+        },
+        {
+          sequence: 2,
+          positionMm: { x: 250, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:3",
+        },
+      ],
+      grips: [
+        {
+          id: "generated-grip:1+2",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 100,
+          y: 100,
+          rotation: 0,
+          numPackages: 2,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          id: "generated-grip:3",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 250,
+          y: 100,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      metrics: {
+        ...baseCandidate.metrics,
+        provisionalCycleCount: 2,
+      },
+      score: {
+        ...baseCandidate.score,
+        provisionalCycleCount: 2,
+      },
+    };
+    const authorizedProject = updateProject(project, {
+      package: {
+        ...project.package,
+        multiPickAllowed: true,
+      },
+    });
+    const state = createInitialStackWorkspaceState([multipickCandidate]);
+
+    const persisted = projectWithPersistedStack(
+      authorizedProject,
+      [multipickCandidate],
+      solverInput,
+      state,
+    );
+    const persistedSolution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = persistedSolution.patterns[0]!;
+    const reopened = materializeProjectSolutionStack(persisted);
+    const reopenedLayer = reopened.packageLayers[0]!;
+    const robotics = materializeRobotCycles(persisted, {
+      maxPackagesPerPick: 1,
+      pickReference: {
+        originMm: { x: -1_000, y: 0, z: 100 },
+        yawDeg: 0,
+        provenance: {
+          status: "verified",
+          source: "stack multipick persistence fixture",
+        },
+      },
+    });
+
+    expect(multipickCandidate.grips.map(({ numPackages }) => numPackages)).toEqual(
+      [2, 1],
+    );
+    expect(multipickCandidate.placements.map(({ gripId }) => gripId)).toEqual([
+      "generated-grip:1+2",
+      "generated-grip:1+2",
+      "generated-grip:3",
+    ]);
+    expect(persistedSolution.robotCycles).toEqual([]);
+    expect(persistedPattern.grips.map(({ numPackages }) => numPackages)).toEqual([
+      2, 1,
+    ]);
+    expect(persistedPattern.groupOrder).toEqual(
+      persistedPattern.grips.map(({ id }) => id),
+    );
+    expect(persistedPattern.placements.map(({ gripId }) => gripId)).toEqual([
+      persistedPattern.grips[0]!.id,
+      persistedPattern.grips[0]!.id,
+      persistedPattern.grips[1]!.id,
+    ]);
+    expect(reopened.robotCycles).toEqual([]);
+    expect(reopenedLayer.robotCycles).toEqual([]);
+    expect(reopenedLayer.grips.map(({ numPackages }) => numPackages)).toEqual([
+      2, 1,
+    ]);
+    expect(reopenedLayer.placements.map(({ gripId }) => gripId)).toEqual([
+      reopenedLayer.grips[0]!.id,
+      reopenedLayer.grips[0]!.id,
+      reopenedLayer.grips[1]!.id,
+    ]);
+    expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
+      2, 1,
+    ]);
+    expect(
+      robotics.cycles.map(({ provenance }) => provenance.groupingSource),
+    ).toEqual(["explicit-pattern-grip", "explicit-pattern-grip"]);
+    expect(
+      robotics.cycles.map(({ provenance }) => provenance.cycleSource),
+    ).toEqual(["calculated-suction-cycle", "calculated-suction-cycle"]);
+    expect(
+      robotics.cycles.every(
+        ({ provenance }) => provenance.sourceCycleId === null,
+      ),
+    ).toBe(true);
+    expect(robotics.cycles.map(({ placementIds }) => placementIds)).toEqual(
+      reopenedLayer.grips.map(({ id }) =>
+        reopenedLayer.placements
+          .filter(({ gripId }) => gripId === id)
+          .map(({ id: placementId }) => placementId),
+      ),
+    );
   });
 
   it("persists transforms around the requested generation frame", () => {

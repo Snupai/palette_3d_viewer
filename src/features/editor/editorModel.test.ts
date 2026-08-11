@@ -207,6 +207,47 @@ function importedGripProject(): Project {
   });
 }
 
+function generatedGripProject(): Project {
+  const project = editorProject();
+  const solution = project.solutions[0]!;
+  const sourcePattern = solution.patterns[0]!;
+  const gripIds = ["generated-grip:1+2", "generated-grip:3+4"] as const;
+  return projectSchema.parse({
+    ...project,
+    solutions: [
+      {
+        ...solution,
+        origin: "calculated",
+        patterns: [
+          {
+            ...sourcePattern,
+            grips: gripIds.map((id, index) => ({
+              id,
+              groupNumber: index + 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: 100,
+              y: index === 0 ? 50 : 150,
+              rotation: 0,
+              numPackages: 2,
+              dx: 0,
+              dy: 0,
+            })),
+            placements: sourcePattern.placements.map((item, index) => ({
+              ...item,
+              gripId: index < 2 ? gripIds[0] : gripIds[1],
+            })),
+            groupOrder: [...gripIds],
+            orderDependencies: [],
+          },
+        ],
+        robotCycles: [],
+      },
+    ],
+  });
+}
+
 function pattern(project: Project) {
   return project.solutions[0]!.patterns[0]!;
 }
