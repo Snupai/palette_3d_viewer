@@ -6,6 +6,7 @@ import {
 } from "~/domain/project/projectFactory";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
 import type { Project } from "~/domain/project/projectSchema";
+import type { Side } from "~/domain/palletTypes";
 
 export type ProjectFormValues = {
   projectNumber: string;
@@ -16,6 +17,7 @@ export type ProjectFormValues = {
   packageWeightKg: string;
   packageClearanceMm: string;
   inletOrientation: "lengthwise" | "crosswise";
+  labelSideAtPickup: "" | Side;
   multiPickAllowed: boolean;
   palletKind: "euro" | "industrial" | "custom";
   palletId: string;
@@ -52,6 +54,10 @@ export function projectToFormValues(
     packageWeightKg: text(project?.package.weightKg ?? null),
     packageClearanceMm: String(project?.package.clearanceMm ?? 0),
     inletOrientation: project?.package.inletOrientation ?? "lengthwise",
+    labelSideAtPickup:
+      project?.package.labelSidesAtPickup.length === 1
+        ? project.package.labelSidesAtPickup[0]!
+        : "",
     multiPickAllowed: project?.package.multiPickAllowed ?? false,
     palletKind: pallet.kind,
     palletId: pallet.id,
@@ -114,6 +120,7 @@ export function buildProjectFromForm(
       ? values.palletId.trim() ||
         `pallet-${globalThis.crypto?.randomUUID?.() ?? Date.now().toString(36)}`
       : getPalletTemplate(values.palletKind).id;
+  const existingLabelSides = existingProject?.package.labelSidesAtPickup ?? [];
   const packageSpec = {
     shape: "cuboid" as const,
     dimensionsMm: {
@@ -126,7 +133,13 @@ export function buildProjectFromForm(
     multiPickAllowed: values.multiPickAllowed,
     inletOrientation: values.inletOrientation,
     palletizingDirection: existingProject?.package.palletizingDirection ?? null,
-    labelSidesAtPickup: existingProject?.package.labelSidesAtPickup ?? [],
+    labelSidesAtPickup: values.labelSideAtPickup
+      ? [values.labelSideAtPickup]
+      : // The picker can only express zero or one face, so a legacy multi-face
+        // selection is preserved instead of being silently cleared.
+        existingLabelSides.length > 1
+        ? existingLabelSides
+        : [],
   };
   const pallet = {
     id: palletId,

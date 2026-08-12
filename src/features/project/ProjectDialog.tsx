@@ -10,6 +10,7 @@ import {
 } from "react";
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
+import { PackageLabelFacePicker } from "~/features/candidates/PackageLabelFacePicker";
 import {
   buildProjectFromForm,
   palletTemplateFormValues,
@@ -345,25 +346,26 @@ export function ProjectDialog({
                 </Field>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Inlet direction"
-                  error={errorFor(fieldErrors, "package.inletOrientation")}
-                >
-                  <select
-                    value={values.inletOrientation}
-                    onChange={(event) =>
-                      set(
-                        "inletOrientation",
-                        event.target
-                          .value as ProjectFormValues["inletOrientation"],
-                      )
+                <div className="grid min-w-0 gap-1 text-xs text-zinc-400">
+                  <PackageLabelFacePicker
+                    packageLengthMm={Number(values.packageLengthMm)}
+                    packageWidthMm={Number(values.packageWidthMm)}
+                    inletOrientation={values.inletOrientation}
+                    selectedPackageSide={values.labelSideAtPickup || null}
+                    disabled={saving}
+                    onInletOrientationChange={(inletOrientation) =>
+                      set("inletOrientation", inletOrientation)
                     }
-                    className={inputClass}
-                  >
-                    <option value="lengthwise">Lengthwise</option>
-                    <option value="crosswise">Crosswise</option>
-                  </select>
-                </Field>
+                    onPackageSideChange={(side) =>
+                      set("labelSideAtPickup", side ?? "")
+                    }
+                  />
+                  {errorFor(fieldErrors, "package.inletOrientation") ? (
+                    <span className="text-red-300">
+                      {errorFor(fieldErrors, "package.inletOrientation")}
+                    </span>
+                  ) : null}
+                </div>
                 <label className="flex items-center gap-2 self-end rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300">
                   <input
                     type="checkbox"
