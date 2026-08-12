@@ -157,6 +157,11 @@ export function SimulationWorkspace({
       (materialization.station?.robotRadiusMm.max ?? 1_400) / 2,
     );
     const envelope = materialization.gripper?.envelopeMm;
+    const robotCell = project.source.kind === "new" ? BUNDLED_ROBOT_CELL : null;
+    // The CAD cell has no driveable joint chain, so the procedural arm is what
+    // moves. Mount it on the measured CAD base and follow the lift carriage so
+    // the travel slider keeps its meaning.
+    const robotMount = robotCell?.robotMount ?? null;
     return {
       conveyor:
         conveyorPose && materialization.conveyor
@@ -179,18 +184,30 @@ export function SimulationWorkspace({
             showModel: true,
           }
         : null,
-      robot: materialization.station
+      robot: robotMount
         ? {
-            baseMm: robotBase,
-            baseHeightMm: 320,
-            upperArmLengthMm: armReach,
-            forearmLengthMm: armReach,
+            baseMm: {
+              x: robotMount.baseMm.x,
+              y: robotMount.baseMm.y,
+              z: robotMount.baseMm.z + liftCarriageMm,
+            },
+            baseHeightMm: robotMount.baseHeightMm,
+            upperArmLengthMm: robotMount.upperArmLengthMm,
+            forearmLengthMm: robotMount.forearmLengthMm,
             homePose: robotHomePose,
           }
-        : null,
-      robotCell: project.source.kind === "new" ? BUNDLED_ROBOT_CELL : null,
+        : materialization.station
+          ? {
+              baseMm: robotBase,
+              baseHeightMm: 320,
+              upperArmLengthMm: armReach,
+              forearmLengthMm: armReach,
+              homePose: robotHomePose,
+            }
+          : null,
+      robotCell,
     };
-  }, [materialization, project]);
+  }, [liftCarriageMm, materialization, project]);
 
   const canNavigate = timeline.valid && timeline.segments.length > 0;
   const setBoundary = (next: number) => {

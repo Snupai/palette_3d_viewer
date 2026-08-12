@@ -60,6 +60,25 @@ export type ViewerRobotCellAssetConfig = {
     readonly root: string;
     readonly fixed: string;
     readonly liftCarriage: string;
+    /**
+     * Static CAD arm mesh group. It carries no joint frames, so it is hidden
+     * whenever the animated procedural arm takes over.
+     */
+    readonly staticArm?: string;
+  };
+  /**
+   * CAD-derived mount of the robot on the lift carriage, in viewer coordinates
+   * at zero lift travel. Present only when the arm placement was measured.
+   */
+  readonly robotMount?: {
+    readonly baseMm: {
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    };
+    readonly baseHeightMm: number;
+    readonly upperArmLengthMm: number;
+    readonly forearmLengthMm: number;
   };
   readonly liftTravelMm: {
     readonly min: number;
@@ -82,6 +101,8 @@ export type ViewerRobotCellAssetConfig = {
     readonly geometry: string;
     readonly lift: string;
     readonly limitations: string;
+    /** How the viewer placement was derived, when it has been calibrated. */
+    readonly placement?: string;
   };
 };
 

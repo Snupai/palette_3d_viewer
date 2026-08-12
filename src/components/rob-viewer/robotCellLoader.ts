@@ -101,6 +101,13 @@ export const prepareRobotCell = (
     );
   }
 
+  // The CAD arm is a rigid mesh group without joint frames. It can only be shown
+  // while the procedural arm is suppressed; otherwise both robots would render.
+  if (config.nodes.staticArm) {
+    namedNode(root, config.nodes.staticArm).visible =
+      config.replacesProcedural.robot;
+  }
+
   root.removeFromParent();
   root.scale.setScalar(config.sourceToViewer.scaleMmPerMeter);
   root.rotation.set(config.sourceToViewer.rotationXRad, 0, 0);
