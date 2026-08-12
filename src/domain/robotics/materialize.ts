@@ -139,7 +139,7 @@ function calculatedCycleProvenance(
     poseSource: "calculated-project-resources",
     sourceSolutionOrigin: solution.origin,
     sourceCycleId: null,
-    sourceGripId: null,
+    sourceGripId: group.sourceGripId,
     pickReferenceProvenance: { ...pickReference.provenance },
     coordinateConvention: fullyResolved
       ? "project-pallet-to-station-frame-v1"
@@ -412,6 +412,12 @@ export function materializeRobotCycles(
     ) {
       const group = suggestion.groups[sequenceInLayer]!;
       const sourceCycle = sourceCycleForGroup(layer, group);
+      const sourceGrip =
+        group.sourceGripId === null
+          ? null
+          : (layer.grips.find(
+              ({ sourceGripId }) => sourceGripId === group.sourceGripId,
+            ) ?? null);
       const explicit = sourceCycle !== null;
       let poses;
       let provenance: RobotCycleProvenance;
@@ -513,7 +519,14 @@ export function materializeRobotCycles(
                   ? "imported-project-cycle"
                   : "explicit-project-cycle",
             }
-          : null,
+          : sourceGrip
+            ? {
+                field8: sourceGrip.dx,
+                field9: sourceGrip.dy,
+                semantics: "repository-dx-dy-unverified",
+                source: "calculated-pattern-grip",
+              }
+            : null,
         provenance,
       };
       cycles.push(cycle);

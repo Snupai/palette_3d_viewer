@@ -1058,6 +1058,74 @@ describe("project-derived .rob export", () => {
     );
   });
 
+  it("exports calculated pattern-grip deltas as the final two ROB fields", () => {
+    const gripId = "pattern-grip";
+    const project = projectWithRobotPatterns({
+      patterns: [
+        {
+          id: "pattern-1",
+          name: "Calculated delta pattern",
+          grips: [
+            {
+              id: gripId,
+              groupNumber: 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: 100,
+              y: 50,
+              rotation: 0,
+              numPackages: 1,
+              dx: 1,
+              dy: -1,
+            },
+          ],
+          placements: [
+            { ...placement("package-1", 0, 100, 50), gripId },
+          ],
+          groupOrder: [gripId],
+          orderDependencies: [],
+        },
+      ],
+      layers: [
+        { id: "physical-layer-1", patternId: "pattern-1", interlayerBefore: 0 },
+      ],
+    });
+    const materialized = materializeRobotCycles(project, { pickReference });
+    const options = identityExportOptions(
+      materialized.cycles.map(({ id }) => id),
+    );
+    options.unknownFields = { mode: "preserve-imported" };
+
+    const exported = exportProjectRob(materialized, options);
+    const reparsed = parseRobText(exported.text!);
+
+    expect(materialized.valid).toBe(true);
+    expect(materialized.cycles[0]).toMatchObject({
+      legacyUnknownFields: {
+        field8: 1,
+        field9: -1,
+        semantics: "repository-dx-dy-unverified",
+        source: "calculated-pattern-grip",
+      },
+      provenance: { sourceGripId: gripId },
+    });
+    expect(exported.ok).toBe(true);
+    expect(exported.parserRoundtripVerified).toBe(true);
+    expect(exported.manifest?.unknownFieldPolicy).toBe("preserve-imported");
+    expect(
+      reparsed.uniqueLayers[1]?.map(({ dx, dy }) => ({ dx, dy })),
+    ).toEqual([{ dx: 1, dy: -1 }]);
+
+    const adjacencyGrouped = materializeRobotCycles(
+      calculatedProject({
+        placements: [placement("ungrouped-package", 0, 100, 50)],
+      }),
+      { pickReference },
+    );
+    expect(adjacencyGrouped.cycles[0]?.legacyUnknownFields).toBeNull();
+  });
+
   it("blocks one sign mapping across legacy and station coordinate frames", () => {
     const project = projectWithRobotPatterns({
       patterns: [

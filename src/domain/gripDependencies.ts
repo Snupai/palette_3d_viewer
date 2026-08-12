@@ -315,7 +315,8 @@ export function deriveGripDeltasForPlacementOrder(
         return [{ direction, match }];
       }),
     );
-    const [xOptions, yOptions] = optionsByAxis;
+    const xOptions = optionsByAxis[0] ?? [];
+    const yOptions = optionsByAxis[1] ?? [];
     const candidates = [
       ...xOptions.flatMap((x) =>
         yOptions.map((y) => ({

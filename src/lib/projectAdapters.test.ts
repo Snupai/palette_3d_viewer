@@ -160,9 +160,11 @@ describe("project v2 adapters", () => {
 
     const projected = projectSolutionToPalletData(project);
 
-    expect(projected.uniqueLayers[1]?.map(({ blueLine }) => blueLine)).toEqual([
-      "top_left",
-      "top_right",
+    expect(
+      projected.uniqueLayers[1]?.map(({ dx, dy }) => ({ dx, dy })),
+    ).toEqual([
+      { dx: 1, dy: -1 },
+      { dx: -1, dy: -1 },
     ]);
     expect(projected.layers[0]?.boxes.map(({ blueLine }) => blueLine)).toEqual([
       "top_left",

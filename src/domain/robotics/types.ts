@@ -173,7 +173,10 @@ export type LegacyRobUnknownFields = {
   field9: number;
   /** Repository interpretation only; external MultiPack semantics remain unverified. */
   semantics: "repository-dx-dy-unverified";
-  source: "imported-project-cycle" | "explicit-project-cycle";
+  source:
+    | "imported-project-cycle"
+    | "explicit-project-cycle"
+    | "calculated-pattern-grip";
 };
 
 export type PickReferenceProvenance = {
