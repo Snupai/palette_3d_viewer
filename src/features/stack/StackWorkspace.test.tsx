@@ -48,6 +48,7 @@ function candidate(rank: number, count: number): SolverCandidate {
     geometryId: `stack-geometry-${rank}`,
     identityFingerprint: `identity-${rank}`,
     geometryFingerprint: `geometry-${rank}`,
+    orderDependencies: [],
     placements: Array.from({ length: count }, (_, index) => ({
       sequence: index,
       positionMm: { x: 100 + index * 150, y: 100 },
@@ -292,6 +293,12 @@ describe("stack workspace persistence", () => {
           dy: 0,
         },
       ],
+      orderDependencies: [
+        {
+          beforeGripId: "generated-grip:1+2",
+          afterGripId: "generated-grip:3",
+        },
+      ],
       metrics: {
         ...baseCandidate.metrics,
         provisionalCycleCount: 2,
@@ -348,6 +355,12 @@ describe("stack workspace persistence", () => {
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
     );
+    expect(persistedPattern.orderDependencies).toEqual([
+      {
+        beforeGripId: persistedPattern.grips[0]!.id,
+        afterGripId: persistedPattern.grips[1]!.id,
+      },
+    ]);
     expect(persistedPattern.placements.map(({ gripId }) => gripId)).toEqual([
       persistedPattern.grips[0]!.id,
       persistedPattern.grips[0]!.id,
@@ -366,6 +379,14 @@ describe("stack workspace persistence", () => {
     expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
       2, 1,
     ]);
+    expect(robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer)).toEqual([
+      0, 1,
+    ]);
+    expect(
+      robotics.diagnostics.filter(
+        ({ code }) => code === "order-dependency-violation",
+      ),
+    ).toEqual([]);
     expect(
       robotics.cycles.map(({ provenance }) => provenance.groupingSource),
     ).toEqual(["explicit-pattern-grip", "explicit-pattern-grip"]);

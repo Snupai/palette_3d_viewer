@@ -215,6 +215,8 @@ export function materializeStack(
     const zTopMm = zBottomMm + input.package.dimensionsMm.height;
     let placements: MaterializedStackPlacement[] = [];
     let grips: MaterializedStackGrip[] = [];
+    let groupOrder: string[] = [];
+    let orderDependencies: StackPattern["orderDependencies"] = [];
     let robotCycles: MaterializedRobotCycle[] = [];
     let transformFrameMm = pattern?.transformFrameMm ?? null;
     let transformFrameProvenance: MetricProvenance =
@@ -296,6 +298,10 @@ export function materializeStack(
               : (gripIdBySource.get(placement.gripId) ?? null),
         };
       });
+      groupOrder = [...transformed.groupOrder];
+      orderDependencies = transformed.orderDependencies.map((dependency) => ({
+        ...dependency,
+      }));
       robotCycles = transformed.cycles.map((cycle, cycleIndex) => {
         const unresolvedPlacementIds = cycle.placementIds.filter(
           (placementId) => !placementIdBySource.has(placementId),
@@ -349,6 +355,8 @@ export function materializeStack(
       heightMm: input.package.dimensionsMm.height,
       placements,
       grips,
+      groupOrder,
+      orderDependencies,
       robotCycles,
       cycleCount: pattern?.cycleCount ?? null,
       cycleCountProvenance:

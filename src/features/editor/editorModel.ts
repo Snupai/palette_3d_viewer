@@ -260,10 +260,10 @@ const labelOffsetBySide: Record<CandidateLabelSide, { x: number; y: number }> =
     right: { x: -1, y: 0 },
     bottom: { x: 0, y: 1 },
     left: { x: 1, y: 0 },
-    top_right: { x: 1, y: -1 },
+    top_right: { x: -1, y: -1 },
     bottom_right: { x: -1, y: 1 },
     bottom_left: { x: 1, y: 1 },
-    top_left: { x: -1, y: -1 },
+    top_left: { x: 1, y: -1 },
   };
 const cardinalLabelRotation = ["right", "top", "left", "bottom"] as const;
 const cornerLabelRotation = [

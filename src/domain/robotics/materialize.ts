@@ -326,8 +326,6 @@ export function materializeRobotCycles(
   let legacyFrameReported = false;
 
   for (const layer of stack.packageLayers) {
-    const stackPattern =
-      stack.patterns.find(({ ref }) => ref === layer.patternRef) ?? null;
     const useExplicit = preserveExplicitCycles && layer.robotCycles.length > 0;
     const usePatternGrips = !useExplicit && layer.grips.length > 0;
     const grouped = useExplicit
@@ -382,7 +380,7 @@ export function materializeRobotCycles(
           : [[group.sourceGripId, group.id] as const],
       ),
     );
-    const persistedDependencies = (stackPattern?.orderDependencies ?? []).map(
+    const persistedDependencies = layer.orderDependencies.map(
       (dependency) => ({
         beforeGroupId:
           groupIdBySourceGrip.get(dependency.beforeGripId) ??
@@ -393,7 +391,7 @@ export function materializeRobotCycles(
         source: "explicit" as const,
       }),
     );
-    const persistedOrder = (stackPattern?.groupOrder ?? []).map(
+    const persistedOrder = layer.groupOrder.map(
       (sourceGripId) => groupIdBySourceGrip.get(sourceGripId) ?? sourceGripId,
     );
     const suggestion = suggestRobotOrder(

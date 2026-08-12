@@ -13,12 +13,15 @@ import type {
   StackPattern,
   StackPatternCycle,
   StackPatternGrip,
+  StackPatternOrderDependency,
   StackPatternPlacement,
 } from "~/domain/stack/types";
 
 export type TransformedStackPattern = {
   placements: StackPatternPlacement[];
   grips: StackPatternGrip[];
+  groupOrder: string[];
+  orderDependencies: StackPatternOrderDependency[];
   cycles: StackPatternCycle[];
   frameMm: RectangleBoundsMm | null;
   frameProvenance: MetricProvenance;
@@ -168,6 +171,10 @@ export function transformStackPattern(
         positionMm: { ...placement.positionMm },
       })),
       grips: pattern.grips.map((grip) => ({ ...grip })),
+      groupOrder: [...pattern.groupOrder],
+      orderDependencies: pattern.orderDependencies.map((dependency) => ({
+        ...dependency,
+      })),
       cycles: pattern.cycles.map((cycle) => ({
         ...cycle,
         placementIds: [...cycle.placementIds],
@@ -197,6 +204,10 @@ export function transformStackPattern(
         positionMm: { ...placement.positionMm },
       })),
       grips: pattern.grips.map((grip) => ({ ...grip })),
+      groupOrder: [...pattern.groupOrder],
+      orderDependencies: pattern.orderDependencies.map((dependency) => ({
+        ...dependency,
+      })),
       cycles: pattern.cycles.map((cycle) => ({
         ...cycle,
         placementIds: [...cycle.placementIds],
@@ -259,6 +270,10 @@ export function transformStackPattern(
   return {
     placements,
     grips,
+    groupOrder: [...pattern.groupOrder],
+    orderDependencies: pattern.orderDependencies.map((dependency) => ({
+      ...dependency,
+    })),
     cycles: pattern.cycles.map((cycle) =>
       transformCycle(cycle, frame, transform),
     ),

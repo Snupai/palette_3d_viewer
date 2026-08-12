@@ -40,6 +40,7 @@ const solverResult: SolverResult = {
       geometryId: "geometry-exact-4",
       identityFingerprint: "identity-exact-4",
       geometryFingerprint: "geometry-fingerprint-exact-4",
+      orderDependencies: [],
       placements: [
         {
           sequence: 0,

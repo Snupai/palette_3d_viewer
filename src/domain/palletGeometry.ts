@@ -121,9 +121,9 @@ export function parseBlueLine(dx: number, dy: number): Side | Corner | null {
   if (dx > 0 && dy === 0) return "left";
   if (dx < 0 && dy === 0) return "right";
   if (dx > 0 && dy > 0) return "bottom_left";
-  if (dx > 0 && dy < 0) return "top_right";
+  if (dx > 0 && dy < 0) return "top_left";
   if (dx < 0 && dy > 0) return "bottom_right";
-  if (dx < 0 && dy < 0) return "top_left";
+  if (dx < 0 && dy < 0) return "top_right";
   return null;
 }
 

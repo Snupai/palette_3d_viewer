@@ -270,6 +270,8 @@ export type MaterializedPackageLayer = {
   heightMm: number;
   placements: readonly MaterializedStackPlacement[];
   grips: readonly MaterializedStackGrip[];
+  groupOrder: readonly string[];
+  orderDependencies: readonly StackPatternOrderDependency[];
   robotCycles: readonly MaterializedRobotCycle[];
   cycleCount: number | null;
   cycleCountProvenance: MetricProvenance;

@@ -185,7 +185,9 @@ export function stackPatternFromSolverCandidate(
           left.sequence - right.sequence || left.id.localeCompare(right.id),
       )
       .map(({ id }) => id),
-    orderDependencies: [],
+    orderDependencies: candidate.orderDependencies.map((dependency) => ({
+      ...dependency,
+    })),
     cycles: [],
     cycleCount: candidate.metrics.provisionalCycleCount,
     cycleCountProvenance: {

@@ -6,6 +6,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  blueLinePath,
+  gripDeltaArrow,
+} from "~/components/layer-editor/gripVisualGeometry";
 import { footprintSize, gripsToBoxes } from "~/domain/palletGeometry";
 import type { Grip } from "~/domain/palletTypes";
 import type { PalletPoint } from "~/hooks/useLayerEditor";
@@ -34,104 +38,6 @@ export type LayerCanvasProps = {
 };
 
 type EditorBox = ReturnType<typeof gripsToBoxes>[number];
-
-function blueLinePath(
-  blueLine: EditorBox["blueLine"],
-  x: number,
-  y: number,
-  width: number,
-  length: number,
-): string | null {
-  const left = x - width / 2;
-  const right = x + width / 2;
-  const top = y - length / 2;
-  const bottom = y + length / 2;
-  const cornerSize = Math.min(width, length) * 0.22;
-
-  switch (blueLine) {
-    case "top":
-      return `M ${left} ${top} L ${right} ${top}`;
-    case "right":
-      return `M ${right} ${top} L ${right} ${bottom}`;
-    case "bottom":
-      return `M ${left} ${bottom} L ${right} ${bottom}`;
-    case "left":
-      return `M ${left} ${top} L ${left} ${bottom}`;
-    case "top_right":
-      return `M ${right - cornerSize} ${top} L ${right} ${top} L ${right} ${top + cornerSize}`;
-    case "bottom_right":
-      return `M ${right - cornerSize} ${bottom} L ${right} ${bottom} L ${right} ${bottom - cornerSize}`;
-    case "bottom_left":
-      return `M ${left + cornerSize} ${bottom} L ${left} ${bottom} L ${left} ${bottom - cornerSize}`;
-    case "top_left":
-      return `M ${left + cornerSize} ${top} L ${left} ${top} L ${left} ${top + cornerSize}`;
-    default:
-      return null;
-  }
-}
-
-function gripDeltaArrow(
-  grip: Grip,
-  boxes: EditorBox[],
-  palletLength: number,
-): {
-  centerX: number;
-  centerY: number;
-  endX: number;
-  endY: number;
-  labelX: number;
-  labelY: number;
-} | null {
-  if ((grip.dx === 0 && grip.dy === 0) || boxes.length === 0) return null;
-
-  let left = Number.POSITIVE_INFINITY;
-  let right = Number.NEGATIVE_INFINITY;
-  let top = Number.POSITIVE_INFINITY;
-  let bottom = Number.NEGATIVE_INFINITY;
-  for (const box of boxes) {
-    const size = footprintSize(box);
-    const svgY = palletLength - box.rect.y;
-    left = Math.min(left, box.rect.x - size.width / 2);
-    right = Math.max(right, box.rect.x + size.width / 2);
-    top = Math.min(top, svgY - size.length / 2);
-    bottom = Math.max(bottom, svgY + size.length / 2);
-  }
-
-  const centerX = grip.x;
-  const centerY = palletLength - grip.y;
-  const vectorX = -grip.dx;
-  const vectorY = grip.dy;
-  const vectorLength = Math.hypot(vectorX, vectorY);
-  const unitX = vectorX / vectorLength;
-  const unitY = vectorY / vectorLength;
-  const distanceX =
-    unitX === 0
-      ? Number.POSITIVE_INFINITY
-      : unitX > 0
-        ? (right - centerX) / unitX
-        : (centerX - left) / -unitX;
-  const distanceY =
-    unitY === 0
-      ? Number.POSITIVE_INFINITY
-      : unitY > 0
-        ? (bottom - centerY) / unitY
-        : (centerY - top) / -unitY;
-  const boundaryDistance = Math.min(distanceX, distanceY);
-  const arrowDistance = Math.max(
-    16,
-    boundaryDistance - Math.min(12, boundaryDistance * 0.2),
-  );
-  const labelDistance = arrowDistance * 0.55;
-
-  return {
-    centerX,
-    centerY,
-    endX: centerX + unitX * arrowDistance,
-    endY: centerY + unitY * arrowDistance,
-    labelX: centerX + unitX * labelDistance - unitY * 16,
-    labelY: centerY + unitY * labelDistance + unitX * 16,
-  };
-}
 
 export function LayerCanvas({
   uniqueLayerId,
@@ -372,7 +278,20 @@ export function LayerCanvas({
           const grip = grips[gripIndex]!;
           const isPrimary = selectedGripIndex === gripIndex;
           const isMergeSelected = mergeSelection.has(gripIndex);
-          const deltaArrow = gripDeltaArrow(grip, boxes, palletLength);
+          const deltaArrow = gripDeltaArrow(
+            { x: grip.x, y: palletLength - grip.y },
+            grip,
+            boxes.map((box) => {
+              const size = footprintSize(box);
+              const svgY = palletLength - box.rect.y;
+              return {
+                left: box.rect.x - size.width / 2,
+                right: box.rect.x + size.width / 2,
+                top: svgY - size.length / 2,
+                bottom: svgY + size.length / 2,
+              };
+            }),
+          );
           const firstBox = boxes[0];
           const firstBoxSize = firstBox ? footprintSize(firstBox) : null;
           return (

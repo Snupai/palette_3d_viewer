@@ -22,6 +22,7 @@ function candidate(rank: number, packageCount: number): SolverCandidate {
     geometryId: `geometry-${rank}`,
     identityFingerprint: `identity-${rank}`,
     geometryFingerprint: `geometry-fingerprint-${rank}`,
+    orderDependencies: [],
     placements: Array.from({ length: packageCount }, (_, index) => ({
       sequence: index,
       positionMm: { x: 150 + index * 10, y: 100 },

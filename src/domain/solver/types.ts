@@ -172,6 +172,12 @@ export type SolverCandidateGrip = CandidateIdentityGrip & {
   sequence: number;
 };
 
+/** Ordering implied by the derived dx/dy blue lines of generated grips. */
+export type SolverCandidateOrderDependency = {
+  beforeGripId: string;
+  afterGripId: string;
+};
+
 export type SolverCandidate = {
   rank: number;
   id: string;
@@ -180,6 +186,7 @@ export type SolverCandidate = {
   geometryFingerprint: string;
   placements: readonly SolverCandidatePlacement[];
   grips: readonly SolverCandidateGrip[];
+  orderDependencies: readonly SolverCandidateOrderDependency[];
   provenance: readonly GeneratorProvenance[];
   validation: CandidateValidation;
   metrics: CandidateMetrics;

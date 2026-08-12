@@ -58,6 +58,7 @@ function candidate(
     geometryId: `geometry-${rank}`,
     identityFingerprint: `identity-${rank}`,
     geometryFingerprint: `geometry-fingerprint-${rank}`,
+    orderDependencies: [],
     placements,
     grips: placements.map((placement, sequence) => ({
       id: placement.gripId,

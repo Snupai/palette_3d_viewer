@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  useId,
   useMemo,
   useRef,
   useState,
@@ -8,9 +9,13 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import {
+  blueLinePath,
+  gripDeltaArrow,
+} from "~/components/layer-editor/gripVisualGeometry";
 import { placementRectangleBounds } from "~/domain/geometry";
+import { parseBlueLine } from "~/domain/palletGeometry";
 import type { LayerPattern, Project } from "~/domain/project/projectSchema";
-import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import {
   placementIdsInMarquee,
   projectEditorEnvelope,
@@ -40,50 +45,25 @@ export type PatternCanvasProps = {
   fineStepMm: number;
   coarseStepMm: number;
   onSelectionChange: (placementIds: ReadonlySet<string>) => void;
-  onMoveSelection: (deltaMm: { x: number; y: number }) => void;
+  onMoveSelection: (
+    deltaMm: { x: number; y: number },
+    placementIds: readonly string[],
+  ) => void;
   onNudgeSelection: (deltaMm: { x: number; y: number }) => void;
   onDeleteSelection: () => void;
   onRotateSelection: () => void;
 };
 
-function labelPath(
-  label: CandidateLabelSide | null,
-  bounds: { minX: number; minY: number; maxX: number; maxY: number },
-  canvasMaxY: number,
-): string | null {
-  if (!label) return null;
-  const left = bounds.minX;
-  const right = bounds.maxX;
-  const top = canvasMaxY - bounds.maxY;
-  const bottom = canvasMaxY - bounds.minY;
-  const corner = Math.min(right - left, bottom - top) * 0.22;
-  switch (label) {
-    case "top":
-      return `M ${left} ${top} L ${right} ${top}`;
-    case "right":
-      return `M ${right} ${top} L ${right} ${bottom}`;
-    case "bottom":
-      return `M ${left} ${bottom} L ${right} ${bottom}`;
-    case "left":
-      return `M ${left} ${top} L ${left} ${bottom}`;
-    case "top_right":
-      return `M ${right - corner} ${top} L ${right} ${top} L ${right} ${top + corner}`;
-    case "bottom_right":
-      return `M ${right - corner} ${bottom} L ${right} ${bottom} L ${right} ${bottom - corner}`;
-    case "bottom_left":
-      return `M ${left + corner} ${bottom} L ${left} ${bottom} L ${left} ${bottom - corner}`;
-    case "top_left":
-      return `M ${left + corner} ${top} L ${left} ${top} L ${left} ${top + corner}`;
-  }
-}
-
-function toggleSelection(
+function toggleSelectionUnit(
   current: ReadonlySet<string>,
-  placementId: string,
+  placementIds: readonly string[],
 ): Set<string> {
   const next = new Set(current);
-  if (next.has(placementId)) next.delete(placementId);
-  else next.add(placementId);
+  const remove = placementIds.every((placementId) => next.has(placementId));
+  for (const placementId of placementIds) {
+    if (remove) next.delete(placementId);
+    else next.add(placementId);
+  }
   return next;
 }
 
@@ -101,6 +81,7 @@ export function PatternCanvas({
   onRotateSelection,
 }: PatternCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const deltaArrowMarkerId = `pattern-grip-delta-arrow-${useId().replaceAll(":", "")}`;
   const [pointer, setPointer] = useState<PointerState | null>(null);
   const envelope = projectEditorEnvelope(project) ?? {
     minX: 0,
@@ -129,6 +110,33 @@ export function PatternCanvas({
       ),
     [groups],
   );
+  const gripById = useMemo(
+    () => new Map(pattern.grips.map((grip) => [grip.id, grip])),
+    [pattern.grips],
+  );
+  const groupById = useMemo(
+    () => new Map(groups.map((group) => [group.id, group])),
+    [groups],
+  );
+  const placementById = useMemo(
+    () => new Map(pattern.placements.map((placement) => [placement.id, placement])),
+    [pattern.placements],
+  );
+  const gripPlacementIds = useMemo(() => {
+    const idsByGrip = new Map<string, string[]>();
+    for (const placement of pattern.placements) {
+      if (placement.gripId === null || !gripById.has(placement.gripId)) continue;
+      const ids = idsByGrip.get(placement.gripId) ?? [];
+      ids.push(placement.id);
+      idsByGrip.set(placement.gripId, ids);
+    }
+    return idsByGrip;
+  }, [gripById, pattern.placements]);
+  const selectionUnit = (placementId: string): readonly string[] => {
+    const placement = placementById.get(placementId);
+    if (!placement?.gripId) return [placementId];
+    return gripPlacementIds.get(placement.gripId) ?? [placementId];
+  };
 
   const pointFromClient = (clientX: number, clientY: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
@@ -168,10 +176,12 @@ export function PatternCanvas({
   ) => {
     event.stopPropagation();
     if (event.ctrlKey || event.metaKey || event.shiftKey) return;
-    const selection = selectedPlacementIds.has(placementId)
+    const unit = selectionUnit(placementId);
+    const unitSelected = unit.every((id) => selectedPlacementIds.has(id));
+    const selection = unitSelected
       ? new Set(selectedPlacementIds)
-      : new Set([placementId]);
-    if (!selectedPlacementIds.has(placementId)) onSelectionChange(selection);
+      : new Set(unit);
+    if (!unitSelected) onSelectionChange(selection);
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
     capture(event);
@@ -190,7 +200,9 @@ export function PatternCanvas({
   ) => {
     if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return;
     event.stopPropagation();
-    onSelectionChange(toggleSelection(selectedPlacementIds, placementId));
+    onSelectionChange(
+      toggleSelectionUnit(selectedPlacementIds, selectionUnit(placementId)),
+    );
   };
 
   const updatePointer = (
@@ -215,13 +227,20 @@ export function PatternCanvas({
         pointer.start,
         point,
       );
-      onSelectionChange(new Set([...selectedPlacementIds, ...selected]));
+      onSelectionChange(
+        new Set([
+          ...selectedPlacementIds,
+          ...selected.flatMap((placementId) => selectionUnit(placementId)),
+        ]),
+      );
     } else {
       const deltaMm = {
         x: Math.round((point.x - pointer.start.x) * 10) / 10,
         y: Math.round((point.y - pointer.start.y) * 10) / 10,
       };
-      if (deltaMm.x !== 0 || deltaMm.y !== 0) onMoveSelection(deltaMm);
+      if (deltaMm.x !== 0 || deltaMm.y !== 0) {
+        onMoveSelection(deltaMm, pointer.placementIds);
+      }
     }
     setPointer(null);
   };
@@ -305,6 +324,19 @@ export function PatternCanvas({
         onPointerUp={finishPointer}
         onPointerCancel={() => setPointer(null)}
       >
+        <defs>
+          <marker
+            id={deltaArrowMarkerId}
+            viewBox="0 0 8 8"
+            refX={7}
+            refY={4}
+            markerWidth={4}
+            markerHeight={4}
+            orient="auto-start-reverse"
+          >
+            <path d="M 0 0 L 8 4 L 0 8 z" fill="#fbbf24" />
+          </marker>
+        </defs>
         <rect
           x={envelope.minX}
           y={envelope.minY}
@@ -379,7 +411,14 @@ export function PatternCanvas({
           const rectWidth = bounds.maxX - bounds.minX;
           const rectHeight = bounds.maxY - bounds.minY;
           const group = groupByPlacementId.get(placement.id);
-          const path = labelPath(placement.labelSide, bounds, canvasMaxY);
+          const grip = placement.gripId ? gripById.get(placement.gripId) : null;
+          const path = blueLinePath(
+            grip ? parseBlueLine(grip.dx, grip.dy) : placement.labelSide,
+            x + rectWidth / 2,
+            y + rectHeight / 2,
+            rectWidth,
+            rectHeight,
+          );
           return (
             <g key={placement.id} data-placement-id={placement.id}>
               <rect
@@ -405,7 +444,7 @@ export function PatternCanvas({
                 onKeyDown={(event) => {
                   if (event.key !== "Enter" && event.key !== " ") return;
                   event.preventDefault();
-                  onSelectionChange(new Set([placement.id]));
+                  onSelectionChange(new Set(selectionUnit(placement.id)));
                 }}
               >
                 <title>
@@ -424,17 +463,133 @@ export function PatternCanvas({
                   pointerEvents="none"
                 />
               ) : null}
+              {!grip ? (
+                <text
+                  x={x + rectWidth / 2}
+                  y={y + rectHeight / 2}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="#e4e4e7"
+                  fontSize={Math.max(
+                    11,
+                    Math.min(rectWidth, rectHeight) * 0.2,
+                  )}
+                  fontFamily="ui-monospace, monospace"
+                  pointerEvents="none"
+                >
+                  #{placement.sequence + 1}
+                </text>
+              ) : null}
+            </g>
+          );
+        })}
+
+        {pattern.grips.map((grip, gripIndex) => {
+          const placementIds = gripPlacementIds.get(grip.id) ?? [];
+          const placements = placementIds.flatMap((placementId) => {
+            const placement = placementById.get(placementId);
+            return placement ? [placement] : [];
+          });
+          if (placements.length === 0) return null;
+
+          const isDragging = placementIds.every((placementId) =>
+            draggingIds.has(placementId),
+          );
+          const footprints = placements.map((placement) => {
+            const previewPlacement = isDragging
+              ? {
+                  ...placement,
+                  positionMm: {
+                    x: placement.positionMm.x + dragDelta.x,
+                    y: placement.positionMm.y + dragDelta.y,
+                  },
+                }
+              : placement;
+            const bounds = placementRectangleBounds(
+              previewPlacement,
+              project.package.dimensionsMm,
+            );
+            return {
+              left: bounds.minX,
+              right: bounds.maxX,
+              top: canvasMaxY - bounds.maxY,
+              bottom: canvasMaxY - bounds.minY,
+            };
+          });
+          const center = {
+            x: grip.x + (isDragging ? dragDelta.x : 0),
+            y: canvasMaxY - grip.y + (isDragging ? -dragDelta.y : 0),
+          };
+          const deltaArrow = gripDeltaArrow(center, grip, footprints);
+          const firstFootprint = footprints[0]!;
+          const groupNumber =
+            grip.groupNumber ??
+            groupById.get(grip.id)?.groupNumber ??
+            gripIndex + 1;
+          const isSelected = placementIds.some((placementId) =>
+            selectedPlacementIds.has(placementId),
+          );
+
+          return (
+            <g key={`grip-overlay-${grip.id}`} pointerEvents="none">
+              {deltaArrow ? (
+                <g data-testid={`grip-delta-${grip.id}`} aria-hidden="true">
+                  <line
+                    x1={deltaArrow.centerX}
+                    y1={deltaArrow.centerY}
+                    x2={deltaArrow.endX}
+                    y2={deltaArrow.endY}
+                    stroke="#fbbf24"
+                    strokeWidth={isSelected ? 5 : 2.5}
+                    strokeLinecap="round"
+                    markerEnd={`url(#${deltaArrowMarkerId})`}
+                    vectorEffect="non-scaling-stroke"
+                    opacity={isSelected ? 1 : 0.55}
+                  />
+                  <circle
+                    cx={deltaArrow.centerX}
+                    cy={deltaArrow.centerY}
+                    r={isSelected ? 6 : 4}
+                    fill="#fbbf24"
+                    opacity={isSelected ? 1 : 0.55}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  {isSelected ? (
+                    <text
+                      x={deltaArrow.labelX}
+                      y={deltaArrow.labelY}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fill="#fef3c7"
+                      stroke="#18181b"
+                      strokeWidth={5}
+                      paintOrder="stroke"
+                      fontSize={17}
+                      fontWeight={700}
+                      fontFamily="ui-monospace, monospace"
+                    >
+                      Δx {grip.dx} / Δy {grip.dy}
+                    </text>
+                  ) : null}
+                </g>
+              ) : null}
               <text
-                x={x + rectWidth / 2}
-                y={y + rectHeight / 2}
+                data-testid={`grip-label-${grip.id}`}
+                x={(firstFootprint.left + firstFootprint.right) / 2}
+                y={(firstFootprint.top + firstFootprint.bottom) / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
                 fill="#e4e4e7"
-                fontSize={Math.max(11, Math.min(rectWidth, rectHeight) * 0.2)}
+                fontSize={Math.max(
+                  11,
+                  Math.min(
+                    firstFootprint.right - firstFootprint.left,
+                    firstFootprint.bottom - firstFootprint.top,
+                  ) * 0.2,
+                )}
                 fontFamily="ui-monospace, monospace"
-                pointerEvents="none"
               >
-                {group ? `G${group.groupNumber}` : `#${placement.sequence + 1}`}
+                G{groupNumber}
               </text>
             </g>
           );

@@ -59,8 +59,22 @@ export function PatternMode({
   execute,
   createPlacementId,
 }: PatternModeProps) {
+  const effectiveSelectedPlacementIds = useMemo(() => {
+    const next = new Set(selectedPlacementIds);
+    const selectedGripIds = new Set(
+      pattern.placements.flatMap((placement) =>
+        next.has(placement.id) && placement.gripId ? [placement.gripId] : [],
+      ),
+    );
+    for (const placement of pattern.placements) {
+      if (placement.gripId && selectedGripIds.has(placement.gripId)) {
+        next.add(placement.id);
+      }
+    }
+    return next;
+  }, [pattern.placements, selectedPlacementIds]);
   const selected = pattern.placements.filter(({ id }) =>
-    selectedPlacementIds.has(id),
+    effectiveSelectedPlacementIds.has(id),
   );
   const selectedOne = selected.length === 1 ? selected[0]! : null;
   const [xDraft, setXDraft] = useState("");
@@ -89,30 +103,33 @@ export function PatternMode({
     solutionId: solution.id,
     patternId: pattern.id,
   };
-  const move = (deltaMm: { x: number; y: number }) => {
-    if (selectedPlacementIds.size === 0) return;
+  const move = (
+    deltaMm: { x: number; y: number },
+    placementIds: readonly string[] = [...effectiveSelectedPlacementIds],
+  ) => {
+    if (placementIds.length === 0) return;
     execute({
       type: "move-placements",
       ...commandBase,
-      placementIds: [...selectedPlacementIds],
+      placementIds: [...placementIds],
       deltaMm,
     });
   };
   const remove = () => {
-    if (selectedPlacementIds.size === 0) return;
+    if (effectiveSelectedPlacementIds.size === 0) return;
     execute({
       type: "delete-placements",
       ...commandBase,
-      placementIds: [...selectedPlacementIds],
+      placementIds: [...effectiveSelectedPlacementIds],
     });
     onSelectionChange(new Set());
   };
   const rotate = () => {
-    if (selectedPlacementIds.size === 0) return;
+    if (effectiveSelectedPlacementIds.size === 0) return;
     execute({
       type: "rotate-placements",
       ...commandBase,
-      placementIds: [...selectedPlacementIds],
+      placementIds: [...effectiveSelectedPlacementIds],
     });
   };
 
@@ -159,7 +176,7 @@ export function PatternMode({
           <span className="mx-1 h-5 w-px bg-zinc-800" aria-hidden="true" />
           <button
             type="button"
-            disabled={selectedPlacementIds.size === 0}
+            disabled={effectiveSelectedPlacementIds.size === 0}
             onClick={rotate}
             className={buttonClass}
           >
@@ -167,12 +184,12 @@ export function PatternMode({
           </button>
           <button
             type="button"
-            disabled={selectedPlacementIds.size === 0}
+            disabled={effectiveSelectedPlacementIds.size === 0}
             onClick={() =>
               execute({
                 type: "center-placements",
                 ...commandBase,
-                placementIds: [...selectedPlacementIds],
+                placementIds: [...effectiveSelectedPlacementIds],
               })
             }
             className={buttonClass}
@@ -181,21 +198,21 @@ export function PatternMode({
           </button>
           <button
             type="button"
-            disabled={selectedPlacementIds.size === 0}
+            disabled={effectiveSelectedPlacementIds.size === 0}
             onClick={remove}
             className={`${buttonClass} text-red-300`}
           >
             Delete
           </button>
           <span className="ml-auto text-[11px] text-zinc-500">
-            {selectedPlacementIds.size} selected
+            {effectiveSelectedPlacementIds.size} selected
           </span>
         </div>
         <PatternCanvas
           project={project}
           pattern={pattern}
           groups={orderModel.groups}
-          selectedPlacementIds={selectedPlacementIds}
+          selectedPlacementIds={effectiveSelectedPlacementIds}
           fineStepMm={fineStepMm}
           coarseStepMm={coarseStepMm}
           onSelectionChange={onSelectionChange}
@@ -358,7 +375,7 @@ export function PatternMode({
                     execute({
                       type: "set-label-side",
                       ...commandBase,
-                      placementIds: [...selectedPlacementIds],
+                      placementIds: [...effectiveSelectedPlacementIds],
                       labelSide:
                         event.target.value === ""
                           ? null

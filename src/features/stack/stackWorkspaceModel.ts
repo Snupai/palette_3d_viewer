@@ -386,10 +386,25 @@ export function projectWithPersistedStack(
             labelSide: placement.labelSide,
           };
         }),
-        groupOrder: orderedGrips.map(
-          (grip) => projectGripIdBySource.get(grip.sourceGripId)!,
-        ),
-        orderDependencies: [],
+        groupOrder: transformed.groupOrder.map((sourceGripId) => {
+          const gripId = projectGripIdBySource.get(sourceGripId);
+          if (!gripId) {
+            throw new Error(
+              `Generated order references a missing grip: ${sourceGripId}`,
+            );
+          }
+          return gripId;
+        }),
+        orderDependencies: transformed.orderDependencies.map((dependency) => {
+          const beforeGripId = projectGripIdBySource.get(dependency.beforeGripId);
+          const afterGripId = projectGripIdBySource.get(dependency.afterGripId);
+          if (!beforeGripId || !afterGripId) {
+            throw new Error(
+              `Generated dependency references a missing grip: ${dependency.beforeGripId} -> ${dependency.afterGripId}`,
+            );
+          }
+          return { beforeGripId, afterGripId };
+        }),
       };
     },
   );

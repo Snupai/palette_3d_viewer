@@ -165,10 +165,10 @@ const labelOffsetBySide: Record<
   right: { dx: -1, dy: 0 },
   bottom: { dx: 0, dy: 1 },
   left: { dx: 1, dy: 0 },
-  top_right: { dx: 1, dy: -1 },
+  top_right: { dx: -1, dy: -1 },
   bottom_right: { dx: -1, dy: 1 },
   bottom_left: { dx: 1, dy: 1 },
-  top_left: { dx: -1, dy: -1 },
+  top_left: { dx: 1, dy: -1 },
 };
 
 function previewGripsForPattern(

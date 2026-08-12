@@ -68,6 +68,7 @@ function candidate(): SolverCandidate {
     geometryId: "geometry-3",
     identityFingerprint: "identity",
     geometryFingerprint: "geometry",
+    orderDependencies: [],
     placements: [
       {
         sequence: 0,
