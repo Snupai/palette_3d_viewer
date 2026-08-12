@@ -12,6 +12,7 @@ import {
   type SolverWorkerResponse,
 } from "~/workers/solverProtocol";
 import {
+  ResilientSolverTransport,
   SynchronousSolverTransport,
   type SolverWorkerMessageListener,
   type SolverWorkerTransport,
@@ -266,6 +267,76 @@ describe("SynchronousSolverTransport fallback", () => {
     await expect(
       client.solve(input, { includeSymmetryVariants: false }),
     ).resolves.toEqual(completedResult);
+    client.dispose();
+  });
+});
+
+describe("ResilientSolverTransport", () => {
+  function workerLoadFailure(runId: string): SolverWorkerResponse {
+    return {
+      protocolVersion: SOLVER_WORKER_PROTOCOL_VERSION,
+      type: "error",
+      runId,
+      sequence: Number.MAX_SAFE_INTEGER,
+      error: {
+        name: "WorkerError",
+        message: "The solver worker failed to load or run.",
+      },
+    };
+  }
+
+  it("restarts a pending run on the fallback when the worker never loads", async () => {
+    const primary = new FakeSolverTransport();
+    const client = new LayerSolverClient({
+      transport: new ResilientSolverTransport(primary),
+      createRunId: () => "resilient-run",
+    });
+
+    const run = client.run(input, { includeSymmetryVariants: false });
+    primary.emit(workerLoadFailure("resilient-run"));
+
+    await expect(run.result).resolves.toEqual(completedResult);
+    expect(primary.disposed).toBe(true);
+    client.dispose();
+  });
+
+  it("surfaces a worker error once the run has already produced responses", async () => {
+    const primary = new FakeSolverTransport();
+    const client = new LayerSolverClient({
+      transport: new ResilientSolverTransport(primary),
+      createRunId: () => "resilient-late",
+    });
+
+    const run = client.run(input);
+    primary.emit({
+      protocolVersion: SOLVER_WORKER_PROTOCOL_VERSION,
+      type: "progress",
+      runId: "resilient-late",
+      sequence: 1,
+      progress: progress(1),
+    });
+    primary.emit(workerLoadFailure("resilient-late"));
+
+    await expect(run.result).rejects.toBeInstanceOf(SolverWorkerError);
+    client.dispose();
+  });
+
+  it("routes later runs straight to the fallback after degrading", async () => {
+    const primary = new FakeSolverTransport();
+    let runIndex = 0;
+    const client = new LayerSolverClient({
+      transport: new ResilientSolverTransport(primary),
+      createRunId: () => `resilient-seq-${(runIndex += 1)}`,
+    });
+
+    const first = client.run(input, { includeSymmetryVariants: false });
+    primary.emit(workerLoadFailure("resilient-seq-1"));
+    await expect(first.result).resolves.toEqual(completedResult);
+
+    await expect(
+      client.solve(input, { includeSymmetryVariants: false }),
+    ).resolves.toEqual(completedResult);
+    expect(primary.requests).toHaveLength(1);
     client.dispose();
   });
 });

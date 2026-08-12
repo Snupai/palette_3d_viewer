@@ -191,8 +191,111 @@ export class SynchronousSolverTransport extends SubscribableSolverTransport {
   }
 }
 
+/**
+ * Wraps a primary transport and restarts the run on a fallback transport when
+ * the worker never starts — a stale chunk URL, a blocked script, or a browser
+ * that refuses module workers all surface as a `WorkerError` before any
+ * response has been dispatched. The restart is only safe while the run is still
+ * pending, because `LayerSolverClient` drops responses whose sequence is not
+ * strictly increasing.
+ */
+export class ResilientSolverTransport extends SubscribableSolverTransport {
+  private readonly pending = new Map<string, SolverStartMessage>();
+  private readonly fallbackRuns = new Set<string>();
+  private fallback: SolverWorkerTransport | null = null;
+  private unsubscribePrimary: (() => void) | null;
+  private primaryFailed = false;
+
+  constructor(
+    private readonly primary: SolverWorkerTransport,
+    private readonly createFallback: () => SolverWorkerTransport = () =>
+      new SynchronousSolverTransport(),
+  ) {
+    super();
+    this.unsubscribePrimary = primary.subscribe((message) =>
+      this.receivePrimary(message),
+    );
+  }
+
+  postMessage(message: SolverWorkerRequest): void {
+    if (message.type === "cancel") {
+      this.pending.delete(message.runId);
+      if (this.fallbackRuns.delete(message.runId)) {
+        this.fallback?.postMessage(message);
+      } else if (!this.primaryFailed) {
+        this.primary.postMessage(message);
+      }
+      return;
+    }
+
+    if (this.primaryFailed) {
+      this.startOnFallback(message);
+      return;
+    }
+
+    this.pending.set(message.runId, message);
+    try {
+      this.primary.postMessage(message);
+    } catch {
+      this.pending.delete(message.runId);
+      this.degrade();
+      this.startOnFallback(message);
+    }
+  }
+
+  private receivePrimary(message: SolverWorkerResponse): void {
+    const pendingStart = this.pending.get(message.runId);
+    this.pending.delete(message.runId);
+    if (
+      pendingStart &&
+      message.type === "error" &&
+      message.error.name === "WorkerError"
+    ) {
+      this.degrade();
+      this.startOnFallback(pendingStart);
+      return;
+    }
+    this.dispatch(message);
+  }
+
+  private startOnFallback(message: SolverStartMessage): void {
+    this.fallbackRuns.add(message.runId);
+    this.ensureFallback().postMessage(message);
+  }
+
+  private ensureFallback(): SolverWorkerTransport {
+    if (this.fallback) return this.fallback;
+    const fallback = this.createFallback();
+    fallback.subscribe((message) => {
+      if (message.type !== "progress") this.fallbackRuns.delete(message.runId);
+      this.dispatch(message);
+    });
+    this.fallback = fallback;
+    return fallback;
+  }
+
+  private degrade(): void {
+    if (this.primaryFailed) return;
+    this.primaryFailed = true;
+    this.unsubscribePrimary?.();
+    this.unsubscribePrimary = null;
+    this.primary.dispose();
+  }
+
+  override dispose(): void {
+    this.unsubscribePrimary?.();
+    this.unsubscribePrimary = null;
+    this.primary.dispose();
+    this.fallback?.dispose();
+    this.fallback = null;
+    this.pending.clear();
+    this.fallbackRuns.clear();
+    super.dispose();
+  }
+}
+
 export function createDefaultSolverTransport(): SolverWorkerTransport {
   return typeof window !== "undefined" && typeof Worker !== "undefined"
-    ? new BrowserSolverWorkerTransport()
+    ? new ResilientSolverTransport(new BrowserSolverWorkerTransport())
     : new SynchronousSolverTransport();
 }

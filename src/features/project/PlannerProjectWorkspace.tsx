@@ -10,6 +10,7 @@ import type {
   SolverCandidate,
   SolverResult,
 } from "~/domain/solver";
+import { createLayerSolverInputFromProject } from "~/domain/solver/projectInput";
 import { CandidateBrowser } from "~/features/candidates/CandidateBrowser";
 import type {
   GeneratorLaunchRequest,
@@ -145,6 +146,19 @@ const productionToolTitles: Record<ProductionTool, string> = {
 
 function projectLabel(project: Project): string {
   return project.projectNumber || project.productNumber || "Untitled project";
+}
+
+/**
+ * Reuses the real solver adapter so the invalidation signature can never drift
+ * from the fields the solver actually consumes. A project that cannot produce
+ * solver input yields `null`, which compares unequal to every real signature.
+ */
+function solverInputSignature(project: Project): string | null {
+  try {
+    return JSON.stringify(createLayerSolverInputFromProject(project));
+  } catch {
+    return null;
+  }
 }
 
 function diagnosticText(diagnostics: readonly RepositoryDiagnostic[]): string {
@@ -1410,7 +1424,17 @@ export function PlannerProjectWorkspace({
           project,
           generationIntent,
         }: ProjectDialogSubmission) => {
+          const previous = selectedProject;
           const saved = await saveProject(project);
+          if (
+            previous &&
+            previous.id === saved.id &&
+            solverInputSignature(previous) !== solverInputSignature(saved)
+          ) {
+            // Editing in place keeps `selectedId` stable, so the project-switch
+            // reset never runs and stale candidates would outlive their input.
+            resetSolver();
+          }
           if (!generationIntent) {
             setGeneratorLaunchRequest(null);
             return;

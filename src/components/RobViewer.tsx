@@ -209,7 +209,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
 
     const topLiftDistance = Math.max(150, data.package.height);
     const controlClass = (active: boolean) =>
-      `rounded px-2 py-1 text-[11px] font-medium transition ${
+      `cursor-pointer rounded px-2 py-1 text-[11px] font-medium transition ${
         active
           ? "bg-zinc-700 text-zinc-100"
           : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"

@@ -18,6 +18,7 @@ import type { Project, ProjectV2 } from "~/domain/project/projectSchema";
 import { normalizeStoredPallet } from "~/lib/palletPersistence";
 import { savedPalletToProject } from "~/lib/projectAdapters";
 import {
+  LEGACY_MIGRATIONS_STORE_NAME,
   PALLETS_STORE_NAME,
   PROJECTS_STORE_NAME,
   PROJECT_QUARANTINE_STORE_NAME,
@@ -36,6 +37,18 @@ export type RepositoryDiagnostic = {
   store: PlannerStoreName;
   recordId: string | null;
   path: (string | number)[];
+};
+
+/**
+ * Durable proof that a SavedPallet has already been turned into a project.
+ * The legacy store is never mutated by the migration, so without this marker a
+ * deliberately deleted project would be recreated on the next mount.
+ */
+export type LegacyMigrationMarker = {
+  /** SavedPallet id, not the project id — the source record is what we track. */
+  id: string;
+  projectId: string;
+  migratedAt: number;
 };
 
 export type QuarantineRecord = {
@@ -153,6 +166,7 @@ export class MemoryPlannerRecordStorage implements PlannerRecordStorage {
       PROJECTS_STORE_NAME,
       PROJECT_RESOURCES_STORE_NAME,
       PROJECT_QUARANTINE_STORE_NAME,
+      LEGACY_MIGRATIONS_STORE_NAME,
     ];
     names.forEach((name) => {
       const records = new Map<string, unknown>();
@@ -562,16 +576,34 @@ export class ProjectRepository {
         continue;
       }
 
+      const palletId = normalized.pallet.id;
+      if (conflictPolicy === "skip" && (await this.wasMigrated(palletId))) {
+        // The source pallet is never deleted, so only this marker keeps a
+        // deliberately removed project from reappearing on the next mount.
+        diagnostics.push({
+          severity: "warning",
+          code: "legacy-pallet-already-migrated",
+          message: `Saved pallet "${palletId}" was already migrated; it was not imported again.`,
+          store: PALLETS_STORE_NAME,
+          recordId: palletId,
+          path: [],
+        });
+        skippedCount += 1;
+        continue;
+      }
+
       let project = savedPalletToProject(normalized.pallet);
       const existing = await this.storage.get(PROJECTS_STORE_NAME, project.id);
       if (existing !== undefined) {
         if (conflictPolicy === "skip") {
+          // Backfill the marker for pallets migrated before markers existed.
+          await this.markMigrated(palletId, project.id);
           diagnostics.push({
             severity: "warning",
             code: "legacy-project-conflict-skipped",
             message: `Project "${project.id}" already exists; the saved pallet was not re-imported.`,
             store: PALLETS_STORE_NAME,
-            recordId: normalized.pallet.id,
+            recordId: palletId,
             path: ["id"],
           });
           skippedCount += 1;
@@ -588,6 +620,7 @@ export class ProjectRepository {
       }
 
       await this.storage.put(PROJECTS_STORE_NAME, project);
+      await this.markMigrated(palletId, project.id);
       projects.push(project);
     }
 
@@ -615,6 +648,35 @@ export class ProjectRepository {
         return typeof (row as { id?: unknown }).id === "string";
       })
       .sort((left, right) => right.quarantinedAt - left.quarantinedAt);
+  }
+
+  async listLegacyMigrations(): Promise<LegacyMigrationMarker[]> {
+    const rows = await this.storage.list(LEGACY_MIGRATIONS_STORE_NAME);
+    return rows
+      .filter((row): row is LegacyMigrationMarker => {
+        if (typeof row !== "object" || row === null) return false;
+        return typeof (row as { id?: unknown }).id === "string";
+      })
+      .sort((left, right) => right.migratedAt - left.migratedAt);
+  }
+
+  private async wasMigrated(palletId: string): Promise<boolean> {
+    return (
+      (await this.storage.get(LEGACY_MIGRATIONS_STORE_NAME, palletId)) !==
+      undefined
+    );
+  }
+
+  private async markMigrated(
+    palletId: string,
+    projectId: string,
+  ): Promise<void> {
+    const marker: LegacyMigrationMarker = {
+      id: palletId,
+      projectId,
+      migratedAt: this.now(),
+    };
+    await this.storage.put(LEGACY_MIGRATIONS_STORE_NAME, marker);
   }
 
   private projectDiagnostic(

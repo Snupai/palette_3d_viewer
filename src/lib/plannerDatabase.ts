@@ -1,16 +1,18 @@
 export const PLANNER_DATABASE_NAME = "pallets-db";
-export const PLANNER_DATABASE_VERSION = 3;
+export const PLANNER_DATABASE_VERSION = 4;
 
 export const PALLETS_STORE_NAME = "pallets";
 export const PROJECTS_STORE_NAME = "projects";
 export const PROJECT_RESOURCES_STORE_NAME = "project-resources";
 export const PROJECT_QUARANTINE_STORE_NAME = "project-quarantine";
+export const LEGACY_MIGRATIONS_STORE_NAME = "legacy-migrations";
 
 export type PlannerStoreName =
   | typeof PALLETS_STORE_NAME
   | typeof PROJECTS_STORE_NAME
   | typeof PROJECT_RESOURCES_STORE_NAME
-  | typeof PROJECT_QUARANTINE_STORE_NAME;
+  | typeof PROJECT_QUARANTINE_STORE_NAME
+  | typeof LEGACY_MIGRATIONS_STORE_NAME;
 
 const databasePromises = new WeakMap<IDBFactory, Promise<IDBDatabase>>();
 
@@ -68,6 +70,14 @@ function upgradeDatabase(request: IDBOpenDBRequest): void {
   ensureIndex(quarantine, "sourceStore", "sourceStore");
   ensureIndex(quarantine, "sourceId", "sourceId");
   ensureIndex(quarantine, "quarantinedAt", "quarantinedAt");
+
+  const legacyMigrations = ensureStore(
+    database,
+    transaction,
+    LEGACY_MIGRATIONS_STORE_NAME,
+  );
+  ensureIndex(legacyMigrations, "projectId", "projectId");
+  ensureIndex(legacyMigrations, "migratedAt", "migratedAt");
 }
 
 export function openPlannerDatabase(
