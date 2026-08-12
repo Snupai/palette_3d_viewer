@@ -30,6 +30,7 @@ function props(overrides?: Partial<LayerCanvasProps>): LayerCanvasProps {
     palletLength: 800,
     selectedGripIndex: 0,
     mergeSelection: new Set([0]),
+    groupingMode: false,
     onClearSelection: vi.fn(),
     onGripKeyboardSelect: vi.fn(),
     onSelectedGripMove: vi.fn(),
@@ -145,6 +146,26 @@ describe("LayerCanvas", () => {
 
     firePointerEvent(svg, "pointerdown");
     expect(onClearSelection).toHaveBeenCalledTimes(1);
+  });
+
+  it("turns touch taps into merge-selection toggles while grouping mode is active", () => {
+    const onGripPointerStart = vi.fn(() => false);
+    const canvasProps = props({
+      groupingMode: true,
+      onGripPointerStart,
+    });
+    const { container } = render(<LayerCanvas {...canvasProps} />);
+    const rect = container.querySelector<SVGRectElement>(
+      "[data-grip-index='0'][data-box-index='0']",
+    )!;
+
+    firePointerEvent(rect, "pointerdown", {
+      pointerId: 6,
+      clientX: 400,
+      clientY: 500,
+    });
+
+    expect(onGripPointerStart).toHaveBeenCalledWith(0, null, true);
   });
 
   it("exposes strong focus state, instructions, cycling, and one-unit movement", () => {

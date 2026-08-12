@@ -279,7 +279,7 @@ export default function HomePage() {
                         : Math.min(current ?? 0, nextGripCount - 1),
                     );
                   }}
-                  className="cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-zinc-500 focus:ring-0"
+                  className="min-h-11 cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-3 py-2 text-sm text-zinc-200 outline-none focus:border-zinc-500 focus:ring-0"
                 >
                   {uniqueLayerOptions.map((option) => (
                     <option key={option.id} value={option.id}>

@@ -152,12 +152,12 @@ describe("LayerEditor2D critical flows", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Split into singles" }));
+    fireEvent.click(screen.getByRole("button", { name: "Split group" }));
     const split = latestCommitted(onCommit);
     expect(split).toHaveLength(2);
     expect(split.every((item) => item.numPackages === 1)).toBe(true);
 
-    fireEvent.click(screen.getByRole("button", { name: "Merge selected (2)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Merge group (2)" }));
     const merged = latestCommitted(onCommit);
     expect(merged).toHaveLength(1);
     expect(merged[0]?.numPackages).toBe(2);
@@ -173,6 +173,46 @@ describe("LayerEditor2D critical flows", () => {
       y: 400,
       rotation: 0,
       numPackages: 1,
+    });
+  });
+
+  it("lets touch users build a merge group without modifier keys", () => {
+    const onCommit = vi.fn();
+    const { container } = render(
+      <EditorHarness
+        initialGrips={[grip("first", { x: 500 }), grip("second", { x: 700 })]}
+        initialSelectedGripIndex={null}
+        onCommit={onCommit}
+      />,
+    );
+    const groupingMode = screen.getByRole("button", {
+      name: "Grouping mode",
+    });
+
+    fireEvent.click(groupingMode);
+    expect(groupingMode.getAttribute("aria-pressed")).toBe("true");
+
+    const first = container.querySelector<SVGRectElement>(
+      "[data-grip-index='0'][data-box-index='0']",
+    )!;
+    const second = container.querySelector<SVGRectElement>(
+      "[data-grip-index='1'][data-box-index='0']",
+    )!;
+    firePointerEvent(first, "pointerdown", { pointerId: 11 });
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Merge group (1)" })
+        .disabled,
+    ).toBe(true);
+
+    firePointerEvent(second, "pointerdown", { pointerId: 12 });
+    fireEvent.click(screen.getByRole("button", { name: "Merge group (2)" }));
+
+    const merged = latestCommitted(onCommit);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({
+      x: 600,
+      y: 400,
+      numPackages: 2,
     });
   });
 
@@ -310,6 +350,26 @@ describe("LayerEditor2D critical flows", () => {
       pickX: 205,
     });
     expect(latestCommitted(onCommit)[0]?.id).toBe("first");
+  });
+
+  it("nudges the selected grip with touch-sized inspector controls", () => {
+    const onCommit = vi.fn();
+    render(
+      <EditorHarness
+        initialGrips={[grip("nudge", { x: 300, pickX: 100 })]}
+        onCommit={onCommit}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Move right 10 millimeters" }),
+    );
+
+    expect(latestCommitted(onCommit)[0]).toMatchObject({
+      id: "nudge",
+      x: 310,
+      pickX: 110,
+    });
   });
 
   it("stops keyboard movement at collisions", () => {

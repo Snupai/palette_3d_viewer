@@ -91,11 +91,13 @@ export type LayerEditorController = {
   previewGrips: Grip[];
   selectedGrip: Grip | null;
   mergeSelection: ReadonlySet<number>;
+  groupingMode: boolean;
   message: string | null;
   draft: LayerEditorDraft;
   history: LayerEditorHistory;
   clearSelection: () => void;
   selectGrip: (gripIndex: number) => void;
+  toggleGroupingMode: () => void;
   moveSelectedGrip: (deltaX: number, deltaY: number) => void;
   beginPointerInteraction: (
     gripIndex: number,
@@ -163,6 +165,7 @@ export function useLayerEditor({
   const palletLength = pallet?.length ?? 800;
   const [drag, setDrag] = useState<DragState | null>(null);
   const [mergeSelection, setMergeSelection] = useState<Set<number>>(new Set());
+  const [groupingMode, setGroupingMode] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
   const previewGrips = useMemo(() => {
@@ -190,6 +193,7 @@ export function useLayerEditor({
   useEffect(() => {
     setDrag(null);
     setMergeSelection(new Set());
+    setGroupingMode(false);
     setMessage(null);
   }, [uniqueLayerId]);
 
@@ -284,12 +288,42 @@ export function useLayerEditor({
     setMessage(null);
   };
 
+  const toggleGroupingMode = () => {
+    const nextGroupingMode = !groupingMode;
+    setGroupingMode(nextGroupingMode);
+    setMessage(null);
+    if (
+      nextGroupingMode &&
+      mergeSelection.size === 0 &&
+      selectedGripIndex !== null &&
+      grips[selectedGripIndex]
+    ) {
+      setMergeSelection(new Set([selectedGripIndex]));
+    }
+  };
+
   const selectGrip = (gripIndex: number) => {
     if (!grips[gripIndex]) return;
     setDrag(null);
     setMergeSelection(new Set([gripIndex]));
     setMessage(null);
     onSelectGrip(gripIndex);
+  };
+
+  const toggleGripMergeSelection = (gripIndex: number) => {
+    if (!grips[gripIndex]) return;
+    setDrag(null);
+    setMessage(null);
+    const next = new Set(mergeSelection);
+    if (next.has(gripIndex)) {
+      next.delete(gripIndex);
+      const fallbackIndex = [...next].sort((a, b) => a - b)[0] ?? null;
+      onSelectGrip(fallbackIndex);
+    } else {
+      next.add(gripIndex);
+      onSelectGrip(gripIndex);
+    }
+    setMergeSelection(next);
   };
 
   const moveSelectedGrip = (deltaX: number, deltaY: number) => {
@@ -323,18 +357,13 @@ export function useLayerEditor({
     const grip = previewGrips[gripIndex];
     if (!grip) return false;
     setMessage(null);
-    onSelectGrip(gripIndex);
 
-    if (extendMergeSelection) {
-      setMergeSelection((current) => {
-        const next = new Set(current);
-        if (next.has(gripIndex)) next.delete(gripIndex);
-        else next.add(gripIndex);
-        return next;
-      });
+    if (extendMergeSelection || groupingMode) {
+      toggleGripMergeSelection(gripIndex);
       return false;
     }
 
+    onSelectGrip(gripIndex);
     setMergeSelection(new Set([gripIndex]));
     if (!point) return false;
     setDrag({
@@ -684,6 +713,7 @@ export function useLayerEditor({
     previewGrips,
     selectedGrip,
     mergeSelection,
+    groupingMode,
     message,
     draft,
     history: {
@@ -702,6 +732,7 @@ export function useLayerEditor({
     },
     clearSelection,
     selectGrip,
+    toggleGroupingMode,
     moveSelectedGrip,
     beginPointerInteraction,
     updatePointerDrag,

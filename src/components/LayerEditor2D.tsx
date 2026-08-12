@@ -6,6 +6,11 @@ import { LayerCanvas } from "~/components/layer-editor/LayerCanvas";
 import type { Grip } from "~/domain/palletTypes";
 import { useLayerEditor } from "~/hooks/useLayerEditor";
 
+const BASE_BUTTON_CLASS =
+  "min-h-11 cursor-pointer touch-manipulation rounded-md px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40";
+const NEUTRAL_BUTTON_CLASS = `${BASE_BUTTON_CLASS} border border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100`;
+const DANGER_BUTTON_CLASS = `${BASE_BUTTON_CLASS} border border-red-500/30 text-red-300 hover:bg-red-500/10`;
+
 export type LayerEditor2DProps = {
   uniqueLayerId: number;
   grips: Grip[];
@@ -121,8 +126,8 @@ export function LayerEditor2D({
           </div>
         </div>
         {layerSelector}
-        <div className="flex flex-wrap gap-2">
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-2 lg:items-end">
+          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
             <span
               className={`text-xs ${
                 history.hasUnsavedChanges ? "text-amber-300" : "text-zinc-500"
@@ -137,7 +142,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onSave}
               disabled={!history.hasUnsavedChanges || history.isSaving}
-              className="cursor-pointer rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600"
+              className="min-h-11 cursor-pointer touch-manipulation rounded-md bg-zinc-100 px-3 py-2 text-sm font-medium text-zinc-900 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600"
             >
               {history.isSaving ? "Saving…" : "Save changes"}
             </button>
@@ -145,7 +150,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onDiscard}
               disabled={!history.hasUnsavedChanges || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className={NEUTRAL_BUTTON_CLASS}
             >
               Discard changes
             </button>
@@ -153,7 +158,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onUndo}
               disabled={!history.canUndo || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className={NEUTRAL_BUTTON_CLASS}
             >
               Undo
             </button>
@@ -161,7 +166,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onRedo}
               disabled={!history.canRedo || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className={NEUTRAL_BUTTON_CLASS}
             >
               Redo
             </button>
@@ -175,44 +180,72 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onResetToOriginal}
               disabled={!history.canResetToOriginal || history.isSaving}
-              className="cursor-pointer rounded-md border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className={DANGER_BUTTON_CLASS}
             >
               Reset to original
             </button>
           </div>
-          <button
-            type="button"
-            onClick={editor.addPackage}
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100"
+          <div
+            role="group"
+            aria-label="Package editing"
+            className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end"
           >
-            Add package
-          </button>
-          <button
-            type="button"
-            onClick={editor.splitSelected}
-            disabled={
-              !editor.selectedGrip || editor.selectedGrip.numPackages <= 1
-            }
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Split into singles
-          </button>
-          <button
-            type="button"
-            onClick={editor.mergeSelected}
-            disabled={editor.mergeSelection.size < 2}
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Merge selected ({editor.mergeSelection.size})
-          </button>
-          <button
-            type="button"
-            onClick={editor.deleteSelected}
-            disabled={!editor.selectedGrip}
-            className="cursor-pointer rounded-md border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Delete group
-          </button>
+            <button
+              type="button"
+              onClick={editor.addPackage}
+              className={NEUTRAL_BUTTON_CLASS}
+            >
+              Add package
+            </button>
+            <button
+              type="button"
+              onClick={editor.splitSelected}
+              disabled={
+                !editor.selectedGrip || editor.selectedGrip.numPackages <= 1
+              }
+              className={NEUTRAL_BUTTON_CLASS}
+            >
+              Split group
+            </button>
+            <button
+              type="button"
+              onClick={editor.toggleGroupingMode}
+              aria-pressed={editor.groupingMode}
+              className={`${BASE_BUTTON_CLASS} border ${
+                editor.groupingMode
+                  ? "border-amber-300 bg-amber-400 text-zinc-950 hover:bg-amber-300"
+                  : "border-zinc-700 text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+              }`}
+            >
+              Grouping mode
+            </button>
+            <button
+              type="button"
+              onClick={editor.mergeSelected}
+              disabled={editor.mergeSelection.size < 2}
+              className={NEUTRAL_BUTTON_CLASS}
+            >
+              Merge group ({editor.mergeSelection.size})
+            </button>
+            <button
+              type="button"
+              onClick={editor.clearSelection}
+              disabled={
+                editor.mergeSelection.size === 0 && !editor.selectedGrip
+              }
+              className={NEUTRAL_BUTTON_CLASS}
+            >
+              Clear group
+            </button>
+            <button
+              type="button"
+              onClick={editor.deleteSelected}
+              disabled={!editor.selectedGrip}
+              className={DANGER_BUTTON_CLASS}
+            >
+              Delete group
+            </button>
+          </div>
         </div>
       </div>
 
@@ -229,6 +262,7 @@ export function LayerEditor2D({
           palletLength={editor.palletLength}
           selectedGripIndex={selectedGripIndex}
           mergeSelection={editor.mergeSelection}
+          groupingMode={editor.groupingMode}
           onClearSelection={editor.clearSelection}
           onGripKeyboardSelect={editor.selectGrip}
           onSelectedGripMove={editor.moveSelectedGrip}
@@ -247,6 +281,7 @@ export function LayerEditor2D({
           onDraftCommit={editor.commitDraftField}
           onDraftReset={editor.resetDraft}
           onRotate={editor.rotateSelected}
+          onNudge={editor.moveSelectedGrip}
         />
       </div>
     </section>

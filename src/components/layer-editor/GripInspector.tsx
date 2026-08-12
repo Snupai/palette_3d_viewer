@@ -14,10 +14,12 @@ export type GripInspectorProps = {
   onDraftCommit: (field: LayerEditorDraftField) => void;
   onDraftReset: () => void;
   onRotate: () => void;
+  onNudge: (deltaX: number, deltaY: number) => void;
 };
 
 const INPUT_CLASS =
-  "w-full rounded-md border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-xs text-zinc-100 outline-none focus:border-zinc-500 focus:ring-0";
+  "min-h-11 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm text-zinc-100 outline-none focus:border-zinc-500 focus:ring-0";
+const NUDGE_STEP_MM = 10;
 
 export function GripInspector({
   selectedGripIndex,
@@ -29,6 +31,7 @@ export function GripInspector({
   onDraftCommit,
   onDraftReset,
   onRotate,
+  onNudge,
 }: GripInspectorProps) {
   const fieldInput = (
     label: string,
@@ -43,6 +46,8 @@ export function GripInspector({
       <span>{label}</span>
       <input
         type="number"
+        inputMode="numeric"
+        step={1}
         value={draft[field]}
         readOnly={options?.readOnly}
         disabled={!selectedGrip}
@@ -57,6 +62,23 @@ export function GripInspector({
         }`}
       />
     </label>
+  );
+  const nudgeButton = (
+    label: string,
+    display: string,
+    deltaX: number,
+    deltaY: number,
+    className = "",
+  ) => (
+    <button
+      type="button"
+      aria-label={label}
+      onClick={() => onNudge(deltaX, deltaY)}
+      disabled={!selectedGrip}
+      className={`min-h-11 cursor-pointer touch-manipulation rounded-md border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40 ${className}`}
+    >
+      {display}
+    </button>
   );
 
   return (
@@ -74,6 +96,44 @@ export function GripInspector({
         {fieldInput("Place X", "x")}
         {fieldInput("Place Y", "y")}
         {fieldInput("Place rotation", "rotation", { fullWidth: true })}
+      </div>
+      <div className="mt-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-xs font-medium text-zinc-400">Nudge</p>
+          <span className="font-mono text-[10px] text-zinc-500">
+            {NUDGE_STEP_MM} mm
+          </span>
+        </div>
+        <div className="grid grid-cols-3 gap-2">
+          {nudgeButton(
+            `Move up ${NUDGE_STEP_MM} millimeters`,
+            "↑",
+            0,
+            NUDGE_STEP_MM,
+            "col-start-2 row-start-1",
+          )}
+          {nudgeButton(
+            `Move left ${NUDGE_STEP_MM} millimeters`,
+            "←",
+            -NUDGE_STEP_MM,
+            0,
+            "col-start-1 row-start-2",
+          )}
+          {nudgeButton(
+            `Move down ${NUDGE_STEP_MM} millimeters`,
+            "↓",
+            0,
+            -NUDGE_STEP_MM,
+            "col-start-2 row-start-2",
+          )}
+          {nudgeButton(
+            `Move right ${NUDGE_STEP_MM} millimeters`,
+            "→",
+            NUDGE_STEP_MM,
+            0,
+            "col-start-3 row-start-2",
+          )}
+        </div>
       </div>
       <p className="mt-4 mb-2 text-xs font-medium text-zinc-400">Pick pose</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-2">
@@ -100,7 +160,7 @@ export function GripInspector({
         type="button"
         onClick={onRotate}
         disabled={!selectedGrip}
-        className="mt-3 w-full cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+        className="mt-3 min-h-11 w-full cursor-pointer touch-manipulation rounded-md border border-zinc-700 px-3 py-2 text-sm font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
       >
         Rotate 90°
       </button>

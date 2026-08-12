@@ -36,6 +36,7 @@ describe("GripInspector", () => {
     const onDraftCommit = vi.fn();
     const onDraftReset = vi.fn();
     const onRotate = vi.fn();
+    const onNudge = vi.fn();
 
     render(
       <GripInspector
@@ -48,6 +49,7 @@ describe("GripInspector", () => {
         onDraftCommit={onDraftCommit}
         onDraftReset={onDraftReset}
         onRotate={onRotate}
+        onNudge={onNudge}
       />,
     );
 
@@ -64,6 +66,10 @@ describe("GripInspector", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Rotate 90°" }));
     expect(onRotate).toHaveBeenCalledTimes(1);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Move right 10 millimeters" }),
+    );
+    expect(onNudge).toHaveBeenCalledWith(10, 0);
     expect(screen.getByText("1/2")).toBeTruthy();
     expect(screen.getByRole("status").textContent).toBe("Editor message");
   });
@@ -89,6 +95,7 @@ describe("GripInspector", () => {
         onDraftCommit={vi.fn()}
         onDraftReset={vi.fn()}
         onRotate={vi.fn()}
+        onNudge={vi.fn()}
       />,
     );
 
@@ -98,6 +105,11 @@ describe("GripInspector", () => {
     expect(
       screen.getByRole<HTMLButtonElement>("button", { name: "Rotate 90°" })
         .disabled,
+    ).toBe(true);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Move right 10 millimeters",
+      }).disabled,
     ).toBe(true);
     expect(screen.getByText("none")).toBeTruthy();
   });

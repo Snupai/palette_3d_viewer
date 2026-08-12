@@ -20,6 +20,7 @@ export type LayerCanvasProps = {
   palletLength: number;
   selectedGripIndex: number | null;
   mergeSelection: ReadonlySet<number>;
+  groupingMode: boolean;
   onClearSelection: () => void;
   onGripKeyboardSelect: (gripIndex: number) => void;
   onSelectedGripMove: (deltaX: number, deltaY: number) => void;
@@ -143,6 +144,7 @@ export function LayerCanvas({
   palletLength,
   selectedGripIndex,
   mergeSelection,
+  groupingMode,
   onClearSelection,
   onGripKeyboardSelect,
   onSelectedGripMove,
@@ -251,10 +253,11 @@ export function LayerCanvas({
     gripIndex: number,
   ) => {
     event.stopPropagation();
-    const point = event.shiftKey
+    const extendMergeSelection = event.shiftKey || groupingMode;
+    const point = extendMergeSelection
       ? null
       : clientToPallet(event.clientX, event.clientY);
-    if (onGripPointerStart(gripIndex, point, event.shiftKey)) {
+    if (onGripPointerStart(gripIndex, point, extendMergeSelection)) {
       event.currentTarget.setPointerCapture(event.pointerId);
     }
   };
@@ -280,7 +283,9 @@ export function LayerCanvas({
         first and last grip. Page Up or left bracket selects the previous grip;
         Page Down or right bracket selects the next grip. Arrow keys move the
         selected grip one millimeter, with pallet support and collision limits.
-        Continue with Tab to edit the selected grip in Grip details.
+        Continue with Tab to edit the selected grip in Grip details. When
+        grouping mode is active, tapping packages adds or removes them from the
+        merge group.
       </p>
       <p
         id={selectionStatusId}
@@ -387,9 +392,34 @@ export function LayerCanvas({
                   width,
                   length,
                 );
+                const pointerClassName = groupingMode
+                  ? "cursor-pointer"
+                  : "cursor-grab active:cursor-grabbing";
+                const pointerHandlers = {
+                  onPointerDown: (event: ReactPointerEvent<SVGRectElement>) =>
+                    startPointerInteraction(event, gripIndex),
+                  onPointerMove: updatePointerInteraction,
+                  onPointerUp: finishPointerInteraction,
+                  onPointerCancel: onGripPointerCancel,
+                };
                 return (
                   <g key={`${grip.id}-${boxIndex}`}>
                     <rect
+                      x={box.rect.x - width / 2}
+                      y={svgY - length / 2}
+                      width={width}
+                      height={length}
+                      fill="transparent"
+                      stroke="transparent"
+                      strokeWidth={28}
+                      vectorEffect="non-scaling-stroke"
+                      pointerEvents="stroke"
+                      className={pointerClassName}
+                      {...pointerHandlers}
+                    />
+                    <rect
+                      data-grip-index={gripIndex}
+                      data-box-index={boxIndex}
                       x={box.rect.x - width / 2}
                       y={svgY - length / 2}
                       width={width}
@@ -407,13 +437,8 @@ export function LayerCanvas({
                       }
                       strokeWidth={isPrimary ? 3 : 2}
                       vectorEffect="non-scaling-stroke"
-                      className="cursor-grab active:cursor-grabbing"
-                      onPointerDown={(event) =>
-                        startPointerInteraction(event, gripIndex)
-                      }
-                      onPointerMove={updatePointerInteraction}
-                      onPointerUp={finishPointerInteraction}
-                      onPointerCancel={onGripPointerCancel}
+                      className={pointerClassName}
+                      {...pointerHandlers}
                     />
                     {path ? (
                       <path
