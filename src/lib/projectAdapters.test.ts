@@ -10,6 +10,7 @@ import {
   applyProjectEditorCommand,
   projectEditorOrderModel,
 } from "~/features/editor/editorModel";
+import { updateProject } from "~/domain/project/projectFactory";
 import { semanticRobPlanFingerprint } from "~/lib/parityGoldenCase";
 import type { SavedPallet } from "~/lib/palletTypes";
 import { parseRobText, serializeRobText } from "~/lib/robParser";
@@ -106,6 +107,67 @@ describe("project v2 adapters", () => {
       width: 1100,
       length: 700,
     });
+  });
+
+  it("maps upper-corner placement labels to the opposite descent side in preview fallbacks", () => {
+    const baseProject = savedPalletToProject(savedPallet());
+    const solution = baseProject.solutions[0]!;
+    const pattern = solution.patterns[0]!;
+    const project = updateProject(baseProject, {
+      solutions: [
+        {
+          ...solution,
+          patterns: [
+            {
+              ...pattern,
+              grips: [],
+              groupOrder: [],
+              orderDependencies: [],
+              placements: [
+                {
+                  id: "top-left-placement",
+                  sequence: 0,
+                  positionMm: { x: 100, y: 100 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: "top_left",
+                },
+                {
+                  id: "top-right-placement",
+                  sequence: 1,
+                  positionMm: { x: 300, y: 100 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: "top_right",
+                },
+              ],
+            },
+          ],
+          stack: {
+            ...solution.stack,
+            layers: [
+              {
+                ...solution.stack.layers[0]!,
+                patternId: pattern.id,
+              },
+            ],
+          },
+          robotCycles: [],
+        },
+      ],
+      activeSolutionId: solution.id,
+    });
+
+    const projected = projectSolutionToPalletData(project);
+
+    expect(projected.uniqueLayers[1]?.map(({ blueLine }) => blueLine)).toEqual([
+      "top_left",
+      "top_right",
+    ]);
+    expect(projected.layers[0]?.boxes.map(({ blueLine }) => blueLine)).toEqual([
+      "top_left",
+      "top_right",
+    ]);
   });
 
   it("keeps retained legacy text untouched while editor order remains serializable", () => {

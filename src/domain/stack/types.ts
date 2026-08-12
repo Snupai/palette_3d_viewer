@@ -94,6 +94,10 @@ export type StackPatternLabelOrientationPolicy = {
   allowedRotations: readonly Rotation[];
 };
 
+export type StackPatternGeneratedGripPolicy = {
+  maxReferenceGapMm: number;
+};
+
 export type StackPattern = {
   /** Stable reference used by editable stack layers. */
   ref: string;
@@ -109,6 +113,7 @@ export type StackPattern = {
   transformFrameMm: RectangleBoundsMm | null;
   transformFrameProvenance: MetricProvenance;
   labelOrientationPolicy?: StackPatternLabelOrientationPolicy | null;
+  generatedGripPolicy?: StackPatternGeneratedGripPolicy | null;
   provenance: StackPatternProvenance;
 };
 

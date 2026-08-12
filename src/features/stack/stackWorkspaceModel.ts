@@ -198,6 +198,7 @@ export function materializeStackWorkspace(
         transformFrameMm:
           solverInput.generationBoundsMm ?? solverInput.envelopeMm,
         labelOrientationPolicy: solverLabelOrientationPolicy(solverInput),
+        maxReferenceGapMm: solverInput.package.clearanceMm,
       }),
     ),
     layers: state.layers,
@@ -335,6 +336,7 @@ export function projectWithPersistedStack(
         stackPatternFromSolverCandidate(candidate, {
           transformFrameMm,
           labelOrientationPolicy: solverLabelOrientationPolicy(solverInput),
+          maxReferenceGapMm: solverInput.package.clearanceMm,
         }),
         transform,
         project.package.dimensionsMm,

@@ -147,6 +147,7 @@ export type SolverCandidateStackPatternOptions = {
   transformFrameMm?: RectangleBoundsMm | null;
   transformFrameProvenance?: MetricProvenance;
   labelOrientationPolicy?: StackPatternLabelOrientationPolicy | null;
+  maxReferenceGapMm?: number;
 };
 
 export function stackPatternFromSolverCandidate(
@@ -221,6 +222,9 @@ export function stackPatternFromSolverCandidate(
           ],
         }
       : null,
+    generatedGripPolicy: {
+      maxReferenceGapMm: options.maxReferenceGapMm ?? 0,
+    },
     provenance: {
       kind: "solver-candidate",
       candidateId: candidate.id,

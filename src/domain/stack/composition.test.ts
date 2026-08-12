@@ -49,6 +49,65 @@ function pattern(ref: string): StackPattern {
   };
 }
 
+function generatedGridPattern(): StackPattern {
+  const grips = [
+    ["right-bottom", 150, 50, 1, 0, 0],
+    ["right-top", 150, 150, 2, 0, -1],
+    ["left-bottom", 50, 50, 3, 1, 0],
+    ["left-top", 50, 150, 4, 1, -1],
+  ] as const;
+  return {
+    ref: "generated-grid",
+    name: "generated-grid",
+    placements: grips.map(([sourceGripId, x, y], sequence) => ({
+      sourcePlacementId: `${sourceGripId}-placement`,
+      sequence,
+      positionMm: { x, y },
+      rotation: 0,
+      gripId: sourceGripId,
+      labelSide: null,
+    })),
+    grips: grips.map(
+      ([sourceGripId, x, y, groupNumber, dx, dy], sequence) => ({
+        sourceGripId,
+        groupNumber,
+        sequence,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0,
+        x,
+        y,
+        rotation: 0,
+        numPackages: 1,
+        dx,
+        dy,
+      }),
+    ),
+    groupOrder: grips.map(([sourceGripId]) => sourceGripId),
+    orderDependencies: [
+      { beforeGripId: "right-bottom", afterGripId: "right-top" },
+      { beforeGripId: "right-bottom", afterGripId: "left-bottom" },
+      { beforeGripId: "right-top", afterGripId: "left-top" },
+      { beforeGripId: "left-bottom", afterGripId: "left-top" },
+    ],
+    cycles: [],
+    cycleCount: 4,
+    cycleCountProvenance: derived,
+    transformFrameMm: { minX: 0, minY: 0, maxX: 200, maxY: 200 },
+    transformFrameProvenance: derived,
+    generatedGripPolicy: { maxReferenceGapMm: 0 },
+    provenance: {
+      kind: "solver-candidate",
+      candidateId: "candidate",
+      geometryId: "geometry",
+      identityFingerprint: "identity",
+      geometryFingerprint: "geometry-fingerprint",
+      rank: 1,
+      generators: [],
+    },
+  };
+}
+
 function materializeMode(mode: StackCompositionMode) {
   return materializeStack({
     package: {
@@ -157,6 +216,116 @@ describe("stack composition transforms", () => {
         width: 10,
       }),
     ).toThrow(/cannot preserve the selected physical label face/);
+  });
+
+  it.each([
+    [
+      "mirror-x",
+      ["left-bottom", "left-top", "right-bottom", "right-top"],
+      [
+        [150, 50],
+        [150, 150],
+        [50, 50],
+        [50, 150],
+      ],
+    ],
+    [
+      "rotate-90",
+      ["left-bottom", "right-bottom", "left-top", "right-top"],
+      [
+        [150, 50],
+        [150, 150],
+        [50, 50],
+        [50, 150],
+      ],
+    ],
+  ] as const)(
+    "replans generated grips after %s from physical right-bottom to left-top",
+    (transform, expectedOrder, expectedCenters) => {
+      const transformed = transformStackPattern(
+        generatedGridPattern(),
+        transform,
+        { length: 100, width: 100 },
+      );
+
+      expect(transformed.groupOrder).toEqual(expectedOrder);
+      expect(
+        transformed.grips.map(
+          ({ sourceGripId, sequence, x, y, dx, dy }) => ({
+            sourceGripId,
+            sequence,
+            x,
+            y,
+            dx,
+            dy,
+          }),
+        ),
+      ).toEqual(
+        expectedOrder.map((sourceGripId, sequence) => ({
+          sourceGripId,
+          sequence,
+          x: expectedCenters[sequence]![0],
+          y: expectedCenters[sequence]![1],
+          dx: sequence < 2 ? 0 : 1,
+          dy: sequence % 2 === 0 ? 0 : -1,
+        })),
+      );
+      expect(transformed.orderDependencies).toEqual([
+        {
+          beforeGripId: expectedOrder[0],
+          afterGripId: expectedOrder[1],
+        },
+        {
+          beforeGripId: expectedOrder[0],
+          afterGripId: expectedOrder[2],
+        },
+        {
+          beforeGripId: expectedOrder[1],
+          afterGripId: expectedOrder[3],
+        },
+        {
+          beforeGripId: expectedOrder[2],
+          afterGripId: expectedOrder[3],
+        },
+      ].sort(
+        (left, right) =>
+          left.beforeGripId.localeCompare(right.beforeGripId) ||
+          left.afterGripId.localeCompare(right.afterGripId),
+      ));
+    },
+  );
+
+  it("preserves project-defined grip order while transforming its geometry and deltas", () => {
+    const generated = generatedGridPattern();
+    const projectPattern: StackPattern = {
+      ...generated,
+      provenance: {
+        kind: "project-pattern",
+        projectSchemaVersion: 3,
+        projectId: "project",
+        solutionId: "solution",
+        solutionOrigin: "imported",
+        patternId: "imported-pattern",
+      },
+    };
+    const transformed = transformStackPattern(projectPattern, "mirror-x", {
+      length: 100,
+      width: 100,
+    });
+
+    expect(transformed.groupOrder).toEqual(generated.groupOrder);
+    expect(transformed.grips.map(({ sourceGripId }) => sourceGripId)).toEqual(
+      generated.grips.map(({ sourceGripId }) => sourceGripId),
+    );
+    expect(transformed.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: -1 },
+      { dx: -1, dy: 0 },
+      { dx: -1, dy: -1 },
+    ]);
+    expect(transformed.orderDependencies).toEqual(
+      generated.orderDependencies,
+    );
   });
 });
 

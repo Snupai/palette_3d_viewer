@@ -4,6 +4,10 @@ import {
   type RectangleBoundsMm,
   type RectangleSizeMm,
 } from "~/domain/geometry";
+import {
+  compareGripPositionsRightBottomToLeftTop,
+  deriveGripDeltasForPlacementOrder,
+} from "~/domain/gripDependencies";
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import { selectAuthorizedYawForWorldLabel } from "~/domain/solver/labelOrientation";
 import type { Side } from "~/domain/palletTypes";
@@ -159,6 +163,75 @@ function transformCycle(
   };
 }
 
+function replanGeneratedGrips(
+  pattern: StackPattern,
+  transformedGrips: readonly StackPatternGrip[],
+  packageSize: RectangleSizeMm,
+): Pick<TransformedStackPattern, "grips" | "groupOrder" | "orderDependencies"> {
+  if (
+    pattern.provenance.kind !== "solver-candidate" ||
+    !pattern.generatedGripPolicy
+  ) {
+    return {
+      grips: transformedGrips.map((grip) => ({ ...grip })),
+      groupOrder: [...pattern.groupOrder],
+      orderDependencies: pattern.orderDependencies.map((dependency) => ({
+        ...dependency,
+      })),
+    };
+  }
+
+  const orderedGrips = [...transformedGrips]
+    .sort(
+      (left, right) =>
+        compareGripPositionsRightBottomToLeftTop(left, right) ||
+        left.sourceGripId.localeCompare(right.sourceGripId),
+    )
+    .map((grip, sequence) => ({ ...grip, sequence }));
+  const derived = deriveGripDeltasForPlacementOrder(
+    orderedGrips.map((grip) => ({
+      id: grip.sourceGripId,
+      pickX: grip.pickX,
+      pickY: grip.pickY,
+      pickRotation: grip.pickRotation,
+      x: grip.x,
+      y: grip.y,
+      rotation: grip.rotation,
+      numPackages: grip.numPackages,
+      dx: grip.dx,
+      dy: grip.dy,
+    })),
+    packageSize.length,
+    packageSize.width,
+    0,
+    { maxReferenceGapMm: pattern.generatedGripPolicy.maxReferenceGapMm },
+  );
+  const grips = orderedGrips.map((grip, index) => ({
+    ...grip,
+    dx: derived.deltas[index]?.dx ?? 0,
+    dy: derived.deltas[index]?.dy ?? 0,
+  }));
+  const orderDependencies = derived.dependencies
+    .flatMap(({ prerequisiteIndex, dependentIndex }) => {
+      const beforeGripId = grips[prerequisiteIndex]?.sourceGripId;
+      const afterGripId = grips[dependentIndex]?.sourceGripId;
+      return beforeGripId && afterGripId
+        ? [{ beforeGripId, afterGripId }]
+        : [];
+    })
+    .sort(
+      (left, right) =>
+        left.beforeGripId.localeCompare(right.beforeGripId) ||
+        left.afterGripId.localeCompare(right.afterGripId),
+    );
+
+  return {
+    grips,
+    groupOrder: grips.map(({ sourceGripId }) => sourceGripId),
+    orderDependencies,
+  };
+}
+
 export function transformStackPattern(
   pattern: StackPattern,
   transform: StackLayerTransform,
@@ -251,7 +324,7 @@ export function transformStackPattern(
       labelSide,
     };
   });
-  const grips = pattern.grips.map((grip) => {
+  const transformedGrips = pattern.grips.map((grip) => {
     const transformed = transformGrip(grip, frame, transform);
     if (!pattern.labelOrientationPolicy) return transformed;
     const assigned = placements.filter(
@@ -266,14 +339,15 @@ export function transformStackPattern(
     }
     return { ...transformed, rotation: memberRotation };
   });
+  const plannedGrips = replanGeneratedGrips(
+    pattern,
+    transformedGrips,
+    packageSize,
+  );
 
   return {
     placements,
-    grips,
-    groupOrder: [...pattern.groupOrder],
-    orderDependencies: pattern.orderDependencies.map((dependency) => ({
-      ...dependency,
-    })),
+    ...plannedGrips,
     cycles: pattern.cycles.map((cycle) =>
       transformCycle(cycle, frame, transform),
     ),

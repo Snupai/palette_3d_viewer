@@ -236,6 +236,106 @@ describe("stack workspace persistence", () => {
     expect(reopened.packageLayers[0]?.grips[0]?.rotation).toBe(180);
   });
 
+  it("persists transformed generated grip planning and Robotics follows the physical order", () => {
+    const baseCandidate = candidate(4, 4);
+    const gripGeometry = [
+      ["right-bottom", 150, 50, 1, 0, 0],
+      ["right-top", 150, 150, 2, 0, -1],
+      ["left-bottom", 50, 50, 3, 1, 0],
+      ["left-top", 50, 150, 4, 1, -1],
+    ] as const;
+    const gridCandidate: SolverCandidate = {
+      ...baseCandidate,
+      placements: gripGeometry.map(([id, x, y], sequence) => ({
+        sequence,
+        positionMm: { x, y },
+        rotation: 0,
+        labelSide: null,
+        gripId: id,
+      })),
+      grips: gripGeometry.map(
+        ([id, x, y, groupNumber, dx, dy], sequence) => ({
+          id,
+          groupNumber,
+          sequence,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x,
+          y,
+          rotation: 0,
+          numPackages: 1,
+          dx,
+          dy,
+        }),
+      ),
+      orderDependencies: [
+        { beforeGripId: "right-bottom", afterGripId: "right-top" },
+        { beforeGripId: "right-bottom", afterGripId: "left-bottom" },
+        { beforeGripId: "right-top", afterGripId: "left-top" },
+        { beforeGripId: "left-bottom", afterGripId: "left-top" },
+      ],
+    };
+    const initial = createInitialStackWorkspaceState([gridCandidate]);
+    const state: StackWorkspaceState = {
+      ...initial,
+      layers: initial.layers.map((layer) => ({
+        ...layer,
+        transform: "mirror-x" as const,
+      })),
+    };
+
+    const persisted = projectWithPersistedStack(
+      project,
+      [gridCandidate],
+      solverInput,
+      state,
+    );
+    const solution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = solution.patterns[0]!;
+    const reopened = materializeProjectSolutionStack(persisted);
+    const reopenedLayer = reopened.packageLayers[0]!;
+    const robotics = materializeRobotCycles(persisted, {
+      pickReference: {
+        originMm: { x: -1_000, y: 0, z: 100 },
+        yawDeg: 0,
+        provenance: {
+          status: "verified",
+          source: "transformed grip planning fixture",
+        },
+      },
+    });
+
+    expect(
+      persistedPattern.grips.map(({ groupNumber, x, y, dx, dy }) => ({
+        groupNumber,
+        x,
+        y,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 3, x: 1150, y: 50, dx: 0, dy: 0 },
+      { groupNumber: 4, x: 1150, y: 150, dx: 0, dy: -1 },
+      { groupNumber: 1, x: 1050, y: 50, dx: 1, dy: 0 },
+      { groupNumber: 2, x: 1050, y: 150, dx: 1, dy: -1 },
+    ]);
+    expect(persistedPattern.groupOrder).toEqual(
+      persistedPattern.grips.map(({ id }) => id),
+    );
+    expect(reopenedLayer.groupOrder).toEqual(persistedPattern.groupOrder);
+    expect(robotics.cycles.map(({ groupNumber }) => groupNumber)).toEqual([
+      3, 4, 1, 2,
+    ]);
+    expect(
+      robotics.diagnostics.filter(
+        ({ code }) => code === "order-dependency-violation",
+      ),
+    ).toEqual([]);
+  });
+
   it("persists generated multipick grips and Robotics consumes them without project robot cycles", () => {
     const baseCandidate = candidate(3, 3);
     const multipickCandidate: SolverCandidate = {

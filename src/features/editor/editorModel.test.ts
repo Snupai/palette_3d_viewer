@@ -328,6 +328,33 @@ describe("Project editor pattern geometry", () => {
     ).toBe(90);
   });
 
+  it("derives upper-corner grip deltas toward the final movement direction", () => {
+    const imported = importedGripProject();
+    let project = applyProjectEditorCommand(imported, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      labelSide: "top_left",
+    });
+    project = applyProjectEditorCommand(project, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p3", "p4"],
+      labelSide: "top_right",
+    });
+
+    expect(
+      pattern(project).grips.map(({ id, dx, dy }) => ({ id, dx, dy })),
+    ).toEqual([
+      { id: "g1", dx: 1, dy: -1 },
+      { id: "g2", dx: -1, dy: -1 },
+    ]);
+  });
+
   it("rotates world-facing labels and refreshes grip and cycle offsets", () => {
     const imported = importedGripProject();
     const solution = imported.solutions[0]!;

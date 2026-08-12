@@ -166,11 +166,28 @@ describe("grip and package geometry", () => {
     ]);
   });
 
-  it("maps delta signs to the existing blue-line sides and corners", () => {
-    expect(parseBlueLine(0, 0)).toBeNull();
-    expect(parseBlueLine(1, 0)).toBe("left");
-    expect(parseBlueLine(-1, 1)).toBe("bottom_right");
-    expect(parseBlueLine(1, -1)).toBe("top_right");
+  it("marks the descent side opposite every delta movement", () => {
+    expect([
+      [0, 0, parseBlueLine(0, 0)],
+      [0, 1, parseBlueLine(0, 1)],
+      [0, -1, parseBlueLine(0, -1)],
+      [1, 0, parseBlueLine(1, 0)],
+      [-1, 0, parseBlueLine(-1, 0)],
+      [1, 1, parseBlueLine(1, 1)],
+      [1, -1, parseBlueLine(1, -1)],
+      [-1, 1, parseBlueLine(-1, 1)],
+      [-1, -1, parseBlueLine(-1, -1)],
+    ]).toEqual([
+      [0, 0, null],
+      [0, 1, "bottom"],
+      [0, -1, "top"],
+      [1, 0, "left"],
+      [-1, 0, "right"],
+      [1, 1, "bottom_left"],
+      [1, -1, "top_left"],
+      [-1, 1, "bottom_right"],
+      [-1, -1, "top_right"],
+    ]);
   });
 
   it("truncates half-millimeter ROB coordinate candidates", () => {
