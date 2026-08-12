@@ -1,0 +1,102 @@
+{
+  "schemaVersion": 1,
+  "id": "anonymized-rob-import-baseline",
+  "title": "Anonymized multi-layer .rob import baseline",
+  "source": {
+    "kind": "anonymized-rob-fixture",
+    "fixture": "anonymized-plan-lf.rob",
+    "notes": "Synthetic dimensions and coordinates; safe to keep in the repository."
+  },
+  "expected": {
+    "pallet": {
+      "width": 1200,
+      "length": 800,
+      "height": 144
+    },
+    "package": {
+      "width": 200,
+      "length": 300,
+      "height": 150
+    },
+    "inputDirection": 1,
+    "inputDirectionExplicit": true,
+    "uniqueLayerCount": 2,
+    "physicalLayerCount": 3,
+    "totalPackages": 5,
+    "layerPatternIds": [1, 2, 1],
+    "packagesPerPhysicalLayer": [1, 3, 1],
+    "robotCyclesPerPhysicalLayer": [1, 2, 1],
+    "uniqueLayers": [
+      {
+        "uniqueLayerId": 1,
+        "gripCount": 1,
+        "packageCount": 1,
+        "gripSizeHistogram": [
+          {
+            "packagesPerGrip": 1,
+            "gripCount": 1
+          }
+        ],
+        "grips": [
+          {
+            "pickX": 100,
+            "pickY": 50,
+            "pickRotation": 0,
+            "x": 400,
+            "y": 300,
+            "rotation": 0,
+            "numPackages": 1,
+            "dx": 1,
+            "dy": 0
+          }
+        ]
+      },
+      {
+        "uniqueLayerId": 2,
+        "gripCount": 2,
+        "packageCount": 3,
+        "gripSizeHistogram": [
+          {
+            "packagesPerGrip": 1,
+            "gripCount": 1
+          },
+          {
+            "packagesPerGrip": 2,
+            "gripCount": 1
+          }
+        ],
+        "grips": [
+          {
+            "pickX": 100,
+            "pickY": 50,
+            "pickRotation": 0,
+            "x": 500,
+            "y": 300,
+            "rotation": 90,
+            "numPackages": 2,
+            "dx": 0,
+            "dy": -1
+          },
+          {
+            "pickX": 120,
+            "pickY": 60,
+            "pickRotation": 0,
+            "x": 700,
+            "y": 400,
+            "rotation": 0,
+            "numPackages": 1,
+            "dx": 0,
+            "dy": 1
+          }
+        ]
+      }
+    ],
+    "interlayers": {
+      "underPhysicalLayers": [1, 0, 1],
+      "trailing": 0
+    }
+  },
+  "requirements": {
+    "semanticRoundTrip": true
+  }
+}

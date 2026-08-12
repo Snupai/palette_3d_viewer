@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   findGripCollision,
+  footprintSize,
   gripsToBoxes,
+  layerInterlayerHeightMm,
   layerPlaceZ,
   layerZBottom,
   parseBlueLine,
+  trailingInterlayerHeightMm,
   pickOffsetForCount,
   toRobInt,
 } from "~/domain/palletGeometry";
@@ -58,6 +61,34 @@ describe("pallet Z geometry", () => {
       ZWISCHENLAGE_HEIGHT_MM * 2 + packageHeight * 2,
     );
   });
+
+  it("uses exact variable sheet thicknesses when a materialized preview supplies them", () => {
+    const layers: Layer[] = [
+      {
+        unique_layer_id: 1,
+        boxes: [],
+        zwischenlage: 1,
+        interlayerThicknessesMm: [5],
+      },
+      {
+        unique_layer_id: 2,
+        boxes: [],
+        zwischenlage: 2,
+        interlayerThicknessesMm: [2, 7],
+      },
+    ];
+
+    expect(layerInterlayerHeightMm(layers[0])).toBe(5);
+    expect(layerInterlayerHeightMm(layers[1])).toBe(9);
+    expect(layerZBottom(layers, 0, 100)).toBe(5);
+    expect(layerZBottom(layers, 1, 100)).toBe(114);
+    expect(
+      trailingInterlayerHeightMm({
+        trailingZwischenlage: 2,
+        trailingInterlayerThicknessesMm: [4, 6],
+      }),
+    ).toBe(10);
+  });
 });
 
 describe("grip and package geometry", () => {
@@ -107,6 +138,31 @@ describe("grip and package geometry", () => {
     expect(vertical.map((box) => [box.rect.x, box.rect.y])).toEqual([
       [600, 300],
       [600, 500],
+    ]);
+  });
+
+  it("uses the crosswise package span and required quarter-turn semantics for grouped input-direction-1 grips", () => {
+    const boxes = gripsToBoxes(
+      [
+        grip("crosswise", 1128, 102, {
+          rotation: 90,
+          numPackages: 2,
+        }),
+      ],
+      136,
+      94,
+      151,
+      1,
+    );
+
+    expect(boxes.map((box) => [box.rect.x, box.rect.y])).toEqual([
+      [1128, 55],
+      [1128, 149],
+    ]);
+    expect(boxes[1]!.rect.y - boxes[0]!.rect.y).toBe(94);
+    expect(boxes.map((box) => footprintSize(box))).toEqual([
+      { width: 136, length: 94 },
+      { width: 136, length: 94 },
     ]);
   });
 

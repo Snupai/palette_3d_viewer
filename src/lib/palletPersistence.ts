@@ -57,16 +57,57 @@ export const gripSchema = z.object({
   rawLead: z.tuple([finiteNumber, finiteNumber, finiteNumber]).optional(),
 });
 
-export const layerSchema = z.object({
-  unique_layer_id: z.number().int().positive(),
-  boxes: z.array(boxSchema),
-  zwischenlage: z.number().int().nonnegative(),
-});
-
-const dimensionsSchema = z.object({
+const planarDimensionsSchema = z.object({
   width: positiveDimension,
   length: positiveDimension,
+});
+
+export const layerSchema = z
+  .object({
+    unique_layer_id: z.number().int().positive(),
+    boxes: z.array(boxSchema),
+    zwischenlage: z.number().int().nonnegative(),
+    interlayerThicknessesMm: z.array(positiveDimension).optional(),
+    interlayerDimensions: planarDimensionsSchema.optional(),
+  })
+  .superRefine((layer, context) => {
+    if (
+      layer.interlayerThicknessesMm !== undefined &&
+      layer.interlayerThicknessesMm.length !== layer.zwischenlage
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["interlayerThicknessesMm"],
+        message: "must contain one thickness for each interlayer sheet",
+      });
+    }
+  });
+
+const dimensionsSchema = planarDimensionsSchema.extend({
   height: positiveDimension,
+});
+
+const plannerLayerPreviewMetadataSchema = z.object({
+  id: z.string().min(1),
+  label: z.string().min(1),
+  patternRef: z.string().min(1),
+  candidateId: z.string().min(1).nullable(),
+  isSpecialTop: z.boolean(),
+});
+
+const plannerPreviewMetadataSchema = z.object({
+  projectId: z.string().min(1).nullable(),
+  solutionId: z.string().min(1).nullable(),
+  layers: z.array(plannerLayerPreviewMetadataSchema),
+  metrics: z.object({
+    packageCount: z.number().int().nonnegative(),
+    cycleCount: z.number().int().nonnegative().nullable(),
+    loadStackHeightMm: finiteNumber.nonnegative(),
+    areaUtilizationPercent: finiteNumber.nullable(),
+    volumeUtilizationPercent: finiteNumber.nullable(),
+    grossWeightKg: finiteNumber.nonnegative().nullable(),
+  }),
+  warningCodes: z.array(z.string().min(1)),
 });
 
 export const palletDataSchema = z
@@ -77,9 +118,13 @@ export const palletDataSchema = z
     total_boxes: z.number().int().nonnegative(),
     package: dimensionsSchema,
     pallet: dimensionsSchema.nullable(),
+    interlayer: planarDimensionsSchema.nullable().optional(),
+    planner: plannerPreviewMetadataSchema.optional(),
     inputDirection: z.union([z.literal(0), z.literal(1)]),
     inputDirectionExplicit: z.boolean().optional(),
     trailingZwischenlage: z.number().int().nonnegative().optional(),
+    trailingInterlayerThicknessesMm: z.array(positiveDimension).optional(),
+    trailingInterlayerDimensions: planarDimensionsSchema.optional(),
   })
   .superRefine((data, context) => {
     if (data.layer_count !== data.layers.length) {
@@ -98,6 +143,18 @@ export const palletDataSchema = z
         code: z.ZodIssueCode.custom,
         path: ["total_boxes"],
         message: "does not match the number of boxes",
+      });
+    }
+    if (
+      data.trailingInterlayerThicknessesMm !== undefined &&
+      data.trailingInterlayerThicknessesMm.length !==
+        (data.trailingZwischenlage ?? 0)
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["trailingInterlayerThicknessesMm"],
+        message:
+          "must contain one thickness for each trailing interlayer sheet",
       });
     }
     data.layers.forEach((layer, index) => {

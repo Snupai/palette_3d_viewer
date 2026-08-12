@@ -1,34 +1,37 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Geist } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://rob.snupai.dev",
   ),
   title: {
-    default: "Pallet 3D Viewer",
-    template: "%s | Pallet 3D Viewer",
+    default: "Pallet Plan Inspection Desk",
+    template: "%s | Pallet Plan Inspection Desk",
   },
-  description: "Visualize .rob pallet layouts in 3D.",
+  description:
+    "Generate, compare, stack, and validate pallet plans against observed .rob references.",
   openGraph: {
-    title: "Pallet 3D Viewer",
-    description: "Visualize .rob pallet layouts in 3D.",
-    siteName: "Pallet 3D Viewer",
+    title: "Pallet Plan Inspection Desk",
+    description:
+      "Generate, compare, stack, and validate pallet plans against observed .rob references.",
+    siteName: "Pallet Plan Inspection Desk",
     images: [
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Pallet 3D Viewer",
+        alt: "Pallet Plan Inspection Desk",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pallet 3D Viewer",
-    description: "Visualize .rob pallet layouts in 3D.",
+    title: "Pallet Plan Inspection Desk",
+    description:
+      "Generate, compare, stack, and validate pallet plans against observed .rob references.",
     images: ["/opengraph-image"],
   },
 };
@@ -38,12 +41,17 @@ const geist = Geist({
   variable: "--font-geist-sans",
 });
 
+const geistMono = Geist_Mono({
+  subsets: ["latin"],
+  variable: "--font-geist-mono",
+});
+
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geist.variable}`}>
-      <body className="bg-zinc-950">{children}</body>
+    <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
+      <body className="bg-[var(--deck-black)]">{children}</body>
     </html>
   );
 }

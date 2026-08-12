@@ -5,6 +5,7 @@ import {
   fireEvent,
   render,
   screen,
+  waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -20,6 +21,7 @@ type HarnessProps = {
   onUndo?: () => void;
   onRedo?: () => void;
   onResetToOriginal?: () => void;
+  clearSelectionOnHistoryAction?: boolean;
   interlayerEditor?: ReactNode;
 };
 
@@ -46,6 +48,7 @@ function EditorHarness({
   onUndo = vi.fn(),
   onRedo = vi.fn(),
   onResetToOriginal = vi.fn(),
+  clearSelectionOnHistoryAction = false,
   interlayerEditor,
 }: HarnessProps) {
   const [grips, setGrips] = useState(initialGrips);
@@ -55,6 +58,9 @@ function EditorHarness({
   const handleCommit: LayerEditor2DProps["onCommitGrips"] = (nextGrips) => {
     onCommit(nextGrips);
     setGrips(nextGrips);
+  };
+  const restoreHistorySelection = () => {
+    if (clearSelectionOnHistoryAction) setSelectedGripIndex(null);
   };
 
   return (
@@ -77,8 +83,14 @@ function EditorHarness({
       historyPosition={2}
       historyLength={4}
       canResetToOriginal
-      onUndo={onUndo}
-      onRedo={onRedo}
+      onUndo={() => {
+        restoreHistorySelection();
+        onUndo();
+      }}
+      onRedo={() => {
+        restoreHistorySelection();
+        onRedo();
+      }}
       onResetToOriginal={onResetToOriginal}
       interlayerEditor={interlayerEditor}
     />
@@ -175,6 +187,38 @@ describe("LayerEditor2D critical flows", () => {
       numPackages: 1,
     });
   });
+
+  it.each(["Undo", "Redo"] as const)(
+    "clears merge selections when %s history restoration clears the selected grip",
+    async (action) => {
+      render(
+        <EditorHarness
+          initialGrips={[grip("group", { numPackages: 2 })]}
+          onCommit={vi.fn()}
+          clearSelectionOnHistoryAction
+        />,
+      );
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Split into singles" }),
+      );
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", {
+          name: "Merge selected (2)",
+        }).disabled,
+      ).toBe(false);
+
+      fireEvent.click(screen.getByRole("button", { name: action }));
+
+      await waitFor(() =>
+        expect(
+          screen.getByRole<HTMLButtonElement>("button", {
+            name: "Merge selected (0)",
+          }).disabled,
+        ).toBe(true),
+      );
+    },
+  );
 
   it("commits drag previews while preserving the pick/place offset", () => {
     const onCommit = vi.fn();

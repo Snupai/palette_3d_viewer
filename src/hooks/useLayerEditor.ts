@@ -198,7 +198,13 @@ export function useLayerEditor({
   }, [selectedGrip]);
 
   useEffect(() => {
-    if (selectedGripIndex === null || grips[selectedGripIndex]) return;
+    if (selectedGripIndex === null) {
+      setMergeSelection((current) =>
+        current.size === 0 ? current : new Set(),
+      );
+      return;
+    }
+    if (grips[selectedGripIndex]) return;
     const fallbackIndex = grips.length > 0 ? grips.length - 1 : null;
     setMergeSelection(
       fallbackIndex === null ? new Set() : new Set([fallbackIndex]),

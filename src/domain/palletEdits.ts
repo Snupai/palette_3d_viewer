@@ -50,7 +50,13 @@ export function applyBaseInterlayerEdit(
   return {
     ...data,
     layers: data.layers.map((layer, index) =>
-      index === 0 ? { ...layer, zwischenlage: normalized } : layer,
+      index === 0
+        ? {
+            ...layer,
+            zwischenlage: normalized,
+            interlayerThicknessesMm: undefined,
+          }
+        : layer,
     ),
   };
 }
@@ -64,7 +70,11 @@ export function applyInterlayerAfterLayerEdit(
   const normalized = normalizedInterlayerValue(zwischenlage);
   if (layerIndex === data.layers.length - 1) {
     if ((data.trailingZwischenlage ?? 0) === normalized) return data;
-    return { ...data, trailingZwischenlage: normalized };
+    return {
+      ...data,
+      trailingZwischenlage: normalized,
+      trailingInterlayerThicknessesMm: undefined,
+    };
   }
 
   const nextLayerIndex = layerIndex + 1;
@@ -72,7 +82,13 @@ export function applyInterlayerAfterLayerEdit(
   return {
     ...data,
     layers: data.layers.map((layer, index) =>
-      index === nextLayerIndex ? { ...layer, zwischenlage: normalized } : layer,
+      index === nextLayerIndex
+        ? {
+            ...layer,
+            zwischenlage: normalized,
+            interlayerThicknessesMm: undefined,
+          }
+        : layer,
     ),
   };
 }

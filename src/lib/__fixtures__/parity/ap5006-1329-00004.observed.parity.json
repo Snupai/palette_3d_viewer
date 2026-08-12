@@ -1,0 +1,258 @@
+{
+  "schemaVersion": 2,
+  "id": "ap5006-1329-00004-observed",
+  "title": "AP5006 / 1329-00004 observed MultiPack target",
+  "provenance": {
+    "kind": "observed",
+    "system": "MultiPack 2.1.315.25",
+    "description": "Values transcribed from the existing rebuild observations. No private input, screenshot, candidate geometry, or production export is committed, so this case remains Observed rather than Golden."
+  },
+  "artifacts": [
+    {
+      "id": "ap5006-observation-summary",
+      "kind": "research-note",
+      "availability": "external",
+      "description": "Observation-only evidence summarized in docs/PARITY.md and the dated research log; it is not required or resolved by the corpus runner."
+    }
+  ],
+  "input": {
+    "kind": "described-observation",
+    "values": {
+      "projectNumber": "AP5006",
+      "productNumber": "1329-00004",
+      "package": {
+        "shape": "cuboid",
+        "lengthMm": 157,
+        "widthMm": 106,
+        "heightMm": 150,
+        "clearanceMm": 0
+      },
+      "pallet": {
+        "kind": "euro",
+        "lengthMm": 1200,
+        "widthMm": 800,
+        "underhangLengthMm": -34,
+        "underhangWidthMm": -11
+      }
+    }
+  },
+  "expected": {
+    "candidates": {
+      "evidence": {
+        "status": "Observed",
+        "asOf": "2026-08-05",
+        "basis": "The source UI showed 65 plans in total. Candidate identity and geometric deduplication semantics were not captured.",
+        "artifactIds": ["ap5006-observation-summary"]
+      },
+      "value": {
+        "identitySchemaVersion": null,
+        "geometryEqualitySchemaVersion": null,
+        "totalCandidates": 65
+      }
+    },
+    "metrics": {
+      "maximumPackageCount": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed maximum in the MultiPack solution table.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 55,
+        "unit": "packages"
+      },
+      "candidatesAtMaximum": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed exact-count filter result for 55 packages.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 15,
+        "unit": "candidates"
+      },
+      "visibleCycleCounts": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "The visible relevant rows showed 33 or 36 cycles.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": [33, 36],
+        "unit": "cycles"
+      },
+      "visibleBlockLengthRangeMm": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed range in the visible solution table.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": { "min": 1162, "max": 1166 },
+        "unit": "mm"
+      },
+      "visibleBlockWidthRangeMm": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed range in the visible solution table.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": { "min": 785, "max": 789 },
+        "unit": "mm"
+      },
+      "selectedCandidate": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed selected row; no placement geometry is committed.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": {
+          "packageCount": 55,
+          "cycleCount": 33,
+          "blockLengthMm": 1166,
+          "blockWidthMm": 785
+        }
+      },
+      "exampleStack": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Observed example calculation in the rebuild notes.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": {
+          "layerCount": 10,
+          "totalPackages": 550,
+          "loadHeightMm": 1500
+        }
+      },
+      "areaUtilizationPercent": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Approximately 95 percent in the observed workflow.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 95,
+        "unit": "percent",
+        "tolerance": 1
+      },
+      "volumeUtilizationPercent": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Approximately 86 percent in the observed workflow.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 86,
+        "unit": "percent",
+        "tolerance": 1
+      },
+      "exportedPatternCycleCount": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "A local production export was inspected but is intentionally not committed or required by this corpus.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 36,
+        "unit": "cycles"
+      },
+      "exportedDoubleGripCount": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Counted in the uncommitted local export; therefore not an executable repository gate.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 19,
+        "unit": "grips"
+      },
+      "exportedSingleGripCount": {
+        "evidence": {
+          "status": "Observed",
+          "asOf": "2026-08-05",
+          "basis": "Counted in the uncommitted local export; therefore not an executable repository gate.",
+          "artifactIds": ["ap5006-observation-summary"]
+        },
+        "value": 17,
+        "unit": "grips"
+      },
+      "semanticRobExport": {
+        "evidence": {
+          "status": "Open",
+          "asOf": "2026-08-05",
+          "basis": "No anonymized executable export pair exists in the repository.",
+          "artifactIds": []
+        }
+      }
+    }
+  },
+  "scorecard": {
+    "input": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "Dimensions and underhang were transcribed, but a complete executable project input is absent.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "geometry": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "Maximum count and block-size ranges are known; candidate placements are absent.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "diversity": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "65 total and 15 maximum-count rows were observed under unknown source deduplication rules.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "ranking": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "The full stable candidate order and reference geometry were not captured.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "stack": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "The ten-layer example and aggregate values were observed, not replayed from a committed project.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "robotics": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "Cycle and grip counts were observed, but robot feasibility and ordering are not executable corpus evidence.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "export": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No anonymized controlled export pairs are committed.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "usability": {
+      "status": "Observed",
+      "asOf": "2026-08-05",
+      "basis": "The core table/filter/keyboard workflow was observed descriptively only.",
+      "artifactIds": ["ap5006-observation-summary"],
+      "applicable": true
+    },
+    "performance": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No reference device or timing trace was captured.",
+      "artifactIds": [],
+      "applicable": true
+    }
+  }
+}

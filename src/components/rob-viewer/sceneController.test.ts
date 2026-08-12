@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
 import {
   createViewerSceneController,
   type ViewerControls,
@@ -8,6 +9,8 @@ import {
   type ViewerWindow,
 } from "~/components/rob-viewer/sceneController";
 import type { LoadedGripperModel } from "~/components/rob-viewer/gripperLoader";
+import type { LoadedRobotCell } from "~/components/rob-viewer/robotCellLoader";
+import type { ViewerEquipmentController } from "~/components/rob-viewer/sceneEquipment";
 import type { ViewerHighlighter } from "~/components/rob-viewer/sceneHighlight";
 import type { ViewerAnimationLoop } from "~/components/rob-viewer/viewerAnimationLoop";
 import type {
@@ -60,12 +63,30 @@ describe("viewer scene controller cleanup", () => {
     };
 
     const sceneDispose = vi.fn();
+    const simulationSolid = new THREE.Mesh();
+    const simulationEdges = new THREE.LineSegments();
+    const setSimulationState = vi.fn(
+      (state: Parameters<BuiltViewerScene["setSimulationState"]>[0]) => {
+        if (state === null) return;
+        simulationSolid.visible = false;
+        simulationEdges.visible = false;
+      },
+    );
     const builtScene: BuiltViewerScene = {
       root: new THREE.Group(),
       bounds: null,
-      layerRenders: [],
+      layerRenders: [
+        {
+          layerNum: 0,
+          solidMesh: simulationSolid,
+          solidEdges: simulationEdges,
+          pickEntries: [],
+        },
+      ],
       interlayerRenders: [],
+      layerLabels: [],
       pickEntries: [],
+      setSimulationState,
       dispose: sceneDispose,
     };
     const highlighterDispose = vi.fn();
@@ -116,6 +137,40 @@ describe("viewer scene controller cleanup", () => {
       model: new THREE.Group(),
       dispose: loadedDispose,
     };
+    const robotCellLoad = { signal: null as AbortSignal | null };
+    let resolveRobotCell!: (loaded: LoadedRobotCell) => void;
+    const pendingRobotCell = new Promise<LoadedRobotCell>((resolve) => {
+      resolveRobotCell = resolve;
+    });
+    const loadRobotCell = vi.fn<
+      ViewerSceneControllerDependencies["loadRobotCell"]
+    >((options) => {
+      robotCellLoad.signal = options?.signal ?? null;
+      return pendingRobotCell;
+    });
+    const robotCellDispose = vi.fn();
+    const setLiftCarriageMm = vi.fn(() => 450);
+    const loadedRobotCell: LoadedRobotCell = {
+      root: new THREE.Group(),
+      fixed: new THREE.Group(),
+      liftCarriage: new THREE.Group(),
+      setLiftCarriageMm,
+      dispose: robotCellDispose,
+    };
+    const equipmentSetConfig = vi.fn();
+    const equipmentSetModel = vi.fn();
+    const equipmentSetRobotCell = vi.fn();
+    const equipmentSetPose = vi.fn();
+    const equipmentDispose = vi.fn();
+    const equipment: ViewerEquipmentController = {
+      root: new THREE.Group(),
+      setConfig: equipmentSetConfig,
+      setGripperModel: equipmentSetModel,
+      setRobotCell: equipmentSetRobotCell,
+      setSimulationPose: equipmentSetPose,
+      getBounds: () => null,
+      dispose: equipmentDispose,
+    };
     const onBoxSelect = vi.fn<(selection: BoxSelection | null) => void>();
 
     const controller = createViewerSceneController({
@@ -125,16 +180,27 @@ describe("viewer scene controller cleanup", () => {
         createRenderer: () => renderer,
         createControls: () => controls,
         buildScene: () => builtScene,
+        createEquipment: () => equipment,
         createHighlighter: () => highlighter,
         createAnimationLoop: () => animationLoop,
         loadGripper,
+        loadRobotCell,
         createResizeObserver: () => resizeObserver,
         window: viewerWindow,
       },
     });
 
     controller.setVisibleUpToLayer(2);
-    controller.setData(palletData());
+    controller.setLiftCarriageMm(450);
+    controller.setSimulationPose({
+      positionMm: { x: 10, y: 20, z: 30 },
+      yawDeg: 90,
+    });
+    controller.setData(palletData(), {
+      sceneOptions: {
+        equipment: { robot: null, robotCell: BUNDLED_ROBOT_CELL },
+      },
+    });
 
     expect(container.contains(canvas)).toBe(true);
     expect(animationStart).toHaveBeenCalledTimes(1);
@@ -142,11 +208,42 @@ describe("viewer scene controller cleanup", () => {
     expect(addWindowListener).toHaveBeenCalledTimes(1);
     expect(onBoxSelect).toHaveBeenCalledWith(null);
     expect(gripperLoad.signal?.aborted).toBe(false);
+    expect(robotCellLoad.signal?.aborted).toBe(false);
+    expect(equipmentSetConfig).toHaveBeenCalledWith({
+      robot: null,
+      robotCell: BUNDLED_ROBOT_CELL,
+    });
+    expect(equipmentSetPose).toHaveBeenLastCalledWith({
+      positionMm: { x: 10, y: 20, z: 30 },
+      yawDeg: 90,
+    });
+
+    controller.setSimulationState({
+      packages: [
+        {
+          placementId: "placement-1",
+          phase: "attached",
+          pose: {
+            positionMm: { x: 10, y: 20, z: 30 },
+            yawDeg: 90,
+          },
+        },
+      ],
+      completedPackageLayerIndexes: [],
+    });
+    expect(simulationSolid.visible).toBe(false);
+    expect(simulationEdges.visible).toBe(false);
+
+    controller.setSimulationState(null);
+    expect(simulationSolid.visible).toBe(true);
+    expect(simulationEdges.visible).toBe(true);
+    expect(setSimulationState).toHaveBeenLastCalledWith(null);
 
     controller.dispose();
     controller.dispose();
 
     expect(gripperLoad.signal?.aborted).toBe(true);
+    expect(robotCellLoad.signal?.aborted).toBe(true);
     expect(animationStop).toHaveBeenCalledTimes(1);
     expect(resizeDisconnect).toHaveBeenCalledTimes(1);
     expect(removeWindowListener).toHaveBeenCalledTimes(1);
@@ -162,14 +259,22 @@ describe("viewer scene controller cleanup", () => {
     expect(sceneDispose).toHaveBeenCalledTimes(1);
     expect(rendererDispose).toHaveBeenCalledTimes(1);
     expect(controlsDispose).toHaveBeenCalledTimes(1);
+    expect(equipmentDispose).toHaveBeenCalledTimes(1);
     expect(container.contains(canvas)).toBe(false);
 
     resolveGripper(loadedGripper);
+    resolveRobotCell(loadedRobotCell);
     await Promise.resolve();
     await Promise.resolve();
 
     expect(loadedDispose).toHaveBeenCalledTimes(1);
+    expect(robotCellDispose).toHaveBeenCalledTimes(1);
+    expect(setLiftCarriageMm).not.toHaveBeenCalled();
     expect(setGripperModel).not.toHaveBeenCalled();
+    expect(equipmentSetModel).not.toHaveBeenCalled();
+    expect(equipmentSetRobotCell).not.toHaveBeenCalledWith(
+      loadedRobotCell.root,
+    );
     container.remove();
   });
 
@@ -182,9 +287,15 @@ describe("viewer scene controller cleanup", () => {
     document.body.appendChild(container);
 
     const canvas = document.createElement("canvas");
+    const toDataURL = vi.fn(() => "data:image/png;base64,viewer-report");
+    Object.defineProperty(canvas, "toDataURL", {
+      configurable: true,
+      value: toDataURL,
+    });
+    const rendererSetSize = vi.fn();
     const renderer: ViewerRenderer = {
       domElement: canvas,
-      setSize: vi.fn(),
+      setSize: rendererSetSize,
       setPixelRatio: vi.fn(),
       setClearColor: vi.fn(),
       render: vi.fn(),
@@ -226,7 +337,9 @@ describe("viewer scene controller cleanup", () => {
         bounds: bounds[index]!,
         layerRenders: [],
         interlayerRenders: [],
+        layerLabels: [],
         pickEntries: [],
+        setSimulationState: vi.fn(),
         dispose: sceneDisposals[index]!,
       };
     });
@@ -300,10 +413,53 @@ describe("viewer scene controller cleanup", () => {
     expect(highlighterDisposals[1]).not.toHaveBeenCalled();
     expect(container.querySelectorAll("canvas")).toHaveLength(1);
 
+    controller.setCameraPreset("top");
+    expect(camera!.position.x).toBeCloseTo(1000);
+    expect(camera!.position.y).toBeCloseTo(700);
+    expect(camera!.position.z).toBeGreaterThan(900);
+    expect(camera!.up.toArray()).toEqual([0, 1, 0]);
+    const presetPosition = camera!.position.clone();
+    const presetTarget = controls.target.clone();
+
+    const capture = controller.captureReportFrame({
+      width: 900,
+      height: 600,
+      cameraPreset: "front",
+    });
+    expect(capture).toEqual({
+      status: "captured",
+      dataUrl: "data:image/png;base64,viewer-report",
+      width: 900,
+      height: 600,
+      cameraPreset: "front",
+    });
+    expect(toDataURL).toHaveBeenCalledWith("image/png");
+    expect(rendererSetSize).toHaveBeenCalledWith(900, 600, false);
+    expect(camera!.position).toEqual(presetPosition);
+    expect(controls.target).toEqual(presetTarget);
+
     controller.dispose();
 
     expect(sceneDisposals[1]).toHaveBeenCalledTimes(1);
     expect(highlighterDisposals[1]).toHaveBeenCalledTimes(1);
     container.remove();
+  });
+
+  it("returns a deterministic SVG fallback before WebGL is available", () => {
+    const container = document.createElement("div");
+    const controller = createViewerSceneController({
+      container,
+      getOnBoxSelect: () => undefined,
+    });
+
+    expect(controller.captureReportFrame()).toEqual({
+      status: "fallback",
+      reason: "viewer-unavailable",
+      fallback: "layer-pattern-svg",
+      message:
+        "The 3D viewer is not ready; render the supplied layer-pattern SVG instead.",
+    });
+
+    controller.dispose();
   });
 });

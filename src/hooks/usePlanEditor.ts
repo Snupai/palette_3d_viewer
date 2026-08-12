@@ -177,16 +177,28 @@ export function usePlanEditor({
   }, [data, editMode, uniqueLayerOptions, visibleUpToLayer]);
 
   const commitEditedRawText = useCallback(
-    (rawText: string) => {
+    (rawText: string): boolean => {
       try {
         dispatch({ type: "commit", data: parseRobText(rawText), rawText });
         setError(null);
+        return true;
       } catch (cause) {
         console.error("Failed to apply edited pallet draft", cause);
         setError("Unable to apply this edit to the .rob plan.");
+        return false;
       }
     },
     [setError],
+  );
+
+  const replaceEditedPlan = useCallback(
+    (rawText: string) => {
+      if (!commitEditedRawText(rawText)) return;
+      setPlanView("edited");
+      setBoxSelection(null);
+      setSelectedGripIndex(null);
+    },
+    [commitEditedRawText],
   );
 
   const restorePersistedPlan = useCallback(() => {
@@ -355,6 +367,7 @@ export function usePlanEditor({
     undoEdit,
     redoEdit,
     resetToOriginal,
+    replaceEditedPlan,
     selectPlanView,
     toggleEditMode,
     commitGripEdit,

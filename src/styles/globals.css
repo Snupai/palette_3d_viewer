@@ -1,8 +1,51 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans:
+    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+:root {
+  --deck-black: #0b0e10;
+  --graphite-surface: #14191d;
+  --steel-rule: #313940;
+  --chalk-text: #d7dde1;
+  --muted-text: #89949b;
+  --measured-blue: #65a9c3;
+  --selection-amber: #d6a64a;
+  --inspection-pass: #72a98f;
+  --inspection-fail: #d66a5e;
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--deck-black);
+}
+
+button,
+input,
+select,
+textarea {
+  border-radius: 0;
+}
+
+.planning-ledger details[open] > summary {
+  background: #11161a;
+}
+
+.planning-ledger summary::-webkit-details-marker {
+  display: none;
+}
+
+.planning-plan-field svg text {
+  user-select: none;
 }
 
 /* Custom scrollbar for modern browsers */
@@ -25,4 +68,123 @@
 .scrollbar-thin {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.06);
+}
+
+.report-capture-output {
+  min-height: 180px;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #ffffff !important;
+    color: #18181b !important;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .app-chrome,
+  .no-print {
+    display: none !important;
+  }
+
+  main,
+  .planner-workspace-shell,
+  .planner-workspace-content,
+  .planner-workspace-grid {
+    display: block !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+  }
+
+  .planner-workspace-grid {
+    padding: 0 !important;
+  }
+
+  .print-report {
+    display: block !important;
+    border: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    color: #18181b !important;
+  }
+
+  .print-report header,
+  .print-report footer,
+  .print-report section,
+  .print-report div,
+  .print-report table,
+  .print-report thead,
+  .print-report tbody,
+  .print-report tr,
+  .print-report th,
+  .print-report td,
+  .print-report figure {
+    border-color: #d4d4d8 !important;
+    background: #ffffff !important;
+    color: #18181b !important;
+  }
+
+  .print-report h1,
+  .print-report h2,
+  .print-report h3,
+  .print-report p,
+  .print-report li,
+  .print-report dt,
+  .print-report dd,
+  .print-report span,
+  .print-report figcaption {
+    color: #18181b !important;
+  }
+
+  .print-report .report-header,
+  .print-report .report-footer,
+  .print-report .report-section {
+    margin-bottom: 7mm;
+  }
+
+  .print-report .report-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 8pt !important;
+  }
+
+  .print-report .report-table th,
+  .print-report .report-table td {
+    padding: 1.5mm 2mm !important;
+  }
+
+  .print-report tr,
+  .print-report figure,
+  .print-report .break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  .print-report [data-layer-pattern-id] > rect {
+    fill: #ffffff !important;
+    stroke: #52525b !important;
+  }
+
+  .print-report [data-pattern-item] rect {
+    fill: #f4f4f5 !important;
+    stroke: #52525b !important;
+  }
+
+  .print-report [data-pattern-item] text {
+    fill: #18181b !important;
+  }
+
+  .report-capture-output {
+    min-height: 0;
+  }
 }
