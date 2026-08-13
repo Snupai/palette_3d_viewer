@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  compareGripPositionsRightBottomToLeftTop,
+  compareGripPositionsBottomRightRowMajor,
   deriveGripDeltasForPlacementOrder,
 } from "~/domain/gripDependencies";
 import { solveLayer } from "~/domain/solver/solve";
@@ -22,7 +22,7 @@ describe("generated candidate blue lines", () => {
     }
   });
 
-  it("orders grips right-bottom to left-top and keeps every generated approach reproducible", () => {
+  it("orders grips bottom-row-first from right to left and keeps every generated approach reproducible", () => {
     const referencing = result.candidates.flatMap((candidate) =>
       candidate.grips.filter((grip) => grip.dx !== 0 || grip.dy !== 0),
     );
@@ -32,7 +32,7 @@ describe("generated candidate blue lines", () => {
       expect(
         [...candidate.grips].sort(
           (left, right) =>
-            compareGripPositionsRightBottomToLeftTop(left, right) ||
+            compareGripPositionsBottomRightRowMajor(left, right) ||
             left.id.localeCompare(right.id),
         ),
       ).toEqual(candidate.grips);

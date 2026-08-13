@@ -219,26 +219,26 @@ describe("stack composition transforms", () => {
   it.each([
     [
       "mirror-x",
-      ["left-bottom", "left-top", "right-bottom", "right-top"],
+      ["left-bottom", "right-bottom", "left-top", "right-top"],
       [
         [150, 50],
-        [150, 150],
         [50, 50],
+        [150, 150],
         [50, 150],
       ],
     ],
     [
       "rotate-90",
-      ["left-bottom", "right-bottom", "left-top", "right-top"],
+      ["left-bottom", "left-top", "right-bottom", "right-top"],
       [
         [150, 50],
-        [150, 150],
         [50, 50],
+        [150, 150],
         [50, 150],
       ],
     ],
   ] as const)(
-    "replans generated grips after %s from physical right-bottom to left-top",
+    "replans generated grips after %s in bottom-right row-major order",
     (transform, expectedOrder, expectedCenters) => {
       const transformed = transformStackPattern(
         generatedGridPattern(),
@@ -248,17 +248,21 @@ describe("stack composition transforms", () => {
 
       expect(transformed.groupOrder).toEqual(expectedOrder);
       expect(
-        transformed.grips.map(({ sourceGripId, sequence, x, y, dx, dy }) => ({
-          sourceGripId,
-          sequence,
-          x,
-          y,
-          dx,
-          dy,
-        })),
+        transformed.grips.map(
+          ({ sourceGripId, groupNumber, sequence, x, y, dx, dy }) => ({
+            sourceGripId,
+            groupNumber,
+            sequence,
+            x,
+            y,
+            dx,
+            dy,
+          }),
+        ),
       ).toEqual(
         expectedOrder.map((sourceGripId, sequence) => ({
           sourceGripId,
+          groupNumber: sequence + 1,
           sequence,
           x: expectedCenters[sequence]![0],
           y: expectedCenters[sequence]![1],
@@ -271,18 +275,22 @@ describe("stack composition transforms", () => {
           {
             beforeGripId: expectedOrder[0],
             afterGripId: expectedOrder[1],
+            source: "inferred",
           },
           {
             beforeGripId: expectedOrder[0],
             afterGripId: expectedOrder[2],
+            source: "inferred",
           },
           {
             beforeGripId: expectedOrder[1],
             afterGripId: expectedOrder[3],
+            source: "inferred",
           },
           {
             beforeGripId: expectedOrder[2],
             afterGripId: expectedOrder[3],
+            source: "inferred",
           },
         ].sort(
           (left, right) =>
@@ -292,6 +300,587 @@ describe("stack composition transforms", () => {
       );
     },
   );
+
+  it("repairs stale project grip order for an identity layer", () => {
+    const projectPattern: StackPattern = {
+      ...pattern("stale-project-order"),
+      placements: [
+        {
+          sourcePlacementId: "placement-upper",
+          sequence: 0,
+          positionMm: { x: 50, y: 150 },
+          rotation: 0,
+          gripId: "upper",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-lower",
+          sequence: 1,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "lower",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "upper",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 150,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          sourceGripId: "lower",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["upper", "lower"],
+      orderDependencies: [],
+    };
+
+    const transformed = transformStackPattern(projectPattern, "identity", {
+      length: 100,
+      width: 100,
+    });
+
+    expect(transformed.groupOrder).toEqual(["lower", "upper"]);
+    expect(
+      transformed.grips.map(({ sourceGripId, sequence, groupNumber }) => ({
+        sourceGripId,
+        sequence,
+        groupNumber,
+      })),
+    ).toEqual([
+      { sourceGripId: "lower", sequence: 0, groupNumber: 1 },
+      { sourceGripId: "upper", sequence: 1, groupNumber: 2 },
+    ]);
+    expect(transformed.orderDependencies).toEqual([
+      {
+        beforeGripId: "lower",
+        afterGripId: "upper",
+        source: "inferred",
+      },
+    ]);
+  });
+
+  it("replaces stale inferred project dependencies from current geometry and deltas", () => {
+    const projectPattern: StackPattern = {
+      ...pattern("stale-inferred-dependency"),
+      placements: [
+        {
+          sourcePlacementId: "placement-right",
+          sequence: 0,
+          positionMm: { x: 150, y: 50 },
+          rotation: 0,
+          gripId: "right",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-left",
+          sequence: 1,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "left",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "right",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 150,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          sourceGripId: "left",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["right", "left"],
+      orderDependencies: [
+        {
+          beforeGripId: "left",
+          afterGripId: "right",
+          source: "inferred",
+        },
+      ],
+    };
+
+    expect(
+      transformStackPattern(projectPattern, "identity", {
+        length: 100,
+        width: 100,
+      }).orderDependencies,
+    ).toEqual([]);
+    expect(
+      transformStackPattern(
+        {
+          ...projectPattern,
+          orderDependencies: [
+            {
+              beforeGripId: "left",
+              afterGripId: "right",
+              source: "explicit",
+            },
+          ],
+        },
+        "identity",
+        { length: 100, width: 100 },
+      ).orderDependencies,
+    ).toEqual([
+      {
+        beforeGripId: "left",
+        afterGripId: "right",
+        source: "explicit",
+      },
+    ]);
+  });
+
+  it("rebuilds delta dependencies with the configured inlet orientation", () => {
+    const projectPattern: StackPattern = {
+      ...pattern("crosswise-delta-dependency"),
+      placements: [
+        {
+          sourcePlacementId: "placement-dependent",
+          sequence: 0,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "dependent",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-target",
+          sequence: 1,
+          positionMm: { x: 150, y: 110 },
+          rotation: 0,
+          gripId: "target",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "dependent",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 1,
+          dy: 0,
+        },
+        {
+          sourceGripId: "target",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 150,
+          y: 110,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["dependent", "target"],
+      orderDependencies: [],
+    };
+
+    const lengthwise = transformStackPattern(
+      projectPattern,
+      "identity",
+      { length: 100, width: 40 },
+      "lengthwise",
+    );
+    const crosswise = transformStackPattern(
+      projectPattern,
+      "identity",
+      { length: 100, width: 40 },
+      "crosswise",
+    );
+
+    expect(lengthwise.groupOrder).toEqual(["dependent", "target"]);
+    expect(lengthwise.orderDependencies).toEqual([]);
+    expect(crosswise.groupOrder).toEqual(["target", "dependent"]);
+    expect(
+      crosswise.grips.map(({ sourceGripId, sequence, groupNumber }) => ({
+        sourceGripId,
+        sequence,
+        groupNumber,
+      })),
+    ).toEqual([
+      { sourceGripId: "target", sequence: 0, groupNumber: 1 },
+      { sourceGripId: "dependent", sequence: 1, groupNumber: 2 },
+    ]);
+    expect(crosswise.orderDependencies).toEqual([
+      {
+        beforeGripId: "target",
+        afterGripId: "dependent",
+        source: "inferred",
+      },
+    ]);
+  });
+
+  it("rebuilds generated identity deltas with the configured inlet orientation", () => {
+    const generatedPattern: StackPattern = {
+      ...pattern("generated-crosswise-delta"),
+      placements: [
+        {
+          sourcePlacementId: "placement-dependent",
+          sequence: 0,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "dependent",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-target",
+          sequence: 1,
+          positionMm: { x: 150, y: 110 },
+          rotation: 0,
+          gripId: "target",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "dependent",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 1,
+          dy: 0,
+        },
+        {
+          sourceGripId: "target",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 150,
+          y: 110,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["dependent", "target"],
+      orderDependencies: [
+        {
+          beforeGripId: "target",
+          afterGripId: "dependent",
+          source: "inferred",
+        },
+      ],
+      generatedGripPolicy: { maxReferenceGapMm: 60 },
+      provenance: {
+        kind: "solver-candidate",
+        candidateId: "generated-crosswise-delta",
+        geometryId: "generated-crosswise-delta-geometry",
+        identityFingerprint: "generated-crosswise-delta-identity",
+        geometryFingerprint: "generated-crosswise-delta-fingerprint",
+        rank: 1,
+        generators: [],
+      },
+    };
+
+    const lengthwise = transformStackPattern(
+      generatedPattern,
+      "identity",
+      { length: 100, width: 40 },
+      "lengthwise",
+    );
+    const crosswise = transformStackPattern(
+      generatedPattern,
+      "identity",
+      { length: 100, width: 40 },
+      "crosswise",
+    );
+
+    expect(lengthwise.groupOrder).toEqual(["dependent", "target"]);
+    expect(lengthwise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: 0 },
+    ]);
+    expect(lengthwise.orderDependencies).toEqual([]);
+    expect(crosswise.groupOrder).toEqual(["dependent", "target"]);
+    expect(crosswise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: -1, dy: 0 },
+    ]);
+    expect(crosswise.orderDependencies).toEqual([
+      {
+        beforeGripId: "dependent",
+        afterGripId: "target",
+        source: "inferred",
+      },
+    ]);
+  });
+
+  it("keeps a cyclic project pattern visible for inspection with an error", () => {
+    const cyclicPattern: StackPattern = {
+      ...pattern("cyclic-project-order"),
+      placements: [
+        {
+          sourcePlacementId: "placement-upper",
+          sequence: 0,
+          positionMm: { x: 50, y: 150 },
+          rotation: 0,
+          gripId: "upper",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-lower",
+          sequence: 1,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "lower",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "upper",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 150,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          sourceGripId: "lower",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["upper", "lower"],
+      orderDependencies: [
+        {
+          beforeGripId: "upper",
+          afterGripId: "lower",
+          source: "explicit",
+        },
+      ],
+    };
+
+    const result = materializeStack({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 100, height: 20 },
+        weightKg: 1,
+        weightProvenance: derived,
+        inletOrientation: "lengthwise",
+      },
+      pallet: {
+        id: "pallet",
+        dimensionsMm: { length: 200, width: 200, height: 10 },
+        allowedOverhangMm: { length: 0, width: 0 },
+        storageEnvelopeMm: { length: 200, width: 200, height: 100 },
+        tareKg: 5,
+        maxGrossKg: 100,
+      },
+      resources: {
+        selectedGripperId: "gripper",
+        selectedPalletStationId: "station",
+        availableMaterialResourceIds: [],
+      },
+      patterns: [cyclicPattern],
+      layers: [
+        {
+          id: "layer-1",
+          patternRef: cyclicPattern.ref,
+          transform: "identity",
+          provenance: { kind: "manual", reason: "test" },
+        },
+      ],
+      interlayers: { mode: "individual", beforeLayer: {} },
+    });
+
+    expect(result.packageLayers).toHaveLength(1);
+    expect(result.packageLayers[0]?.placements).toHaveLength(2);
+    expect(result.packageLayers[0]?.groupOrder).toEqual(["upper", "lower"]);
+    expect(result.warnings).toContainEqual(
+      expect.objectContaining({
+        id: "invalid-stack-input:transform:layer-1",
+        code: "invalid-stack-input",
+        severity: "error",
+        message: expect.stringMatching(/dependencies contain a cycle/i),
+      }),
+    );
+  });
+
+  it("repairs project grip order when a transform creates a hard overlap dependency", () => {
+    const projectPattern: StackPattern = {
+      ...pattern("project-order"),
+      placements: [
+        {
+          sourcePlacementId: "placement-upper-after-rotation",
+          sequence: 0,
+          positionMm: { x: 150, y: 100 },
+          rotation: 0,
+          gripId: "upper-after-rotation",
+          labelSide: null,
+        },
+        {
+          sourcePlacementId: "placement-lower-after-rotation",
+          sequence: 1,
+          positionMm: { x: 50, y: 100 },
+          rotation: 0,
+          gripId: "lower-after-rotation",
+          labelSide: null,
+        },
+      ],
+      grips: [
+        {
+          sourceGripId: "upper-after-rotation",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 150,
+          y: 100,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          sourceGripId: "lower-after-rotation",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 100,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      groupOrder: ["upper-after-rotation", "lower-after-rotation"],
+      orderDependencies: [],
+      transformFrameMm: { minX: 0, minY: 0, maxX: 200, maxY: 200 },
+    };
+
+    const transformed = transformStackPattern(projectPattern, "rotate-90", {
+      length: 100,
+      width: 100,
+    });
+
+    expect(transformed.groupOrder).toEqual([
+      "lower-after-rotation",
+      "upper-after-rotation",
+    ]);
+    expect(
+      transformed.grips.map(({ sourceGripId, sequence, groupNumber }) => ({
+        sourceGripId,
+        sequence,
+        groupNumber,
+      })),
+    ).toEqual([
+      {
+        sourceGripId: "lower-after-rotation",
+        sequence: 0,
+        groupNumber: 1,
+      },
+      {
+        sourceGripId: "upper-after-rotation",
+        sequence: 1,
+        groupNumber: 2,
+      },
+    ]);
+    expect(transformed.orderDependencies).toEqual([
+      {
+        beforeGripId: "lower-after-rotation",
+        afterGripId: "upper-after-rotation",
+        source: "inferred",
+      },
+    ]);
+
+    expect(() =>
+      transformStackPattern(
+        {
+          ...projectPattern,
+          orderDependencies: [
+            {
+              beforeGripId: "upper-after-rotation",
+              afterGripId: "lower-after-rotation",
+              source: "explicit",
+            },
+          ],
+        },
+        "rotate-90",
+        { length: 100, width: 100 },
+      ),
+    ).toThrow(/dependencies contain a cycle/i);
+  });
 
   it("preserves project-defined grip order while transforming its geometry and deltas", () => {
     const generated = generatedGridPattern();
@@ -321,7 +910,12 @@ describe("stack composition transforms", () => {
       { dx: -1, dy: 0 },
       { dx: -1, dy: -1 },
     ]);
-    expect(transformed.orderDependencies).toEqual(generated.orderDependencies);
+    expect(transformed.orderDependencies).toEqual(
+      generated.orderDependencies.map((dependency) => ({
+        ...dependency,
+        source: "explicit",
+      })),
+    );
   });
 });
 

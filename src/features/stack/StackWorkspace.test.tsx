@@ -315,17 +315,17 @@ describe("stack workspace persistence", () => {
         dy,
       })),
     ).toEqual([
-      { groupNumber: 3, x: 1150, y: 50, dx: 0, dy: 0 },
-      { groupNumber: 4, x: 1150, y: 150, dx: 0, dy: -1 },
-      { groupNumber: 1, x: 1050, y: 50, dx: 1, dy: 0 },
-      { groupNumber: 2, x: 1050, y: 150, dx: 1, dy: -1 },
+      { groupNumber: 1, x: 1150, y: 50, dx: 0, dy: 0 },
+      { groupNumber: 2, x: 1050, y: 50, dx: 1, dy: 0 },
+      { groupNumber: 3, x: 1150, y: 150, dx: 0, dy: -1 },
+      { groupNumber: 4, x: 1050, y: 150, dx: 1, dy: -1 },
     ]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
     );
     expect(reopenedLayer.groupOrder).toEqual(persistedPattern.groupOrder);
     expect(robotics.cycles.map(({ groupNumber }) => groupNumber)).toEqual([
-      3, 4, 1, 2,
+      1, 2, 3, 4,
     ]);
     expect(
       robotics.diagnostics.filter(

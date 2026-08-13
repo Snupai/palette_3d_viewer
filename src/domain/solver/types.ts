@@ -172,7 +172,7 @@ export type SolverCandidateGrip = CandidateIdentityGrip & {
   sequence: number;
 };
 
-/** Ordering implied by the derived dx/dy blue lines of generated grips. */
+/** Hard ordering implied by vertical overlap geometry or derived dx/dy references. */
 export type SolverCandidateOrderDependency = {
   beforeGripId: string;
   afterGripId: string;

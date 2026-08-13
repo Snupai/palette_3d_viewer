@@ -146,12 +146,12 @@ export type RobotConveyorModel = {
 export type RobotOrderDependency = {
   beforeGroupId: string;
   afterGroupId: string;
-  source: "explicit" | "legacy-repository-delta-v1";
+  source: "explicit" | "inferred" | "legacy-repository-delta-v1";
 };
 
 export type RobotGripGroup = {
   id: string;
-  /** Stable editor-visible number, independent from execution sequence. */
+  /** One-based execution position within the physical layer. */
   groupNumber: number;
   physicalLayerId: string;
   physicalLayerIndex: number;

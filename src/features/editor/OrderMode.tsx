@@ -57,6 +57,10 @@ export function OrderMode({
     );
   }, [groups]);
 
+  const gripNumberById = useMemo(
+    () => new Map(groups.map(({ id }, index) => [id, index + 1])),
+    [groups],
+  );
   const groupByPlacement = useMemo(
     () =>
       new Map(
@@ -82,7 +86,7 @@ export function OrderMode({
       rotation: placement.rotation,
       label: group ? String(group.orderIndex + 1) : "—",
       detail: group
-        ? `Package ${placement.sequence + 1}; group ${group.groupNumber}; execution order ${group.orderIndex + 1}`
+        ? `Package ${placement.sequence + 1}; grip G${group.orderIndex + 1}`
         : `Package ${placement.sequence + 1}; ungrouped`,
     };
   });
@@ -153,17 +157,14 @@ export function OrderMode({
         </div>
 
         <div className="scrollbar-thin overflow-auto">
-          <table className="w-full min-w-[760px] border-collapse text-left text-xs">
+          <table className="w-full min-w-[680px] border-collapse text-left text-xs">
             <thead className="bg-zinc-950 text-zinc-500">
               <tr>
                 <th className="border-b border-zinc-800 px-2 py-2 font-medium">
                   Select
                 </th>
                 <th className="border-b border-zinc-800 px-2 py-2 font-medium">
-                  Group no.
-                </th>
-                <th className="border-b border-zinc-800 px-2 py-2 font-medium">
-                  Order
+                  Grip / Order
                 </th>
                 <th className="border-b border-zinc-800 px-2 py-2 font-medium">
                   Packages
@@ -186,47 +187,13 @@ export function OrderMode({
                   <td className="px-2 py-2">
                     <input
                       type="checkbox"
-                      aria-label={`Select group ${group.groupNumber}`}
+                      aria-label={`Select grip G${index + 1}`}
                       checked={selectedGroupIds.has(group.id)}
                       onChange={() => toggleGroup(group.id)}
                       className="h-4 w-4 accent-amber-400"
                     />
                   </td>
-                  <td className="px-2 py-2">
-                    <input
-                      key={`${group.id}:${group.groupNumber}`}
-                      aria-label={`Group ${group.groupNumber} number`}
-                      type="number"
-                      min="1"
-                      step="1"
-                      defaultValue={group.groupNumber}
-                      onBlur={(event) => {
-                        const groupNumber = Number(event.target.value);
-                        if (
-                          !Number.isInteger(groupNumber) ||
-                          groupNumber <= 0 ||
-                          groupNumber === group.groupNumber
-                        ) {
-                          event.currentTarget.value = String(group.groupNumber);
-                          return;
-                        }
-                        execute({
-                          type: "renumber-group",
-                          ...commandBase,
-                          gripId: group.id,
-                          groupNumber,
-                        });
-                      }}
-                      onKeyDown={(event) => {
-                        if (event.key === "Enter") event.currentTarget.blur();
-                        if (event.key === "Escape") {
-                          event.currentTarget.value = String(group.groupNumber);
-                        }
-                      }}
-                      className={`${inputClass} w-20 font-mono`}
-                    />
-                  </td>
-                  <td className="px-2 py-2 font-mono">{index + 1}</td>
+                  <td className="px-2 py-2 font-mono">G{index + 1}</td>
                   <td className="px-2 py-2">
                     <span className="font-mono">
                       {group.placementIds.length}
@@ -243,7 +210,7 @@ export function OrderMode({
                     <div className="flex flex-wrap gap-1">
                       <button
                         type="button"
-                        aria-label={`Move group ${group.groupNumber} up`}
+                        aria-label={`Move grip G${index + 1} up`}
                         disabled={index === 0}
                         onClick={() =>
                           execute({
@@ -259,7 +226,7 @@ export function OrderMode({
                       </button>
                       <button
                         type="button"
-                        aria-label={`Move group ${group.groupNumber} down`}
+                        aria-label={`Move grip G${index + 1} down`}
                         disabled={index === groups.length - 1}
                         onClick={() =>
                           execute({
@@ -275,7 +242,7 @@ export function OrderMode({
                       </button>
                       <button
                         type="button"
-                        aria-label={`Split group ${group.groupNumber}`}
+                        aria-label={`Split grip G${index + 1}`}
                         disabled={group.placementIds.length <= 1}
                         onClick={() =>
                           execute({
@@ -290,7 +257,7 @@ export function OrderMode({
                       </button>
                       <button
                         type="button"
-                        aria-label={`Remove group ${group.groupNumber}`}
+                        aria-label={`Remove grip G${index + 1}`}
                         onClick={() =>
                           execute({
                             type: "remove-group",
@@ -309,7 +276,7 @@ export function OrderMode({
               {groups.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={6}
+                    colSpan={5}
                     className="px-3 py-6 text-center text-zinc-600"
                   >
                     This pattern has no package groups.
@@ -328,8 +295,8 @@ export function OrderMode({
               2D execution order
             </h3>
             <p className="mt-0.5 text-xs text-zinc-500">
-              Package labels show execution position. Stable group numbers stay
-              in the table when rows move.
+              G1 is the first executed grip. Reordering rows renumbers all grips
+              automatically.
             </p>
           </header>
           <div className="min-h-[340px] bg-zinc-950 p-2">
@@ -363,9 +330,9 @@ export function OrderMode({
                 onChange={(event) => setBeforeGripId(event.target.value)}
                 className={inputClass}
               >
-                {groups.map((group) => (
+                {groups.map((group, index) => (
                   <option key={group.id} value={group.id}>
-                    Group {group.groupNumber}
+                    Grip G{index + 1}
                   </option>
                 ))}
               </select>
@@ -381,9 +348,9 @@ export function OrderMode({
                 onChange={(event) => setAfterGripId(event.target.value)}
                 className={inputClass}
               >
-                {groups.map((group) => (
+                {groups.map((group, index) => (
                   <option key={group.id} value={group.id}>
-                    Group {group.groupNumber}
+                    Grip G{index + 1}
                   </option>
                 ))}
               </select>
@@ -413,29 +380,24 @@ export function OrderMode({
           ) : (
             <ul className="mt-3 grid gap-1">
               {orderModel.dependencies.map((dependency) => {
-                const before = groups.find(
-                  ({ id }) => id === dependency.beforeGripId,
-                );
-                const after = groups.find(
-                  ({ id }) => id === dependency.afterGripId,
-                );
+                const beforeNumber = gripNumberById.get(dependency.beforeGripId);
+                const afterNumber = gripNumberById.get(dependency.afterGripId);
                 return (
                   <li
                     key={`${dependency.beforeGripId}:${dependency.afterGripId}`}
                     className="flex items-center gap-2 border-t border-zinc-800 py-1.5 text-xs text-zinc-400"
                   >
                     <span className="mr-auto font-mono">
-                      G{before?.groupNumber ?? "?"} before G
-                      {after?.groupNumber ?? "?"}
+                      G{beforeNumber ?? "?"} before G{afterNumber ?? "?"}
                     </span>
                     {dependency.source === "inferred" ? (
                       <span className="text-[11px] text-zinc-600">
-                        Inferred from legacy dx/dy; immutable in this editor.
+                        Inferred from package geometry or legacy dx/dy; immutable.
                       </span>
                     ) : (
                       <button
                         type="button"
-                        aria-label={`Remove dependency group ${before?.groupNumber ?? "unknown"} before group ${after?.groupNumber ?? "unknown"}`}
+                        aria-label={`Remove dependency grip G${beforeNumber ?? "unknown"} before grip G${afterNumber ?? "unknown"}`}
                         onClick={() =>
                           execute({
                             type: "remove-order-dependency",

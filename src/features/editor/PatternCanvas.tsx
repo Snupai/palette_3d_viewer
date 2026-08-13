@@ -432,7 +432,7 @@ export function PatternCanvas({
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSelected}
-                aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, group ${group.groupNumber}, order ${group.orderIndex + 1}` : ", ungrouped"}`}
+                aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, grip G${group.orderIndex + 1}` : ", ungrouped"}`}
                 fill={isSelected ? "#3f3412" : "#27272a"}
                 stroke={isSelected ? "#fbbf24" : "#a1a1aa"}
                 strokeWidth={isSelected ? 3 : 1.5}
@@ -450,7 +450,7 @@ export function PatternCanvas({
                 }}
               >
                 <title>
-                  {`Package ${placement.sequence + 1}; ${placement.positionMm.x}, ${placement.positionMm.y} mm; ${placement.rotation}°${group ? `; group ${group.groupNumber}; order ${group.orderIndex + 1}` : "; ungrouped"}`}
+                  {`Package ${placement.sequence + 1}; ${placement.positionMm.x}, ${placement.positionMm.y} mm; ${placement.rotation}°${group ? `; grip G${group.orderIndex + 1}` : "; ungrouped"}`}
                 </title>
               </rect>
               {path ? (
@@ -521,10 +521,11 @@ export function PatternCanvas({
           };
           const deltaArrow = gripDeltaArrow(center, grip, footprints);
           const firstFootprint = footprints[0]!;
-          const groupNumber =
-            grip.groupNumber ??
-            groupById.get(grip.id)?.groupNumber ??
-            gripIndex + 1;
+          const orderIndex = groupById.get(grip.id)?.orderIndex;
+          const executionPosition =
+            orderIndex !== undefined && orderIndex >= 0
+              ? orderIndex + 1
+              : gripIndex + 1;
           const isSelected = placementIds.some((placementId) =>
             selectedPlacementIds.has(placementId),
           );
@@ -588,7 +589,7 @@ export function PatternCanvas({
                 )}
                 fontFamily="ui-monospace, monospace"
               >
-                G{groupNumber}
+                G{executionPosition}
               </text>
             </g>
           );

@@ -198,7 +198,7 @@ describe("PatternCanvas", () => {
 
     const packageRects = screen.getAllByRole("button");
     expect(packageRects).toHaveLength(2);
-    expect(screen.getAllByText("G7")).toHaveLength(1);
+    expect(screen.getAllByText("G1")).toHaveLength(1);
 
     const cyanPaths = [
       ...container.querySelectorAll<SVGPathElement>('path[stroke="#38bdf8"]'),

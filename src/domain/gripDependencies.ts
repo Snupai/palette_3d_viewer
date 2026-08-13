@@ -1,4 +1,8 @@
-import type { Grip } from "~/domain/palletTypes";
+import {
+  placementRectangleBounds,
+  type RectangleSizeMm,
+} from "~/domain/geometry";
+import type { Grip, Rotation } from "~/domain/palletTypes";
 import { footprintSize, gripsToBoxes } from "~/domain/palletGeometry";
 
 type BoxBounds = {
@@ -11,6 +15,18 @@ type BoxBounds = {
 export type GripDependency = {
   prerequisiteIndex: number;
   dependentIndex: number;
+};
+
+export type GripOrderDependency = {
+  beforeGripId: string;
+  afterGripId: string;
+  source?: "explicit" | "inferred";
+};
+
+export type GripPlacementFootprint = {
+  gripId: string | null;
+  positionMm: { x: number; y: number };
+  rotation: Rotation;
 };
 
 /** Nearest grips along one axis direction plus the gap they share. */
@@ -33,11 +49,18 @@ const COORDINATE_TOLERANCE = 0.500_001;
 
 export const LEGACY_ROB_DELTA_APPROACH_DISTANCE_MM = 80;
 
+export function compareGripPositionsBottomRightRowMajor(
+  left: { x: number; y: number },
+  right: { x: number; y: number },
+): number {
+  return left.y - right.y || right.x - left.x;
+}
+
 export function compareGripPositionsRightBottomToLeftTop(
   left: { x: number; y: number },
   right: { x: number; y: number },
 ): number {
-  return right.x - left.x || left.y - right.y;
+  return compareGripPositionsBottomRightRowMajor(left, right);
 }
 
 function boxBoundsByGrip(
@@ -58,6 +81,185 @@ function boxBoundsByGrip(
         };
       },
     ),
+  );
+}
+
+function placementBoundsByGrip(
+  gripIds: readonly string[],
+  placements: readonly GripPlacementFootprint[],
+  packageSize: RectangleSizeMm,
+): Map<string, BoxBounds[]> {
+  const knownGripIds = new Set(gripIds);
+  const boundsByGrip = new Map<string, BoxBounds[]>();
+  for (const placement of placements) {
+    if (placement.gripId === null || !knownGripIds.has(placement.gripId)) {
+      continue;
+    }
+    const bounds = placementRectangleBounds(placement, packageSize);
+    const gripBounds = boundsByGrip.get(placement.gripId) ?? [];
+    gripBounds.push({
+      left: bounds.minX,
+      right: bounds.maxX,
+      bottom: bounds.minY,
+      top: bounds.maxY,
+    });
+    boundsByGrip.set(placement.gripId, gripBounds);
+  }
+  return boundsByGrip;
+}
+
+function footprintsOverlapInX(
+  lowerBounds: readonly BoxBounds[],
+  upperBounds: readonly BoxBounds[],
+): boolean {
+  return lowerBounds.some((lower) =>
+    upperBounds.some(
+      (upper) =>
+        Math.min(lower.right, upper.right) -
+          Math.max(lower.left, upper.left) >
+        COORDINATE_TOLERANCE,
+    ),
+  );
+}
+
+/**
+ * Packages cannot be placed above packages that overlap them in X. Grips are
+ * compared only when all member packages of one grip lie below all members of
+ * the other, which keeps multipackage dependencies directional and acyclic.
+ */
+export function buildGripVerticalOverlapDependencies(
+  gripIds: readonly string[],
+  placements: readonly GripPlacementFootprint[],
+  packageSize: RectangleSizeMm,
+): GripOrderDependency[] {
+  const uniqueGripIds = [...new Set(gripIds)].sort();
+  const boundsByGrip = placementBoundsByGrip(
+    uniqueGripIds,
+    placements,
+    packageSize,
+  );
+  const dependencies: GripOrderDependency[] = [];
+
+  uniqueGripIds.forEach((leftGripId, leftIndex) => {
+    const leftBounds = boundsByGrip.get(leftGripId) ?? [];
+    if (leftBounds.length === 0) return;
+    const leftBottom = Math.min(...leftBounds.map(({ bottom }) => bottom));
+    const leftTop = Math.max(...leftBounds.map(({ top }) => top));
+
+    uniqueGripIds.slice(leftIndex + 1).forEach((rightGripId) => {
+      const rightBounds = boundsByGrip.get(rightGripId) ?? [];
+      if (rightBounds.length === 0) return;
+      const rightBottom = Math.min(...rightBounds.map(({ bottom }) => bottom));
+      const rightTop = Math.max(...rightBounds.map(({ top }) => top));
+      if (!footprintsOverlapInX(leftBounds, rightBounds)) return;
+
+      if (leftTop <= rightBottom + COORDINATE_TOLERANCE) {
+        dependencies.push({
+          beforeGripId: leftGripId,
+          afterGripId: rightGripId,
+        });
+      } else if (rightTop <= leftBottom + COORDINATE_TOLERANCE) {
+        dependencies.push({
+          beforeGripId: rightGripId,
+          afterGripId: leftGripId,
+        });
+      }
+    });
+  });
+
+  return dependencies.sort(
+    (left, right) =>
+      left.beforeGripId.localeCompare(right.beforeGripId) ||
+      left.afterGripId.localeCompare(right.afterGripId),
+  );
+}
+
+export function mergeGripOrderDependencies(
+  ...sets: readonly (readonly GripOrderDependency[])[]
+): GripOrderDependency[] {
+  const merged = new Map<string, GripOrderDependency>();
+  for (const dependencies of sets) {
+    for (const dependency of dependencies) {
+      if (dependency.beforeGripId === dependency.afterGripId) continue;
+      const key = `${dependency.beforeGripId}\0${dependency.afterGripId}`;
+      const existing = merged.get(key);
+      if (existing?.source === "explicit" && dependency.source !== "explicit") {
+        continue;
+      }
+      merged.set(key, dependency);
+    }
+  }
+  return [...merged.values()].sort(
+    (left, right) =>
+      left.beforeGripId.localeCompare(right.beforeGripId) ||
+      left.afterGripId.localeCompare(right.afterGripId),
+  );
+}
+
+export function orderGripsByDependencies<
+  T extends { id: string; x: number; y: number },
+>(
+  grips: readonly T[],
+  dependencies: readonly GripOrderDependency[],
+  preferredOrder?: readonly string[],
+): T[] {
+  const gripById = new Map(grips.map((grip) => [grip.id, grip]));
+  const outgoing = new Map<string, string[]>();
+  const indegree = new Map(grips.map(({ id }) => [id, 0]));
+  for (const dependency of mergeGripOrderDependencies(dependencies)) {
+    if (
+      !gripById.has(dependency.beforeGripId) ||
+      !gripById.has(dependency.afterGripId)
+    ) {
+      continue;
+    }
+    const targets = outgoing.get(dependency.beforeGripId) ?? [];
+    targets.push(dependency.afterGripId);
+    outgoing.set(dependency.beforeGripId, targets);
+    indegree.set(
+      dependency.afterGripId,
+      (indegree.get(dependency.afterGripId) ?? 0) + 1,
+    );
+  }
+  for (const targets of outgoing.values()) targets.sort();
+
+  const preferredIndexById = preferredOrder
+    ? new Map(preferredOrder.map((id, index) => [id, index]))
+    : null;
+  const compare = (left: T, right: T) =>
+    (preferredIndexById
+      ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
+        (preferredIndexById.get(right.id) ?? Number.POSITIVE_INFINITY)
+      : 0) ||
+    compareGripPositionsBottomRightRowMajor(left, right) ||
+    left.id.localeCompare(right.id);
+  const available = grips
+    .filter(({ id }) => (indegree.get(id) ?? 0) === 0)
+    .sort(compare);
+  const ordered: T[] = [];
+  while (available.length > 0) {
+    const current = available.shift()!;
+    ordered.push(current);
+    for (const targetId of outgoing.get(current.id) ?? []) {
+      const nextIndegree = (indegree.get(targetId) ?? 0) - 1;
+      indegree.set(targetId, nextIndegree);
+      if (nextIndegree !== 0) continue;
+      const target = gripById.get(targetId);
+      if (target) {
+        available.push(target);
+        available.sort(compare);
+      }
+    }
+  }
+
+  if (ordered.length === grips.length) return ordered;
+  const orderedIds = new Set(ordered.map(({ id }) => id));
+  const unresolvedIds = grips
+    .filter(({ id }) => !orderedIds.has(id))
+    .sort(compare)
+    .map(({ id }) => id);
+  throw new Error(
+    `Grip order cannot be resolved because dependencies contain a cycle; unresolved grips: ${unresolvedIds.join(", ")}.`,
   );
 }
 

@@ -26,7 +26,7 @@ export type StackPatternPlacement = {
 
 export type StackPatternGrip = {
   sourceGripId: string;
-  /** Stable display number, independent from sequence/order. */
+  /** One-based execution position within the physical layer. */
   groupNumber: number;
   sequence: number;
   pickX: number;
@@ -87,6 +87,7 @@ export type StackPatternProvenance =
 export type StackPatternOrderDependency = {
   beforeGripId: string;
   afterGripId: string;
+  source?: "explicit" | "inferred";
 };
 
 export type StackPatternLabelOrientationPolicy = {

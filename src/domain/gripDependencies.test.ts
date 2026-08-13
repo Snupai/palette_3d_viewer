@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   buildGripDeltaDependencies,
-  compareGripPositionsRightBottomToLeftTop,
+  buildGripVerticalOverlapDependencies,
+  compareGripPositionsBottomRightRowMajor,
   deriveGripDeltasForPlacementOrder,
   insertMergedGripByDeltaDependencies,
+  mergeGripOrderDependencies,
+  orderGripsByDependencies,
+  type GripPlacementFootprint,
 } from "~/domain/gripDependencies";
-import type { Grip } from "~/domain/palletTypes";
+import type { Grip, Rotation } from "~/domain/palletTypes";
 
 function grip(
   id: string,
@@ -30,6 +34,15 @@ function grip(
   };
 }
 
+function footprint(
+  gripId: string,
+  x: number,
+  y: number,
+  rotation: Rotation = 0,
+): GripPlacementFootprint {
+  return { gripId, positionMm: { x, y }, rotation };
+}
+
 function byDependency(
   left: { prerequisiteIndex: number; dependentIndex: number },
   right: { prerequisiteIndex: number; dependentIndex: number },
@@ -41,7 +54,7 @@ function byDependency(
 }
 
 describe("grip execution order", () => {
-  it("sorts from the bottom of the rightmost column toward the top left", () => {
+  it("sorts each row from right to left before moving upward", () => {
     const grips = [
       grip("left-top", 50, 150),
       grip("right-top", 150, 150),
@@ -49,16 +62,141 @@ describe("grip execution order", () => {
       grip("right-bottom", 150, 50),
     ].sort(
       (left, right) =>
-        compareGripPositionsRightBottomToLeftTop(left, right) ||
+        compareGripPositionsBottomRightRowMajor(left, right) ||
         left.id.localeCompare(right.id),
     );
 
     expect(grips.map(({ id }) => id)).toEqual([
       "right-bottom",
-      "right-top",
       "left-bottom",
+      "right-top",
       "left-top",
     ]);
+  });
+
+  it("orders every lower overlapping grip before the upper grip", () => {
+    const placements = [
+      footprint("lower-right", 100, 50),
+      footprint("upper", 100, 150),
+      footprint("lower-left", 50, 50),
+    ];
+    const dependencies = buildGripVerticalOverlapDependencies(
+      ["upper", "lower-left", "lower-right"],
+      placements,
+      { length: 100, width: 100 },
+    );
+
+    expect(dependencies).toEqual([
+      { beforeGripId: "lower-left", afterGripId: "upper" },
+      { beforeGripId: "lower-right", afterGripId: "upper" },
+    ]);
+    expect(
+      orderGripsByDependencies(
+        [
+          grip("upper", 100, 150),
+          grip("lower-left", 50, 50),
+          grip("lower-right", 100, 50),
+        ],
+        dependencies,
+      ).map(({ id }) => id),
+    ).toEqual(["lower-right", "lower-left", "upper"]);
+  });
+
+  it("rejects cyclic hard dependencies instead of emitting an invalid order", () => {
+    expect(() =>
+      orderGripsByDependencies(
+        [grip("a", 150, 50), grip("b", 50, 150)],
+        [
+          { beforeGripId: "a", afterGripId: "b", source: "explicit" },
+          { beforeGripId: "b", afterGripId: "a", source: "inferred" },
+        ],
+      ),
+    ).toThrow(/dependencies contain a cycle.*a, b/i);
+  });
+
+  it("counts 1 mm of X overlap but not touching edges", () => {
+    const overlapping = buildGripVerticalOverlapDependencies(
+      ["lower", "upper"],
+      [footprint("lower", 50, 50), footprint("upper", 149, 150)],
+      { length: 100, width: 100 },
+    );
+    const touching = buildGripVerticalOverlapDependencies(
+      ["lower", "upper"],
+      [footprint("lower", 50, 50), footprint("upper", 150, 150)],
+      { length: 100, width: 100 },
+    );
+
+    expect(overlapping).toEqual([
+      { beforeGripId: "lower", afterGripId: "upper" },
+    ]);
+    expect(touching).toEqual([]);
+  });
+
+  it("uses individual package footprints for multipackage grips", () => {
+    const dependencies = buildGripVerticalOverlapDependencies(
+      ["lower-double", "upper-single"],
+      [
+        footprint("lower-double", 50, 50),
+        footprint("lower-double", 250, 50),
+        footprint("upper-single", 299, 150),
+      ],
+      { length: 100, width: 100 },
+    );
+
+    expect(dependencies).toEqual([
+      { beforeGripId: "lower-double", afterGripId: "upper-single" },
+    ]);
+  });
+
+  it("keeps an explicit dependency when current geometry infers the same edge", () => {
+    expect(
+      mergeGripOrderDependencies(
+        [
+          {
+            beforeGripId: "lower",
+            afterGripId: "upper",
+            source: "explicit",
+          },
+        ],
+        [
+          {
+            beforeGripId: "lower",
+            afterGripId: "upper",
+            source: "inferred",
+          },
+        ],
+      ),
+    ).toEqual([
+      {
+        beforeGripId: "lower",
+        afterGripId: "upper",
+        source: "explicit",
+      },
+    ]);
+  });
+
+  it("does not invent opposing dependencies for vertically interleaved multipacks", () => {
+    const placements = [
+      footprint("a", 50, 50),
+      footprint("a", 50, 250),
+      footprint("b", 50, 150),
+      footprint("b", 50, 350),
+    ];
+
+    expect(
+      buildGripVerticalOverlapDependencies(
+        ["b", "a"],
+        placements,
+        { length: 100, width: 100 },
+      ),
+    ).toEqual([]);
+    expect(
+      buildGripVerticalOverlapDependencies(
+        ["a", "b"],
+        [...placements].reverse(),
+        { length: 100, width: 100 },
+      ),
+    ).toEqual([]);
   });
 });
 

@@ -5,8 +5,11 @@ import {
   type RectangleSizeMm,
 } from "~/domain/geometry";
 import {
-  compareGripPositionsRightBottomToLeftTop,
+  buildGripDeltaDependencies,
+  buildGripVerticalOverlapDependencies,
   deriveGripDeltasForPlacementOrder,
+  mergeGripOrderDependencies,
+  orderGripsByDependencies,
 } from "~/domain/gripDependencies";
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import { selectAuthorizedYawForWorldLabel } from "~/domain/solver/labelOrientation";
@@ -167,31 +170,88 @@ function transformCycle(
   };
 }
 
-function replanGeneratedGrips(
+function deltaDependenciesForGrips(
+  grips: readonly StackPatternGrip[],
+  packageSize: RectangleSizeMm,
+  inputDirection: 0 | 1,
+): StackPatternOrderDependency[] {
+  return buildGripDeltaDependencies(
+    grips.map((grip) => ({ ...grip, id: grip.sourceGripId })),
+    packageSize.length,
+    packageSize.width,
+    inputDirection,
+  ).flatMap(({ prerequisiteIndex, dependentIndex }) => {
+    const beforeGripId = grips[prerequisiteIndex]?.sourceGripId;
+    const afterGripId = grips[dependentIndex]?.sourceGripId;
+    return beforeGripId && afterGripId
+      ? [{ beforeGripId, afterGripId, source: "inferred" as const }]
+      : [];
+  });
+}
+
+function retainedExplicitDependencies(
   pattern: StackPattern,
+): StackPatternOrderDependency[] {
+  return pattern.orderDependencies.flatMap((dependency) =>
+    dependency.source === "inferred" ||
+    (dependency.source === undefined &&
+      pattern.provenance.kind === "solver-candidate")
+      ? []
+      : [{ ...dependency, source: dependency.source ?? "explicit" }],
+  );
+}
+
+function replanGrips(
+  pattern: StackPattern,
+  transformedPlacements: readonly StackPatternPlacement[],
   transformedGrips: readonly StackPatternGrip[],
   packageSize: RectangleSizeMm,
+  inputDirection: 0 | 1,
 ): Pick<TransformedStackPattern, "grips" | "groupOrder" | "orderDependencies"> {
+  const verticalDependencies = buildGripVerticalOverlapDependencies(
+    transformedGrips.map(({ sourceGripId }) => sourceGripId),
+    transformedPlacements,
+    packageSize,
+  ).map((dependency) => ({ ...dependency, source: "inferred" as const }));
+  const retainedDependencies = retainedExplicitDependencies(pattern);
+
   if (
     pattern.provenance.kind !== "solver-candidate" ||
     !pattern.generatedGripPolicy
   ) {
+    const orderDependencies = mergeGripOrderDependencies(
+      retainedDependencies,
+      deltaDependenciesForGrips(
+        transformedGrips,
+        packageSize,
+        inputDirection,
+      ),
+      verticalDependencies,
+    );
+    const grips = orderGripsByDependencies(
+      transformedGrips.map((grip) => ({ ...grip, id: grip.sourceGripId })),
+      orderDependencies,
+      pattern.groupOrder,
+    ).map(({ id: _, ...grip }, sequence) => ({
+      ...grip,
+      sequence,
+      groupNumber: sequence + 1,
+    }));
     return {
-      grips: transformedGrips.map((grip) => ({ ...grip })),
-      groupOrder: [...pattern.groupOrder],
-      orderDependencies: pattern.orderDependencies.map((dependency) => ({
-        ...dependency,
-      })),
+      grips,
+      groupOrder: grips.map(({ sourceGripId }) => sourceGripId),
+      orderDependencies,
     };
   }
 
-  const orderedGrips = [...transformedGrips]
-    .sort(
-      (left, right) =>
-        compareGripPositionsRightBottomToLeftTop(left, right) ||
-        left.sourceGripId.localeCompare(right.sourceGripId),
-    )
-    .map((grip, sequence) => ({ ...grip, sequence }));
+  const orderedGrips = orderGripsByDependencies(
+    transformedGrips.map((grip) => ({ ...grip, id: grip.sourceGripId })),
+    verticalDependencies,
+  ).map(({ id: _, ...grip }, sequence) => ({
+    ...grip,
+    sequence,
+    groupNumber: sequence + 1,
+  }));
   const derived = deriveGripDeltasForPlacementOrder(
     orderedGrips.map((grip) => ({
       id: grip.sourceGripId,
@@ -207,7 +267,7 @@ function replanGeneratedGrips(
     })),
     packageSize.length,
     packageSize.width,
-    0,
+    inputDirection,
     { maxReferenceGapMm: pattern.generatedGripPolicy.maxReferenceGapMm },
   );
   const grips = orderedGrips.map((grip, index) => ({
@@ -215,22 +275,24 @@ function replanGeneratedGrips(
     dx: derived.deltas[index]?.dx ?? 0,
     dy: derived.deltas[index]?.dy ?? 0,
   }));
-  const orderDependencies = derived.dependencies
-    .flatMap(({ prerequisiteIndex, dependentIndex }) => {
+  const deltaDependencies = derived.dependencies.flatMap(
+    ({ prerequisiteIndex, dependentIndex }) => {
       const beforeGripId = grips[prerequisiteIndex]?.sourceGripId;
       const afterGripId = grips[dependentIndex]?.sourceGripId;
-      return beforeGripId && afterGripId ? [{ beforeGripId, afterGripId }] : [];
-    })
-    .sort(
-      (left, right) =>
-        left.beforeGripId.localeCompare(right.beforeGripId) ||
-        left.afterGripId.localeCompare(right.afterGripId),
-    );
+      return beforeGripId && afterGripId
+        ? [{ beforeGripId, afterGripId, source: "inferred" as const }]
+        : [];
+    },
+  );
 
   return {
     grips,
     groupOrder: grips.map(({ sourceGripId }) => sourceGripId),
-    orderDependencies,
+    orderDependencies: mergeGripOrderDependencies(
+      retainedDependencies,
+      verticalDependencies,
+      deltaDependencies,
+    ),
   };
 }
 
@@ -238,18 +300,25 @@ export function transformStackPattern(
   pattern: StackPattern,
   transform: StackLayerTransform,
   packageSize: RectangleSizeMm,
+  inletOrientation: "lengthwise" | "crosswise" = "lengthwise",
 ): TransformedStackPattern {
+  const inputDirection = inletOrientation === "crosswise" ? 1 : 0;
   if (transform === "identity") {
+    const placements = pattern.placements.map((placement) => ({
+      ...placement,
+      positionMm: { ...placement.positionMm },
+    }));
+    const copiedGrips = pattern.grips.map((grip) => ({ ...grip }));
+    const plannedGrips = replanGrips(
+      pattern,
+      placements,
+      copiedGrips,
+      packageSize,
+      inputDirection,
+    );
     return {
-      placements: pattern.placements.map((placement) => ({
-        ...placement,
-        positionMm: { ...placement.positionMm },
-      })),
-      grips: pattern.grips.map((grip) => ({ ...grip })),
-      groupOrder: [...pattern.groupOrder],
-      orderDependencies: pattern.orderDependencies.map((dependency) => ({
-        ...dependency,
-      })),
+      placements,
+      ...plannedGrips,
       cycles: pattern.cycles.map((cycle) => ({
         ...cycle,
         placementIds: [...cycle.placementIds],
@@ -341,10 +410,12 @@ export function transformStackPattern(
     }
     return { ...transformed, rotation: memberRotation };
   });
-  const plannedGrips = replanGeneratedGrips(
+  const plannedGrips = replanGrips(
     pattern,
+    placements,
     transformedGrips,
     packageSize,
+    inputDirection,
   );
 
   return {

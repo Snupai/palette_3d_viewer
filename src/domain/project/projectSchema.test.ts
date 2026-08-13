@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  planningLayerPatternSchema,
   PROJECT_SCHEMA_VERSION,
   projectV2Schema,
 } from "~/domain/project/projectSchema";
@@ -142,6 +143,85 @@ describe("project v2 schema", () => {
       height: 150,
     });
     expect(result.solutions[0]?.patterns[0]?.grips).toHaveLength(1);
+  });
+
+  it("accepts legacy and source-tagged grip dependencies", () => {
+    const result = planningLayerPatternSchema.parse({
+      id: "pattern-1",
+      name: "Pattern 1",
+      grips: [
+        {
+          id: "lower",
+          groupNumber: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 50,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          id: "upper",
+          groupNumber: 2,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 50,
+          y: 150,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      placements: [
+        {
+          id: "placement-lower",
+          sequence: 0,
+          positionMm: { x: 50, y: 50 },
+          rotation: 0,
+          gripId: "lower",
+          labelSide: null,
+        },
+        {
+          id: "placement-upper",
+          sequence: 1,
+          positionMm: { x: 50, y: 150 },
+          rotation: 0,
+          gripId: "upper",
+          labelSide: null,
+        },
+      ],
+      groupOrder: ["lower", "upper"],
+      orderDependencies: [
+        { beforeGripId: "lower", afterGripId: "upper" },
+      ],
+    });
+
+    expect(result.orderDependencies).toEqual([
+      { beforeGripId: "lower", afterGripId: "upper" },
+    ]);
+    expect(
+      planningLayerPatternSchema.parse({
+        ...result,
+        orderDependencies: [
+          {
+            beforeGripId: "lower",
+            afterGripId: "upper",
+            source: "inferred",
+          },
+        ],
+      }).orderDependencies,
+    ).toEqual([
+      {
+        beforeGripId: "lower",
+        afterGripId: "upper",
+        source: "inferred",
+      },
+    ]);
   });
 
   it("rejects broken selected-resource and active-solution references", () => {

@@ -58,16 +58,28 @@ function assertPackageDimensions(input: StackMaterializationInput): void {
 }
 
 function copyPatternIdentity(pattern: StackPattern) {
-  return transformStackPattern(
-    pattern,
-    "identity",
-    pattern.transformFrameMm
-      ? {
-          length: pattern.transformFrameMm.maxX - pattern.transformFrameMm.minX,
-          width: pattern.transformFrameMm.maxY - pattern.transformFrameMm.minY,
-        }
-      : { length: 1, width: 1 },
-  );
+  return {
+    placements: pattern.placements.map((placement) => ({
+      ...placement,
+      positionMm: { ...placement.positionMm },
+    })),
+    grips: pattern.grips.map((grip) => ({ ...grip })),
+    groupOrder: [...pattern.groupOrder],
+    orderDependencies: pattern.orderDependencies.map((dependency) => ({
+      ...dependency,
+    })),
+    cycles: pattern.cycles.map((cycle) => ({
+      ...cycle,
+      placementIds: [...cycle.placementIds],
+      pickPose: { ...cycle.pickPose },
+      placePose: { ...cycle.placePose },
+      labelOffset: { ...cycle.labelOffset },
+    })),
+    frameMm: pattern.transformFrameMm,
+    frameProvenance: pattern.transformFrameProvenance,
+    usedFallbackFrame: false,
+    transformResolved: true,
+  };
 }
 
 export function materializeStack(
@@ -240,6 +252,7 @@ export function materializeStack(
           pattern,
           layer.transform,
           input.package.dimensionsMm,
+          input.package.inletOrientation,
         );
       } catch (cause) {
         warnings.push(

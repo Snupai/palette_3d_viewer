@@ -10,7 +10,11 @@ import {
   type PointMm,
   type RectangleBoundsMm,
 } from "~/domain/geometry";
-import { buildGripDeltaDependencies } from "~/domain/gripDependencies";
+import {
+  buildGripDeltaDependencies,
+  buildGripVerticalOverlapDependencies,
+  orderGripsByDependencies,
+} from "~/domain/gripDependencies";
 import { pickOffsetForCount } from "~/domain/palletGeometry";
 import {
   projectSchema,
@@ -166,14 +170,6 @@ export type ProjectEditorCommand =
       solutionId: string;
       patternId: string;
       gripIds: readonly string[];
-    }
-  | {
-      type: "renumber-group";
-      mode: "order";
-      solutionId: string;
-      patternId: string;
-      gripId: string;
-      groupNumber: number;
     }
   | {
       type: "reorder-group";
@@ -682,7 +678,7 @@ function normalizedGroupOrder(pattern: LayerPattern): string[] {
 function inferredDependencies(
   project: Project,
   pattern: LayerPattern,
-): PatternOrderDependency[] {
+): ProjectEditorOrderDependency[] {
   if (pattern.grips.length === 0) return [];
   const legacyGrips: Grip[] = pattern.grips.map((grip) => ({
     id: grip.id,
@@ -698,7 +694,7 @@ function inferredDependencies(
   }));
   const inputDirection =
     project.package.inletOrientation === "crosswise" ? 1 : 0;
-  return buildGripDeltaDependencies(
+  const deltaDependencies = buildGripDeltaDependencies(
     legacyGrips,
     project.package.dimensionsMm.length,
     project.package.dimensionsMm.width,
@@ -706,8 +702,16 @@ function inferredDependencies(
   ).flatMap(({ prerequisiteIndex, dependentIndex }) => {
     const beforeGripId = pattern.grips[prerequisiteIndex]?.id;
     const afterGripId = pattern.grips[dependentIndex]?.id;
-    return beforeGripId && afterGripId ? [{ beforeGripId, afterGripId }] : [];
+    return beforeGripId && afterGripId
+      ? [{ beforeGripId, afterGripId, source: "inferred" as const }]
+      : [];
   });
+  const verticalDependencies = buildGripVerticalOverlapDependencies(
+    pattern.grips.map(({ id }) => id),
+    pattern.placements,
+    project.package.dimensionsMm,
+  ).map((dependency) => ({ ...dependency, source: "inferred" as const }));
+  return mergeDependencies(deltaDependencies, verticalDependencies);
 }
 
 function dependencyKey(dependency: PatternOrderDependency): string {
@@ -716,15 +720,114 @@ function dependencyKey(dependency: PatternOrderDependency): string {
 
 function mergeDependencies(
   ...sets: readonly (readonly PatternOrderDependency[])[]
-): PatternOrderDependency[] {
-  const merged = new Map<string, PatternOrderDependency>();
+): ProjectEditorOrderDependency[] {
+  const merged = new Map<string, ProjectEditorOrderDependency>();
   for (const dependencies of sets) {
     for (const dependency of dependencies) {
       if (dependency.beforeGripId === dependency.afterGripId) continue;
-      merged.set(dependencyKey(dependency), dependency);
+      const normalized = {
+        ...dependency,
+        source: dependency.source ?? "explicit",
+      } satisfies ProjectEditorOrderDependency;
+      const key = dependencyKey(normalized);
+      const existing = merged.get(key);
+      if (existing?.source === "explicit" && normalized.source !== "explicit") {
+        continue;
+      }
+      merged.set(key, normalized);
     }
   }
-  return [...merged.values()];
+  return [...merged.values()].sort(
+    (left, right) =>
+      left.beforeGripId.localeCompare(right.beforeGripId) ||
+      left.afterGripId.localeCompare(right.afterGripId),
+  );
+}
+
+function explicitDependencies(
+  pattern: LayerPattern,
+): ProjectEditorOrderDependency[] {
+  return (pattern.orderDependencies ?? []).flatMap((dependency) =>
+    dependency.source === "inferred"
+      ? []
+      : [{ ...dependency, source: "explicit" as const }],
+  );
+}
+
+function withoutCurrentInferredDependencies(pattern: LayerPattern): LayerPattern {
+  return {
+    ...pattern,
+    orderDependencies: explicitDependencies(pattern),
+  };
+}
+
+function dependenciesContainCycle(
+  gripIds: readonly string[],
+  dependencies: readonly PatternOrderDependency[],
+): boolean {
+  const knownIds = new Set(gripIds);
+  const outgoing = new Map<string, string[]>();
+  const indegree = new Map(gripIds.map((id) => [id, 0]));
+  for (const dependency of mergeDependencies(dependencies)) {
+    if (
+      !knownIds.has(dependency.beforeGripId) ||
+      !knownIds.has(dependency.afterGripId)
+    ) {
+      continue;
+    }
+    const targets = outgoing.get(dependency.beforeGripId) ?? [];
+    targets.push(dependency.afterGripId);
+    outgoing.set(dependency.beforeGripId, targets);
+    indegree.set(
+      dependency.afterGripId,
+      (indegree.get(dependency.afterGripId) ?? 0) + 1,
+    );
+  }
+
+  const available = gripIds.filter((id) => (indegree.get(id) ?? 0) === 0);
+  let visited = 0;
+  while (available.length > 0) {
+    const current = available.shift()!;
+    visited += 1;
+    for (const targetId of outgoing.get(current) ?? []) {
+      const nextIndegree = (indegree.get(targetId) ?? 0) - 1;
+      indegree.set(targetId, nextIndegree);
+      if (nextIndegree === 0) available.push(targetId);
+    }
+  }
+  return visited !== gripIds.length;
+}
+
+function assertOrderSatisfiesDependencies(
+  project: Project,
+  pattern: LayerPattern,
+  order: readonly string[],
+): void {
+  const indexById = new Map(order.map((gripId, index) => [gripId, index]));
+  const violation = mergeDependencies(
+    pattern.orderDependencies ?? [],
+    inferredDependencies(project, pattern),
+  ).find((dependency) => {
+    const beforeIndex = indexById.get(dependency.beforeGripId);
+    const afterIndex = indexById.get(dependency.afterGripId);
+    return (
+      beforeIndex !== undefined &&
+      afterIndex !== undefined &&
+      beforeIndex >= afterIndex
+    );
+  });
+  if (!violation) return;
+  throw new ProjectEditorCommandError(
+    `Grip "${violation.afterGripId}" cannot execute before prerequisite "${violation.beforeGripId}".`,
+    [
+      {
+        severity: "error",
+        code: "invalid-order",
+        message: `The requested order violates ${violation.beforeGripId} before ${violation.afterGripId}.`,
+        gripIds: [violation.beforeGripId, violation.afterGripId],
+      },
+    ],
+  );
 }
 
 function ensurePatternGroups(
@@ -737,14 +840,11 @@ function ensurePatternGroups(
       groupNumber: grip.groupNumber ?? index + 1,
     }));
     const withNumbers = { ...pattern, grips };
-    return {
+    return cleanPatternMetadata({
       ...withNumbers,
       groupOrder: normalizedGroupOrder(withNumbers),
-      orderDependencies: mergeDependencies(
-        withNumbers.orderDependencies ?? [],
-        inferredDependencies(project, withNumbers),
-      ),
-    };
+      orderDependencies: explicitDependencies(withNumbers),
+    });
   }
 
   const placementsById = new Map(
@@ -770,14 +870,24 @@ function ensurePatternGroups(
       gripIdByPlacement.set(placementId, grip.id),
     );
   });
+  const placements = pattern.placements.map((placement) => ({
+    ...placement,
+    gripId: gripIdByPlacement.get(placement.id) ?? null,
+  }));
+  const verticalDependencies = buildGripVerticalOverlapDependencies(
+    grips.map(({ id }) => id),
+    placements,
+    project.package.dimensionsMm,
+  );
+  const orderedGrips = orderGripsByDependencies(
+    grips,
+    verticalDependencies,
+  ).map((grip, index) => ({ ...grip, groupNumber: index + 1 }));
   return {
     ...pattern,
-    grips,
-    placements: pattern.placements.map((placement) => ({
-      ...placement,
-      gripId: gripIdByPlacement.get(placement.id) ?? null,
-    })),
-    groupOrder: grips.map(({ id }) => id),
+    grips: orderedGrips,
+    placements,
+    groupOrder: orderedGrips.map(({ id }) => id),
     orderDependencies: [],
   };
 }
@@ -797,9 +907,17 @@ function assignmentsByGrip(
 
 function cleanPatternMetadata(pattern: LayerPattern): LayerPattern {
   const ids = new Set(pattern.grips.map(({ id }) => id));
+  const groupOrder = normalizedGroupOrder(pattern);
+  const numberById = new Map(
+    groupOrder.map((gripId, index) => [gripId, index + 1]),
+  );
   return {
     ...pattern,
-    groupOrder: normalizedGroupOrder(pattern),
+    grips: pattern.grips.map((grip, index) => ({
+      ...grip,
+      groupNumber: numberById.get(grip.id) ?? index + 1,
+    })),
+    groupOrder,
     orderDependencies: (pattern.orderDependencies ?? []).filter(
       ({ beforeGripId, afterGripId }) =>
         ids.has(beforeGripId) &&
@@ -912,12 +1030,45 @@ function replacePattern(
   } = {},
 ): Project {
   const solution = project.solutions.find(({ id }) => id === solutionId)!;
-  const nextPattern = synchronizePatternGrips(
+  const synchronizedPattern = synchronizePatternGrips(
     project,
     previousPattern,
     nextPatternInput,
     options,
   );
+  const orderDependencies = mergeDependencies(
+    explicitDependencies(synchronizedPattern),
+    inferredDependencies(project, synchronizedPattern),
+  );
+  if (
+    dependenciesContainCycle(
+      synchronizedPattern.grips.map(({ id }) => id),
+      orderDependencies,
+    )
+  ) {
+    throw new ProjectEditorCommandError(
+      "The grip order dependencies contain a cycle.",
+      [
+        {
+          severity: "error",
+          code: "invalid-order",
+          message: "The grip order dependencies contain a cycle.",
+        },
+      ],
+    );
+  }
+  const preferredOrder = normalizedGroupOrder(synchronizedPattern);
+  const orderedGrips = orderGripsByDependencies(
+    synchronizedPattern.grips,
+    orderDependencies,
+    preferredOrder,
+  );
+  const nextPattern = cleanPatternMetadata({
+    ...synchronizedPattern,
+    grips: orderedGrips,
+    groupOrder: orderedGrips.map(({ id }) => id),
+    orderDependencies,
+  });
   const nextSolution: PlanningSolution = {
     ...solution,
     origin: editedSolutionOrigin(solution.origin),
@@ -1135,6 +1286,7 @@ function remapDependencies(
         replacements.get(dependency.beforeGripId) ?? dependency.beforeGripId,
       afterGripId:
         replacements.get(dependency.afterGripId) ?? dependency.afterGripId,
+      source: dependency.source ?? "explicit",
     })),
   );
 }
@@ -1228,7 +1380,7 @@ function createGroup(
       [id],
     ),
     orderDependencies: remapDependencies(
-      pattern.orderDependencies ?? [],
+      explicitDependencies(pattern),
       replacements,
     ),
   });
@@ -1288,12 +1440,12 @@ function splitGroup(
   );
   const replacements = new Map([[gripId, newGrips[0]!.id]]);
   const dependencies = remapDependencies(
-    pattern.orderDependencies ?? [],
+    explicitDependencies(pattern),
     replacements,
   );
   const expandedDependencies = mergeDependencies(
     dependencies,
-    ...(pattern.orderDependencies ?? []).flatMap((dependency) => {
+    ...explicitDependencies(pattern).flatMap((dependency) => {
       if (dependency.afterGripId === gripId) {
         return newGrips.slice(1).map((newGrip) => [
           {
@@ -1374,7 +1526,7 @@ function mergeGroups(
     ),
     groupOrder: groupOrderAfterReplacement(order, selectedSet, [retained.id]),
     orderDependencies: remapDependencies(
-      pattern.orderDependencies ?? [],
+      explicitDependencies(pattern),
       replacements,
     ),
   });
@@ -1430,62 +1582,36 @@ export function projectEditorOrderModel(
 ): ProjectEditorOrderModel {
   const { pattern } = context(project, solutionId, patternId);
   const persisted = pattern.grips.length > 0;
-  const workingPattern = persisted
-    ? ensurePatternGroups(project, pattern)
-    : pattern;
-  const placementsById = new Map(
-    workingPattern.placements.map((placement) => [placement.id, placement]),
+  const workingPattern = ensurePatternGroups(project, pattern);
+  const workingOrder = normalizedGroupOrder(workingPattern);
+  const orderIndexByGripId = new Map(
+    workingOrder.map((gripId, index) => [gripId, index]),
   );
-  const groups: ProjectEditorGroup[] = persisted
-    ? workingPattern.grips.map((grip, index) => {
-        const placements = workingPattern.placements.filter(
-          (placement) => placement.gripId === grip.id,
-        );
-        return {
-          id: grip.id,
-          groupNumber: grip.groupNumber ?? index + 1,
-          placementIds: placements.map(({ id }) => id),
-          centerMm:
-            placements.length > 0
-              ? averageCenter(placements)
-              : { x: grip.x, y: grip.y },
-          rotation: placements[0]?.rotation ?? grip.rotation,
-          persisted: true,
-          orderIndex: normalizedGroupOrder(workingPattern).indexOf(grip.id),
-        };
-      })
-    : automaticPlacementGroups(project, pattern).map((placementIds, index) => {
-        const placements = placementIds.flatMap((id) => {
-          const placement = placementsById.get(id);
-          return placement ? [placement] : [];
-        });
-        return {
-          id: stableGripId(pattern.id, placementIds),
-          groupNumber: index + 1,
-          placementIds,
-          centerMm: averageCenter(placements),
-          rotation: placements[0]?.rotation ?? 0,
-          persisted: false,
-          orderIndex: index,
-        };
-      });
-  const order = persisted
-    ? normalizedGroupOrder(workingPattern)
-    : groups.map(({ id }) => id);
-  const inferred = persisted
-    ? inferredDependencies(project, workingPattern)
-    : [];
-  const inferredKeys = new Set(inferred.map(dependencyKey));
-  const dependencies: ProjectEditorOrderDependency[] = persisted
-    ? mergeDependencies(workingPattern.orderDependencies ?? [], inferred).map(
-        (dependency) => ({
-          ...dependency,
-          source: inferredKeys.has(dependencyKey(dependency))
-            ? "inferred"
-            : "explicit",
-        }),
-      )
-    : [];
+  const groups: ProjectEditorGroup[] = workingPattern.grips.map(
+    (grip, index) => {
+      const placements = workingPattern.placements.filter(
+        (placement) => placement.gripId === grip.id,
+      );
+      const orderIndex = orderIndexByGripId.get(grip.id) ?? index;
+      return {
+        id: grip.id,
+        groupNumber: orderIndex + 1,
+        placementIds: placements.map(({ id }) => id),
+        centerMm:
+          placements.length > 0
+            ? averageCenter(placements)
+            : { x: grip.x, y: grip.y },
+        rotation: placements[0]?.rotation ?? grip.rotation,
+        persisted,
+        orderIndex,
+      };
+    },
+  );
+  const order = workingOrder;
+  const dependencies = mergeDependencies(
+    explicitDependencies(workingPattern),
+    inferredDependencies(project, workingPattern),
+  );
   const assigned = new Set(groups.flatMap(({ placementIds }) => placementIds));
   const unassignedPlacementIds = workingPattern.placements.flatMap(({ id }) =>
     assigned.has(id) ? [] : [id],
@@ -1495,7 +1621,7 @@ export function projectEditorOrderModel(
     dependencies.map((dependency) => ({
       beforeGroupId: dependency.beforeGripId,
       afterGroupId: dependency.afterGripId,
-      source: "explicit" as const,
+      source: dependency.source,
     })),
     orderDirection(project),
     order,
@@ -1528,7 +1654,7 @@ export function suggestProjectEditorOrder(
     model.dependencies.map((dependency) => ({
       beforeGroupId: dependency.beforeGripId,
       afterGroupId: dependency.afterGripId,
-      source: "explicit" as const,
+      source: dependency.source,
     })),
     orderDirection(project),
   );
@@ -1756,8 +1882,6 @@ export function describeProjectEditorCommand(
       return "Split grip group";
     case "merge-groups":
       return "Merge grip groups";
-    case "renumber-group":
-      return "Renumber grip group";
     case "reorder-group":
       return "Reorder grip group";
     case "apply-suggested-order":
@@ -1947,11 +2071,12 @@ export function applyProjectEditorCommand(
       break;
   }
 
-  const { pattern: previousPattern } = context(
+  const { pattern: persistedPattern } = context(
     project,
     command.solutionId,
     command.patternId,
   );
+  const previousPattern = withoutCurrentInferredDependencies(persistedPattern);
 
   switch (command.type) {
     case "move-placements": {
@@ -2196,31 +2321,6 @@ export function applyProjectEditorCommand(
         mergeGroups(project, previousPattern, command.gripIds),
       );
     }
-    case "renumber-group": {
-      const groupNumber = positiveInteger(command.groupNumber, "Group number");
-      const pattern = ensurePatternGroups(project, previousPattern);
-      if (
-        pattern.grips.some(
-          (grip) =>
-            grip.id !== command.gripId && grip.groupNumber === groupNumber,
-        )
-      ) {
-        throw new ProjectEditorCommandError(
-          `Group number ${groupNumber} is already in use.`,
-        );
-      }
-      if (!pattern.grips.some(({ id }) => id === command.gripId)) {
-        throw new ProjectEditorCommandError(
-          `Grip group "${command.gripId}" is missing.`,
-        );
-      }
-      return replacePattern(project, command.solutionId, previousPattern, {
-        ...pattern,
-        grips: pattern.grips.map((grip) =>
-          grip.id === command.gripId ? { ...grip, groupNumber } : grip,
-        ),
-      });
-    }
     case "reorder-group": {
       const pattern = ensurePatternGroups(project, previousPattern);
       const order = normalizedGroupOrder(pattern);
@@ -2233,6 +2333,7 @@ export function applyProjectEditorCommand(
       const toIndex = Math.max(0, Math.min(order.length - 1, command.toIndex));
       order.splice(fromIndex, 1);
       order.splice(toIndex, 0, command.gripId);
+      assertOrderSatisfiesDependencies(project, pattern, order);
       return replacePattern(project, command.solutionId, previousPattern, {
         ...pattern,
         groupOrder: order,
@@ -2250,6 +2351,7 @@ export function applyProjectEditorCommand(
           "The suggested order must contain every grip group exactly once.",
         );
       }
+      assertOrderSatisfiesDependencies(project, pattern, command.gripIds);
       return replacePattern(project, command.solutionId, previousPattern, {
         ...pattern,
         groupOrder: [...command.gripIds],
@@ -2267,14 +2369,38 @@ export function applyProjectEditorCommand(
           "An order dependency needs two different existing grip groups.",
         );
       }
+      const explicit = mergeDependencies(explicitDependencies(pattern), [
+        {
+          beforeGripId: command.beforeGripId,
+          afterGripId: command.afterGripId,
+          source: "explicit",
+        },
+      ]);
+      const dependencies = mergeDependencies(
+        explicit,
+        inferredDependencies(project, pattern),
+      );
+      if (
+        dependenciesContainCycle(
+          pattern.grips.map(({ id }) => id),
+          dependencies,
+        )
+      ) {
+        throw new ProjectEditorCommandError(
+          "The order dependency would create a cycle.",
+          [
+            {
+              severity: "error",
+              code: "invalid-order",
+              message: `The requested dependency ${command.beforeGripId} before ${command.afterGripId} would create a cycle.`,
+              gripIds: [command.beforeGripId, command.afterGripId],
+            },
+          ],
+        );
+      }
       return replacePattern(project, command.solutionId, previousPattern, {
         ...pattern,
-        orderDependencies: mergeDependencies(pattern.orderDependencies ?? [], [
-          {
-            beforeGripId: command.beforeGripId,
-            afterGripId: command.afterGripId,
-          },
-        ]),
+        orderDependencies: explicit,
       });
     }
     case "remove-order-dependency": {
@@ -2283,22 +2409,25 @@ export function applyProjectEditorCommand(
         beforeGripId: command.beforeGripId,
         afterGripId: command.afterGripId,
       };
+      const key = dependencyKey(requested);
+      const explicit = explicitDependencies(pattern);
+      const hasExplicit = explicit.some(
+        (dependency) => dependencyKey(dependency) === key,
+      );
       if (
+        !hasExplicit &&
         inferredDependencies(project, pattern).some(
-          (dependency) =>
-            dependencyKey(dependency) === dependencyKey(requested),
+          (dependency) => dependencyKey(dependency) === key,
         )
       ) {
         throw new ProjectEditorCommandError(
-          "Dependencies inferred from legacy dx/dy offsets cannot be removed in the order editor.",
+          "Automatically inferred grip dependencies cannot be removed in the order editor.",
         );
       }
       return replacePattern(project, command.solutionId, previousPattern, {
         ...pattern,
-        orderDependencies: (pattern.orderDependencies ?? []).filter(
-          ({ beforeGripId, afterGripId }) =>
-            beforeGripId !== command.beforeGripId ||
-            afterGripId !== command.afterGripId,
+        orderDependencies: explicit.filter(
+          (dependency) => dependencyKey(dependency) !== key,
         ),
       });
     }

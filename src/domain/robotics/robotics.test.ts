@@ -487,7 +487,7 @@ describe("robotics materialization and ordering", () => {
     );
   });
 
-  it("returns a dependency-aware suggestion and keeps edited violations visible", () => {
+  it("repairs edited orders against hard dependencies", () => {
     const groups: RobotGripGroup[] = [
       {
         id: "a",
@@ -548,11 +548,76 @@ describe("robotics materialization and ordering", () => {
       ["a", "b", "c"],
     );
 
-    expect(suggested.order.indexOf("c")).toBeLessThan(
-      suggested.order.indexOf("a"),
+    expect(suggested.order).toEqual(["c", "b", "a"]);
+    expect(edited.order).toEqual(["b", "c", "a"]);
+    expect(edited.diagnostics.map(({ code }) => code)).not.toContain(
+      "order-dependency-violation",
     );
-    expect(edited.order).toEqual(["a", "b", "c"]);
-    expect(edited.diagnostics.map(({ code }) => code)).toContain(
+  });
+
+  it("repairs a persisted pattern order before materializing numbered cycles", () => {
+    const lowerGripId = "lower-grip";
+    const upperGripId = "upper-grip";
+    const project = projectWithRobotPatterns({
+      patterns: [
+        {
+          id: "pattern-1",
+          name: "Invalid persisted order",
+          grips: [
+            {
+              id: upperGripId,
+              groupNumber: 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: 100,
+              y: 100,
+              rotation: 0,
+              numPackages: 1,
+              dx: 0,
+              dy: 0,
+            },
+            {
+              id: lowerGripId,
+              groupNumber: 2,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: 100,
+              y: 50,
+              rotation: 0,
+              numPackages: 1,
+              dx: 0,
+              dy: 0,
+            },
+          ],
+          placements: [
+            { ...placement("upper-package", 0, 100, 100), gripId: upperGripId },
+            { ...placement("lower-package", 1, 100, 50), gripId: lowerGripId },
+          ],
+          groupOrder: [upperGripId, lowerGripId],
+          orderDependencies: [],
+        },
+      ],
+      layers: [
+        { id: "physical-layer-1", patternId: "pattern-1", interlayerBefore: 0 },
+      ],
+    });
+
+    const materialized = materializeRobotCycles(project, { pickReference });
+
+    expect(
+      materialized.cycles.map(({ provenance }) => provenance.sourceGripId),
+    ).toEqual([lowerGripId, upperGripId]);
+    expect(
+      materialized.cycles.map(
+        ({ groupNumber, sequenceInLayer }) => ({ groupNumber, sequenceInLayer }),
+      ),
+    ).toEqual([
+      { groupNumber: 1, sequenceInLayer: 0 },
+      { groupNumber: 2, sequenceInLayer: 1 },
+    ]);
+    expect(materialized.diagnostics.map(({ code }) => code)).not.toContain(
       "order-dependency-violation",
     );
   });

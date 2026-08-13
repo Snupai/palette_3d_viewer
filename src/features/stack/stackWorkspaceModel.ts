@@ -340,6 +340,7 @@ export function projectWithPersistedStack(
         }),
         transform,
         project.package.dimensionsMm,
+        project.package.inletOrientation,
       );
       const orderedGrips = [...transformed.grips].sort(
         (left, right) =>
@@ -407,7 +408,11 @@ export function projectWithPersistedStack(
               `Generated dependency references a missing grip: ${dependency.beforeGripId} -> ${dependency.afterGripId}`,
             );
           }
-          return { beforeGripId, afterGripId };
+          return {
+            beforeGripId,
+            afterGripId,
+            source: dependency.source ?? "inferred",
+          };
         }),
       };
     },

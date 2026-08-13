@@ -387,7 +387,7 @@ export function materializeRobotCycles(
       afterGroupId:
         groupIdBySourceGrip.get(dependency.afterGripId) ??
         dependency.afterGripId,
-      source: "explicit" as const,
+      source: dependency.source ?? "explicit",
     }));
     const persistedOrder = layer.groupOrder.map(
       (sourceGripId) => groupIdBySourceGrip.get(sourceGripId) ?? sourceGripId,
@@ -397,7 +397,7 @@ export function materializeRobotCycles(
       options.dependenciesByLayer?.[layer.id] ?? persistedDependencies,
       orderingDirection,
       options.editedOrderByLayer?.[layer.id] ??
-        (persistedOrder.length > 0 ? persistedOrder : undefined),
+        (!useExplicit && persistedOrder.length > 0 ? persistedOrder : undefined),
     );
     diagnostics.push(...suggestion.diagnostics);
     const resolvedOrderSource = orderSource(suggestion.source, solution);
@@ -499,7 +499,7 @@ export function materializeRobotCycles(
         physicalLayerIndex: layer.packageLayerIndex,
         patternRef: layer.patternRef,
         groupId: group.id,
-        groupNumber: group.groupNumber,
+        groupNumber: sequenceInLayer + 1,
         placementIds: [...group.placementIds],
         packageCount: group.packageCount,
         gripperId: explicit

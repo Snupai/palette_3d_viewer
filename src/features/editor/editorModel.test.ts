@@ -21,7 +21,6 @@ import {
   projectEditorOrderModel,
   selectionCenteringDelta,
   stepProjectEditorFlow,
-  suggestProjectEditorOrder,
 } from "~/features/editor/editorModel";
 
 function placement(
@@ -247,6 +246,96 @@ function generatedGripProject(): Project {
           },
         ],
         robotCycles: [],
+      },
+    ],
+  });
+}
+
+function twoGripProject(): Project {
+  const project = editorProject();
+  const solution = project.solutions[0]!;
+  const sourcePattern = solution.patterns[0]!;
+  const placements = sourcePattern.placements.slice(0, 2).map((item, index) => ({
+    ...item,
+    gripId: index === 0 ? "left" : "right",
+  }));
+  return projectSchema.parse({
+    ...project,
+    solutions: [
+      {
+        ...solution,
+        patterns: [
+          {
+            ...sourcePattern,
+            grips: placements.map((item, index) => ({
+              id: item.gripId!,
+              groupNumber: index === 0 ? 2 : 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: item.positionMm.x,
+              y: item.positionMm.y,
+              rotation: item.rotation,
+              numPackages: 1,
+              dx: 0,
+              dy: 0,
+            })),
+            placements,
+            groupOrder: ["right", "left"],
+            orderDependencies: [],
+          },
+        ],
+      },
+    ],
+  });
+}
+
+function threeGripProject(): Project {
+  const project = editorProject();
+  const solution = project.solutions[0]!;
+  const sourcePattern = solution.patterns[0]!;
+  const placements = sourcePattern.placements.slice(0, 3).map((item, index) => ({
+    ...item,
+    positionMm: { x: 50 + index * 100, y: 50 },
+    gripId: ["a", "b", "c"][index]!,
+  }));
+  return projectSchema.parse({
+    ...project,
+    solutions: [
+      {
+        ...solution,
+        patterns: [
+          {
+            ...sourcePattern,
+            grips: placements.map((item, index) => ({
+              id: item.gripId!,
+              groupNumber: index + 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: item.positionMm.x,
+              y: item.positionMm.y,
+              rotation: item.rotation,
+              numPackages: 1,
+              dx: 0,
+              dy: 0,
+            })),
+            placements,
+            groupOrder: ["a", "b", "c"],
+            orderDependencies: [
+              {
+                beforeGripId: "a",
+                afterGripId: "b",
+                source: "explicit",
+              },
+              {
+                beforeGripId: "b",
+                afterGripId: "c",
+                source: "explicit",
+              },
+            ],
+          },
+        ],
       },
     ],
   });
@@ -530,14 +619,16 @@ describe("Project editor pattern geometry", () => {
     });
     expect(rawOffsets()).toEqual(expected);
 
-    project = applyProjectEditorCommand(project, {
-      type: "reorder-group",
-      mode: "order",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      gripId: "g2",
-      toIndex: 0,
-    });
+    expect(() =>
+      applyProjectEditorCommand(project, {
+        type: "reorder-group",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        gripId: "g2",
+        toIndex: 0,
+      }),
+    ).toThrow(/cannot execute before prerequisite/i);
     expect(rawOffsets()).toEqual(expected);
 
     project = applyProjectEditorCommand(project, {
@@ -552,73 +643,186 @@ describe("Project editor pattern geometry", () => {
       { id: "g1", dx: 0, dy: 1 },
       { id: "g2", dx: 0, dy: -14 },
     ]);
+    expect(project.source).toEqual({
+      kind: "rob-import",
+      fileName: "imported-editor.rob",
+      rawRobText: "DEF imported-editor()\nEND",
+    });
   });
 });
 
 describe("Project editor groups and order", () => {
-  it("keeps stable group numbers separate from editable dependency-aware order", () => {
-    let project = editorProject();
-    project = applyProjectEditorCommand(project, {
-      type: "create-group",
-      mode: "order",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      placementIds: ["p1", "p2"],
-    });
-    let model = projectEditorOrderModel(project, "solution-1", "pattern-1");
-    expect(model.groups).toHaveLength(2);
-    const first = model.groups[0]!;
-    const second = model.groups[1]!;
-    const stableNumber = second.groupNumber;
-
-    project = applyProjectEditorCommand(project, {
-      type: "add-order-dependency",
-      mode: "order",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      beforeGripId: second.id,
-      afterGripId: first.id,
-    });
-    model = projectEditorOrderModel(project, "solution-1", "pattern-1");
-    expect(model.diagnostics.map(({ code }) => code)).toContain(
-      "invalid-order",
-    );
-
-    const suggestion = suggestProjectEditorOrder(
-      project,
-      "solution-1",
-      "pattern-1",
-    );
-    expect(suggestion.order.indexOf(second.id)).toBeLessThan(
-      suggestion.order.indexOf(first.id),
-    );
-    project = applyProjectEditorCommand(project, {
-      type: "apply-suggested-order",
-      mode: "order",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      gripIds: suggestion.order,
-    });
-    project = applyProjectEditorCommand(project, {
-      type: "renumber-group",
-      mode: "order",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      gripId: second.id,
-      groupNumber: 9,
-    });
-    project = applyProjectEditorCommand(project, {
+  it("renumbers G1 through Gx after reordering independent grips", () => {
+    const reordered = applyProjectEditorCommand(twoGripProject(), {
       type: "reorder-group",
       mode: "order",
       solutionId: "solution-1",
       patternId: "pattern-1",
-      gripId: second.id,
+      gripId: "left",
       toIndex: 0,
     });
-    model = projectEditorOrderModel(project, "solution-1", "pattern-1");
-    expect(model.groups[0]?.id).toBe(second.id);
-    expect(model.groups[0]?.groupNumber).toBe(9);
-    expect(model.groups[0]?.groupNumber).not.toBe(stableNumber);
+
+    expect(pattern(reordered).groupOrder).toEqual(["left", "right"]);
+    expect(
+      projectEditorOrderModel(reordered, "solution-1", "pattern-1").groups.map(
+        ({ id, groupNumber }) => ({ id, groupNumber }),
+      ),
+    ).toEqual([
+      { id: "left", groupNumber: 1 },
+      { id: "right", groupNumber: 2 },
+    ]);
+  });
+
+  it("rejects an explicit dependency that would oppose hard geometry", () => {
+    const project = generatedGripProject();
+
+    expect(() =>
+      applyProjectEditorCommand(project, {
+        type: "add-order-dependency",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        beforeGripId: "generated-grip:3+4",
+        afterGripId: "generated-grip:1+2",
+      }),
+    ).toThrow(/would create a cycle/i);
+  });
+
+  it("rejects a transitive explicit dependency cycle", () => {
+    expect(() =>
+      applyProjectEditorCommand(threeGripProject(), {
+        type: "add-order-dependency",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        beforeGripId: "c",
+        afterGripId: "a",
+      }),
+    ).toThrow(/would create a cycle/i);
+  });
+
+  it("keeps a legacy explicit edge over identical inference and reveals inference after removal", () => {
+    const base = generatedGripProject();
+    const solution = base.solutions[0]!;
+    const sourcePattern = solution.patterns[0]!;
+    let project = projectSchema.parse({
+      ...base,
+      solutions: [
+        {
+          ...solution,
+          patterns: [
+            {
+              ...sourcePattern,
+              orderDependencies: [
+                {
+                  beforeGripId: "generated-grip:1+2",
+                  afterGripId: "generated-grip:3+4",
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(
+      projectEditorOrderModel(project, "solution-1", "pattern-1").dependencies,
+    ).toContainEqual({
+      beforeGripId: "generated-grip:1+2",
+      afterGripId: "generated-grip:3+4",
+      source: "explicit",
+    });
+
+    project = applyProjectEditorCommand(project, {
+      type: "set-pattern-name",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      name: "Explicit dependency retained",
+    });
+    expect(pattern(project).orderDependencies).toContainEqual({
+      beforeGripId: "generated-grip:1+2",
+      afterGripId: "generated-grip:3+4",
+      source: "explicit",
+    });
+
+    project = applyProjectEditorCommand(project, {
+      type: "remove-order-dependency",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      beforeGripId: "generated-grip:1+2",
+      afterGripId: "generated-grip:3+4",
+    });
+    expect(
+      projectEditorOrderModel(project, "solution-1", "pattern-1").dependencies,
+    ).toContainEqual({
+      beforeGripId: "generated-grip:1+2",
+      afterGripId: "generated-grip:3+4",
+      source: "inferred",
+    });
+  });
+
+  it("blocks a manual reorder against hard overlap geometry", () => {
+    expect(() =>
+      applyProjectEditorCommand(generatedGripProject(), {
+        type: "reorder-group",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        gripId: "generated-grip:3+4",
+        toIndex: 0,
+      }),
+    ).toThrow(/cannot execute before prerequisite/i);
+  });
+
+  it("repairs stale persisted order and numbering after a geometry edit", () => {
+    const base = generatedGripProject();
+    const solution = base.solutions[0]!;
+    const sourcePattern = solution.patterns[0]!;
+    const stale = projectSchema.parse({
+      ...base,
+      solutions: [
+        {
+          ...solution,
+          patterns: [
+            {
+              ...sourcePattern,
+              grips: sourcePattern.grips.map((grip) => ({
+                ...grip,
+                groupNumber:
+                  grip.id === "generated-grip:3+4" ? 1 : 2,
+              })),
+              groupOrder: ["generated-grip:3+4", "generated-grip:1+2"],
+              orderDependencies: [],
+            },
+          ],
+        },
+      ],
+    });
+
+    const repaired = applyProjectEditorCommand(stale, {
+      type: "move-placements",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      deltaMm: { x: 10, y: 0 },
+    });
+
+    expect(pattern(repaired).groupOrder).toEqual([
+      "generated-grip:1+2",
+      "generated-grip:3+4",
+    ]);
+    expect(
+      pattern(repaired).grips.map(({ id, groupNumber }) => ({
+        id,
+        groupNumber,
+      })),
+    ).toEqual([
+      { id: "generated-grip:1+2", groupNumber: 1 },
+      { id: "generated-grip:3+4", groupNumber: 2 },
+    ]);
   });
 
   it("marks inferred dx/dy dependencies immutable", () => {
@@ -639,7 +843,7 @@ describe("Project editor groups and order", () => {
         beforeGripId: "g1",
         afterGripId: "g2",
       }),
-    ).toThrow(/inferred from legacy dx\/dy offsets cannot be removed/i);
+    ).toThrow(/automatically inferred grip dependencies cannot be removed/i);
   });
 
   it("preserves imported groups without authorizing new multipick groups", () => {

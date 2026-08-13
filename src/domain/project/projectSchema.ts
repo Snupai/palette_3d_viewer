@@ -38,7 +38,7 @@ export const palletizingDirectionSchema = z.enum([
 export const projectGripSchema = z
   .object({
     id: projectIdSchema,
-    /** Stable editor-visible identity; execution order is stored separately. */
+    /** One-based execution position; the stable identity is `id`. */
     groupNumber: z.number().int().positive().optional(),
     pickX: finiteNumber,
     pickY: finiteNumber,
@@ -557,6 +557,8 @@ export const patternOrderDependencySchema = z
   .object({
     beforeGripId: projectIdSchema,
     afterGripId: projectIdSchema,
+    /** Missing on older projects and interpreted as an explicit dependency. */
+    source: z.enum(["explicit", "inferred"]).optional(),
   })
   .strict()
   .superRefine((value, context) => {
@@ -576,7 +578,7 @@ export const planningLayerPatternSchema = z
     /** Compatibility representation used by the existing .rob adapter/editor. */
     grips: z.array(projectGripSchema),
     placements: z.array(packagePlacementSchema),
-    /** Stable grip ids in editable execution order; group numbers never change here. */
+    /** Stable grip ids in editable execution order; group numbers mirror this order. */
     groupOrder: z.array(projectIdSchema).optional(),
     orderDependencies: z.array(patternOrderDependencySchema).optional(),
   })

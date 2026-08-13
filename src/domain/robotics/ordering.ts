@@ -1,5 +1,5 @@
+import { compareGripPositionsBottomRightRowMajor } from "~/domain/gripDependencies";
 import type { PalletizingDirection } from "~/domain/project/projectSchema";
-import { directionSigns } from "~/domain/robotics/frames";
 import type {
   RobotDiagnostic,
   RobotGripGroup,
@@ -18,24 +18,17 @@ export type RobotOrderSuggestion = {
   diagnostics: readonly RobotDiagnostic[];
 };
 
-function baseComparator(direction: PalletizingDirection) {
-  const signs = directionSigns(direction);
-  return (left: RobotGripGroup, right: RobotGripGroup): number => {
-    if (
-      left.sourceSequence !== null &&
-      right.sourceSequence !== null &&
-      left.sourceSequence !== right.sourceSequence
-    ) {
-      return left.sourceSequence - right.sourceSequence;
-    }
-    const yDifference =
-      signs.y * (left.centerPalletMm.y - right.centerPalletMm.y);
-    if (yDifference !== 0) return yDifference;
-    const xDifference =
-      signs.x * (left.centerPalletMm.x - right.centerPalletMm.x);
-    if (xDifference !== 0) return xDifference;
-    return left.id.localeCompare(right.id);
-  };
+function baseComparator() {
+  return (left: RobotGripGroup, right: RobotGripGroup): number =>
+    (left.sourceSequence !== null && right.sourceSequence !== null
+      ? left.sourceSequence - right.sourceSequence
+      : 0) ||
+    compareGripPositionsBottomRightRowMajor(
+      left.centerPalletMm,
+      right.centerPalletMm,
+    ) ||
+    left.groupNumber - right.groupNumber ||
+    left.id.localeCompare(right.id);
 }
 
 function normalizedDependencies(
@@ -72,8 +65,8 @@ function normalizedDependencies(
 function topologicalOrder(
   groups: readonly RobotGripGroup[],
   dependencies: readonly RobotOrderDependency[],
-  direction: PalletizingDirection,
   diagnostics: RobotDiagnostic[],
+  preferredIndexById?: ReadonlyMap<string, number>,
 ): RobotGripGroup[] {
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const outgoing = new Map<string, string[]>();
@@ -89,7 +82,13 @@ function topologicalOrder(
   }
   for (const targets of outgoing.values()) targets.sort();
 
-  const compare = baseComparator(direction);
+  const fallbackCompare = baseComparator();
+  const compare = (left: RobotGripGroup, right: RobotGripGroup) =>
+    preferredIndexById
+      ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
+          (preferredIndexById.get(right.id) ?? Number.POSITIVE_INFINITY) ||
+        fallbackCompare(left, right)
+      : fallbackCompare(left, right);
   const available = groups
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)
     .sort(compare);
@@ -125,18 +124,15 @@ function topologicalOrder(
   return ordered;
 }
 
-function applyEditedOrder(
-  suggested: readonly RobotGripGroup[],
+function editedOrderPreference(
+  groups: readonly RobotGripGroup[],
   editedOrder: readonly string[],
-  dependencies: readonly RobotOrderDependency[],
   diagnostics: RobotDiagnostic[],
-): RobotGripGroup[] {
-  const groupsById = new Map(suggested.map((group) => [group.id, group]));
-  const used = new Set<string>();
-  const ordered: RobotGripGroup[] = [];
+): ReadonlyMap<string, number> {
+  const groupsById = new Map(groups.map((group) => [group.id, group]));
+  const preference = new Map<string, number>();
   for (const groupId of editedOrder) {
-    const group = groupsById.get(groupId);
-    if (!group) {
+    if (!groupsById.has(groupId)) {
       diagnostics.push({
         severity: "error",
         phase: "ordering",
@@ -146,7 +142,7 @@ function applyEditedOrder(
       });
       continue;
     }
-    if (used.has(groupId)) {
+    if (preference.has(groupId)) {
       diagnostics.push({
         severity: "error",
         phase: "ordering",
@@ -156,35 +152,19 @@ function applyEditedOrder(
       });
       continue;
     }
-    used.add(groupId);
-    ordered.push(group);
+    preference.set(groupId, preference.size);
   }
-  for (const group of suggested) {
-    if (used.has(group.id)) continue;
+  for (const group of groups) {
+    if (preference.has(group.id)) continue;
     diagnostics.push({
       severity: "error",
       phase: "ordering",
       code: "missing-order-group",
-      message: `Edited robot order omits group "${group.id}"; it was appended using the suggestion order.`,
+      message: `Edited robot order omits group "${group.id}"; its position was resolved from the hard dependencies.`,
       groupId: group.id,
     });
-    ordered.push(group);
   }
-
-  const indexById = new Map(ordered.map(({ id }, index) => [id, index]));
-  for (const dependency of dependencies) {
-    const before = indexById.get(dependency.beforeGroupId);
-    const after = indexById.get(dependency.afterGroupId);
-    if (before === undefined || after === undefined || before < after) continue;
-    diagnostics.push({
-      severity: "error",
-      phase: "ordering",
-      code: "order-dependency-violation",
-      message: `Edited order places "${dependency.afterGroupId}" before prerequisite "${dependency.beforeGroupId}".`,
-      groupId: dependency.afterGroupId,
-    });
-  }
-  return ordered;
+  return preference;
 }
 
 /** Returns a topological suggestion that remains an ordinary editable id list. */
@@ -201,15 +181,16 @@ export function suggestRobotOrder(
     dependencies,
     diagnostics,
   );
-  const suggested = topologicalOrder(
+  void direction;
+  const preferredIndexById = editedOrder
+    ? editedOrderPreference(groups, editedOrder, diagnostics)
+    : undefined;
+  const ordered = topologicalOrder(
     groups,
     normalized,
-    direction,
     diagnostics,
+    preferredIndexById,
   );
-  const ordered = editedOrder
-    ? applyEditedOrder(suggested, editedOrder, normalized, diagnostics)
-    : suggested;
   const explicitSource = groups.every(
     ({ groupingSource }) => groupingSource === "explicit-project-cycle",
   );

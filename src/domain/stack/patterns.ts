@@ -1,4 +1,10 @@
 import type { RectangleBoundsMm } from "~/domain/geometry";
+import {
+  buildGripDeltaDependencies,
+  buildGripVerticalOverlapDependencies,
+  mergeGripOrderDependencies,
+} from "~/domain/gripDependencies";
+import type { Grip } from "~/domain/palletTypes";
 import { migrateProject } from "~/domain/project/projectMigration";
 import type { Project, ProjectV2 } from "~/domain/project/projectSchema";
 import type { SolverCandidate } from "~/domain/solver/types";
@@ -75,6 +81,41 @@ export function stackPatternsFromProjectSolution(
       cycles.length > 0 || pattern.placements.length === 0
         ? cycles.length
         : null;
+    const gripIds = new Set(pattern.grips.map(({ id }) => id));
+    const groupOrder = [
+      ...new Set([
+        ...(pattern.groupOrder ?? []).filter((id) => gripIds.has(id)),
+        ...pattern.grips
+          .slice()
+          .sort(
+            (left, right) =>
+              (left.groupNumber ?? Number.MAX_SAFE_INTEGER) -
+                (right.groupNumber ?? Number.MAX_SAFE_INTEGER) ||
+              left.id.localeCompare(right.id),
+          )
+          .map(({ id }) => id),
+      ]),
+    ];
+    const orderIndex = new Map(groupOrder.map((id, index) => [id, index]));
+    const inputDirection =
+      project.package.inletOrientation === "crosswise" ? 1 : 0;
+    const deltaDependencies = buildGripDeltaDependencies(
+      pattern.grips.map((grip) => ({ ...grip, id: grip.id }) satisfies Grip),
+      project.package.dimensionsMm.length,
+      project.package.dimensionsMm.width,
+      inputDirection,
+    ).flatMap(({ prerequisiteIndex, dependentIndex }) => {
+      const beforeGripId = pattern.grips[prerequisiteIndex]?.id;
+      const afterGripId = pattern.grips[dependentIndex]?.id;
+      return beforeGripId && afterGripId
+        ? [{ beforeGripId, afterGripId, source: "inferred" as const }]
+        : [];
+    });
+    const verticalDependencies = buildGripVerticalOverlapDependencies(
+      groupOrder,
+      pattern.placements,
+      project.package.dimensionsMm,
+    ).map((dependency) => ({ ...dependency, source: "inferred" as const }));
 
     return {
       ref: projectPatternReference(project.id, solution.id, pattern.id),
@@ -90,25 +131,32 @@ export function stackPatternsFromProjectSolution(
           gripId: placement.gripId,
           labelSide: placement.labelSide,
         })),
-      grips: pattern.grips.map((grip, sequence) => ({
-        sourceGripId: grip.id,
-        groupNumber: grip.groupNumber ?? sequence + 1,
-        sequence,
-        pickX: grip.pickX,
-        pickY: grip.pickY,
-        pickRotation: grip.pickRotation,
-        x: grip.x,
-        y: grip.y,
-        rotation: grip.rotation,
-        numPackages: grip.numPackages,
-        dx: grip.dx,
-        dy: grip.dy,
-      })),
-      groupOrder: [...(pattern.groupOrder ?? [])],
-      orderDependencies: (pattern.orderDependencies ?? []).map(
-        (dependency) => ({
-          ...dependency,
-        }),
+      grips: pattern.grips.map((grip, fallbackSequence) => {
+        const sequence = orderIndex.get(grip.id) ?? fallbackSequence;
+        return {
+          sourceGripId: grip.id,
+          groupNumber: sequence + 1,
+          sequence,
+          pickX: grip.pickX,
+          pickY: grip.pickY,
+          pickRotation: grip.pickRotation,
+          x: grip.x,
+          y: grip.y,
+          rotation: grip.rotation,
+          numPackages: grip.numPackages,
+          dx: grip.dx,
+          dy: grip.dy,
+        };
+      }),
+      groupOrder,
+      orderDependencies: mergeGripOrderDependencies(
+        (pattern.orderDependencies ?? []).flatMap((dependency) =>
+          dependency.source === "inferred"
+            ? []
+            : [{ ...dependency, source: "explicit" as const }],
+        ),
+        deltaDependencies,
+        verticalDependencies,
       ),
       cycles,
       cycleCount,
@@ -188,6 +236,7 @@ export function stackPatternFromSolverCandidate(
       .map(({ id }) => id),
     orderDependencies: candidate.orderDependencies.map((dependency) => ({
       ...dependency,
+      source: "inferred",
     })),
     cycles: [],
     cycleCount: candidate.metrics.provisionalCycleCount,
