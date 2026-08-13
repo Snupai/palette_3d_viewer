@@ -548,7 +548,7 @@ describe("robotics materialization and ordering", () => {
       ["a", "b", "c"],
     );
 
-    expect(suggested.order).toEqual(["c", "b", "a"]);
+    expect(suggested.order).toEqual(["b", "c", "a"]);
     expect(edited.order).toEqual(["b", "c", "a"]);
     expect(edited.diagnostics.map(({ code }) => code)).not.toContain(
       "order-dependency-violation",

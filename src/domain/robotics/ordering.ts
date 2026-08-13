@@ -1,4 +1,4 @@
-import { compareGripPositionsBottomRightRowMajor } from "~/domain/gripDependencies";
+import { compareGripPositionsBottomLeftRowMajor } from "~/domain/gripDependencies";
 import type { PalletizingDirection } from "~/domain/project/projectSchema";
 import type {
   RobotDiagnostic,
@@ -23,7 +23,7 @@ function baseComparator() {
     (left.sourceSequence !== null && right.sourceSequence !== null
       ? left.sourceSequence - right.sourceSequence
       : 0) ||
-    compareGripPositionsBottomRightRowMajor(
+    compareGripPositionsBottomLeftRowMajor(
       left.centerPalletMm,
       right.centerPalletMm,
     ) ||

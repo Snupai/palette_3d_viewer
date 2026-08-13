@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
-  compareGripPositionsBottomRightRowMajor,
+  compareGripPositionsBottomLeftRowMajor,
   deriveGripDeltasForPlacementOrder,
   insertMergedGripByDeltaDependencies,
   mergeGripOrderDependencies,
@@ -54,7 +54,7 @@ function byDependency(
 }
 
 describe("grip execution order", () => {
-  it("sorts each row from right to left before moving upward", () => {
+  it("sorts each row from left to right before moving upward", () => {
     const grips = [
       grip("left-top", 50, 150),
       grip("right-top", 150, 150),
@@ -62,15 +62,15 @@ describe("grip execution order", () => {
       grip("right-bottom", 150, 50),
     ].sort(
       (left, right) =>
-        compareGripPositionsBottomRightRowMajor(left, right) ||
+        compareGripPositionsBottomLeftRowMajor(left, right) ||
         left.id.localeCompare(right.id),
     );
 
     expect(grips.map(({ id }) => id)).toEqual([
-      "right-bottom",
       "left-bottom",
-      "right-top",
+      "right-bottom",
       "left-top",
+      "right-top",
     ]);
   });
 
@@ -99,7 +99,7 @@ describe("grip execution order", () => {
         ],
         dependencies,
       ).map(({ id }) => id),
-    ).toEqual(["lower-right", "lower-left", "upper"]);
+    ).toEqual(["lower-left", "lower-right", "upper"]);
   });
 
   it("rejects cyclic hard dependencies instead of emitting an invalid order", () => {
@@ -145,6 +145,26 @@ describe("grip execution order", () => {
 
     expect(dependencies).toEqual([
       { beforeGripId: "lower-double", afterGripId: "upper-single" },
+    ]);
+  });
+
+  it("orders staggered multipackage grips from their X-overlapping package pairs", () => {
+    const dependencies = buildGripVerticalOverlapDependencies(
+      ["g4", "g7"],
+      [
+        footprint("g7", 200, 45.5),
+        footprint("g7", 500, 136.5),
+        footprint("g4", 250, 136.5),
+        footprint("g4", 700, 45.5),
+      ],
+      { length: 135, width: 91 },
+    );
+
+    expect(dependencies).toEqual([
+      {
+        beforeGripId: "g7",
+        afterGripId: "g4",
+      },
     ]);
   });
 

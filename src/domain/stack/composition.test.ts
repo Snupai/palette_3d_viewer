@@ -219,26 +219,26 @@ describe("stack composition transforms", () => {
   it.each([
     [
       "mirror-x",
-      ["left-bottom", "right-bottom", "left-top", "right-top"],
+      ["right-bottom", "left-bottom", "right-top", "left-top"],
       [
-        [150, 50],
         [50, 50],
-        [150, 150],
+        [150, 50],
         [50, 150],
+        [150, 150],
       ],
     ],
     [
       "rotate-90",
-      ["left-bottom", "left-top", "right-bottom", "right-top"],
+      ["left-top", "left-bottom", "right-top", "right-bottom"],
       [
-        [150, 50],
         [50, 50],
-        [150, 150],
+        [150, 50],
         [50, 150],
+        [150, 150],
       ],
     ],
   ] as const)(
-    "replans generated grips after %s in bottom-right row-major order",
+    "replans generated grips after %s in bottom-left row-major order",
     (transform, expectedOrder, expectedCenters) => {
       const transformed = transformStackPattern(
         generatedGridPattern(),
@@ -266,7 +266,7 @@ describe("stack composition transforms", () => {
           sequence,
           x: expectedCenters[sequence]![0],
           y: expectedCenters[sequence]![1],
-          dx: sequence % 2,
+          dx: sequence % 2 === 0 ? 0 : -1,
           dy: sequence < 2 ? 0 : -1,
         })),
       );

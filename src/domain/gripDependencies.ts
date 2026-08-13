@@ -49,6 +49,13 @@ const COORDINATE_TOLERANCE = 0.500_001;
 
 export const LEGACY_ROB_DELTA_APPROACH_DISTANCE_MM = 80;
 
+export function compareGripPositionsBottomLeftRowMajor(
+  left: { x: number; y: number },
+  right: { x: number; y: number },
+): number {
+  return left.y - right.y || left.x - right.x;
+}
+
 export function compareGripPositionsBottomRightRowMajor(
   left: { x: number; y: number },
   right: { x: number; y: number },
@@ -108,24 +115,37 @@ function placementBoundsByGrip(
   return boundsByGrip;
 }
 
-function footprintsOverlapInX(
-  lowerBounds: readonly BoxBounds[],
-  upperBounds: readonly BoxBounds[],
-): boolean {
-  return lowerBounds.some((lower) =>
-    upperBounds.some(
-      (upper) =>
-        Math.min(lower.right, upper.right) -
-          Math.max(lower.left, upper.left) >
-        COORDINATE_TOLERANCE,
-    ),
-  );
+function verticalRelationForXOverlappingFootprints(
+  leftBounds: readonly BoxBounds[],
+  rightBounds: readonly BoxBounds[],
+): -1 | 1 | null {
+  let relation: -1 | 1 | null = null;
+
+  for (const left of leftBounds) {
+    for (const right of rightBounds) {
+      const overlapX =
+        Math.min(left.right, right.right) - Math.max(left.left, right.left);
+      if (overlapX <= COORDINATE_TOLERANCE) continue;
+
+      const pairRelation =
+        left.top <= right.bottom + COORDINATE_TOLERANCE
+          ? -1
+          : right.top <= left.bottom + COORDINATE_TOLERANCE
+            ? 1
+            : null;
+      if (pairRelation === null) return null;
+      if (relation !== null && relation !== pairRelation) return null;
+      relation = pairRelation;
+    }
+  }
+
+  return relation;
 }
 
 /**
- * Packages cannot be placed above packages that overlap them in X. Grips are
- * compared only when all member packages of one grip lie below all members of
- * the other, which keeps multipackage dependencies directional and acyclic.
+ * Packages cannot be placed above packages that overlap them in X. For
+ * multipackage grips, every X-overlapping package pair must require the same
+ * vertical order; interleaved grips therefore do not create opposing edges.
  */
 export function buildGripVerticalOverlapDependencies(
   gripIds: readonly string[],
@@ -143,22 +163,21 @@ export function buildGripVerticalOverlapDependencies(
   uniqueGripIds.forEach((leftGripId, leftIndex) => {
     const leftBounds = boundsByGrip.get(leftGripId) ?? [];
     if (leftBounds.length === 0) return;
-    const leftBottom = Math.min(...leftBounds.map(({ bottom }) => bottom));
-    const leftTop = Math.max(...leftBounds.map(({ top }) => top));
 
     uniqueGripIds.slice(leftIndex + 1).forEach((rightGripId) => {
       const rightBounds = boundsByGrip.get(rightGripId) ?? [];
       if (rightBounds.length === 0) return;
-      const rightBottom = Math.min(...rightBounds.map(({ bottom }) => bottom));
-      const rightTop = Math.max(...rightBounds.map(({ top }) => top));
-      if (!footprintsOverlapInX(leftBounds, rightBounds)) return;
+      const relation = verticalRelationForXOverlappingFootprints(
+        leftBounds,
+        rightBounds,
+      );
 
-      if (leftTop <= rightBottom + COORDINATE_TOLERANCE) {
+      if (relation === -1) {
         dependencies.push({
           beforeGripId: leftGripId,
           afterGripId: rightGripId,
         });
-      } else if (rightTop <= leftBottom + COORDINATE_TOLERANCE) {
+      } else if (relation === 1) {
         dependencies.push({
           beforeGripId: rightGripId,
           afterGripId: leftGripId,
@@ -231,7 +250,7 @@ export function orderGripsByDependencies<
       ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
         (preferredIndexById.get(right.id) ?? Number.POSITIVE_INFINITY)
       : 0) ||
-    compareGripPositionsBottomRightRowMajor(left, right) ||
+    compareGripPositionsBottomLeftRowMajor(left, right) ||
     left.id.localeCompare(right.id);
   const available = grips
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)

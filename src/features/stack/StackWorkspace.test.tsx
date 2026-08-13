@@ -315,10 +315,10 @@ describe("stack workspace persistence", () => {
         dy,
       })),
     ).toEqual([
-      { groupNumber: 1, x: 1150, y: 50, dx: 0, dy: 0 },
-      { groupNumber: 2, x: 1050, y: 50, dx: 1, dy: 0 },
-      { groupNumber: 3, x: 1150, y: 150, dx: 0, dy: -1 },
-      { groupNumber: 4, x: 1050, y: 150, dx: 1, dy: -1 },
+      { groupNumber: 1, x: 1050, y: 50, dx: 0, dy: 0 },
+      { groupNumber: 2, x: 1150, y: 50, dx: -1, dy: 0 },
+      { groupNumber: 3, x: 1050, y: 150, dx: 0, dy: -1 },
+      { groupNumber: 4, x: 1150, y: 150, dx: -1, dy: -1 },
     ]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
@@ -449,7 +449,7 @@ describe("stack workspace persistence", () => {
     expect(persistedSolution.robotCycles).toEqual([]);
     expect(
       persistedPattern.grips.map(({ numPackages }) => numPackages),
-    ).toEqual([1, 2]);
+    ).toEqual([2, 1]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
     );
@@ -461,22 +461,22 @@ describe("stack workspace persistence", () => {
       },
     ]);
     expect(persistedPattern.placements.map(({ gripId }) => gripId)).toEqual([
-      persistedPattern.grips[1]!.id,
-      persistedPattern.grips[1]!.id,
       persistedPattern.grips[0]!.id,
+      persistedPattern.grips[0]!.id,
+      persistedPattern.grips[1]!.id,
     ]);
     expect(reopened.robotCycles).toEqual([]);
     expect(reopenedLayer.robotCycles).toEqual([]);
     expect(reopenedLayer.grips.map(({ numPackages }) => numPackages)).toEqual([
-      1, 2,
+      2, 1,
     ]);
     expect(reopenedLayer.placements.map(({ gripId }) => gripId)).toEqual([
-      reopenedLayer.grips[1]!.id,
-      reopenedLayer.grips[1]!.id,
       reopenedLayer.grips[0]!.id,
+      reopenedLayer.grips[0]!.id,
+      reopenedLayer.grips[1]!.id,
     ]);
     expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
-      1, 2,
+      2, 1,
     ]);
     expect(
       robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer),
