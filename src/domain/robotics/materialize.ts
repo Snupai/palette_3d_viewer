@@ -380,17 +380,15 @@ export function materializeRobotCycles(
           : [[group.sourceGripId, group.id] as const],
       ),
     );
-    const persistedDependencies = layer.orderDependencies.map(
-      (dependency) => ({
-        beforeGroupId:
-          groupIdBySourceGrip.get(dependency.beforeGripId) ??
-          dependency.beforeGripId,
-        afterGroupId:
-          groupIdBySourceGrip.get(dependency.afterGripId) ??
-          dependency.afterGripId,
-        source: "explicit" as const,
-      }),
-    );
+    const persistedDependencies = layer.orderDependencies.map((dependency) => ({
+      beforeGroupId:
+        groupIdBySourceGrip.get(dependency.beforeGripId) ??
+        dependency.beforeGripId,
+      afterGroupId:
+        groupIdBySourceGrip.get(dependency.afterGripId) ??
+        dependency.afterGripId,
+      source: "explicit" as const,
+    }));
     const persistedOrder = layer.groupOrder.map(
       (sourceGripId) => groupIdBySourceGrip.get(sourceGripId) ?? sourceGripId,
     );

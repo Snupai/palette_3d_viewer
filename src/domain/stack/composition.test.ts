@@ -67,22 +67,20 @@ function generatedGridPattern(): StackPattern {
       gripId: sourceGripId,
       labelSide: null,
     })),
-    grips: grips.map(
-      ([sourceGripId, x, y, groupNumber, dx, dy], sequence) => ({
-        sourceGripId,
-        groupNumber,
-        sequence,
-        pickX: 0,
-        pickY: 0,
-        pickRotation: 0,
-        x,
-        y,
-        rotation: 0,
-        numPackages: 1,
-        dx,
-        dy,
-      }),
-    ),
+    grips: grips.map(([sourceGripId, x, y, groupNumber, dx, dy], sequence) => ({
+      sourceGripId,
+      groupNumber,
+      sequence,
+      pickX: 0,
+      pickY: 0,
+      pickRotation: 0,
+      x,
+      y,
+      rotation: 0,
+      numPackages: 1,
+      dx,
+      dy,
+    })),
     groupOrder: grips.map(([sourceGripId]) => sourceGripId),
     orderDependencies: [
       { beforeGripId: "right-bottom", afterGripId: "right-top" },
@@ -250,16 +248,14 @@ describe("stack composition transforms", () => {
 
       expect(transformed.groupOrder).toEqual(expectedOrder);
       expect(
-        transformed.grips.map(
-          ({ sourceGripId, sequence, x, y, dx, dy }) => ({
-            sourceGripId,
-            sequence,
-            x,
-            y,
-            dx,
-            dy,
-          }),
-        ),
+        transformed.grips.map(({ sourceGripId, sequence, x, y, dx, dy }) => ({
+          sourceGripId,
+          sequence,
+          x,
+          y,
+          dx,
+          dy,
+        })),
       ).toEqual(
         expectedOrder.map((sourceGripId, sequence) => ({
           sourceGripId,
@@ -270,28 +266,30 @@ describe("stack composition transforms", () => {
           dy: sequence % 2 === 0 ? 0 : -1,
         })),
       );
-      expect(transformed.orderDependencies).toEqual([
-        {
-          beforeGripId: expectedOrder[0],
-          afterGripId: expectedOrder[1],
-        },
-        {
-          beforeGripId: expectedOrder[0],
-          afterGripId: expectedOrder[2],
-        },
-        {
-          beforeGripId: expectedOrder[1],
-          afterGripId: expectedOrder[3],
-        },
-        {
-          beforeGripId: expectedOrder[2],
-          afterGripId: expectedOrder[3],
-        },
-      ].sort(
-        (left, right) =>
-          left.beforeGripId.localeCompare(right.beforeGripId) ||
-          left.afterGripId.localeCompare(right.afterGripId),
-      ));
+      expect(transformed.orderDependencies).toEqual(
+        [
+          {
+            beforeGripId: expectedOrder[0],
+            afterGripId: expectedOrder[1],
+          },
+          {
+            beforeGripId: expectedOrder[0],
+            afterGripId: expectedOrder[2],
+          },
+          {
+            beforeGripId: expectedOrder[1],
+            afterGripId: expectedOrder[3],
+          },
+          {
+            beforeGripId: expectedOrder[2],
+            afterGripId: expectedOrder[3],
+          },
+        ].sort(
+          (left, right) =>
+            left.beforeGripId.localeCompare(right.beforeGripId) ||
+            left.afterGripId.localeCompare(right.afterGripId),
+        ),
+      );
     },
   );
 
@@ -323,9 +321,7 @@ describe("stack composition transforms", () => {
       { dx: -1, dy: 0 },
       { dx: -1, dy: -1 },
     ]);
-    expect(transformed.orderDependencies).toEqual(
-      generated.orderDependencies,
-    );
+    expect(transformed.orderDependencies).toEqual(generated.orderDependencies);
   });
 });
 

@@ -219,9 +219,7 @@ function replanGeneratedGrips(
     .flatMap(({ prerequisiteIndex, dependentIndex }) => {
       const beforeGripId = grips[prerequisiteIndex]?.sourceGripId;
       const afterGripId = grips[dependentIndex]?.sourceGripId;
-      return beforeGripId && afterGripId
-        ? [{ beforeGripId, afterGripId }]
-        : [];
+      return beforeGripId && afterGripId ? [{ beforeGripId, afterGripId }] : [];
     })
     .sort(
       (left, right) =>

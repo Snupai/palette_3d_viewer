@@ -398,7 +398,9 @@ export function projectWithPersistedStack(
           return gripId;
         }),
         orderDependencies: transformed.orderDependencies.map((dependency) => {
-          const beforeGripId = projectGripIdBySource.get(dependency.beforeGripId);
+          const beforeGripId = projectGripIdBySource.get(
+            dependency.beforeGripId,
+          );
           const afterGripId = projectGripIdBySource.get(dependency.afterGripId);
           if (!beforeGripId || !afterGripId) {
             throw new Error(

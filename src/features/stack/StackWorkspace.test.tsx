@@ -253,22 +253,20 @@ describe("stack workspace persistence", () => {
         labelSide: null,
         gripId: id,
       })),
-      grips: gripGeometry.map(
-        ([id, x, y, groupNumber, dx, dy], sequence) => ({
-          id,
-          groupNumber,
-          sequence,
-          pickX: 0,
-          pickY: 0,
-          pickRotation: 0,
-          x,
-          y,
-          rotation: 0,
-          numPackages: 1,
-          dx,
-          dy,
-        }),
-      ),
+      grips: gripGeometry.map(([id, x, y, groupNumber, dx, dy], sequence) => ({
+        id,
+        groupNumber,
+        sequence,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0,
+        x,
+        y,
+        rotation: 0,
+        numPackages: 1,
+        dx,
+        dy,
+      })),
       orderDependencies: [
         { beforeGripId: "right-bottom", afterGripId: "right-top" },
         { beforeGripId: "right-bottom", afterGripId: "left-bottom" },
@@ -479,9 +477,9 @@ describe("stack workspace persistence", () => {
     expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
       2, 1,
     ]);
-    expect(robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer)).toEqual([
-      0, 1,
-    ]);
+    expect(
+      robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer),
+    ).toEqual([0, 1]);
     expect(
       robotics.diagnostics.filter(
         ({ code }) => code === "order-dependency-violation",

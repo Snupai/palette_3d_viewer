@@ -1080,9 +1080,7 @@ describe("project-derived .rob export", () => {
               dy: -1,
             },
           ],
-          placements: [
-            { ...placement("package-1", 0, 100, 50), gripId },
-          ],
+          placements: [{ ...placement("package-1", 0, 100, 50), gripId }],
           groupOrder: [gripId],
           orderDependencies: [],
         },
@@ -1113,9 +1111,9 @@ describe("project-derived .rob export", () => {
     expect(exported.ok).toBe(true);
     expect(exported.parserRoundtripVerified).toBe(true);
     expect(exported.manifest?.unknownFieldPolicy).toBe("preserve-imported");
-    expect(
-      reparsed.uniqueLayers[1]?.map(({ dx, dy }) => ({ dx, dy })),
-    ).toEqual([{ dx: 1, dy: -1 }]);
+    expect(reparsed.uniqueLayers[1]?.map(({ dx, dy }) => ({ dx, dy }))).toEqual(
+      [{ dx: 1, dy: -1 }],
+    );
 
     const adjacencyGrouped = materializeRobotCycles(
       calculatedProject({

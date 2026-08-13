@@ -250,10 +250,10 @@ describe("PatternCanvas", () => {
       clientX: 70,
       clientY: 40,
     });
-    expect(onMoveSelection).toHaveBeenCalledWith(
-      { x: 20, y: 10 },
-      ["p1", "p2"],
-    );
+    expect(onMoveSelection).toHaveBeenCalledWith({ x: 20, y: 10 }, [
+      "p1",
+      "p2",
+    ]);
   });
 
   it("selects the complete grip from the keyboard", () => {

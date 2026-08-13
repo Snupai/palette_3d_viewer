@@ -119,13 +119,15 @@ export function PatternCanvas({
     [groups],
   );
   const placementById = useMemo(
-    () => new Map(pattern.placements.map((placement) => [placement.id, placement])),
+    () =>
+      new Map(pattern.placements.map((placement) => [placement.id, placement])),
     [pattern.placements],
   );
   const gripPlacementIds = useMemo(() => {
     const idsByGrip = new Map<string, string[]>();
     for (const placement of pattern.placements) {
-      if (placement.gripId === null || !gripById.has(placement.gripId)) continue;
+      if (placement.gripId === null || !gripById.has(placement.gripId))
+        continue;
       const ids = idsByGrip.get(placement.gripId) ?? [];
       ids.push(placement.id);
       idsByGrip.set(placement.gripId, ids);
@@ -470,10 +472,7 @@ export function PatternCanvas({
                   textAnchor="middle"
                   dominantBaseline="middle"
                   fill="#e4e4e7"
-                  fontSize={Math.max(
-                    11,
-                    Math.min(rectWidth, rectHeight) * 0.2,
-                  )}
+                  fontSize={Math.max(11, Math.min(rectWidth, rectHeight) * 0.2)}
                   fontFamily="ui-monospace, monospace"
                   pointerEvents="none"
                 >

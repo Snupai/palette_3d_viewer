@@ -204,26 +204,26 @@ function dependenciesForDelta(
   delta: GripDelta,
   neighbors: GripNeighborIndex,
 ): GripDependency[] {
-  return (
-    [
-      delta.dx === 0
-        ? null
-        : ({ axis: "x", direction: Math.sign(delta.dx) } as const),
-      delta.dy === 0
-        ? null
-        : ({ axis: "y", direction: Math.sign(delta.dy) } as const),
-    ].filter(
+  return [
+    delta.dx === 0
+      ? null
+      : ({ axis: "x", direction: Math.sign(delta.dx) } as const),
+    delta.dy === 0
+      ? null
+      : ({ axis: "y", direction: Math.sign(delta.dy) } as const),
+  ]
+    .filter(
       (value): value is { axis: "x" | "y"; direction: -1 | 1 } =>
         value !== null,
     )
-  ).flatMap(({ axis, direction }) =>
-    (neighbors.nearestInDirection(gripIndex, axis, direction)?.indices ?? []).map(
-      (prerequisiteIndex) => ({
+    .flatMap(({ axis, direction }) =>
+      (
+        neighbors.nearestInDirection(gripIndex, axis, direction)?.indices ?? []
+      ).map((prerequisiteIndex) => ({
         prerequisiteIndex,
         dependentIndex: gripIndex,
-      }),
-    ),
-  );
+      })),
+    );
 }
 
 export function buildGripDeltaDependencies(

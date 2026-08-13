@@ -153,9 +153,9 @@ describe("derived grip approach deltas", () => {
     );
 
     expect(deltas[3]).toEqual({ dx: 1, dy: 0 });
-    expect(dependencies.filter(({ dependentIndex }) => dependentIndex === 3)).toEqual([
-      { prerequisiteIndex: 0, dependentIndex: 3 },
-    ]);
+    expect(
+      dependencies.filter(({ dependentIndex }) => dependentIndex === 3),
+    ).toEqual([{ prerequisiteIndex: 0, dependentIndex: 3 }]);
   });
 
   it("rejects the whole multipackage grip when only an outer package is blocked", () => {
@@ -172,7 +172,9 @@ describe("derived grip approach deltas", () => {
     );
 
     expect(deltas[2]).toEqual({ dx: 0, dy: 0 });
-    expect(dependencies.filter(({ dependentIndex }) => dependentIndex === 2)).toEqual([]);
+    expect(
+      dependencies.filter(({ dependentIndex }) => dependentIndex === 2),
+    ).toEqual([]);
   });
 
   it("keeps a lone grip and grips beyond the reference gap at zero", () => {
