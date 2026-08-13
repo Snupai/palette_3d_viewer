@@ -177,7 +177,8 @@ describe("PatternCanvas", () => {
   it("renders and edits a multipackage grip as one unit", () => {
     const project = projectFixture();
     const pattern = project.solutions[0]!.patterns[0]!;
-    const onSelectionChange = vi.fn();
+    const onSelectionChange =
+      vi.fn<(placementIds: ReadonlySet<string>) => void>();
     const onMoveSelection = vi.fn();
     const { container } = render(
       <PatternCanvas
@@ -258,7 +259,8 @@ describe("PatternCanvas", () => {
   it("selects the complete grip from the keyboard", () => {
     const project = projectFixture();
     const pattern = project.solutions[0]!.patterns[0]!;
-    const onSelectionChange = vi.fn();
+    const onSelectionChange =
+      vi.fn<(placementIds: ReadonlySet<string>) => void>();
     render(
       <PatternCanvas
         project={project}

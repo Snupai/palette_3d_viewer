@@ -161,7 +161,7 @@ describe("viewer equipment", () => {
 
     expect(equipment.root.getObjectByName("robot-cell")).toBe(cellRoot);
     expect(equipment.root.getObjectByName("conveyor-bed")).toBeUndefined();
-    expect(equipment.root.getObjectByName("robot-upper-arm")).toBeUndefined();
+    expect(equipment.root.getObjectByName("robot-upper-arm")).toBeTruthy();
     expect(
       equipment.root.getObjectByName("selected-gripper-envelope"),
     ).toBeTruthy();

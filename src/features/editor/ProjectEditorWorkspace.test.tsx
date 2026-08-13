@@ -185,7 +185,7 @@ function importedGripProject(): Project {
                 rotation: 0,
                 numPackages: 2,
                 dx: 0,
-                dy: 14,
+                dy: -14,
               },
             ],
             placements: sourcePattern.placements.map((item, index) => ({

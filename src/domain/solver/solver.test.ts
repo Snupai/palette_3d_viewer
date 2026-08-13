@@ -545,15 +545,15 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(
       singleton.grips.map(({ id, numPackages }) => [id, numPackages]),
     ).toEqual([
-      ["generated-grip:1", 1],
-      ["generated-grip:2", 1],
       ["generated-grip:3", 1],
+      ["generated-grip:2", 1],
+      ["generated-grip:1", 1],
     ]);
     expect(
       multipick.grips.map(({ id, numPackages }) => [id, numPackages]),
     ).toEqual([
-      ["generated-grip:1+2", 2],
       ["generated-grip:3", 1],
+      ["generated-grip:1+2", 2],
     ]);
     expect(multipick.placements.map(({ gripId }) => gripId)).toEqual([
       "generated-grip:1+2",

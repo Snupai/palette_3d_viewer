@@ -8,9 +8,12 @@ const createCellScene = () => {
   const root = new Group();
   const fixed = new Group();
   const liftCarriage = new Group();
+  const staticArm = new Group();
   root.name = BUNDLED_ROBOT_CELL.nodes.root;
   fixed.name = BUNDLED_ROBOT_CELL.nodes.fixed;
   liftCarriage.name = BUNDLED_ROBOT_CELL.nodes.liftCarriage;
+  staticArm.name = BUNDLED_ROBOT_CELL.nodes.staticArm;
+  liftCarriage.add(staticArm);
   root.add(fixed, liftCarriage);
   scene.add(root);
   return { scene, root, fixed, liftCarriage };

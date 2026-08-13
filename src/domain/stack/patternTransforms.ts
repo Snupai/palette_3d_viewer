@@ -53,27 +53,31 @@ const missingFrameProvenance: MetricProvenance = {
     "The non-identity transform could not be resolved because the pattern has no frame or placements.",
 };
 
+function canonicalVector(x: number, y: number): { x: number; y: number } {
+  return { x: x === 0 ? 0 : x, y: y === 0 ? 0 : y };
+}
+
 function transformVector(
   vector: { x: number; y: number },
   transform: StackLayerTransform,
 ): { x: number; y: number } {
   switch (transform) {
     case "identity":
-      return vector;
+      return canonicalVector(vector.x, vector.y);
     case "rotate-90":
-      return { x: -vector.y, y: vector.x };
+      return canonicalVector(-vector.y, vector.x);
     case "rotate-180":
-      return { x: -vector.x, y: -vector.y };
+      return canonicalVector(-vector.x, -vector.y);
     case "rotate-270":
-      return { x: vector.y, y: -vector.x };
+      return canonicalVector(vector.y, -vector.x);
     case "mirror-x":
-      return { x: -vector.x, y: vector.y };
+      return canonicalVector(-vector.x, vector.y);
     case "mirror-y":
-      return { x: vector.x, y: -vector.y };
+      return canonicalVector(vector.x, -vector.y);
     case "transpose-main":
-      return { x: vector.y, y: vector.x };
+      return canonicalVector(vector.y, vector.x);
     case "transpose-anti":
-      return { x: -vector.y, y: -vector.x };
+      return canonicalVector(-vector.y, -vector.x);
   }
 }
 

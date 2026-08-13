@@ -37,8 +37,6 @@ export type LayerCanvasProps = {
   onGripPointerCancel: () => void;
 };
 
-type EditorBox = ReturnType<typeof gripsToBoxes>[number];
-
 export function LayerCanvas({
   uniqueLayerId,
   grips,

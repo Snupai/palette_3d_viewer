@@ -194,7 +194,7 @@ function importedGripProject(): Project {
                 rotation: 0,
                 numPackages: 2,
                 dx: 0,
-                dy: 14,
+                dy: -14,
               },
             ],
             placements: sourcePattern.placements.map((item, index) => ({
@@ -508,7 +508,7 @@ describe("Project editor pattern geometry", () => {
       pattern(project).grips.map(({ id, dx, dy }) => ({ id, dx, dy }));
     const expected = [
       { id: "g1", dx: 37, dy: 0 },
-      { id: "g2", dx: 0, dy: 14 },
+      { id: "g2", dx: 0, dy: -14 },
     ];
 
     project = applyProjectEditorCommand(project, {
@@ -550,7 +550,7 @@ describe("Project editor pattern geometry", () => {
     });
     expect(rawOffsets()).toEqual([
       { id: "g1", dx: 0, dy: 1 },
-      { id: "g2", dx: 0, dy: 14 },
+      { id: "g2", dx: 0, dy: -14 },
     ]);
   });
 });
