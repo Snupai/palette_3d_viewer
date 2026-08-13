@@ -48,6 +48,19 @@ function projectTransformFrameProvenance(
       };
 }
 
+const persistedSolverPatternId =
+  /^solver-pattern-\d+-(?:identity|mirror-x|mirror-y|rotate-90|rotate-180|rotate-270)-/;
+
+function usesSolverGeneratedGripPlanning(
+  solutionOrigin: "imported" | "calculated" | "manual",
+  pattern: { id: string; gripPlanningSource?: "solver-generated" | "manual" },
+): boolean {
+  if (pattern.gripPlanningSource !== undefined) {
+    return pattern.gripPlanningSource === "solver-generated";
+  }
+  return solutionOrigin === "calculated" && persistedSolverPatternId.test(pattern.id);
+}
+
 export function stackPatternsFromProjectSolution(
   projectInput: Project | ProjectV2,
   solutionId: string | null = projectInput.activeSolutionId,

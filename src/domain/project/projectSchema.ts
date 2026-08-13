@@ -581,6 +581,7 @@ export const planningLayerPatternSchema = z
     /** Stable grip ids in editable execution order; group numbers mirror this order. */
     groupOrder: z.array(projectIdSchema).optional(),
     orderDependencies: z.array(patternOrderDependencySchema).optional(),
+    gripPlanningSource: z.enum(["solver-generated", "manual"]).optional(),
   })
   .strict()
   .superRefine((value, context) => {

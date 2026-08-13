@@ -414,6 +414,7 @@ export function projectWithPersistedStack(
             source: dependency.source ?? "inferred",
           };
         }),
+        gripPlanningSource: "solver-generated" as const,
       };
     },
   );

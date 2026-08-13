@@ -1061,6 +1061,7 @@ function replacePattern(
     grips: orderedGrips,
     groupOrder: orderedGrips.map(({ id }) => id),
     orderDependencies,
+    gripPlanningSource: "manual",
   });
   const nextSolution: PlanningSolution = {
     ...solution,
