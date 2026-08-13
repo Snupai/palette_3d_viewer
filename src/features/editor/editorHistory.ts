@@ -2,6 +2,7 @@ import type { Project } from "~/domain/project/projectSchema";
 import {
   applyProjectEditorCommand,
   describeProjectEditorCommand,
+  normalizeProjectForEditor,
   ProjectEditorCommandError,
   type ProjectEditorCommand,
   type ProjectEditorDiagnostic,
@@ -39,10 +40,11 @@ export type ProjectEditorHistoryAction =
 export function createProjectEditorHistory(
   project: Project,
 ): ProjectEditorHistoryState {
+  const normalizedProject = normalizeProjectForEditor(project);
   return {
-    original: project,
-    persisted: project,
-    present: project,
+    original: normalizedProject,
+    persisted: normalizedProject,
+    present: normalizedProject,
     past: [],
     future: [],
     lastDescription: null,

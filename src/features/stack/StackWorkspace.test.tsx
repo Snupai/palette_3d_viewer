@@ -166,6 +166,7 @@ describe("stack workspace persistence", () => {
       );
       expect(solution.patterns).toHaveLength(1);
       expect(solution.patterns[0]?.name).toContain(transform);
+      expect(solution.patterns[0]?.gripPlanningSource).toBe("solver-generated");
       expect(solution.stack.layers[0]?.patternId).toBe(
         solution.patterns[0]?.id,
       );

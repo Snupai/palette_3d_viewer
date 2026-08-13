@@ -887,6 +887,7 @@ describe("stack composition transforms", () => {
     const generated = generatedGridPattern();
     const projectPattern: StackPattern = {
       ...generated,
+      generatedGripPolicy: null,
       provenance: {
         kind: "project-pattern",
         projectSchemaVersion: 3,

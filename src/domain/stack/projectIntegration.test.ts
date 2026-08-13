@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createProject } from "~/domain/project/projectFactory";
 import { materializeProjectSolutionStack } from "~/domain/stack";
 import {
   materializedStackToPalletData,
@@ -32,6 +33,97 @@ function savedPallet(): SavedPallet {
     rawText,
     originalRawText: rawText,
   };
+}
+
+function executionOrderProject(options: {
+  patternId: string;
+  gripPlanningSource?: "solver-generated" | "manual";
+}) {
+  const pattern = {
+    id: options.patternId,
+    name: "Persisted order",
+    grips: [
+      {
+        id: "right",
+        groupNumber: 1,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0 as const,
+        x: 1050,
+        y: 100,
+        rotation: 0 as const,
+        numPackages: 1,
+        dx: 0,
+        dy: 0,
+      },
+      {
+        id: "left",
+        groupNumber: 2,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0 as const,
+        x: 150,
+        y: 100,
+        rotation: 0 as const,
+        numPackages: 1,
+        dx: 0,
+        dy: 0,
+      },
+    ],
+    placements: [
+      {
+        id: "right-placement",
+        sequence: 0,
+        positionMm: { x: 1050, y: 100 },
+        rotation: 0 as const,
+        gripId: "right",
+        labelSide: null,
+      },
+      {
+        id: "left-placement",
+        sequence: 1,
+        positionMm: { x: 150, y: 100 },
+        rotation: 0 as const,
+        gripId: "left",
+        labelSide: null,
+      },
+    ],
+    groupOrder: ["right", "left"],
+    orderDependencies: [],
+    ...(options.gripPlanningSource === undefined
+      ? {}
+      : { gripPlanningSource: options.gripPlanningSource }),
+  };
+  return createProject(
+    {
+      id: `project-${options.patternId}`,
+      package: {
+        dimensionsMm: { length: 100, width: 100, height: 100 },
+      },
+      solutions: [
+        {
+          id: "solution",
+          name: "Calculated solution",
+          origin: "calculated",
+          patterns: [pattern],
+          stack: {
+            interlayerThicknessMm: 3,
+            layers: [
+              {
+                id: "layer",
+                patternId: pattern.id,
+                interlayerBefore: 0,
+              },
+            ],
+            trailingInterlayer: 0,
+          },
+          robotCycles: [],
+        },
+      ],
+      activeSolutionId: "solution",
+    },
+    { now: () => 1, createId: (kind) => `${kind}-order` },
+  );
 }
 
 describe("ProjectV2 materialized stack integration", () => {
@@ -71,5 +163,56 @@ describe("ProjectV2 materialized stack integration", () => {
       projectId: projectV2.id,
       solutionOrigin: "imported",
     });
+  });
+
+  it("repairs persisted solver grip order from bottom to top and left to right", () => {
+    const materialized = materializeProjectSolutionStack(
+      executionOrderProject({
+        patternId: "solver-pattern-1-identity-legacy-candidate",
+      }),
+    );
+
+    expect(
+      materialized.packageLayers[0]?.grips.map(
+        ({ sourceGripId, groupNumber, sequence }) => ({
+          sourceGripId,
+          groupNumber,
+          sequence,
+        }),
+      ),
+    ).toEqual([
+      { sourceGripId: "left", groupNumber: 1, sequence: 0 },
+      { sourceGripId: "right", groupNumber: 2, sequence: 1 },
+    ]);
+    expect(materialized.packageLayers[0]?.groupOrder).toEqual([
+      "left",
+      "right",
+    ]);
+  });
+
+  it("preserves a manually edited order between dependency-free grips", () => {
+    const materialized = materializeProjectSolutionStack(
+      executionOrderProject({
+        patternId: "solver-pattern-1-identity-edited-candidate",
+        gripPlanningSource: "manual",
+      }),
+    );
+
+    expect(
+      materialized.packageLayers[0]?.grips.map(
+        ({ sourceGripId, groupNumber, sequence }) => ({
+          sourceGripId,
+          groupNumber,
+          sequence,
+        }),
+      ),
+    ).toEqual([
+      { sourceGripId: "right", groupNumber: 1, sequence: 0 },
+      { sourceGripId: "left", groupNumber: 2, sequence: 1 },
+    ]);
+    expect(materialized.packageLayers[0]?.groupOrder).toEqual([
+      "right",
+      "left",
+    ]);
   });
 });

@@ -77,6 +77,10 @@ export function stackPatternsFromProjectSolution(
   }
 
   return solution.patterns.map((pattern) => {
+    const solverGeneratedGripPlanning = usesSolverGeneratedGripPlanning(
+      solution.origin,
+      pattern,
+    );
     const cycles = solution.robotCycles
       .filter(({ patternId }) => patternId === pattern.id)
       .sort((left, right) => left.sequence - right.sequence)
@@ -164,7 +168,8 @@ export function stackPatternsFromProjectSolution(
       groupOrder,
       orderDependencies: mergeGripOrderDependencies(
         (pattern.orderDependencies ?? []).flatMap((dependency) =>
-          dependency.source === "inferred"
+          dependency.source === "inferred" ||
+          (solverGeneratedGripPlanning && dependency.source === undefined)
             ? []
             : [{ ...dependency, source: "explicit" as const }],
         ),
@@ -190,6 +195,9 @@ export function stackPatternsFromProjectSolution(
       transformFrameMm,
       transformFrameProvenance:
         projectTransformFrameProvenance(transformFrameMm),
+      generatedGripPolicy: solverGeneratedGripPlanning
+        ? { maxReferenceGapMm: project.package.clearanceMm }
+        : null,
       provenance: {
         kind: "project-pattern",
         projectSchemaVersion: project.schemaVersion,

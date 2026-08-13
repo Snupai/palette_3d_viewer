@@ -290,6 +290,40 @@ function twoGripProject(): Project {
   });
 }
 
+function persistedSolverOrderProject(
+  gripPlanningSource?: "solver-generated" | "manual",
+): Project {
+  const project = twoGripProject();
+  const solution = project.solutions[0]!;
+  const sourcePattern = solution.patterns[0]!;
+  const patternId = "solver-pattern-1-identity-legacy-candidate";
+  return projectSchema.parse({
+    ...project,
+    solutions: [
+      {
+        ...solution,
+        origin: "calculated",
+        patterns: [
+          {
+            ...sourcePattern,
+            id: patternId,
+            ...(gripPlanningSource === undefined
+              ? {}
+              : { gripPlanningSource }),
+          },
+        ],
+        stack: {
+          ...solution.stack,
+          layers: solution.stack.layers.map((layer) => ({
+            ...layer,
+            patternId,
+          })),
+        },
+      },
+    ],
+  });
+}
+
 function threeGripProject(): Project {
   const project = editorProject();
   const solution = project.solutions[0]!;
@@ -651,6 +685,40 @@ describe("Project editor pattern geometry", () => {
 });
 
 describe("Project editor groups and order", () => {
+  it("repairs a persisted solver order when the editor opens", () => {
+    const history = createProjectEditorHistory(persistedSolverOrderProject());
+    const model = projectEditorOrderModel(
+      history.present,
+      "solution-1",
+      "solver-pattern-1-identity-legacy-candidate",
+    );
+
+    expect(model.groups.map(({ id, groupNumber }) => ({ id, groupNumber }))).toEqual([
+      { id: "left", groupNumber: 1 },
+      { id: "right", groupNumber: 2 },
+    ]);
+    expect(pattern(history.present).groupOrder).toEqual(["left", "right"]);
+    expect(projectEditorHistoryDirty(history)).toBe(false);
+  });
+
+  it("preserves an explicitly manual order when the editor opens", () => {
+    const history = createProjectEditorHistory(
+      persistedSolverOrderProject("manual"),
+    );
+    const model = projectEditorOrderModel(
+      history.present,
+      "solution-1",
+      "solver-pattern-1-identity-legacy-candidate",
+    );
+
+    expect(model.groups.map(({ id, groupNumber }) => ({ id, groupNumber }))).toEqual([
+      { id: "right", groupNumber: 1 },
+      { id: "left", groupNumber: 2 },
+    ]);
+    expect(pattern(history.present).groupOrder).toEqual(["right", "left"]);
+    expect(projectEditorHistoryDirty(history)).toBe(false);
+  });
+
   it("renumbers G1 through Gx after reordering independent grips", () => {
     const reordered = applyProjectEditorCommand(twoGripProject(), {
       type: "reorder-group",
@@ -662,6 +730,7 @@ describe("Project editor groups and order", () => {
     });
 
     expect(pattern(reordered).groupOrder).toEqual(["left", "right"]);
+    expect(pattern(reordered).gripPlanningSource).toBe("manual");
     expect(
       projectEditorOrderModel(reordered, "solution-1", "pattern-1").groups.map(
         ({ id, groupNumber }) => ({ id, groupNumber }),

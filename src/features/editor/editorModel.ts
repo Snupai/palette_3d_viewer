@@ -33,7 +33,11 @@ import {
   type RobotPose,
 } from "~/domain/robotics";
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
-import { projectPatternReference } from "~/domain/stack";
+import {
+  projectPatternReference,
+  stackPatternsFromProjectSolution,
+  transformStackPattern,
+} from "~/domain/stack";
 import type { Grip, Rotation } from "~/domain/palletTypes";
 
 export type ProjectEditorMode = "pattern" | "order" | "flow";
@@ -378,6 +382,60 @@ export function activeEditorPattern(
     solution.patterns[0] ??
     null
   );
+}
+
+export function normalizeProjectForEditor(project: Project): Project {
+  return {
+    ...project,
+    solutions: project.solutions.map((solution) => {
+      const normalizedById = new Map(
+        stackPatternsFromProjectSolution(project, solution.id).flatMap(
+          (pattern) => {
+            if (!pattern.generatedGripPolicy) return [];
+            const transformed = transformStackPattern(
+              pattern,
+              "identity",
+              project.package.dimensionsMm,
+              project.package.inletOrientation,
+            );
+            if (pattern.provenance.kind !== "project-pattern") {
+              throw new Error(
+                "Project editor received a non-project stack pattern.",
+              );
+            }
+            return [[pattern.provenance.patternId, transformed] as const];
+          },
+        ),
+      );
+      return {
+        ...solution,
+        patterns: solution.patterns.map((pattern) => {
+          const normalized = normalizedById.get(pattern.id);
+          if (!normalized) return pattern;
+          return {
+            ...pattern,
+            grips: normalized.grips.map((grip) => ({
+              id: grip.sourceGripId,
+              groupNumber: grip.groupNumber,
+              pickX: grip.pickX,
+              pickY: grip.pickY,
+              pickRotation: grip.pickRotation,
+              x: grip.x,
+              y: grip.y,
+              rotation: grip.rotation,
+              numPackages: grip.numPackages,
+              dx: grip.dx,
+              dy: grip.dy,
+            })),
+            groupOrder: [...normalized.groupOrder],
+            orderDependencies: normalized.orderDependencies.map(
+              (dependency) => ({ ...dependency }),
+            ),
+          };
+        }),
+      };
+    }),
+  };
 }
 
 export function projectEditorEnvelope(

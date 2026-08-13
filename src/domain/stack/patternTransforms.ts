@@ -215,10 +215,7 @@ function replanGrips(
   ).map((dependency) => ({ ...dependency, source: "inferred" as const }));
   const retainedDependencies = retainedExplicitDependencies(pattern);
 
-  if (
-    pattern.provenance.kind !== "solver-candidate" ||
-    !pattern.generatedGripPolicy
-  ) {
+  if (!pattern.generatedGripPolicy) {
     const orderDependencies = mergeGripOrderDependencies(
       retainedDependencies,
       deltaDependenciesForGrips(
