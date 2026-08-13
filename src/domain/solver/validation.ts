@@ -30,10 +30,7 @@ const DEFAULT_MAX_BANDS = 64;
 const DEFAULT_MAX_CANDIDATES_PER_GENERATOR = 5_000;
 const rotations = new Set<number>(ORTHOGONAL_ROTATIONS);
 const packageLabelSides = new Set<string>(["top", "right", "bottom", "left"]);
-const packageInletOrientations = new Set<string>([
-  "lengthwise",
-  "crosswise",
-]);
+const packageInletOrientations = new Set<string>(["lengthwise", "crosswise"]);
 const rectangularBlockFootprintPolicies = new Set<string>([
   "fill-generation-bounds",
   "compact-centered",

@@ -397,7 +397,9 @@ export function materializeRobotCycles(
       options.dependenciesByLayer?.[layer.id] ?? persistedDependencies,
       orderingDirection,
       options.editedOrderByLayer?.[layer.id] ??
-        (!useExplicit && persistedOrder.length > 0 ? persistedOrder : undefined),
+        (!useExplicit && persistedOrder.length > 0
+          ? persistedOrder
+          : undefined),
     );
     diagnostics.push(...suggestion.diagnostics);
     const resolvedOrderSource = orderSource(suggestion.source, solution);

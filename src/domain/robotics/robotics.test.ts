@@ -610,9 +610,10 @@ describe("robotics materialization and ordering", () => {
       materialized.cycles.map(({ provenance }) => provenance.sourceGripId),
     ).toEqual([lowerGripId, upperGripId]);
     expect(
-      materialized.cycles.map(
-        ({ groupNumber, sequenceInLayer }) => ({ groupNumber, sequenceInLayer }),
-      ),
+      materialized.cycles.map(({ groupNumber, sequenceInLayer }) => ({
+        groupNumber,
+        sequenceInLayer,
+      })),
     ).toEqual([
       { groupNumber: 1, sequenceInLayer: 0 },
       { groupNumber: 2, sequenceInLayer: 1 },

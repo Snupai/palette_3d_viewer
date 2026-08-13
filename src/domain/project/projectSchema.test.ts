@@ -196,9 +196,7 @@ describe("project v2 schema", () => {
         },
       ],
       groupOrder: ["lower", "upper"],
-      orderDependencies: [
-        { beforeGripId: "lower", afterGripId: "upper" },
-      ],
+      orderDependencies: [{ beforeGripId: "lower", afterGripId: "upper" }],
     });
 
     expect(result.orderDependencies).toEqual([

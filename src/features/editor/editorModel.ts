@@ -805,7 +805,9 @@ function explicitDependencies(
   );
 }
 
-function withoutCurrentInferredDependencies(pattern: LayerPattern): LayerPattern {
+function withoutCurrentInferredDependencies(
+  pattern: LayerPattern,
+): LayerPattern {
   return {
     ...pattern,
     orderDependencies: explicitDependencies(pattern),

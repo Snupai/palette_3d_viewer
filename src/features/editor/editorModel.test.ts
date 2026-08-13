@@ -255,10 +255,12 @@ function twoGripProject(): Project {
   const project = editorProject();
   const solution = project.solutions[0]!;
   const sourcePattern = solution.patterns[0]!;
-  const placements = sourcePattern.placements.slice(0, 2).map((item, index) => ({
-    ...item,
-    gripId: index === 0 ? "left" : "right",
-  }));
+  const placements = sourcePattern.placements
+    .slice(0, 2)
+    .map((item, index) => ({
+      ...item,
+      gripId: index === 0 ? "left" : "right",
+    }));
   return projectSchema.parse({
     ...project,
     solutions: [
@@ -307,9 +309,7 @@ function persistedSolverOrderProject(
           {
             ...sourcePattern,
             id: patternId,
-            ...(gripPlanningSource === undefined
-              ? {}
-              : { gripPlanningSource }),
+            ...(gripPlanningSource === undefined ? {} : { gripPlanningSource }),
           },
         ],
         stack: {
@@ -328,11 +328,13 @@ function threeGripProject(): Project {
   const project = editorProject();
   const solution = project.solutions[0]!;
   const sourcePattern = solution.patterns[0]!;
-  const placements = sourcePattern.placements.slice(0, 3).map((item, index) => ({
-    ...item,
-    positionMm: { x: 50 + index * 100, y: 50 },
-    gripId: ["a", "b", "c"][index]!,
-  }));
+  const placements = sourcePattern.placements
+    .slice(0, 3)
+    .map((item, index) => ({
+      ...item,
+      positionMm: { x: 50 + index * 100, y: 50 },
+      gripId: ["a", "b", "c"][index]!,
+    }));
   return projectSchema.parse({
     ...project,
     solutions: [
@@ -693,7 +695,9 @@ describe("Project editor groups and order", () => {
       "solver-pattern-1-identity-legacy-candidate",
     );
 
-    expect(model.groups.map(({ id, groupNumber }) => ({ id, groupNumber }))).toEqual([
+    expect(
+      model.groups.map(({ id, groupNumber }) => ({ id, groupNumber })),
+    ).toEqual([
       { id: "left", groupNumber: 1 },
       { id: "right", groupNumber: 2 },
     ]);
@@ -711,7 +715,9 @@ describe("Project editor groups and order", () => {
       "solver-pattern-1-identity-legacy-candidate",
     );
 
-    expect(model.groups.map(({ id, groupNumber }) => ({ id, groupNumber }))).toEqual([
+    expect(
+      model.groups.map(({ id, groupNumber }) => ({ id, groupNumber })),
+    ).toEqual([
       { id: "right", groupNumber: 1 },
       { id: "left", groupNumber: 2 },
     ]);
@@ -858,8 +864,7 @@ describe("Project editor groups and order", () => {
               ...sourcePattern,
               grips: sourcePattern.grips.map((grip) => ({
                 ...grip,
-                groupNumber:
-                  grip.id === "generated-grip:3+4" ? 1 : 2,
+                groupNumber: grip.id === "generated-grip:3+4" ? 1 : 2,
               })),
               groupOrder: ["generated-grip:3+4", "generated-grip:1+2"],
               orderDependencies: [],

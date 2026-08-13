@@ -392,9 +392,7 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
     fireEvent.click(screen.getByRole("button", { name: "Order" }));
 
     fireEvent.change(
-      screen.getByLabelText<HTMLSelectElement>(
-        "Dependency prerequisite group",
-      ),
+      screen.getByLabelText<HTMLSelectElement>("Dependency prerequisite group"),
       { target: { value: "g2" } },
     );
     fireEvent.change(

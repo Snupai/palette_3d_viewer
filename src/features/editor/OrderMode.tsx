@@ -380,7 +380,9 @@ export function OrderMode({
           ) : (
             <ul className="mt-3 grid gap-1">
               {orderModel.dependencies.map((dependency) => {
-                const beforeNumber = gripNumberById.get(dependency.beforeGripId);
+                const beforeNumber = gripNumberById.get(
+                  dependency.beforeGripId,
+                );
                 const afterNumber = gripNumberById.get(dependency.afterGripId);
                 return (
                   <li
@@ -392,7 +394,8 @@ export function OrderMode({
                     </span>
                     {dependency.source === "inferred" ? (
                       <span className="text-[11px] text-zinc-600">
-                        Inferred from package geometry or legacy dx/dy; immutable.
+                        Inferred from package geometry or legacy dx/dy;
+                        immutable.
                       </span>
                     ) : (
                       <button

@@ -204,11 +204,10 @@ describe("grip execution order", () => {
     ];
 
     expect(
-      buildGripVerticalOverlapDependencies(
-        ["b", "a"],
-        placements,
-        { length: 100, width: 100 },
-      ),
+      buildGripVerticalOverlapDependencies(["b", "a"], placements, {
+        length: 100,
+        width: 100,
+      }),
     ).toEqual([]);
     expect(
       buildGripVerticalOverlapDependencies(

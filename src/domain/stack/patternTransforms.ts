@@ -218,11 +218,7 @@ function replanGrips(
   if (!pattern.generatedGripPolicy) {
     const orderDependencies = mergeGripOrderDependencies(
       retainedDependencies,
-      deltaDependenciesForGrips(
-        transformedGrips,
-        packageSize,
-        inputDirection,
-      ),
+      deltaDependenciesForGrips(transformedGrips, packageSize, inputDirection),
       verticalDependencies,
     );
     const grips = orderGripsByDependencies(

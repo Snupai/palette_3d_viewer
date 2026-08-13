@@ -58,7 +58,9 @@ function usesSolverGeneratedGripPlanning(
   if (pattern.gripPlanningSource !== undefined) {
     return pattern.gripPlanningSource === "solver-generated";
   }
-  return solutionOrigin === "calculated" && persistedSolverPatternId.test(pattern.id);
+  return (
+    solutionOrigin === "calculated" && persistedSolverPatternId.test(pattern.id)
+  );
 }
 
 export function stackPatternsFromProjectSolution(
