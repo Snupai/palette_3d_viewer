@@ -449,7 +449,7 @@ describe("stack workspace persistence", () => {
     expect(persistedSolution.robotCycles).toEqual([]);
     expect(
       persistedPattern.grips.map(({ numPackages }) => numPackages),
-    ).toEqual([2, 1]);
+    ).toEqual([1, 2]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),
     );
@@ -457,25 +457,26 @@ describe("stack workspace persistence", () => {
       {
         beforeGripId: persistedPattern.grips[0]!.id,
         afterGripId: persistedPattern.grips[1]!.id,
+        source: "inferred",
       },
     ]);
     expect(persistedPattern.placements.map(({ gripId }) => gripId)).toEqual([
-      persistedPattern.grips[0]!.id,
-      persistedPattern.grips[0]!.id,
       persistedPattern.grips[1]!.id,
+      persistedPattern.grips[1]!.id,
+      persistedPattern.grips[0]!.id,
     ]);
     expect(reopened.robotCycles).toEqual([]);
     expect(reopenedLayer.robotCycles).toEqual([]);
     expect(reopenedLayer.grips.map(({ numPackages }) => numPackages)).toEqual([
-      2, 1,
+      1, 2,
     ]);
     expect(reopenedLayer.placements.map(({ gripId }) => gripId)).toEqual([
-      reopenedLayer.grips[0]!.id,
-      reopenedLayer.grips[0]!.id,
       reopenedLayer.grips[1]!.id,
+      reopenedLayer.grips[1]!.id,
+      reopenedLayer.grips[0]!.id,
     ]);
     expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
-      2, 1,
+      1, 2,
     ]);
     expect(
       robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer),

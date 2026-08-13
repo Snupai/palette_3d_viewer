@@ -19,6 +19,7 @@ import type {
   GeneratedPlacement,
   LayerSolverInput,
   NormalizedLayerSolverInput,
+  PackageInletOrientation,
   RectangularBlockFootprintPolicy,
   RequiredCandidateShape,
   SolverIssue,
@@ -29,6 +30,10 @@ const DEFAULT_MAX_BANDS = 64;
 const DEFAULT_MAX_CANDIDATES_PER_GENERATOR = 5_000;
 const rotations = new Set<number>(ORTHOGONAL_ROTATIONS);
 const packageLabelSides = new Set<string>(["top", "right", "bottom", "left"]);
+const packageInletOrientations = new Set<string>([
+  "lengthwise",
+  "crosswise",
+]);
 const rectangularBlockFootprintPolicies = new Set<string>([
   "fill-generation-bounds",
   "compact-centered",
@@ -36,6 +41,12 @@ const rectangularBlockFootprintPolicies = new Set<string>([
 
 function isPackageLabelSide(value: unknown): value is Side {
   return typeof value === "string" && packageLabelSides.has(value);
+}
+
+function isPackageInletOrientation(
+  value: unknown,
+): value is PackageInletOrientation {
+  return typeof value === "string" && packageInletOrientations.has(value);
 }
 
 function isRectangularBlockFootprintPolicy(
@@ -75,6 +86,12 @@ export function validateAndNormalizeSolverInput(
   const packageLength = input.package.dimensionsMm.length;
   const packageWidth = input.package.dimensionsMm.width;
   const clearance = input.package.clearanceMm;
+  const rawInletOrientation: unknown = input.package.inletOrientation;
+  const inletOrientation: PackageInletOrientation =
+    rawInletOrientation === undefined ||
+    isPackageInletOrientation(rawInletOrientation)
+      ? (rawInletOrientation ?? "lengthwise")
+      : "lengthwise";
 
   if (input.package.shape !== "cuboid") {
     issues.push({
@@ -92,6 +109,15 @@ export function validateAndNormalizeSolverInput(
     issues.push({
       code: "invalid-clearance",
       message: "Package clearance must be a finite non-negative number.",
+    });
+  }
+  if (
+    rawInletOrientation !== undefined &&
+    !isPackageInletOrientation(rawInletOrientation)
+  ) {
+    issues.push({
+      code: "invalid-input-constraint",
+      message: 'Package inletOrientation must be "lengthwise" or "crosswise".',
     });
   }
 
@@ -403,6 +429,7 @@ export function validateAndNormalizeSolverInput(
           width: packageWidth,
         },
         clearanceMm: clearance,
+        inletOrientation,
       },
       envelopeMm: envelope,
       physicalPalletBoundsMm: physicalPalletBounds,

@@ -31,9 +31,9 @@ import { OrderMode } from "~/features/editor/OrderMode";
 import { PatternMode } from "~/features/editor/PatternMode";
 
 const buttonClass =
-  "rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
+  "cursor-pointer rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
 const inputClass =
-  "rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
+  "cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
 
 const modes: ReadonlyArray<readonly [ProjectEditorMode, string]> = [
   ["pattern", "Pattern"],
@@ -345,7 +345,7 @@ export function ProjectEditorWorkspace({
             type="button"
             disabled={!dirty || saving}
             onClick={() => void save()}
-            className="rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+            className="cursor-pointer rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -441,7 +441,7 @@ export function ProjectEditorWorkspace({
                 type="button"
                 aria-current={mode === value ? "page" : undefined}
                 onClick={() => setMode(value)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-amber-400/35 focus:outline-none ${
+                className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-amber-400/35 focus:outline-none ${
                   mode === value
                     ? "bg-zinc-700 text-zinc-100"
                     : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"

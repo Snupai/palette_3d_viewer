@@ -41,6 +41,7 @@ export function createLayerSolverInputFromProject(
         width: project.package.dimensionsMm.width,
       },
       clearanceMm: project.package.clearanceMm,
+      inletOrientation: project.package.inletOrientation,
     },
     physicalPalletBoundsMm: {
       minX: 0,

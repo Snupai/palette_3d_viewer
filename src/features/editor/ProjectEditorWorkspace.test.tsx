@@ -388,37 +388,27 @@ describe("ProjectEditorWorkspace pattern interaction", () => {
 
 describe("ProjectEditorWorkspace order, flow, and persistence", () => {
   it("shows invalid dependency feedback and applies the automatic suggestion", async () => {
-    renderEditor();
-    const first = placementRect("p1");
-    const second = placementRect("p2");
-    fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
-    fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
-    fireEvent.click(second, { ctrlKey: true });
+    renderEditor({ project: importedGripProject() });
     fireEvent.click(screen.getByRole("button", { name: "Order" }));
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Add group from package selection (2)",
-      }),
-    );
 
-    const before = screen.getByLabelText<HTMLSelectElement>(
-      "Dependency prerequisite group",
+    fireEvent.change(
+      screen.getByLabelText<HTMLSelectElement>(
+        "Dependency prerequisite group",
+      ),
+      { target: { value: "g2" } },
     );
-    const after = screen.getByLabelText<HTMLSelectElement>(
-      "Dependency dependent group",
+    fireEvent.change(
+      screen.getByLabelText<HTMLSelectElement>("Dependency dependent group"),
+      { target: { value: "g1" } },
     );
-    const values = [...before.options].map(({ value }) => value);
-    expect(values).toHaveLength(2);
-    fireEvent.change(before, { target: { value: values[1] } });
-    fireEvent.change(after, { target: { value: values[0] } });
     fireEvent.click(screen.getByRole("button", { name: "Add" }));
 
-    expect(await screen.findByText(/before prerequisite/)).toBeTruthy();
+    expect(await screen.findByText(/would create a cycle/)).toBeTruthy();
     fireEvent.click(
       screen.getByRole("button", { name: "Apply automatic order" }),
     );
     await waitFor(() =>
-      expect(screen.queryByText(/before prerequisite/)).toBeNull(),
+      expect(screen.queryByText(/would create a cycle/)).toBeNull(),
     );
     expect(screen.getAllByText(/G\d/).length).toBeGreaterThan(0);
   });
@@ -428,7 +418,9 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
     fireEvent.click(screen.getByRole("button", { name: "Order" }));
 
     expect(
-      screen.getByText("Inferred from legacy dx/dy; immutable in this editor."),
+      screen.getByText(
+        "Inferred from package geometry or legacy dx/dy; immutable.",
+      ),
     ).toBeTruthy();
     expect(
       screen.queryByRole("button", {

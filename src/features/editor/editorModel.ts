@@ -319,13 +319,6 @@ function nonNegativeInteger(value: number, field: string): number {
   return value;
 }
 
-function positiveInteger(value: number, field: string): number {
-  if (!Number.isInteger(value) || value <= 0) {
-    throw new ProjectEditorCommandError(`${field} must be a positive integer.`);
-  }
-  return value;
-}
-
 function editedSolutionOrigin(
   origin: PlanningSolution["origin"],
 ): PlanningSolution["origin"] {

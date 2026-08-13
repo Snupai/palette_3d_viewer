@@ -16,9 +16,9 @@ import {
 } from "~/features/editor/editorModel";
 
 const inputClass =
-  "rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
+  "cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
 const buttonClass =
-  "rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
+  "cursor-pointer rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
 
 export type OrderModeProps = {
   project: Project;
@@ -150,7 +150,7 @@ export function OrderMode({
                 gripIds: suggestion.order,
               });
             }}
-            className="rounded-md bg-amber-400 px-2.5 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+            className="cursor-pointer rounded-md bg-amber-400 px-2.5 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
           >
             Apply automatic order
           </button>
@@ -190,7 +190,7 @@ export function OrderMode({
                       aria-label={`Select grip G${index + 1}`}
                       checked={selectedGroupIds.has(group.id)}
                       onChange={() => toggleGroup(group.id)}
-                      className="h-4 w-4 accent-amber-400"
+                      className="h-4 w-4 cursor-pointer accent-amber-400"
                     />
                   </td>
                   <td className="px-2 py-2 font-mono">G{index + 1}</td>

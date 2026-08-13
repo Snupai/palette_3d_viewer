@@ -268,7 +268,7 @@ function twoGripProject(): Project {
           {
             ...sourcePattern,
             grips: placements.map((item, index) => ({
-              id: item.gripId!,
+              id: item.gripId,
               groupNumber: index === 0 ? 2 : 1,
               pickX: 0,
               pickY: 0,
@@ -308,7 +308,7 @@ function threeGripProject(): Project {
           {
             ...sourcePattern,
             grips: placements.map((item, index) => ({
-              id: item.gripId!,
+              id: item.gripId,
               groupNumber: index + 1,
               pickX: 0,
               pickY: 0,
@@ -591,7 +591,7 @@ describe("Project editor pattern geometry", () => {
     ]);
   });
 
-  it("preserves imported raw dx/dy through unrelated editor commands", () => {
+  it("preserves imported raw dx/dy and rejects a cyclic label edit", () => {
     let project = importedGripProject();
     const rawOffsets = () =>
       pattern(project).grips.map(({ id, dx, dy }) => ({ id, dx, dy }));
@@ -631,18 +631,17 @@ describe("Project editor pattern geometry", () => {
     ).toThrow(/cannot execute before prerequisite/i);
     expect(rawOffsets()).toEqual(expected);
 
-    project = applyProjectEditorCommand(project, {
-      type: "set-label-side",
-      mode: "pattern",
-      solutionId: "solution-1",
-      patternId: "pattern-1",
-      placementIds: ["p1", "p2"],
-      labelSide: "bottom",
-    });
-    expect(rawOffsets()).toEqual([
-      { id: "g1", dx: 0, dy: 1 },
-      { id: "g2", dx: 0, dy: -14 },
-    ]);
+    expect(() =>
+      applyProjectEditorCommand(project, {
+        type: "set-label-side",
+        mode: "pattern",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        placementIds: ["p1", "p2"],
+        labelSide: "bottom",
+      }),
+    ).toThrow(/dependencies contain a cycle/i);
+    expect(rawOffsets()).toEqual(expected);
     expect(project.source).toEqual({
       kind: "rob-import",
       fileName: "imported-editor.rob",

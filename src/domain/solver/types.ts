@@ -19,6 +19,8 @@ export const BASE_GENERATOR_FAMILIES = [
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];
 export type GeneratorFamily = BaseGeneratorFamily | "symmetry";
 
+export type PackageInletOrientation = "lengthwise" | "crosswise";
+
 export type SolverPackageInput = {
   shape: string;
   dimensionsMm: {
@@ -26,6 +28,7 @@ export type SolverPackageInput = {
     width: number;
   };
   clearanceMm: number;
+  inletOrientation?: PackageInletOrientation;
 };
 
 export type RequiredCandidateShape = "any" | "rectangular-block";
@@ -76,8 +79,11 @@ export type NormalizedSolverConstraints = {
 
 export type NormalizedLayerSolverInput = Omit<
   LayerSolverInput,
-  "constraints" | "generationBoundsMm" | "physicalPalletBoundsMm"
+  "package" | "constraints" | "generationBoundsMm" | "physicalPalletBoundsMm"
 > & {
+  package: Omit<SolverPackageInput, "inletOrientation"> & {
+    inletOrientation: PackageInletOrientation;
+  };
   constraints: NormalizedSolverConstraints;
   physicalPalletBoundsMm: RectangleBoundsMm | null;
   usableEnvelopeMm: RectangleBoundsMm;

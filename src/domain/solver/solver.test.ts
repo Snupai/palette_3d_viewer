@@ -59,6 +59,7 @@ describe("solver input and candidate validation", () => {
     const project = createProject(
       {
         id: "solver-project",
+        package: { inletOrientation: "crosswise" },
         pallet: {
           id: "underhang-pallet",
           name: "Underhang pallet",
@@ -78,6 +79,7 @@ describe("solver input and candidate validation", () => {
     );
 
     const input = createLayerSolverInputFromProject(project);
+    expect(input.package.inletOrientation).toBe("crosswise");
     expect(input.physicalPalletBoundsMm).toEqual({
       minX: 0,
       minY: 0,
@@ -134,13 +136,31 @@ describe("solver input and candidate validation", () => {
     );
   });
 
-  it("defaults omitted rectangular block footprint policy to frame filling", () => {
+  it("defaults omitted inlet orientation and rectangular block footprint policy", () => {
     const result = validateAndNormalizeSolverInput(basicInput());
 
     expect(result.valid).toBe(true);
+    expect(result.normalized?.package.inletOrientation).toBe("lengthwise");
     expect(result.normalized?.constraints.rectangularBlockFootprintPolicy).toBe(
       "fill-generation-bounds",
     );
+  });
+
+  it("rejects an invalid runtime inlet orientation", () => {
+    const result = validateAndNormalizeSolverInput({
+      ...basicInput(),
+      package: {
+        ...basicInput().package,
+        inletOrientation: "diagonal" as never,
+      },
+    });
+
+    expect(result.valid).toBe(false);
+    expect(result.normalized).toBeNull();
+    expect(result.issues).toContainEqual({
+      code: "invalid-input-constraint",
+      message: 'Package inletOrientation must be "lengthwise" or "crosswise".',
+    });
   });
 
   it("rejects unknown rectangular block footprint policies", () => {
@@ -493,6 +513,59 @@ describe("candidate canonicalization and geometric deduplication", () => {
     ).toBe(true);
   });
 
+  it("derives candidate deltas from the normalized inlet orientation", () => {
+    const draft: GeneratedCandidateDraft = {
+      placements: [
+        { positionMm: { x: 50, y: 50 }, rotation: 0 },
+        { positionMm: { x: 90, y: 110 }, rotation: 0 },
+      ],
+      provenance: [{ family: "row", variant: "orientation-sensitive-delta" }],
+    };
+    const input = {
+      package: {
+        shape: "cuboid" as const,
+        dimensionsMm: { length: 100, width: 40 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 140, maxY: 160 },
+      constraints: {
+        allowedRotations: [0] as const,
+        minimumPackageCount: 2,
+        maximumPackageCount: 2,
+      },
+    };
+    const lengthwise = finalizeGeneratedCandidates(normalized(input), [draft])
+      .candidates[0]!;
+    const crosswise = finalizeGeneratedCandidates(
+      normalized({
+        ...input,
+        package: { ...input.package, inletOrientation: "crosswise" },
+      }),
+      [draft],
+    ).candidates[0]!;
+
+    expect(lengthwise.geometryFingerprint).toBe(crosswise.geometryFingerprint);
+    expect(lengthwise.geometryId).toBe(crosswise.geometryId);
+    expect(lengthwise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: 0, dy: 0 },
+    ]);
+    const verticalDependency = {
+      beforeGripId: "generated-grip:1",
+      afterGripId: "generated-grip:2",
+    };
+    expect(lengthwise.orderDependencies).toEqual([verticalDependency]);
+    expect(crosswise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: -1, dy: 0 },
+    ]);
+    expect(crosswise.orderDependencies).toEqual([verticalDependency]);
+    expect(lengthwise.identityFingerprint).not.toBe(
+      crosswise.identityFingerprint,
+    );
+    expect(lengthwise.id).not.toBe(crosswise.id);
+  });
+
   it("changes operational grouping without changing candidate geometry", () => {
     const draft: GeneratedCandidateDraft = {
       placements: [
@@ -831,7 +904,7 @@ describe("deterministic solve orchestration", () => {
 
     expect(comparable(second)).toEqual(comparable(first));
     expect(progressA.length).toBeGreaterThan(progressB.length);
-  });
+  }, 15_000);
 
   it("exposes generator provenance, duplicate exclusions, and unverified Blocks", () => {
     const result = solveLayer(

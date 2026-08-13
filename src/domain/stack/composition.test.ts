@@ -266,8 +266,8 @@ describe("stack composition transforms", () => {
           sequence,
           x: expectedCenters[sequence]![0],
           y: expectedCenters[sequence]![1],
-          dx: sequence < 2 ? 0 : 1,
-          dy: sequence % 2 === 0 ? 0 : -1,
+          dx: sequence % 2,
+          dy: sequence < 2 ? 0 : -1,
         })),
       );
       expect(transformed.orderDependencies).toEqual(
@@ -763,14 +763,15 @@ describe("stack composition transforms", () => {
     expect(result.packageLayers).toHaveLength(1);
     expect(result.packageLayers[0]?.placements).toHaveLength(2);
     expect(result.packageLayers[0]?.groupOrder).toEqual(["upper", "lower"]);
-    expect(result.warnings).toContainEqual(
-      expect.objectContaining({
-        id: "invalid-stack-input:transform:layer-1",
-        code: "invalid-stack-input",
-        severity: "error",
-        message: expect.stringMatching(/dependencies contain a cycle/i),
-      }),
+    const warning = result.warnings.find(
+      ({ id }) => id === "invalid-stack-input:transform:layer-1",
     );
+    expect(warning).toMatchObject({
+      id: "invalid-stack-input:transform:layer-1",
+      code: "invalid-stack-input",
+      severity: "error",
+    });
+    expect(warning?.message).toMatch(/dependencies contain a cycle/i);
   });
 
   it("repairs project grip order when a transform creates a hard overlap dependency", () => {
@@ -911,10 +912,16 @@ describe("stack composition transforms", () => {
       { dx: -1, dy: -1 },
     ]);
     expect(transformed.orderDependencies).toEqual(
-      generated.orderDependencies.map((dependency) => ({
-        ...dependency,
-        source: "explicit",
-      })),
+      generated.orderDependencies
+        .map((dependency) => ({
+          ...dependency,
+          source: "explicit" as const,
+        }))
+        .sort(
+          (left, right) =>
+            left.beforeGripId.localeCompare(right.beforeGripId) ||
+            left.afterGripId.localeCompare(right.afterGripId),
+        ),
     );
   });
 });
