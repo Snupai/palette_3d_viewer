@@ -1,3 +1,5 @@
+import { pickOffsetForCount } from "~/domain/palletGeometry";
+import type { Rotation } from "~/domain/palletTypes";
 import type {
   Gripper,
   PackageSpec,
@@ -19,6 +21,28 @@ import type {
   RobotPose,
   Vector3Mm,
 } from "~/domain/robotics/types";
+
+export const PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE =
+  "package-group-top-center-v1";
+
+export function derivedPickReferenceFromPackage(
+  packageSpec: PackageSpec,
+): PickReference {
+  return {
+    originMm: { x: 0, y: 0, z: packageSpec.dimensionsMm.height },
+    yawDeg: 0,
+    provenance: {
+      status: "derived",
+      source: PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
+    },
+  };
+}
+
+function orthogonalPickRotation(yawDeg: number): Rotation {
+  const snapped = normalizeYawDeg(Math.round(yawDeg / 90) * 90);
+  if (snapped === 90 || snapped === 180 || snapped === 270) return snapped;
+  return 0;
+}
 
 export type CalculatedCyclePoses = {
   pickPose: RobotPose;
@@ -53,6 +77,27 @@ function pickGripPoint(
   packageCount: number,
   reference: PickReference,
 ): { point: Vector3Mm; yawDeg: number } {
+  const yawDeg = normalizeYawDeg(
+    reference.yawDeg ??
+      (packageSpec.inletOrientation === "lengthwise" ? 0 : 90),
+  );
+  if (reference.provenance.source === PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE) {
+    const offset = pickOffsetForCount(
+      packageSpec.dimensionsMm.length,
+      packageSpec.dimensionsMm.width,
+      packageSpec.inletOrientation === "crosswise" ? 1 : 0,
+      orthogonalPickRotation(yawDeg),
+      packageCount,
+    );
+    return {
+      point: {
+        x: offset.x,
+        y: offset.y,
+        z: reference.originMm.z,
+      },
+      yawDeg,
+    };
+  }
   const feedLength =
     packageSpec.inletOrientation === "lengthwise"
       ? packageSpec.dimensionsMm.length
@@ -61,10 +106,6 @@ function pickGripPoint(
     packageSpec.inletOrientation === "lengthwise"
       ? packageSpec.dimensionsMm.width
       : packageSpec.dimensionsMm.length;
-  const yawDeg = normalizeYawDeg(
-    reference.yawDeg ??
-      (packageSpec.inletOrientation === "lengthwise" ? 0 : 90),
-  );
   const offset = rotateVector2(
     {
       x: (Math.max(1, packageCount) * feedLength) / 2,

@@ -29,6 +29,7 @@ export type RobotWorkspaceSettings = {
 export type WorkspaceUnknownFieldMode =
   | "block"
   | "preserve-imported"
+  | "from-cycle-or-zero"
   | "explicit-values";
 
 export type RobotExportWorkspaceSettings = {
@@ -88,7 +89,7 @@ export function createInitialRobotExportSettings(): RobotExportWorkspaceSettings
     ySign: 1,
     yawSign: 1,
     yawOffsetDeg: "0",
-    unknownFieldMode: "block",
+    unknownFieldMode: "from-cycle-or-zero",
     field8: "0",
     field9: "0",
     unknownFieldSemantics:
@@ -104,9 +105,18 @@ function finiteNumber(value: string): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+export function workspaceUsesDerivedPickReference(
+  settings: RobotWorkspaceSettings,
+): boolean {
+  return [settings.pickX, settings.pickY, settings.pickZ].every(
+    (value) => value.trim() === "",
+  );
+}
+
 export function workspacePickReferenceComplete(
   settings: RobotWorkspaceSettings,
 ): boolean {
+  if (workspaceUsesDerivedPickReference(settings)) return true;
   return [
     settings.pickX,
     settings.pickY,
@@ -281,6 +291,7 @@ export function createRobotReadiness(
   ]);
   const multipackProfile = resolveMultipackEquipmentProfile(project);
   const pickupComplete = workspacePickReferenceComplete(settings);
+  const derivedPickup = workspaceUsesDerivedPickReference(settings);
   const pickupBlocked = materialization.diagnostics.some(
     ({ severity, phase, code }) =>
       severity === "error" &&
@@ -336,16 +347,18 @@ export function createRobotReadiness(
         ? "needs-input"
         : pickupBlocked
           ? "blocked"
-          : settings.pickReferenceStatus === "verified"
+          : derivedPickup || settings.pickReferenceStatus === "verified"
             ? "complete"
             : "warning",
       evidence: !pickupComplete
-        ? "Enter X, Y, Z, and yaw."
+        ? "Enter a surveyed pickup, or leave X, Y, and Z blank to use the box-group top-center."
         : pickupBlocked
           ? "The pickup values or their evidence need correction."
-          : settings.pickReferenceStatus === "verified"
-            ? "Marked as checked against the stated source."
-            : "Coordinates are present but have not been checked against the station.",
+          : derivedPickup
+            ? "Pickup is the top-center of each box group, from package size and count."
+            : settings.pickReferenceStatus === "verified"
+              ? "Marked as checked against the stated source."
+              : "Coordinates are present but have not been checked against the station.",
     },
     {
       id: "workspace",
@@ -403,39 +416,49 @@ export function robExportOptionsFromWorkspace(
   const yawOffsetDeg = finiteNumber(settings.yawOffsetDeg);
   const field8 = finiteNumber(settings.field8);
   const field9 = finiteNumber(settings.field9);
+  const mappingId = settings.mappingId.trim() || "internal-station-mapping-v1";
   const signConvention =
-    settings.mappingAcknowledged &&
-    settings.mappingId.trim() !== "" &&
     yawOffsetDeg !== null
       ? {
-          id: settings.mappingId.trim(),
+          id: mappingId,
           xSign: settings.xSign,
           ySign: settings.ySign,
           yawSign: settings.yawSign,
           yawOffsetDeg,
-          provenance: {
-            status: "unverified" as const,
-            source:
-              "User-entered internal mapping; external MultiPack compatibility is not claimed.",
-          },
+          provenance: settings.mappingAcknowledged
+            ? {
+                status: "unverified" as const,
+                source:
+                  "User-entered internal mapping; external MultiPack compatibility is not claimed.",
+              }
+            : {
+                status: "project-defined" as const,
+                source:
+                  "Identity project-derived .rob mapping; pickup is the top-center of each box group.",
+              },
         }
       : undefined;
 
   const unknownFields: RobExportOptions["unknownFields"] =
     settings.unknownFieldMode === "preserve-imported"
       ? { mode: "preserve-imported" }
-      : settings.unknownFieldMode === "explicit-values" &&
-          field8 !== null &&
-          field9 !== null
-        ? {
-            mode: "explicit-values",
-            semantics: settings.unknownFieldSemantics,
-            provenance: settings.unknownFieldProvenance,
-            valuesByCycleId: Object.fromEntries(
-              materialization.cycles.map(({ id }) => [id, { field8, field9 }]),
-            ),
-          }
-        : { mode: "reject" };
+      : settings.unknownFieldMode === "from-cycle-or-zero"
+        ? { mode: "from-cycle-or-zero" }
+        : settings.unknownFieldMode === "explicit-values" &&
+            field8 !== null &&
+            field9 !== null
+          ? {
+              mode: "explicit-values",
+              semantics: settings.unknownFieldSemantics,
+              provenance: settings.unknownFieldProvenance,
+              valuesByCycleId: Object.fromEntries(
+                materialization.cycles.map(({ id }) => [
+                  id,
+                  { field8, field9 },
+                ]),
+              ),
+            }
+          : { mode: "reject" };
 
   return {
     quantization: { mode: settings.quantization },

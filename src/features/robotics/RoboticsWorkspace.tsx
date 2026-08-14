@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { pickOffsetForCount } from "~/domain/palletGeometry";
 import {
   getMultipackEquipmentProfile,
   isMultipackProfileGripper,
@@ -43,6 +44,7 @@ import {
   createInitialRobotExportSettings,
   createRobotReadiness,
   projectRobExportGate,
+  workspaceUsesDerivedPickReference,
   type RobotExportWorkspaceSettings,
   type RobotReadinessStatus,
   type RobotWorkspaceSettings,
@@ -547,6 +549,28 @@ export function RoboticsWorkspace({
         sum + (patternById.get(layer.patternId)?.placements.length ?? 0),
       0,
     ) ?? 0;
+  const derivedPickup = workspaceUsesDerivedPickReference(settings);
+  const pickInputDirection =
+    project.package.inletOrientation === "crosswise" ? 1 : 0;
+  const pickYawDeg = 0 as const;
+  const singlePickOffset = pickOffsetForCount(
+    project.package.dimensionsMm.length,
+    project.package.dimensionsMm.width,
+    pickInputDirection,
+    pickYawDeg,
+    1,
+  );
+  const groupedPickCount = Math.max(
+    1,
+    Math.trunc(Number(settings.maxPackagesPerPick) || 1),
+  );
+  const groupedPickOffset = pickOffsetForCount(
+    project.package.dimensionsMm.length,
+    project.package.dimensionsMm.width,
+    pickInputDirection,
+    pickYawDeg,
+    groupedPickCount,
+  );
 
   const saveProjectChange = async (nextProject: Project, message: string) => {
     setError(null);
@@ -745,7 +769,7 @@ export function RoboticsWorkspace({
             Robot setup
           </h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-400">
-            Choose the equipment, enter the pickup point, and review readiness.
+            Choose the equipment, review the derived pickup, and check readiness.
             Detailed equipment and export settings stay closed until needed.
           </p>
         </header>
@@ -843,34 +867,39 @@ export function RoboticsWorkspace({
       <section className={sectionClass}>
         <header className="border-b border-zinc-800 px-3 py-2">
           <h2 className="text-sm font-semibold text-zinc-100">
-            2. Enter pickup point
+            2. Pickup point
           </h2>
           <p className="mt-0.5 text-xs leading-5 text-zinc-500">
-            Enter the package pickup pose in the selected station coordinate
-            system. Blank or invalid values keep output blocked.
+            Pickup is the top-center of each box group. X/Y come from package
+            size and count; Z is the top of the packages. A surveyed conveyor
+            origin is not required.
           </p>
         </header>
         <div className="grid gap-3 p-3">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5">
-            {(
-              [
-                ["X (mm)", "pickX"],
-                ["Y (mm)", "pickY"],
-                ["Z (mm)", "pickZ"],
-                ["Yaw (deg)", "pickYaw"],
-                ["Packages per pickup", "maxPackagesPerPick"],
-              ] as const
-            ).map(([label, field]) => (
-              <NumericDraftField
-                key={field}
-                label={label}
-                value={settings[field]}
-                onChange={(value) =>
-                  onSettingsChange({ ...settings, [field]: value })
-                }
-              />
-            ))}
+            <NumericDraftField
+              label="Packages per pickup"
+              value={settings.maxPackagesPerPick}
+              onChange={(value) =>
+                onSettingsChange({ ...settings, maxPackagesPerPick: value })
+              }
+            />
           </div>
+          {derivedPickup ? (
+            <p className="text-[11px] leading-5 text-zinc-500">
+              Derived pickup for this package: 1-pack {singlePickOffset.x} ×{" "}
+              {singlePickOffset.y} mm
+              {project.package.multiPickAllowed
+                ? `; ${groupedPickCount}-pack ${groupedPickOffset.x} × ${groupedPickOffset.y} mm`
+                : ""}
+              . Z {project.package.dimensionsMm.height} mm, yaw {pickYawDeg}°.
+            </p>
+          ) : (
+            <p className="text-[11px] leading-5 text-zinc-500">
+              Using the surveyed pickup coordinates entered under Advanced
+              engineering.
+            </p>
+          )}
           <p className="text-[11px] leading-5 text-zinc-500">
             Planning values start at{" "}
             {project.package.multiPickAllowed ? "2" : "1"} package
@@ -994,6 +1023,30 @@ export function RoboticsWorkspace({
               Motion values and pickup evidence
             </summary>
             <div className="grid gap-3 border-t border-zinc-800 p-3">
+              <p className="text-xs leading-5 text-zinc-500">
+                Leave X, Y, and Z blank to keep the derived box-group
+                top-center. Entering all four values treats pickup as a surveyed
+                station pose.
+              </p>
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
+                {(
+                  [
+                    ["X (mm)", "pickX"],
+                    ["Y (mm)", "pickY"],
+                    ["Z (mm)", "pickZ"],
+                    ["Yaw (deg)", "pickYaw"],
+                  ] as const
+                ).map(([label, field]) => (
+                  <NumericDraftField
+                    key={field}
+                    label={label}
+                    value={settings[field]}
+                    onChange={(value) =>
+                      onSettingsChange({ ...settings, [field]: value })
+                    }
+                  />
+                ))}
+              </div>
               <div className="grid gap-2 md:grid-cols-2">
                 <NumericDraftField
                   label="Travel clearance (mm)"
@@ -1359,6 +1412,9 @@ export function RoboticsWorkspace({
                     className={inputClass}
                   >
                     <option value="block">Block: meaning unknown</option>
+                    <option value="from-cycle-or-zero">
+                      Use grip dx/dy, otherwise 0
+                    </option>
                     <option value="preserve-imported">
                       Preserve retained imported values
                     </option>

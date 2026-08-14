@@ -19,6 +19,8 @@ import {
 import { suggestRobotOrder } from "~/domain/robotics/ordering";
 import {
   calculateProjectCyclePoses,
+  derivedPickReferenceFromPackage,
+  PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
   posesFromExplicitProjectCycle,
   unresolvedProjectCyclePoses,
 } from "~/domain/robotics/poses";
@@ -44,13 +46,6 @@ import type {
 } from "~/domain/stack/types";
 
 const fallbackDirection: PalletizingDirection = "x-positive-y-positive";
-const fallbackPickReference: PickReference = {
-  originMm: { x: 0, y: 0, z: 0 },
-  provenance: {
-    status: "unverified",
-    source: "missing-pick-reference-placeholder",
-  },
-};
 
 function emptyMaterialization(
   diagnostics: readonly RobotDiagnostic[],
@@ -314,14 +309,14 @@ export function materializeRobotCycles(
 
   const preserveExplicitCycles = options.preserveExplicitCycles ?? true;
   const transferClearanceMm = options.transferClearanceMm ?? 200;
-  const pickReference = options.pickReference ?? fallbackPickReference;
+  const pickReference =
+    options.pickReference ?? derivedPickReferenceFromPackage(project.package);
   const trustedPickReference =
-    options.pickReference?.provenance.status === "verified" ||
-    options.pickReference?.provenance.status === "derived";
+    pickReference.provenance.status === "verified" ||
+    pickReference.provenance.status === "derived";
   const orderingDirection = resources.direction ?? fallbackDirection;
   const cycles: RobotCycle[] = [];
   const layers: RobotCycleLayer[] = [];
-  let missingPickReferenceReported = false;
   let unverifiedPickReferenceReported = false;
   let legacyFrameReported = false;
 
@@ -343,20 +338,6 @@ export function materializeRobotCycles(
     diagnostics.push(...grouped.diagnostics);
 
     if (
-      !useExplicit &&
-      !options.pickReference &&
-      !missingPickReferenceReported
-    ) {
-      missingPickReferenceReported = true;
-      diagnostics.push({
-        severity: "error",
-        phase: "pose",
-        code: "missing-pick-reference",
-        message:
-          "Calculated cycles require an explicit conveyor/pick reference; a zero placeholder was retained only for inspection.",
-        path: ["robotics", "pickReference"],
-      });
-    } else if (
       !useExplicit &&
       options.pickReference?.provenance.status === "unverified" &&
       !unverifiedPickReferenceReported
@@ -558,15 +539,17 @@ export function materializeRobotCycles(
 
   diagnostics.push(...duplicateCycleIdDiagnostics(cycles));
   diagnostics.push(...finitePoseDiagnostics(cycles));
-  const conveyor = resources.gripper
-    ? createCalculatedRobotConveyorModel({
-        projectSourceKind: project.source.kind,
-        inletOrientation: project.package.inletOrientation,
-        gripperTcpMm: resources.gripper.tcpMm,
-        cycles,
-        stack,
-      })
-    : null;
+  const conveyor =
+    resources.gripper &&
+    pickReference.provenance.source !== PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE
+      ? createCalculatedRobotConveyorModel({
+          projectSourceKind: project.source.kind,
+          inletOrientation: project.package.inletOrientation,
+          gripperTcpMm: resources.gripper.tcpMm,
+          cycles,
+          stack,
+        })
+      : null;
   const collisionObstacles = [
     ...(options.obstacles ?? []),
     ...(conveyor ? [robotConveyorObstacle(conveyor)] : []),

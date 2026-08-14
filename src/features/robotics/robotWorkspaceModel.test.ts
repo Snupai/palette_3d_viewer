@@ -3,6 +3,7 @@ import { createProject } from "~/domain/project/projectFactory";
 import type { Gripper, PalletStation } from "~/domain/project/projectSchema";
 import {
   CALCULATED_CONVEYOR_OBSTACLE_ID,
+  PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
   materializeRobotCycles,
 } from "~/domain/robotics";
 import {
@@ -14,6 +15,7 @@ import {
   projectRobExportGate,
   validateRobotWorkspaceSettings,
   workspacePickReferenceComplete,
+  workspaceUsesDerivedPickReference,
 } from "~/features/robotics/robotWorkspaceModel";
 
 const gripper: Gripper = {
@@ -120,19 +122,43 @@ function projectFixture() {
 }
 
 describe("robotics workspace validation and export gate", () => {
-  it("keeps generated cycles blocked until pick reference, mapping, and unknown fields are explicit", () => {
+  it("derives box-group top-center pickup and enables export without a surveyed conveyor origin", () => {
     const project = projectFixture();
     const workspace = createInitialRobotWorkspaceSettings(project);
 
-    expect(workspacePickReferenceComplete(workspace)).toBe(false);
-    const missingPick = materializeRobotCycles(
+    expect(workspaceUsesDerivedPickReference(workspace)).toBe(true);
+    expect(workspacePickReferenceComplete(workspace)).toBe(true);
+    const derivedPick = materializeRobotCycles(
       project,
       materializationOptionsFromWorkspace(workspace),
     );
-    expect(missingPick.valid).toBe(false);
-    expect(missingPick.diagnostics.map(({ code }) => code)).toContain(
+    expect(derivedPick.valid).toBe(true);
+    expect(derivedPick.diagnostics.map(({ code }) => code)).not.toContain(
       "missing-pick-reference",
     );
+    expect(derivedPick.conveyor).toBeNull();
+    expect(derivedPick.cycles[0]?.pickPose.positionMm).toEqual({
+      x: 50,
+      y: -25,
+      z: 40,
+    });
+    expect(derivedPick.cycles[0]?.provenance.pickReferenceProvenance).toEqual({
+      status: "derived",
+      source: PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
+    });
+    const derivedGate = projectRobExportGate(
+      derivedPick,
+      createInitialRobotExportSettings(),
+    );
+    expect(derivedGate.enabled).toBe(true);
+    expect(derivedGate.preflight.ok).toBe(true);
+    expect(derivedGate.preflight.manifest).toMatchObject({
+      source: "project-derived-robot-cycles",
+      unknownFieldPolicy: "from-cycle-or-zero",
+      signConvention: {
+        provenance: { status: "project-defined" },
+      },
+    });
 
     const completeUnverifiedWorkspace = {
       ...workspace,
@@ -186,24 +212,17 @@ describe("robotics workspace validation and export gate", () => {
       source: "Fixture station survey",
     });
 
-    const blockedSettings = createInitialRobotExportSettings();
-    const blocked = projectRobExportGate(materialization, blockedSettings);
-    expect(blocked.enabled).toBe(false);
-    expect(blocked.preflight.diagnostics.map(({ code }) => code)).toContain(
-      "missing-sign-convention",
-    );
-
-    const unknownFieldsBlocked = projectRobExportGate(materialization, {
-      ...blockedSettings,
-      mappingAcknowledged: true,
+    const blockedUnknownFields = projectRobExportGate(materialization, {
+      ...createInitialRobotExportSettings(),
+      unknownFieldMode: "block",
     });
-    expect(unknownFieldsBlocked.enabled).toBe(false);
+    expect(blockedUnknownFields.enabled).toBe(false);
     expect(
-      unknownFieldsBlocked.preflight.diagnostics.map(({ code }) => code),
+      blockedUnknownFields.preflight.diagnostics.map(({ code }) => code),
     ).toContain("unknown-legacy-field-semantics");
 
     const enabled = projectRobExportGate(materialization, {
-      ...blockedSettings,
+      ...createInitialRobotExportSettings(),
       mappingAcknowledged: true,
       unknownFieldMode: "explicit-values",
     });

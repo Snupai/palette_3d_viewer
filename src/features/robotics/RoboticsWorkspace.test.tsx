@@ -192,7 +192,7 @@ describe("RoboticsWorkspace operator view", () => {
       screen
         .getAllByRole("spinbutton")
         .filter((element) => element.closest("details") === null),
-    ).toHaveLength(5);
+    ).toHaveLength(1);
     expect(
       screen
         .getAllByRole("checkbox")
@@ -246,7 +246,7 @@ describe("RoboticsWorkspace operator view", () => {
     expect(stationEditor.open).toBe(false);
 
     fireEvent.click(screen.getByText(/Detailed diagnostics/));
-    expect(screen.getByText("missing-sign-convention")).toBeTruthy();
+    expect(screen.getByText("missing-gripper-selection")).toBeTruthy();
     expect(
       screen.getByText(
         "No fixed obstacles are modeled; no collision claim is made.",

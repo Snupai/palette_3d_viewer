@@ -464,6 +464,58 @@ describe("robotics materialization and ordering", () => {
     expect(exported.ok).toBe(true);
   });
 
+  it("derives pickup as the top-center of each box group without a surveyed conveyor origin", () => {
+    const project = calculatedProject({
+      placements: [
+        placement("package-a", 0, 100, 50),
+        placement("package-b", 1, 200, 50),
+      ],
+    });
+    const materialized = materializeRobotCycles(project, {
+      maxPackagesPerPick: 2,
+    });
+    const exported = exportProjectRob(
+      materialized,
+      identityExportOptions(materialized.cycles.map(({ id }) => id)),
+    );
+
+    expect(materialized.valid).toBe(true);
+    expect(materialized.conveyor).toBeNull();
+    expect(materialized.diagnostics.map(({ code }) => code)).not.toContain(
+      "missing-pick-reference",
+    );
+    expect(materialized.cycles).toHaveLength(1);
+    expect(materialized.cycles[0]).toMatchObject({
+      packageCount: 2,
+      pickPose: {
+        frame: "station",
+        positionMm: { x: 100, y: -25, z: 40 },
+        yawDeg: 0,
+      },
+      provenance: {
+        pickReferenceProvenance: {
+          status: "derived",
+          source: "package-group-top-center-v1",
+        },
+      },
+    });
+    expect(exported.ok).toBe(true);
+    expect(exported.text).not.toBeNull();
+    expect(parseRobText(exported.text!).uniqueLayers[1]).toEqual([
+      expect.objectContaining({
+        pickX: 100,
+        pickY: -25,
+        pickRotation: 0,
+        x: 150,
+        y: 50,
+        rotation: 0,
+        numPackages: 2,
+        dx: 0,
+        dy: 0,
+      }),
+    ]);
+  });
+
   it("checks the generated conveyor bed in materialization collision diagnostics", () => {
     const project = calculatedProject({
       placements: [placement("package-1", 0, 100, 50)],

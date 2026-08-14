@@ -23,7 +23,11 @@ export type RobSignConvention = {
   yawSign: 1 | -1;
   yawOffsetDeg: number;
   provenance: {
-    status: "verified" | "repository-behavior" | "unverified";
+    status:
+      | "verified"
+      | "repository-behavior"
+      | "project-defined"
+      | "unverified";
     source: string;
   };
 };
@@ -31,6 +35,7 @@ export type RobSignConvention = {
 export type RobUnknownFieldPolicy =
   | { mode: "reject" }
   | { mode: "preserve-imported" }
+  | { mode: "from-cycle-or-zero" }
   | {
       mode: "explicit-values";
       semantics: string;
@@ -186,6 +191,25 @@ function unknownFieldsForCycle(
       });
       return { field8: 0, field9: 0 };
     }
+    return {
+      field8: quantized(
+        cycle.legacyUnknownFields.field8,
+        quantization,
+        `${cycle.id}.field8`,
+        diagnostics,
+        cycle,
+      ),
+      field9: quantized(
+        cycle.legacyUnknownFields.field9,
+        quantization,
+        `${cycle.id}.field9`,
+        diagnostics,
+        cycle,
+      ),
+    };
+  }
+  if (policy.mode === "from-cycle-or-zero") {
+    if (!cycle.legacyUnknownFields) return { field8: 0, field9: 0 };
     return {
       field8: quantized(
         cycle.legacyUnknownFields.field8,
