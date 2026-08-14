@@ -65,4 +65,84 @@ describe("deterministic suction placement partitioning", () => {
       ["other-column"],
     ]);
   });
+
+  it.each([90, 270] as const)(
+    "centers the singleton in an odd vertical run at %i degrees",
+    (rotation) => {
+      const placements = [
+        placement("fifth", 4, 50, 450, rotation),
+        placement("second", 1, 50, 150, rotation),
+        placement("fourth", 3, 50, 350, rotation),
+        placement("first", 0, 50, 50, rotation),
+        placement("third", 2, 50, 250, rotation),
+      ];
+      const expected = [
+        ["first", "second"],
+        ["third"],
+        ["fourth", "fifth"],
+      ];
+
+      expect(
+        groupIds(
+          partitionPlacementsForSuction(placements, {
+            packageLengthMm: 100,
+            maxPackagesPerPick: 2,
+          }),
+        ),
+      ).toEqual(expected);
+      expect(
+        groupIds(
+          partitionPlacementsForSuction([...placements].reverse(), {
+            packageLengthMm: 100,
+            maxPackagesPerPick: 2,
+          }),
+        ),
+      ).toEqual(expected);
+    },
+  );
+
+  it("keeps non-centerable and horizontal remainders at the end", () => {
+    const horizontal = Array.from({ length: 5 }, (_, index) =>
+      placement(`horizontal-${index + 1}`, index, 50 + index * 100, 25),
+    );
+    const vertical = Array.from({ length: 7 }, (_, index) =>
+      placement(`vertical-${index + 1}`, index, 50, 50 + index * 100, 90),
+    );
+
+    expect(
+      groupIds(
+        partitionPlacementsForSuction(horizontal, {
+          packageLengthMm: 100,
+          maxPackagesPerPick: 2,
+        }),
+      ).map((group) => group.length),
+    ).toEqual([2, 2, 1]);
+    expect(
+      groupIds(
+        partitionPlacementsForSuction(vertical, {
+          packageLengthMm: 100,
+          maxPackagesPerPick: 2,
+        }),
+      ).map((group) => group.length),
+    ).toEqual([2, 2, 2, 1]);
+  });
+
+  it("centers a singleton between larger full vertical groups", () => {
+    const placements = Array.from({ length: 7 }, (_, index) =>
+      placement(`package-${index + 1}`, index, 50, 50 + index * 100, 90),
+    );
+
+    expect(
+      groupIds(
+        partitionPlacementsForSuction(placements, {
+          packageLengthMm: 100,
+          maxPackagesPerPick: 3,
+        }),
+      ),
+    ).toEqual([
+      ["package-1", "package-2", "package-3"],
+      ["package-4"],
+      ["package-5", "package-6", "package-7"],
+    ]);
+  });
 });

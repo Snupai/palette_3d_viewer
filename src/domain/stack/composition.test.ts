@@ -1,8 +1,16 @@
 import { describe, expect, it } from "vitest";
+import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
+import { generateCandidateFamily } from "~/domain/solver/generators";
+import type {
+  LayerSolverInput,
+  NormalizedLayerSolverInput,
+} from "~/domain/solver/types";
+import { validateAndNormalizeSolverInput } from "~/domain/solver/validation";
 import {
   applyStackSequenceCommand,
   createCompositionSequence,
   materializeStack,
+  stackPatternFromSolverCandidate,
   transformForCompositionMode,
   transformStackPattern,
   type EditableStackLayer,
@@ -15,6 +23,14 @@ const derived = {
   source: "test",
   detail: "Synthetic executable test input.",
 };
+
+function normalized(input: LayerSolverInput): NormalizedLayerSolverInput {
+  const validation = validateAndNormalizeSolverInput(input);
+  if (!validation.valid || !validation.normalized) {
+    throw new Error("Expected valid solver input.");
+  }
+  return validation.normalized;
+}
 
 function pattern(ref: string): StackPattern {
   return {
@@ -219,27 +235,39 @@ describe("stack composition transforms", () => {
   it.each([
     [
       "mirror-x",
-      ["right-bottom", "left-bottom", "right-top", "left-top"],
+      ["left-bottom", "left-top", "right-bottom", "right-top"],
       [
-        [50, 50],
         [150, 50],
-        [50, 150],
         [150, 150],
+        [50, 50],
+        [50, 150],
+      ],
+      [
+        [0, 0],
+        [0, -1],
+        [1, 0],
+        [1, -1],
       ],
     ],
     [
       "rotate-90",
-      ["left-top", "left-bottom", "right-top", "right-bottom"],
+      ["left-bottom", "right-bottom", "left-top", "right-top"],
       [
-        [50, 50],
         [150, 50],
-        [50, 150],
         [150, 150],
+        [50, 50],
+        [50, 150],
+      ],
+      [
+        [0, 0],
+        [0, -1],
+        [1, 0],
+        [1, -1],
       ],
     ],
   ] as const)(
-    "replans generated grips after %s in bottom-left row-major order",
-    (transform, expectedOrder, expectedCenters) => {
+    "replans generated grips after %s by continuing the rightmost available chain",
+    (transform, expectedOrder, expectedCenters, expectedDeltas) => {
       const transformed = transformStackPattern(
         generatedGridPattern(),
         transform,
@@ -266,8 +294,8 @@ describe("stack composition transforms", () => {
           sequence,
           x: expectedCenters[sequence]![0],
           y: expectedCenters[sequence]![1],
-          dx: sequence % 2 === 0 ? 0 : -1,
-          dy: sequence < 2 ? 0 : -1,
+          dx: expectedDeltas[sequence]![0],
+          dy: expectedDeltas[sequence]![1],
         })),
       );
       expect(transformed.orderDependencies).toEqual(
@@ -300,6 +328,82 @@ describe("stack composition transforms", () => {
       );
     },
   );
+
+  it("continues the rightmost available chain for the 73-package pattern", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 135, width: 91 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 73,
+        maximumPackageCount: 73,
+        maxBands: 16,
+        maxCandidatesPerGenerator: 100,
+        provisionalPackagesPerCycle: 2,
+        allowMixedPackageOrientations: true,
+        requiredShape: "rectangular-block",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+    const generated = generateCandidateFamily(input, "mixed-orientation");
+    const finalized = finalizeGeneratedCandidates(input, generated.drafts);
+    const candidate = finalized.candidates.find(({ provenance }) =>
+      provenance.some(
+        ({ variant }) =>
+          variant ===
+          "horizontal-grouped-lengthwise-first-exact-rectangular-compact",
+      ),
+    );
+    if (!candidate) {
+      throw new Error("Expected the deterministic 73-package candidate.");
+    }
+
+    const transformed = transformStackPattern(
+      stackPatternFromSolverCandidate(candidate, {
+        transformFrameMm: input.envelopeMm,
+        maxReferenceGapMm: 0,
+      }),
+      "identity",
+      input.package.dimensionsMm,
+      "lengthwise",
+    );
+    const expectedGripPrefix = [
+      { sourceGripId: "generated-grip:8", numPackages: 1 },
+      { sourceGripId: "generated-grip:21+34", numPackages: 2 },
+      { sourceGripId: "generated-grip:47", numPackages: 1 },
+      { sourceGripId: "generated-grip:60+73", numPackages: 2 },
+      { sourceGripId: "generated-grip:7", numPackages: 1 },
+      { sourceGripId: "generated-grip:20+33", numPackages: 2 },
+      { sourceGripId: "generated-grip:46", numPackages: 1 },
+      { sourceGripId: "generated-grip:59+72", numPackages: 2 },
+      { sourceGripId: "generated-grip:19+32", numPackages: 2 },
+      { sourceGripId: "generated-grip:45", numPackages: 1 },
+      { sourceGripId: "generated-grip:58+71", numPackages: 2 },
+      { sourceGripId: "generated-grip:6", numPackages: 1 },
+    ];
+
+    expect(transformed.grips).toHaveLength(47);
+    expect(
+      transformed.grips
+        .slice(0, expectedGripPrefix.length)
+        .map(({ sourceGripId, numPackages, groupNumber, sequence }) => ({
+          sourceGripId,
+          numPackages,
+          currentGroupNumber: groupNumber,
+          sequence,
+        })),
+    ).toEqual(
+      expectedGripPrefix.map((grip, sequence) => ({
+        ...grip,
+        currentGroupNumber: sequence + 1,
+        sequence,
+      })),
+    );
+  });
 
   it("repairs stale project grip order for an identity layer", () => {
     const projectPattern: StackPattern = {
@@ -646,21 +750,21 @@ describe("stack composition transforms", () => {
       "crosswise",
     );
 
-    expect(lengthwise.groupOrder).toEqual(["dependent", "target"]);
+    expect(lengthwise.groupOrder).toEqual(["target", "dependent"]);
     expect(lengthwise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
       { dx: 0, dy: 0 },
       { dx: 0, dy: 0 },
     ]);
     expect(lengthwise.orderDependencies).toEqual([]);
-    expect(crosswise.groupOrder).toEqual(["dependent", "target"]);
+    expect(crosswise.groupOrder).toEqual(["target", "dependent"]);
     expect(crosswise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
       { dx: 0, dy: 0 },
-      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
     ]);
     expect(crosswise.orderDependencies).toEqual([
       {
-        beforeGripId: "dependent",
-        afterGripId: "target",
+        beforeGripId: "target",
+        afterGripId: "dependent",
         source: "inferred",
       },
     ]);

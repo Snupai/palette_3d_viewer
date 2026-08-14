@@ -35,30 +35,29 @@ function savedPallet(): SavedPallet {
   };
 }
 
+function persistedGripId(patternId: string, index: number): string {
+  return `${patternId}-grip-${index}`;
+}
+
 function executionOrderProject(options: {
   patternId: string;
   gripPlanningSource?: "solver-generated" | "manual";
+  legacyManualWithoutMarker?: boolean;
 }) {
-  const pattern = {
-    id: options.patternId,
-    name: "Persisted order",
-    grips: [
+  const leftGripId = persistedGripId(options.patternId, 1);
+  const rightGripId = persistedGripId(options.patternId, 2);
+  const manuallyOrdered =
+    options.gripPlanningSource === "manual" ||
+    options.legacyManualWithoutMarker === true;
+  const storedOrder = manuallyOrdered
+    ? [rightGripId, leftGripId]
+    : [leftGripId, rightGripId];
+  const gripById = new Map([
+    [
+      leftGripId,
       {
-        id: "right",
+        id: leftGripId,
         groupNumber: 1,
-        pickX: 0,
-        pickY: 0,
-        pickRotation: 0 as const,
-        x: 1050,
-        y: 100,
-        rotation: 0 as const,
-        numPackages: 1,
-        dx: 0,
-        dy: 0,
-      },
-      {
-        id: "left",
-        groupNumber: 2,
         pickX: 0,
         pickY: 0,
         pickRotation: 0 as const,
@@ -70,30 +69,80 @@ function executionOrderProject(options: {
         dy: 0,
       },
     ],
+    [
+      rightGripId,
+      {
+        id: rightGripId,
+        groupNumber: 2,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0 as const,
+        x: 1050,
+        y: 100,
+        rotation: 0 as const,
+        numPackages: 1,
+        dx: 0,
+        dy: 0,
+      },
+    ],
+  ]);
+  const placementIdByGripId = new Map([
+    [leftGripId, `${options.patternId}-placement-1`],
+    [rightGripId, `${options.patternId}-placement-2`],
+  ]);
+  const pattern = {
+    id: options.patternId,
+    name: "Persisted order",
+    grips: storedOrder.map((gripId, index) => ({
+      ...gripById.get(gripId)!,
+      groupNumber: index + 1,
+    })),
     placements: [
       {
-        id: "right-placement",
+        id: placementIdByGripId.get(leftGripId)!,
         sequence: 0,
-        positionMm: { x: 1050, y: 100 },
+        positionMm: { x: 150, y: 100 },
         rotation: 0 as const,
-        gripId: "right",
+        gripId: leftGripId,
         labelSide: null,
       },
       {
-        id: "left-placement",
+        id: placementIdByGripId.get(rightGripId)!,
         sequence: 1,
-        positionMm: { x: 150, y: 100 },
+        positionMm: { x: 1050, y: 100 },
         rotation: 0 as const,
-        gripId: "left",
+        gripId: rightGripId,
         labelSide: null,
       },
     ],
-    groupOrder: ["right", "left"],
+    groupOrder: [...storedOrder],
     orderDependencies: [],
     ...(options.gripPlanningSource === undefined
       ? {}
       : { gripPlanningSource: options.gripPlanningSource }),
   };
+  const robotCycles =
+    options.gripPlanningSource === "manual"
+      ? storedOrder.map((gripId, sequence) => {
+        const grip = gripById.get(gripId)!;
+        return {
+          id: `cycle-${sequence + 1}`,
+          patternId: pattern.id,
+          sequence,
+          gripId,
+          placementIds: [placementIdByGripId.get(gripId)!],
+          gripperId: null,
+          pickPose: { x: 0, y: 0, z: null, rotation: 0 as const },
+          placePose: {
+            x: grip.x,
+            y: grip.y,
+            z: null,
+            rotation: grip.rotation,
+          },
+          labelOffset: { x: grip.dx, y: grip.dy },
+        };
+      })
+    : [];
   return createProject(
     {
       id: `project-${options.patternId}`,
@@ -117,7 +166,7 @@ function executionOrderProject(options: {
             ],
             trailingInterlayer: 0,
           },
-          robotCycles: [],
+          robotCycles,
         },
       ],
       activeSolutionId: "solution",
@@ -165,11 +214,12 @@ describe("ProjectV2 materialized stack integration", () => {
     });
   });
 
-  it("repairs persisted solver grip order from bottom to top and left to right", () => {
+  it("repairs persisted solver grip order by choosing the rightmost ready grip first", () => {
+    const patternId = "solver-pattern-1-identity-legacy-candidate";
+    const leftGripId = persistedGripId(patternId, 1);
+    const rightGripId = persistedGripId(patternId, 2);
     const materialized = materializeProjectSolutionStack(
-      executionOrderProject({
-        patternId: "solver-pattern-1-identity-legacy-candidate",
-      }),
+      executionOrderProject({ patternId }),
     );
 
     expect(
@@ -181,21 +231,30 @@ describe("ProjectV2 materialized stack integration", () => {
         }),
       ),
     ).toEqual([
-      { sourceGripId: "left", groupNumber: 1, sequence: 0 },
-      { sourceGripId: "right", groupNumber: 2, sequence: 1 },
+      { sourceGripId: rightGripId, groupNumber: 1, sequence: 0 },
+      { sourceGripId: leftGripId, groupNumber: 2, sequence: 1 },
     ]);
     expect(materialized.packageLayers[0]?.groupOrder).toEqual([
-      "left",
-      "right",
+      rightGripId,
+      leftGripId,
     ]);
   });
 
-  it("preserves a manually edited order between dependency-free grips", () => {
+  it.each([
+    {
+      name: "marked manual",
+      options: { gripPlanningSource: "manual" as const },
+    },
+    {
+      name: "unmarked legacy manual",
+      options: { legacyManualWithoutMarker: true },
+    },
+  ])("preserves a $name order between dependency-free grips", ({ options }) => {
+    const patternId = "solver-pattern-1-identity-edited-candidate";
+    const leftGripId = persistedGripId(patternId, 1);
+    const rightGripId = persistedGripId(patternId, 2);
     const materialized = materializeProjectSolutionStack(
-      executionOrderProject({
-        patternId: "solver-pattern-1-identity-edited-candidate",
-        gripPlanningSource: "manual",
-      }),
+      executionOrderProject({ patternId, ...options }),
     );
 
     expect(
@@ -207,12 +266,12 @@ describe("ProjectV2 materialized stack integration", () => {
         }),
       ),
     ).toEqual([
-      { sourceGripId: "right", groupNumber: 1, sequence: 0 },
-      { sourceGripId: "left", groupNumber: 2, sequence: 1 },
+      { sourceGripId: rightGripId, groupNumber: 1, sequence: 0 },
+      { sourceGripId: leftGripId, groupNumber: 2, sequence: 1 },
     ]);
     expect(materialized.packageLayers[0]?.groupOrder).toEqual([
-      "right",
-      "left",
+      rightGripId,
+      leftGripId,
     ]);
   });
 });

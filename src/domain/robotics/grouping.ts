@@ -39,6 +39,32 @@ function placementAxis(placement: SuctionGroupingPlacement): {
     : { axis: placement.positionMm.y, perpendicular: placement.positionMm.x };
 }
 
+function partitionContiguousSuctionRun<
+  Placement extends SuctionGroupingPlacement,
+>(run: readonly Placement[], maxPackagesPerPick: number): Placement[][] {
+  const first = run[0];
+  const vertical = first?.rotation === 90 || first?.rotation === 270;
+  const fullGroupCount = Math.floor(run.length / maxPackagesPerPick);
+  const remainder = run.length % maxPackagesPerPick;
+  const centersSingleton =
+    vertical &&
+    remainder === 1 &&
+    fullGroupCount >= 2 &&
+    fullGroupCount % 2 === 0;
+  const singletonIndex = centersSingleton
+    ? (fullGroupCount / 2) * maxPackagesPerPick
+    : null;
+  const groups: Placement[][] = [];
+
+  for (let start = 0; start < run.length; ) {
+    const groupSize = start === singletonIndex ? 1 : maxPackagesPerPick;
+    groups.push(run.slice(start, start + groupSize));
+    start += groupSize;
+  }
+
+  return groups;
+}
+
 /**
  * Pure deterministic partitioning shared by generated candidates and Robotics.
  * Geometry is never changed: incompatible placements remain singleton groups.
@@ -109,13 +135,7 @@ export function partitionPlacementsForSuction<
       if (continues) continue;
 
       const run = row.slice(runStart, index);
-      for (
-        let groupStart = 0;
-        groupStart < run.length;
-        groupStart += maxPackagesPerPick
-      ) {
-        groups.push(run.slice(groupStart, groupStart + maxPackagesPerPick));
-      }
+      groups.push(...partitionContiguousSuctionRun(run, maxPackagesPerPick));
       runStart = index;
     }
   }

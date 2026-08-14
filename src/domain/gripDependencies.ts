@@ -67,7 +67,7 @@ export function compareGripPositionsRightBottomToLeftTop(
   left: { x: number; y: number },
   right: { x: number; y: number },
 ): number {
-  return compareGripPositionsBottomRightRowMajor(left, right);
+  return right.x - left.x || left.y - right.y;
 }
 
 function boxBoundsByGrip(
@@ -250,7 +250,7 @@ export function orderGripsByDependencies<
       ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
         (preferredIndexById.get(right.id) ?? Number.POSITIVE_INFINITY)
       : 0) ||
-    compareGripPositionsBottomLeftRowMajor(left, right) ||
+    compareGripPositionsRightBottomToLeftTop(left, right) ||
     left.id.localeCompare(right.id);
   const available = grips
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)

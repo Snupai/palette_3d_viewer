@@ -1,8 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  compareGripPositionsBottomLeftRowMajor,
-  deriveGripDeltasForPlacementOrder,
-} from "~/domain/gripDependencies";
+import { deriveGripDeltasForPlacementOrder } from "~/domain/gripDependencies";
 import { solveLayer } from "~/domain/solver/solve";
 
 describe("generated candidate blue lines", () => {
@@ -22,20 +19,13 @@ describe("generated candidate blue lines", () => {
     }
   });
 
-  it("orders grips bottom-row-first from left to right and keeps every generated approach reproducible", () => {
+  it("keeps every dependency-aware generated approach reproducible", () => {
     const referencing = result.candidates.flatMap((candidate) =>
       candidate.grips.filter((grip) => grip.dx !== 0 || grip.dy !== 0),
     );
     expect(referencing.length).toBeGreaterThan(0);
 
     for (const candidate of result.candidates) {
-      expect(
-        [...candidate.grips].sort(
-          (left, right) =>
-            compareGripPositionsBottomLeftRowMajor(left, right) ||
-            left.id.localeCompare(right.id),
-        ),
-      ).toEqual(candidate.grips);
       expect(candidate.grips.map(({ sequence }) => sequence)).toEqual(
         candidate.grips.map((_, index) => index),
       );

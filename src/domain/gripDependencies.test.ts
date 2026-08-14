@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
-  compareGripPositionsBottomLeftRowMajor,
   deriveGripDeltasForPlacementOrder,
   insertMergedGripByDeltaDependencies,
   mergeGripOrderDependencies,
@@ -54,23 +53,31 @@ function byDependency(
 }
 
 describe("grip execution order", () => {
-  it("sorts each row from left to right before moving upward", () => {
-    const grips = [
-      grip("left-top", 50, 150),
-      grip("right-top", 150, 150),
-      grip("left-bottom", 50, 50),
-      grip("right-bottom", 150, 50),
-    ].sort(
-      (left, right) =>
-        compareGripPositionsBottomLeftRowMajor(left, right) ||
-        left.id.localeCompare(right.id),
+  it("continues a newly available right-side chain before moving left", () => {
+    const ordered = orderGripsByDependencies(
+      [
+        grip("left-top", 50, 150),
+        grip("right-top", 150, 150),
+        grip("left-bottom", 50, 50),
+        grip("right-bottom", 150, 50),
+      ],
+      [
+        {
+          beforeGripId: "right-bottom",
+          afterGripId: "right-top",
+        },
+        {
+          beforeGripId: "left-bottom",
+          afterGripId: "left-top",
+        },
+      ],
     );
 
-    expect(grips.map(({ id }) => id)).toEqual([
-      "left-bottom",
+    expect(ordered.map(({ id }) => id)).toEqual([
       "right-bottom",
-      "left-top",
       "right-top",
+      "left-bottom",
+      "left-top",
     ]);
   });
 
@@ -99,7 +106,7 @@ describe("grip execution order", () => {
         ],
         dependencies,
       ).map(({ id }) => id),
-    ).toEqual(["lower-left", "lower-right", "upper"]);
+    ).toEqual(["lower-right", "lower-left", "upper"]);
   });
 
   it("rejects cyclic hard dependencies instead of emitting an invalid order", () => {

@@ -25,6 +25,7 @@ import {
   type Project,
 } from "~/domain/project/projectSchema";
 import {
+  partitionPlacementsForSuction,
   suggestRobotOrder,
   type RobotCycle,
   type RobotCycleMaterialization,
@@ -635,74 +636,10 @@ function automaticPlacementGroups(
   project: Project,
   pattern: LayerPattern,
 ): string[][] {
-  const maxPackages = maxPackagesPerAutomaticGroup(project);
-  const span = projectGroupingSpan(project);
-  const tolerance = 0.001;
-  const sorted = [...pattern.placements].sort((left, right) => {
-    if (left.rotation !== right.rotation) return left.rotation - right.rotation;
-    const leftHorizontal = left.rotation === 0 || left.rotation === 180;
-    const rightHorizontal = right.rotation === 0 || right.rotation === 180;
-    const leftCross = leftHorizontal ? left.positionMm.y : left.positionMm.x;
-    const rightCross = rightHorizontal
-      ? right.positionMm.y
-      : right.positionMm.x;
-    if (leftCross !== rightCross) return leftCross - rightCross;
-    const leftAxis = leftHorizontal ? left.positionMm.x : left.positionMm.y;
-    const rightAxis = rightHorizontal ? right.positionMm.x : right.positionMm.y;
-    if (leftAxis !== rightAxis) return leftAxis - rightAxis;
-    return left.id.localeCompare(right.id);
-  });
-
-  const rows: PackagePlacement[][] = [];
-  for (const placement of sorted) {
-    const horizontal = placement.rotation === 0 || placement.rotation === 180;
-    const cross = horizontal ? placement.positionMm.y : placement.positionMm.x;
-    const row = rows.find((candidate) => {
-      const first = candidate[0];
-      if (!first || first.rotation !== placement.rotation) return false;
-      const firstHorizontal = first.rotation === 0 || first.rotation === 180;
-      const firstCross = firstHorizontal
-        ? first.positionMm.y
-        : first.positionMm.x;
-      return Math.abs(firstCross - cross) <= tolerance;
-    });
-    if (row) row.push(placement);
-    else rows.push([placement]);
-  }
-
-  const groups: string[][] = [];
-  for (const row of rows) {
-    row.sort((left, right) => {
-      const horizontal = left.rotation === 0 || left.rotation === 180;
-      const difference = horizontal
-        ? left.positionMm.x - right.positionMm.x
-        : left.positionMm.y - right.positionMm.y;
-      return difference || left.id.localeCompare(right.id);
-    });
-    let runStart = 0;
-    for (let index = 1; index <= row.length; index += 1) {
-      const previous = row[index - 1];
-      const current = row[index];
-      const horizontal = previous
-        ? previous.rotation === 0 || previous.rotation === 180
-        : true;
-      const continues =
-        previous !== undefined &&
-        current !== undefined &&
-        Math.abs(
-          (horizontal
-            ? current.positionMm.x - previous.positionMm.x
-            : current.positionMm.y - previous.positionMm.y) - span,
-        ) <= tolerance;
-      if (continues) continue;
-      const run = row.slice(runStart, index);
-      for (let start = 0; start < run.length; start += maxPackages) {
-        groups.push(run.slice(start, start + maxPackages).map(({ id }) => id));
-      }
-      runStart = index;
-    }
-  }
-  return groups;
+  return partitionPlacementsForSuction(pattern.placements, {
+    packageLengthMm: projectGroupingSpan(project),
+    maxPackagesPerPick: maxPackagesPerAutomaticGroup(project),
+  }).map((group) => group.map(({ id }) => id));
 }
 
 function normalizedGroupOrder(pattern: LayerPattern): string[] {

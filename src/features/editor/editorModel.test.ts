@@ -292,26 +292,84 @@ function twoGripProject(): Project {
   });
 }
 
+function persistedSolverGripId(index: number): string {
+  return `solver-pattern-1-identity-legacy-candidate-grip-${index}`;
+}
+
 function persistedSolverOrderProject(
   gripPlanningSource?: "solver-generated" | "manual",
+  legacyManualWithoutMarker = false,
 ): Project {
   const project = twoGripProject();
   const solution = project.solutions[0]!;
   const sourcePattern = solution.patterns[0]!;
   const patternId = "solver-pattern-1-identity-legacy-candidate";
+  const leftGripId = persistedSolverGripId(1);
+  const rightGripId = persistedSolverGripId(2);
+  const manuallyOrdered =
+    gripPlanningSource === "manual" || legacyManualWithoutMarker;
+  const storedOrder = manuallyOrdered
+    ? [rightGripId, leftGripId]
+    : [leftGripId, rightGripId];
+  const gripById = new Map(
+    sourcePattern.grips.map((grip, index) => {
+      const id = index === 0 ? leftGripId : rightGripId;
+      return [id, { ...grip, id }] as const;
+    }),
+  );
+  const placements = sourcePattern.placements.slice(0, 2).map((item, index) => ({
+    ...item,
+    id: `${patternId}-placement-${index + 1}`,
+    gripId: index === 0 ? leftGripId : rightGripId,
+  }));
+  const pattern = {
+    ...sourcePattern,
+    id: patternId,
+    grips: storedOrder.map((gripId, index) => ({
+      ...gripById.get(gripId)!,
+      groupNumber: index + 1,
+    })),
+    placements,
+    groupOrder: storedOrder,
+    ...(gripPlanningSource === undefined ? {} : { gripPlanningSource }),
+  };
+  const placementIdByGripId = new Map(
+    placements.map((placement) => [placement.gripId, placement.id]),
+  );
+  const robotCycles =
+    gripPlanningSource === "manual"
+      ? storedOrder.map((gripId, sequence) => {
+        const grip = gripById.get(gripId)!;
+        return {
+          id: `legacy-cycle-${sequence + 1}`,
+          patternId,
+          sequence,
+          gripId,
+          placementIds: [placementIdByGripId.get(gripId)!],
+          gripperId: project.selectedGripperId,
+          pickPose: {
+            x: grip.pickX,
+            y: grip.pickY,
+            z: null,
+            rotation: grip.pickRotation,
+          },
+          placePose: {
+            x: grip.x,
+            y: grip.y,
+            z: null,
+            rotation: grip.rotation,
+          },
+          labelOffset: { x: grip.dx, y: grip.dy },
+        };
+      })
+    : [];
   return projectSchema.parse({
     ...project,
     solutions: [
       {
         ...solution,
         origin: "calculated",
-        patterns: [
-          {
-            ...sourcePattern,
-            id: patternId,
-            ...(gripPlanningSource === undefined ? {} : { gripPlanningSource }),
-          },
-        ],
+        patterns: [pattern],
         stack: {
           ...solution.stack,
           layers: solution.stack.layers.map((layer) => ({
@@ -319,6 +377,7 @@ function persistedSolverOrderProject(
             patternId,
           })),
         },
+        robotCycles,
       },
     ],
   });
@@ -687,7 +746,45 @@ describe("Project editor pattern geometry", () => {
 });
 
 describe("Project editor groups and order", () => {
+  it("centers an automatic singleton in a vertical five-package run", () => {
+    const base = editorProject();
+    const pallet = base.pallet;
+    if (!pallet) throw new Error("Expected the editor pallet fixture.");
+    const solution = base.solutions[0]!;
+    const sourcePattern = solution.patterns[0]!;
+    const placements = Array.from({ length: 5 }, (_, index) => ({
+      ...placement(`p${index + 1}`, index, 50, 50 + index * 100),
+      rotation: 90 as const,
+    }));
+    const project = projectSchema.parse({
+      ...base,
+      pallet: {
+        ...pallet,
+        dimensionsMm: { ...pallet.dimensionsMm, width: 600 },
+        storageEnvelopeMm: { length: 400, width: 600, height: 500 },
+      },
+      solutions: [
+        {
+          ...solution,
+          patterns: [{ ...sourcePattern, grips: [], placements }],
+        },
+      ],
+    });
+
+    expect(
+      projectEditorOrderModel(project, "solution-1", "pattern-1").groups.map(
+        ({ groupNumber, placementIds }) => ({ groupNumber, placementIds }),
+      ),
+    ).toEqual([
+      { groupNumber: 1, placementIds: ["p1", "p2"] },
+      { groupNumber: 2, placementIds: ["p3"] },
+      { groupNumber: 3, placementIds: ["p4", "p5"] },
+    ]);
+  });
+
   it("repairs a persisted solver order when the editor opens", () => {
+    const leftGripId = persistedSolverGripId(1);
+    const rightGripId = persistedSolverGripId(2);
     const history = createProjectEditorHistory(persistedSolverOrderProject());
     const model = projectEditorOrderModel(
       history.present,
@@ -698,17 +795,29 @@ describe("Project editor groups and order", () => {
     expect(
       model.groups.map(({ id, groupNumber }) => ({ id, groupNumber })),
     ).toEqual([
-      { id: "left", groupNumber: 1 },
-      { id: "right", groupNumber: 2 },
+      { id: rightGripId, groupNumber: 1 },
+      { id: leftGripId, groupNumber: 2 },
     ]);
-    expect(pattern(history.present).groupOrder).toEqual(["left", "right"]);
+    expect(pattern(history.present).groupOrder).toEqual([
+      rightGripId,
+      leftGripId,
+    ]);
     expect(projectEditorHistoryDirty(history)).toBe(false);
   });
 
-  it("preserves an explicitly manual order when the editor opens", () => {
-    const history = createProjectEditorHistory(
-      persistedSolverOrderProject("manual"),
-    );
+  it.each([
+    {
+      name: "explicitly marked manual",
+      project: () => persistedSolverOrderProject("manual"),
+    },
+    {
+      name: "unmarked legacy manual",
+      project: () => persistedSolverOrderProject(undefined, true),
+    },
+  ])("preserves an $name order when the editor opens", ({ project }) => {
+    const leftGripId = persistedSolverGripId(1);
+    const rightGripId = persistedSolverGripId(2);
+    const history = createProjectEditorHistory(project());
     const model = projectEditorOrderModel(
       history.present,
       "solution-1",
@@ -718,10 +827,13 @@ describe("Project editor groups and order", () => {
     expect(
       model.groups.map(({ id, groupNumber }) => ({ id, groupNumber })),
     ).toEqual([
-      { id: "right", groupNumber: 1 },
-      { id: "left", groupNumber: 2 },
+      { id: rightGripId, groupNumber: 1 },
+      { id: leftGripId, groupNumber: 2 },
     ]);
-    expect(pattern(history.present).groupOrder).toEqual(["right", "left"]);
+    expect(pattern(history.present).groupOrder).toEqual([
+      rightGripId,
+      leftGripId,
+    ]);
     expect(projectEditorHistoryDirty(history)).toBe(false);
   });
 

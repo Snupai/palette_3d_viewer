@@ -6,7 +6,11 @@ import {
 } from "~/domain/gripDependencies";
 import type { Grip } from "~/domain/palletTypes";
 import { migrateProject } from "~/domain/project/projectMigration";
-import type { Project, ProjectV2 } from "~/domain/project/projectSchema";
+import type {
+  LayerPattern,
+  Project,
+  ProjectV2,
+} from "~/domain/project/projectSchema";
 import type { SolverCandidate } from "~/domain/solver/types";
 import type {
   MetricProvenance,
@@ -51,15 +55,69 @@ function projectTransformFrameProvenance(
 const persistedSolverPatternId =
   /^solver-pattern-\d+-(?:identity|mirror-x|mirror-y|rotate-90|rotate-180|rotate-270)-/;
 
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  return (
+    left.length === right.length &&
+    left.every((value, index) => value === right[index])
+  );
+}
+
+function matchesUneditedLegacySolverPattern(pattern: LayerPattern): boolean {
+  const gripIds = pattern.grips.map(({ id }) => id);
+  const expectedGripIds = pattern.grips.map(
+    (_, index) => `${pattern.id}-grip-${index + 1}`,
+  );
+  const expectedPlacementIds = pattern.placements.map(
+    (_, index) => `${pattern.id}-placement-${index + 1}`,
+  );
+  if (
+    !sameIds(gripIds, expectedGripIds) ||
+    !sameIds(pattern.groupOrder ?? [], expectedGripIds) ||
+    !sameIds(
+      pattern.placements.map(({ id }) => id),
+      expectedPlacementIds,
+    ) ||
+    pattern.grips.some(({ groupNumber }, index) => groupNumber !== index + 1) ||
+    (pattern.orderDependencies ?? []).some(
+      ({ source }) => source !== undefined && source !== "inferred",
+    )
+  ) {
+    return false;
+  }
+
+  const packageCountByGripId = new Map(
+    expectedGripIds.map((gripId) => [gripId, 0]),
+  );
+  for (const placement of pattern.placements) {
+    if (
+      placement.gripId === null ||
+      !packageCountByGripId.has(placement.gripId)
+    ) {
+      return false;
+    }
+    packageCountByGripId.set(
+      placement.gripId,
+      packageCountByGripId.get(placement.gripId)! + 1,
+    );
+  }
+  return pattern.grips.every(
+    ({ id, numPackages }) => packageCountByGripId.get(id) === numPackages,
+  );
+}
+
 function usesSolverGeneratedGripPlanning(
   solutionOrigin: "imported" | "calculated" | "manual",
-  pattern: { id: string; gripPlanningSource?: "solver-generated" | "manual" },
+  pattern: LayerPattern,
+  hasExplicitRobotCycles: boolean,
 ): boolean {
   if (pattern.gripPlanningSource !== undefined) {
     return pattern.gripPlanningSource === "solver-generated";
   }
   return (
-    solutionOrigin === "calculated" && persistedSolverPatternId.test(pattern.id)
+    solutionOrigin === "calculated" &&
+    persistedSolverPatternId.test(pattern.id) &&
+    !hasExplicitRobotCycles &&
+    matchesUneditedLegacySolverPattern(pattern)
   );
 }
 
@@ -79,12 +137,15 @@ export function stackPatternsFromProjectSolution(
   }
 
   return solution.patterns.map((pattern) => {
+    const projectCycles = solution.robotCycles.filter(
+      ({ patternId }) => patternId === pattern.id,
+    );
     const solverGeneratedGripPlanning = usesSolverGeneratedGripPlanning(
       solution.origin,
       pattern,
+      projectCycles.length > 0,
     );
-    const cycles = solution.robotCycles
-      .filter(({ patternId }) => patternId === pattern.id)
+    const cycles = projectCycles
       .sort((left, right) => left.sequence - right.sequence)
       .map((cycle) => ({
         sourceCycleId: cycle.id,
