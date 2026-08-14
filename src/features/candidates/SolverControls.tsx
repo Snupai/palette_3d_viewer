@@ -937,8 +937,8 @@ export function SolverControls({
             {resultSummary.statistics.candidateCount} candidates from{" "}
             {resultSummary.statistics.generatedDraftCount} drafts;{" "}
             {resultSummary.statistics.invalidDraftCount} invalid and{" "}
-            {resultSummary.statistics.geometricDuplicateCount} geometric
-            duplicates.
+            {resultSummary.statistics.geometricDuplicateCount} equivalent
+            layout variants merged.
           </div>
         ) : null}
         {failure ? (

@@ -6,6 +6,7 @@ import {
   placementWithinBounds,
   placementsOverlap,
   rectangleBoundsCenter,
+  transformPlacements,
 } from "~/domain/geometry";
 import { createProject } from "~/domain/project/projectFactory";
 import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
@@ -453,7 +454,7 @@ describe("solver input and candidate validation", () => {
 });
 
 describe("candidate canonicalization and geometric deduplication", () => {
-  it("merges only exact geometry while ignoring draft order and transient ids", () => {
+  it("merges exact geometry while retaining a non-equivalent layout", () => {
     const input = normalized({
       package: {
         shape: "cuboid",
@@ -487,7 +488,7 @@ describe("candidate canonicalization and geometric deduplication", () => {
     };
     const shifted: GeneratedCandidateDraft = {
       placements: [
-        { positionMm: { x: 150, y: 50 }, rotation: 0 },
+        { positionMm: { x: 50, y: 50 }, rotation: 0 },
         { positionMm: { x: 250, y: 50 }, rotation: 0 },
       ],
       provenance: [{ family: "row", variant: "shifted" }],
@@ -503,14 +504,117 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(result.geometricDuplicateCount).toBe(1);
     expect(
       result.candidates
-        .find(({ placements }) =>
-          placements.some(({ positionMm }) => positionMm.x === 50),
+        .find(({ provenance }) =>
+          provenance.some(({ variant }) => variant === "first"),
         )
         ?.provenance.map(({ family }) => family),
     ).toEqual(["block", "row"]);
     expect(
       result.exclusions.some(({ reason }) => reason === "geometric-duplicate"),
     ).toBe(true);
+  });
+
+  it("merges mirrored and 180-degree variants into one base layout deterministically", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 40, width: 20 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 400, maxY: 200 },
+      constraints: { provisionalPackagesPerCycle: 1 },
+    });
+    const basePlacements = [
+      { positionMm: { x: 40, y: 30 }, rotation: 0 as const },
+      { positionMm: { x: 125, y: 70 }, rotation: 90 as const },
+      { positionMm: { x: 275, y: 145 }, rotation: 0 as const },
+    ];
+    const baseDraft: GeneratedCandidateDraft = {
+      placements: basePlacements,
+      provenance: [{ family: "row", variant: "base-layout" }],
+    };
+    const symmetryDrafts = (
+      ["mirror-x", "mirror-y", "rotate-180"] as const
+    ).map(
+      (symmetry): GeneratedCandidateDraft => ({
+        placements: transformPlacements(
+          basePlacements,
+          input.generationBoundsMm,
+          symmetry,
+        ),
+        provenance: [
+          { family: "row", variant: "base-layout" },
+          { family: "symmetry", variant: symmetry, symmetry },
+        ],
+      }),
+    );
+    const oppositeDirectedYawDraft: GeneratedCandidateDraft = {
+      placements: basePlacements.map((placement) => ({
+        ...placement,
+        rotation: ((placement.rotation + 180) % 360) as 0 | 90 | 180 | 270,
+      })),
+      provenance: [{ family: "row", variant: "opposite-directed-yaw" }],
+    };
+    const distinctDraft: GeneratedCandidateDraft = {
+      placements: [
+        { positionMm: { x: 45, y: 35 }, rotation: 0 },
+        { positionMm: { x: 175, y: 80 }, rotation: 90 },
+        { positionMm: { x: 320, y: 150 }, rotation: 0 },
+      ],
+      provenance: [{ family: "block", variant: "distinct-layout" }],
+    };
+    const drafts = [
+      baseDraft,
+      oppositeDirectedYawDraft,
+      ...symmetryDrafts,
+      distinctDraft,
+    ];
+
+    const forward = finalizeGeneratedCandidates(input, drafts);
+    const reversed = finalizeGeneratedCandidates(input, [...drafts].reverse());
+    const snapshot = (result: typeof forward) =>
+      result.candidates.map((candidate) => ({
+        id: candidate.id,
+        geometryFingerprint: candidate.geometryFingerprint,
+        placements: candidate.placements.map(
+          ({ positionMm, rotation, labelSide }) => ({
+            positionMm,
+            rotation,
+            labelSide,
+          }),
+        ),
+        provenance: candidate.provenance,
+        metrics: candidate.metrics,
+        score: candidate.score,
+      }));
+
+    expect(forward.candidates).toHaveLength(2);
+    expect(forward.geometricDuplicateCount).toBe(4);
+    expect(snapshot(reversed)).toEqual(snapshot(forward));
+    const baseCandidate = forward.candidates.find(({ provenance }) =>
+      provenance.some(({ variant }) => variant === "base-layout"),
+    );
+    expect(
+      baseCandidate?.placements.map(({ positionMm, rotation }) => ({
+        positionMm,
+        rotation,
+      })),
+    ).toEqual(basePlacements);
+    expect(
+      baseCandidate?.provenance
+        .filter(({ family }) => family === "symmetry")
+        .map(({ symmetry }) => symmetry),
+    ).toEqual(["mirror-x", "mirror-y", "rotate-180"]);
+    expect(
+      baseCandidate?.provenance.some(
+        ({ variant }) => variant === "opposite-directed-yaw",
+      ),
+    ).toBe(true);
+    expect(
+      forward.exclusions.filter(
+        ({ reason }) => reason === "geometric-duplicate",
+      ),
+    ).toHaveLength(4);
   });
 
   it("derives candidate deltas from the normalized inlet orientation", () => {
@@ -1028,14 +1132,14 @@ describe("observed AP5006 geometry", () => {
     );
 
     expect(maximum).toBe(55);
-    expect(maximumCandidates.length).toBeGreaterThan(1);
+    expect(maximumCandidates).toHaveLength(4);
     expect(
       maximumCandidates.filter(
         ({ metrics }) =>
           metrics.boundingBlockLengthMm === 1166 &&
           metrics.boundingBlockWidthMm === 785,
-      ).length,
-    ).toBeGreaterThan(1);
+      ),
+    ).toHaveLength(1);
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );

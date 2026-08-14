@@ -46,12 +46,12 @@ const modeLabels: Record<StackCompositionMode, string> = {
 };
 
 const transformLabels: Record<StackLayerTransform, string> = {
-  identity: "Identity",
+  identity: "No transform",
   "rotate-90": "Rotate 90°",
   "rotate-180": "Rotate 180°",
   "rotate-270": "Rotate 270°",
-  "mirror-x": "Mirror X",
-  "mirror-y": "Mirror Y",
+  "mirror-x": "Mirror along pallet width (flip X)",
+  "mirror-y": "Mirror along pallet length (flip Y)",
   "transpose-main": "Transpose main diagonal",
   "transpose-anti": "Transpose anti-diagonal",
 };
@@ -536,6 +536,10 @@ export function StackWorkspace({
             <legend className="px-1 text-xs font-semibold text-zinc-300">
               Editable layer sequence
             </legend>
+            <p className="text-xs text-zinc-500">
+              Each row is one physical layer. Set requested layers to 1 to build
+              exactly one layer, then choose its transform below.
+            </p>
             <div className="scrollbar-thin max-h-[360px] overflow-auto border border-zinc-800">
               <table className="w-full min-w-[600px] border-collapse text-xs">
                 <thead className="sticky top-0 bg-zinc-900 text-left text-zinc-500">

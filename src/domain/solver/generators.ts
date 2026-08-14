@@ -530,6 +530,10 @@ class DraftCollector {
         transientId: `${this.family}-${draftIndex}-${placementIndex}`,
       })),
       provenance: centeredProvenance,
+      representativePriority: {
+        family: this.family,
+        index: draftIndex,
+      },
     });
     this.draftIndexByGeometry.set(geometryKey, draftIndex);
     if (this.hooks.checkpoint?.(this.family, this.drafts.length) === false) {

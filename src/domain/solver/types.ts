@@ -108,6 +108,11 @@ export type GeneratedPlacement = PlacementGeometry & {
 export type GeneratedCandidateDraft = {
   placements: readonly GeneratedPlacement[];
   provenance: readonly GeneratorProvenance[];
+  /** Stable family-local preference used only when equivalent layouts are merged. */
+  representativePriority?: Readonly<{
+    family: GeneratorFamily;
+    index: number;
+  }>;
 };
 
 export type SolverIssueCode =

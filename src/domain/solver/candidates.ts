@@ -1,6 +1,10 @@
 import {
   canonicalizePlacementOrder,
   canonicalPlacementGeometryKey,
+  envelopePreservingSymmetries,
+  transformPlacements,
+  type LayerSymmetry,
+  type RectangleBoundsMm,
 } from "~/domain/geometry";
 import {
   candidateGeometryFingerprint,
@@ -21,15 +25,16 @@ import {
   compareSolverCandidates,
   scoreCandidateMetrics,
 } from "~/domain/solver/metrics";
-import type {
-  GeneratedCandidateDraft,
-  GeneratorProvenance,
-  NormalizedLayerSolverInput,
-  SolverCandidate,
-  SolverDiagnostic,
-  SolverExclusion,
-  SolverIssue,
-  SolverPhase,
+import {
+  BASE_GENERATOR_FAMILIES,
+  type GeneratedCandidateDraft,
+  type GeneratorProvenance,
+  type NormalizedLayerSolverInput,
+  type SolverCandidate,
+  type SolverDiagnostic,
+  type SolverExclusion,
+  type SolverIssue,
+  type SolverPhase,
 } from "~/domain/solver/types";
 import { validateCandidatePlacements } from "~/domain/solver/validation";
 
@@ -55,12 +60,8 @@ export type CandidateFinalizationResult = {
 };
 
 type CandidateAggregate = {
-  placements: SolverCandidate["placements"];
-  grips: SolverCandidate["grips"];
-  orderDependencies: SolverCandidate["orderDependencies"];
-  validation: SolverCandidate["validation"];
+  representative: Omit<SolverCandidate, "rank">;
   provenanceByKey: Map<string, GeneratorProvenance>;
-  geometryFingerprint: string;
 };
 
 function stableValue(value: unknown): string {
@@ -94,6 +95,76 @@ type LabeledGeneratedPlacement =
   GeneratedCandidateDraft["placements"][number] & {
     labelSide: SolverCandidate["placements"][number]["labelSide"];
   };
+
+type CandidateLabelSide = NonNullable<
+  SolverCandidate["placements"][number]["labelSide"]
+>;
+
+const labelSideVector: Record<CandidateLabelSide, { x: number; y: number }> = {
+  top: { x: 0, y: 1 },
+  right: { x: 1, y: 0 },
+  bottom: { x: 0, y: -1 },
+  left: { x: -1, y: 0 },
+};
+
+const labelSideForVector = new Map(
+  Object.entries(labelSideVector).map(([labelSide, vector]) => [
+    `${vector.x},${vector.y}`,
+    labelSide as CandidateLabelSide,
+  ]),
+);
+
+function transformLabelSide(
+  labelSide: CandidateLabelSide | null,
+  symmetry: LayerSymmetry,
+): CandidateLabelSide | null {
+  if (labelSide === null || symmetry === "identity") return labelSide;
+  const vector = labelSideVector[labelSide];
+  const transformed = (() => {
+    switch (symmetry) {
+      case "rotate-90":
+        return { x: -vector.y, y: vector.x };
+      case "rotate-180":
+        return { x: -vector.x, y: -vector.y };
+      case "rotate-270":
+        return { x: vector.y, y: -vector.x };
+      case "mirror-x":
+        return { x: -vector.x, y: vector.y };
+      case "mirror-y":
+        return { x: vector.x, y: -vector.y };
+      case "transpose-main":
+        return { x: vector.y, y: vector.x };
+      case "transpose-anti":
+        return { x: -vector.y, y: -vector.x };
+    }
+  })();
+  return (
+    labelSideForVector.get(`${transformed.x},${transformed.y}`) ?? labelSide
+  );
+}
+
+function candidateSymmetryClassKey(
+  placements: readonly UngroupedCandidatePlacement[],
+  frame: RectangleBoundsMm,
+): string {
+  const keys = envelopePreservingSymmetries(frame, true).map((symmetry) =>
+    stableValue(
+      canonicalizePlacementOrder(
+        transformPlacements(placements, frame, symmetry).map((placement) => ({
+          ...placement,
+          labelSide: transformLabelSide(placement.labelSide, symmetry),
+        })),
+      ).map(({ positionMm, rotation, labelSide }) => ({
+        x: positionMm.x,
+        y: positionMm.y,
+        footprintRotation: rotation % 180,
+        labelSide,
+      })),
+    ),
+  );
+  keys.sort(compareStrings);
+  return `pallet-symmetry-v1:${keys[0] ?? "[]"}`;
+}
 
 function canonicalCandidatePlacements(
   input: NormalizedLayerSolverInput,
@@ -249,6 +320,39 @@ function groupCandidatePlacements(
   };
 }
 
+function createUnrankedCandidate(
+  input: NormalizedLayerSolverInput,
+  grouped: Pick<
+    SolverCandidate,
+    "placements" | "grips" | "orderDependencies"
+  >,
+  validation: SolverCandidate["validation"],
+  geometryFingerprint: string,
+): Omit<SolverCandidate, "rank"> {
+  const identityInput = {
+    placements: grouped.placements,
+    grips: grouped.grips,
+  };
+  const metrics = calculateCandidateMetrics(
+    input,
+    grouped.placements,
+    grouped.grips.length,
+  );
+  return {
+    id: createCandidateId(identityInput),
+    geometryId: createCandidateGeometryId(identityInput),
+    identityFingerprint: candidateIdentityFingerprint(identityInput),
+    geometryFingerprint,
+    placements: grouped.placements,
+    grips: grouped.grips,
+    orderDependencies: grouped.orderDependencies,
+    provenance: [],
+    validation,
+    metrics,
+    score: scoreCandidateMetrics(metrics),
+  };
+}
+
 function deterministicDraftKey(draft: GeneratedCandidateDraft): string {
   let geometryKey: string;
   try {
@@ -257,6 +361,39 @@ function deterministicDraftKey(draft: GeneratedCandidateDraft): string {
     geometryKey = stableValue(draft.placements);
   }
   return `${geometryKey}:${stableValue(sortedUniqueProvenance(draft.provenance))}`;
+}
+
+const representativeFamilyRank = new Map(
+  [...BASE_GENERATOR_FAMILIES, "symmetry"].map((family, index) => [
+    family,
+    index,
+  ]),
+);
+
+function compareDraftsForRepresentative(
+  left: GeneratedCandidateDraft,
+  right: GeneratedCandidateDraft,
+): number {
+  const leftIsGeneratedSymmetry = left.provenance.some(
+    ({ family }) => family === "symmetry",
+  );
+  const rightIsGeneratedSymmetry = right.provenance.some(
+    ({ family }) => family === "symmetry",
+  );
+  const leftPriority = left.representativePriority;
+  const rightPriority = right.representativePriority;
+  return (
+    Number(leftIsGeneratedSymmetry) - Number(rightIsGeneratedSymmetry) ||
+    (leftPriority
+      ? representativeFamilyRank.get(leftPriority.family)!
+      : Number.MAX_SAFE_INTEGER) -
+      (rightPriority
+        ? representativeFamilyRank.get(rightPriority.family)!
+        : Number.MAX_SAFE_INTEGER) ||
+    (leftPriority?.index ?? Number.MAX_SAFE_INTEGER) -
+      (rightPriority?.index ?? Number.MAX_SAFE_INTEGER) ||
+    compareStrings(deterministicDraftKey(left), deterministicDraftKey(right))
+  );
 }
 
 function sortExclusions(exclusions: SolverExclusion[]): SolverExclusion[] {
@@ -282,12 +419,10 @@ export function finalizeGeneratedCandidates(
   draftsInput: readonly GeneratedCandidateDraft[],
   hooks: CandidateFinalizationHooks = {},
 ): CandidateFinalizationResult {
-  const drafts = [...draftsInput].sort((left, right) =>
-    compareStrings(deterministicDraftKey(left), deterministicDraftKey(right)),
-  );
+  const drafts = [...draftsInput].sort(compareDraftsForRepresentative);
   const diagnostics: SolverDiagnostic[] = [];
   const exclusions: SolverExclusion[] = [];
-  const aggregateByGeometry = new Map<string, CandidateAggregate>();
+  const aggregateBySymmetryClass = new Map<string, CandidateAggregate>();
   let validDraftCount = 0;
   let invalidDraftCount = 0;
   let geometricDuplicateCount = 0;
@@ -321,7 +456,19 @@ export function finalizeGeneratedCandidates(
         const geometryFingerprint = candidateGeometryFingerprint({
           placements,
         });
-        const existing = aggregateByGeometry.get(geometryFingerprint);
+        const symmetryClassKey = candidateSymmetryClassKey(
+          placements,
+          input.generationBoundsMm,
+        );
+        const grouped = groupCandidatePlacements(input, placements);
+        const candidate = createUnrankedCandidate(
+          input,
+          grouped,
+          validation,
+          geometryFingerprint,
+        );
+        const draftProvenance = sortedUniqueProvenance(draft.provenance);
+        const existing = aggregateBySymmetryClass.get(symmetryClassKey);
         if (existing) {
           geometricDuplicateCount += 1;
           for (const provenance of draft.provenance) {
@@ -329,27 +476,23 @@ export function finalizeGeneratedCandidates(
           }
           exclusions.push({
             reason: "geometric-duplicate",
-            geometryFingerprint,
-            duplicateOfGeometryFingerprint: geometryFingerprint,
-            provenance: sortedUniqueProvenance(draft.provenance),
+            geometryFingerprint: candidate.geometryFingerprint,
+            duplicateOfGeometryFingerprint:
+              existing.representative.geometryFingerprint,
+            provenance: draftProvenance,
             issues: [],
             message:
-              "Draft matches an existing exact placement geometry and was merged into its provenance.",
+              "Draft is a pallet mirror or rotation of an existing base layout and was merged into its provenance.",
           });
         } else {
-          const grouped = groupCandidatePlacements(input, placements);
-          aggregateByGeometry.set(geometryFingerprint, {
-            placements: grouped.placements,
-            grips: grouped.grips,
-            orderDependencies: grouped.orderDependencies,
-            validation,
+          aggregateBySymmetryClass.set(symmetryClassKey, {
+            representative: candidate,
             provenanceByKey: new Map(
-              sortedUniqueProvenance(draft.provenance).map((provenance) => [
+              draftProvenance.map((provenance) => [
                 stableValue(provenance),
                 provenance,
               ]),
             ),
-            geometryFingerprint,
           });
         }
       }
@@ -395,8 +538,11 @@ export function finalizeGeneratedCandidates(
     };
   }
 
-  const aggregates = [...aggregateByGeometry.values()].sort((left, right) =>
-    compareStrings(left.geometryFingerprint, right.geometryFingerprint),
+  const aggregates = [...aggregateBySymmetryClass.values()].sort((left, right) =>
+    compareStrings(
+      left.representative.geometryFingerprint,
+      right.representative.geometryFingerprint,
+    ),
   );
   const unranked: Array<Omit<SolverCandidate, "rank">> = [];
   const identityByCompactId = new Map<string, string>();
@@ -404,56 +550,47 @@ export function finalizeGeneratedCandidates(
 
   for (let index = 0; index < aggregates.length; index += 1) {
     const aggregate = aggregates[index]!;
-    const identityInput = {
-      placements: aggregate.placements,
-      grips: aggregate.grips,
-    };
-    const identityFingerprint = candidateIdentityFingerprint(identityInput);
-    const id = createCandidateId(identityInput);
-    const geometryId = createCandidateGeometryId(identityInput);
-    const previousIdentity = identityByCompactId.get(id);
-    if (previousIdentity && previousIdentity !== identityFingerprint) {
+    const representative = aggregate.representative;
+    const previousIdentity = identityByCompactId.get(representative.id);
+    if (
+      previousIdentity &&
+      previousIdentity !== representative.identityFingerprint
+    ) {
       diagnostics.push({
         severity: "error",
         phase: "metrics",
         code: "candidate-id-hash-collision",
-        message: `Compact candidate id ${id} maps to multiple full fingerprints; both candidates were retained.`,
+        message: `Compact candidate id ${representative.id} maps to multiple full fingerprints; both candidates were retained.`,
       });
     }
-    identityByCompactId.set(id, identityFingerprint);
-    const previousGeometry = geometryByCompactId.get(geometryId);
+    identityByCompactId.set(
+      representative.id,
+      representative.identityFingerprint,
+    );
+    const previousGeometry = geometryByCompactId.get(
+      representative.geometryId,
+    );
     if (
       previousGeometry &&
-      previousGeometry !== aggregate.geometryFingerprint
+      previousGeometry !== representative.geometryFingerprint
     ) {
       diagnostics.push({
         severity: "error",
         phase: "metrics",
         code: "geometry-id-hash-collision",
-        message: `Compact geometry id ${geometryId} maps to multiple full fingerprints; both geometries were retained.`,
+        message: `Compact geometry id ${representative.geometryId} maps to multiple full fingerprints; both geometries were retained.`,
       });
     }
-    geometryByCompactId.set(geometryId, aggregate.geometryFingerprint);
-
-    const metrics = calculateCandidateMetrics(
-      input,
-      aggregate.placements,
-      aggregate.grips.length,
+    geometryByCompactId.set(
+      representative.geometryId,
+      representative.geometryFingerprint,
     );
+
     unranked.push({
-      id,
-      geometryId,
-      identityFingerprint,
-      geometryFingerprint: aggregate.geometryFingerprint,
-      placements: aggregate.placements,
-      grips: aggregate.grips,
-      orderDependencies: aggregate.orderDependencies,
+      ...representative,
       provenance: [...aggregate.provenanceByKey.entries()]
         .sort(([left], [right]) => compareStrings(left, right))
         .map(([, provenance]) => provenance),
-      validation: aggregate.validation,
-      metrics,
-      score: scoreCandidateMetrics(metrics),
     });
 
     if (hooks.checkpoint?.("metrics", index + 1, aggregates.length) === false) {

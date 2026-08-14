@@ -705,6 +705,82 @@ describe("StackWorkspace", () => {
     );
   });
 
+  it.each([
+    {
+      name: "length-axis mirror",
+      transform: "mirror-y" as const,
+      label: "Mirror along pallet length (flip Y)",
+      expected: { positionMm: { x: 100, y: 700 }, rotation: 0 },
+    },
+    {
+      name: "width-axis mirror",
+      transform: "mirror-x" as const,
+      label: "Mirror along pallet width (flip X)",
+      expected: { positionMm: { x: 1100, y: 100 }, rotation: 180 },
+    },
+    {
+      name: "180-degree rotation",
+      transform: "rotate-180" as const,
+      label: "Rotate 180°",
+      expected: { positionMm: { x: 1100, y: 700 }, rotation: 180 },
+    },
+  ])(
+    "keeps one physical layer and applies the $name",
+    async ({ transform, label, expected }) => {
+      const onSave = vi.fn<
+        (
+          state: StackWorkspaceState,
+          materialized: MaterializedStackResult,
+        ) => void
+      >();
+      render(
+        <StackWorkspace
+          project={project}
+          candidates={candidates}
+          solverInput={solverInput}
+          onSave={onSave}
+        />,
+      );
+
+      expect(
+        screen.getByText(
+          "Each row is one physical layer. Set requested layers to 1 to build exactly one layer, then choose its transform below.",
+        ),
+      ).toBeTruthy();
+      fireEvent.change(screen.getByLabelText("Requested layers"), {
+        target: { value: "1" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Build A/B sequence" }),
+      );
+      expect(document.querySelectorAll("[data-layer-id]")).toHaveLength(1);
+
+      const transformSelect =
+        screen.getByLabelText<HTMLSelectElement>("Layer 1 transform");
+      expect(
+        Array.from(transformSelect.options).find(
+          (option) => option.value === transform,
+        )?.textContent,
+      ).toBe(label);
+      fireEvent.change(transformSelect, { target: { value: transform } });
+      fireEvent.click(
+        screen.getByRole("button", { name: "Save stack to project" }),
+      );
+
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+      const [state, materialized] = onSave.mock.calls[0]!;
+      expect(state.requestedLayerCount).toBe(1);
+      expect(state.layers).toHaveLength(1);
+      expect(state.layers[0]?.transform).toBe(transform);
+      expect(materialized.resolvedLayers).toHaveLength(1);
+      expect(materialized.resolvedLayers[0]?.transform).toBe(transform);
+      expect(materialized.packageLayers).toHaveLength(1);
+      expect(materialized.packageLayers[0]?.placements[0]).toMatchObject(
+        expected,
+      );
+    },
+  );
+
   it("keeps newer edits dirty when an earlier async save finishes", async () => {
     let resolveSave!: () => void;
     const pendingSave = new Promise<void>((resolve) => {

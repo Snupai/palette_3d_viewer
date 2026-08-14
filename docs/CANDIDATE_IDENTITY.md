@@ -1,6 +1,6 @@
 # Kandidatenidentität und geometrische Gleichheit
 
-Stand: 05.08.2026
+Stand: 14.08.2026
 
 Diese Definition gilt für den Referenzkorpus und den späteren Solver. Sie trennt
 zwei Fragen, die nicht miteinander verwechselt werden dürfen:
@@ -46,6 +46,33 @@ Dabei gilt bewusst:
 
 Diese enge Definition verhindert, dass der Solver echte Varianten durch eine
 ungeklärte Symmetrie- oder Etikettenannahme entfernt.
+
+## Grundlayout-Auswahlklassen
+
+Der finale Solver-Kandidatenindex fasst zusätzlich Varianten zusammen, die der
+Bediener pro physischer Stacklage selbst einstellen kann. Diese Auswahlpolicy ist
+bewusst **keine** Änderung an geometrischer Gleichheit v1 oder
+Kandidatenidentität v1.
+
+Für jeden validierten Placement-Satz wird über alle den Generierungsrahmen
+erhaltenden Spiegelungen und Drehungen ein kanonischer Grundlayout-Key gebildet.
+Für diesen Auswahl-Key gilt:
+
+- `0°` und `180°` beschreiben denselben physischen Paket-Footprint;
+- `90°` und `270°` beschreiben denselben physischen Paket-Footprint;
+- bekannte Etikettenseiten werden mit der globalen Transformation mitgeführt und
+  bleiben Teil des Keys;
+- ein nicht durch den Symmetriegenerator erzeugter Basis-Draft wird als
+  gerichteter Repräsentant bevorzugt;
+- weitere Generator- und Symmetrie-Provenienzen werden am Repräsentanten
+  zusammengeführt.
+
+Der gewählte Repräsentant behält seinen exakten gerichteten
+`geometryFingerprint`, seine `candidateIdentityFingerprint` und seinen daraus
+abgeleiteten Grip-Plan. Spiegelung an Palettenlänge oder -breite und eine
+180°-Drehung werden stattdessen pro einzelner physischer Lage im Stack-Builder
+gewählt; beim Materialisieren wird dafür die gerichtete Geometrie samt Grip-Plan
+neu abgeleitet.
 
 ## Kandidatenidentität v1
 
