@@ -151,6 +151,7 @@ describe("robotics workspace validation and export gate", () => {
       createInitialRobotExportSettings(),
     );
     expect(derivedGate.enabled).toBe(true);
+    expect(derivedGate.options.separator).toBe("\t");
     expect(derivedGate.preflight.ok).toBe(true);
     expect(derivedGate.preflight.manifest).toMatchObject({
       source: "project-derived-robot-cycles",

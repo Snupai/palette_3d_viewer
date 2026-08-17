@@ -461,6 +461,7 @@ export function robExportOptionsFromWorkspace(
           : { mode: "reject" };
 
   return {
+    separator: "\t",
     quantization: { mode: settings.quantization },
     ...(signConvention ? { signConvention } : {}),
     unknownFields,

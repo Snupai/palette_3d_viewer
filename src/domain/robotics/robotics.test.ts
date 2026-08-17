@@ -1323,10 +1323,10 @@ describe("project-derived .rob export", () => {
       pickReference,
       maxPackagesPerPick: 2,
     });
-    const exported = exportProjectRob(
-      materialized,
-      identityExportOptions(materialized.cycles.map(({ id }) => id)),
-    );
+    const exported = exportProjectRob(materialized, {
+      ...identityExportOptions(materialized.cycles.map(({ id }) => id)),
+      separator: "\t",
+    });
     const golden = readFileSync(
       resolve(
         process.cwd(),
@@ -1343,6 +1343,8 @@ describe("project-derived .rob export", () => {
     expect(exported.ok).toBe(true);
     expect(exported.parserRoundtripVerified).toBe(true);
     expect(exported.text).toBe(golden);
+    expect(exported.text).toContain("\t");
+    expect(exported.text).not.toContain(" ");
     expect(exported.manifest).toMatchObject({
       source: "project-derived-robot-cycles",
       parserRoundtrip: "verified",
