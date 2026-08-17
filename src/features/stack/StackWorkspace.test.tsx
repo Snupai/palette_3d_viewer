@@ -173,6 +173,58 @@ describe("stack workspace persistence", () => {
     },
   );
 
+  it("persists generated deltas across layout gaps when clearance is zero", () => {
+    const gapCandidate = candidate(5, 2);
+    const gripPositions = [
+      { x: 200, y: 50 },
+      { x: 50, y: 50 },
+    ] as const;
+    const generatedCandidate: SolverCandidate = {
+      ...gapCandidate,
+      placements: gapCandidate.placements.map((placement, index) => ({
+        ...placement,
+        positionMm: gripPositions[index]!,
+      })),
+      grips: gapCandidate.grips.map((grip, index) => ({
+        ...grip,
+        ...gripPositions[index]!,
+      })),
+    };
+    const state = createInitialStackWorkspaceState([generatedCandidate]);
+
+    const persisted = projectWithPersistedStack(
+      project,
+      [generatedCandidate],
+      solverInput,
+      state,
+    );
+    const solution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const reopened = materializeProjectSolutionStack(persisted);
+
+    expect(
+      solution.patterns[0]?.grips.map(({ groupNumber, dx, dy }) => ({
+        groupNumber,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 1, dx: 0, dy: 0 },
+      { groupNumber: 2, dx: -1, dy: 0 },
+    ]);
+    expect(
+      reopened.packageLayers[0]?.grips.map(({ groupNumber, dx, dy }) => ({
+        groupNumber,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 1, dx: 0, dy: 0 },
+      { groupNumber: 2, dx: -1, dy: 0 },
+    ]);
+  });
+
   it("persists the same physical label face through a transformed layer", () => {
     const labelInput: LayerSolverInput = {
       ...solverInput,
@@ -317,9 +369,9 @@ describe("stack workspace persistence", () => {
       })),
     ).toEqual([
       { groupNumber: 1, x: 1150, y: 50, dx: 0, dy: 0 },
-      { groupNumber: 2, x: 1150, y: 150, dx: 0, dy: -1 },
-      { groupNumber: 3, x: 1050, y: 50, dx: 1, dy: 0 },
-      { groupNumber: 4, x: 1050, y: 150, dx: 1, dy: -1 },
+      { groupNumber: 2, x: 1150, y: 150, dx: 0, dy: 1 },
+      { groupNumber: 3, x: 1050, y: 50, dx: -1, dy: 0 },
+      { groupNumber: 4, x: 1050, y: 150, dx: -1, dy: 1 },
     ]);
     expect(persistedPattern.groupOrder).toEqual(
       persistedPattern.grips.map(({ id }) => id),

@@ -420,18 +420,37 @@ function approachIsClear(
   );
 }
 
+function invertedDeltaComponent(value: -1 | 0 | 1): -1 | 0 | 1 {
+  if (value === 1) return -1;
+  if (value === -1) return 1;
+  return 0;
+}
+
+function invertedGripDelta(delta: GripDelta): GripDelta {
+  return {
+    dx: invertedDeltaComponent(delta.dx),
+    dy: invertedDeltaComponent(delta.dy),
+  };
+}
+
 function dependenciesForDelta(
   gripIndex: number,
-  delta: GripDelta,
+  referenceDirection: GripDelta,
   neighbors: GripNeighborIndex,
 ): GripDependency[] {
   return [
-    delta.dx === 0
+    referenceDirection.dx === 0
       ? null
-      : ({ axis: "x", direction: Math.sign(delta.dx) } as const),
-    delta.dy === 0
+      : ({
+          axis: "x",
+          direction: Math.sign(referenceDirection.dx),
+        } as const),
+    referenceDirection.dy === 0
       ? null
-      : ({ axis: "y", direction: Math.sign(delta.dy) } as const),
+      : ({
+          axis: "y",
+          direction: Math.sign(referenceDirection.dy),
+        } as const),
   ]
     .filter(
       (value): value is { axis: "x" | "y"; direction: -1 | 1 } =>
@@ -464,10 +483,10 @@ export function buildGripDeltaDependencies(
   grips.forEach((grip, dependentIndex) => {
     dependenciesForDelta(
       dependentIndex,
-      {
+      invertedGripDelta({
         dx: Math.sign(grip.dx) as -1 | 0 | 1,
         dy: Math.sign(grip.dy) as -1 | 0 | 1,
-      },
+      }),
       neighbors,
     ).forEach((dependency) => {
       dependencies.set(
@@ -488,10 +507,10 @@ export type DerivedGripDeltas = {
 };
 
 /**
- * Derives the legacy .rob approach vector for grips in execution order. The
- * robot descends 80 mm opposite dx/dy and then moves by dx/dy into the final
- * position, so references must be on the target side and the entire approach
- * sweep must remain clear of all grips that are already on the pallet.
+ * Derives .rob approach offsets for grips in execution order. Candidate
+ * references are evaluated on the target side while the 80 mm approach sweep
+ * runs in the opposite direction. The stored dx/dy values encode that opposite
+ * approach offset, so dependencies invert them back to the reference side.
  */
 export function deriveGripDeltasForPlacementOrder(
   grips: readonly Grip[],
@@ -583,7 +602,7 @@ export function deriveGripDeltasForPlacementOrder(
       return;
     }
 
-    deltas.push(chosen.delta);
+    deltas.push(invertedGripDelta(chosen.delta));
     for (const prerequisiteIndex of new Set(chosen.references)) {
       dependencies.set(`${prerequisiteIndex}:${dependentIndex}`, {
         prerequisiteIndex,
@@ -597,9 +616,8 @@ export function deriveGripDeltasForPlacementOrder(
 
 /**
  * Replaces selected grips with one merged grip while retaining their .rob
- * placement constraints. A grip's dx/dy points toward already placed
- * reference grips; conversely, other grips whose dx/dy points at a selected
- * grip must remain after the merged grip.
+ * placement constraints. Stored dx/dy points away from already placed
+ * reference grips, so dependency reconstruction resolves the opposite side.
  */
 export function insertMergedGripByDeltaDependencies(
   grips: Grip[],

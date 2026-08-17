@@ -294,7 +294,6 @@ function groupCandidatePlacements(
     input.package.dimensionsMm.length,
     input.package.dimensionsMm.width,
     input.package.inletOrientation === "crosswise" ? 1 : 0,
-    { maxReferenceGapMm: input.package.clearanceMm },
   );
   const grips = ungrippedGrips.map((grip, index) => ({
     ...grip,

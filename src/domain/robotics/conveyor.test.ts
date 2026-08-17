@@ -37,6 +37,11 @@ function cycle(overrides: Partial<RobotCycle> = {}): RobotCycle {
       positionMm: { x: 700, y: 800, z: 115 },
       yawDeg: 0,
     },
+    placeGripPosePallet: {
+      frame: "pallet",
+      positionMm: { x: 700, y: 800, z: 115 },
+      yawDeg: 0,
+    },
     legacyUnknownFields: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",

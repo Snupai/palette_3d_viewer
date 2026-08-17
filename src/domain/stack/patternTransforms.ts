@@ -261,7 +261,7 @@ function replanGrips(
     packageSize.length,
     packageSize.width,
     inputDirection,
-    { maxReferenceGapMm: pattern.generatedGripPolicy.maxReferenceGapMm },
+    pattern.generatedGripPolicy,
   );
   const grips = orderedGrips.map((grip, index) => ({
     ...grip,

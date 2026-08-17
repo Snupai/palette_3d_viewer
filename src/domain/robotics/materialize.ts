@@ -490,6 +490,13 @@ export function materializeRobotCycles(
           : (resources.gripper?.id ?? null),
         stationId: resources.station?.id ?? null,
         ...poses,
+        placeGripPosePallet: {
+          frame: "pallet",
+          positionMm: sourceCycle
+            ? { ...poses.placePose.positionMm }
+            : { ...group.centerPalletMm },
+          yawDeg: sourceCycle ? poses.placePose.yawDeg : group.placeRotationDeg,
+        },
         legacyUnknownFields: sourceCycle
           ? {
               field8: sourceCycle.labelOffset.x,

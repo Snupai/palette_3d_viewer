@@ -8,6 +8,10 @@ import {
 } from "~/domain/palletGeometry";
 import type { Box, PalletData, PlanarDimensions } from "~/domain/palletTypes";
 import { createLayerLabelObject } from "~/components/rob-viewer/sceneLabels";
+import {
+  IDENTITY_VIEWER_POSE,
+  viewerPoseToLocal,
+} from "~/components/rob-viewer/viewerPoseMath";
 import { createResourceTracker } from "~/components/rob-viewer/sceneResources";
 import type {
   BoxPickEntry,
@@ -199,7 +203,14 @@ export function buildViewerScene(
   options: ViewerSceneBuildOptions = {},
 ): BuiltViewerScene {
   const resources = createResourceTracker();
+  const palletPose = options.palletPose ?? IDENTITY_VIEWER_POSE;
   const root = new THREE.Group();
+  root.position.set(
+    palletPose.positionMm.x,
+    palletPose.positionMm.y,
+    palletPose.positionMm.z,
+  );
+  root.rotation.z = THREE.MathUtils.degToRad(palletPose.yawDeg);
   scene.add(root);
 
   const ambient = new THREE.AmbientLight(0xffffff, 0.8);
@@ -293,12 +304,15 @@ export function buildViewerScene(
     }
     for (const item of state.packages) {
       const group = simulationPackageGroup(item.placementId);
+      const localPose = options.palletPose
+        ? viewerPoseToLocal(palletPose, item.pose)
+        : item.pose;
       group.position.set(
-        item.pose.positionMm.x,
-        item.pose.positionMm.y,
-        item.pose.positionMm.z,
+        localPose.positionMm.x,
+        localPose.positionMm.y,
+        localPose.positionMm.z,
       );
-      group.rotation.z = THREE.MathUtils.degToRad(item.pose.yawDeg);
+      group.rotation.z = THREE.MathUtils.degToRad(localPose.yawDeg);
       group.userData.phase = item.phase;
       group.visible = true;
     }
@@ -670,9 +684,14 @@ export function buildViewerScene(
   root.add(axes);
   resources.trackObject(axes);
 
+  root.updateMatrixWorld(true);
+  const worldBounds = hasBounds
+    ? allBounds.clone().applyMatrix4(root.matrixWorld)
+    : null;
+
   return {
     root,
-    bounds: hasBounds ? allBounds : null,
+    bounds: worldBounds,
     layerRenders,
     interlayerRenders,
     layerLabels,

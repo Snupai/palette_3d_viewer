@@ -13,6 +13,10 @@ import type {
   ViewerSimulationPackage,
   ViewerSimulationState,
 } from "~/components/rob-viewer/viewerTypes";
+import {
+  composeViewerPoses,
+  IDENTITY_VIEWER_POSE,
+} from "~/components/rob-viewer/viewerPoseMath";
 
 export type PlaybackDirection = "forward" | "reverse";
 
@@ -109,6 +113,7 @@ export function createSimulationFrame(
   toViewerPose: (
     pose: RobotCycleMaterialization["cycles"][number]["pickPose"],
   ) => ViewerScenePose,
+  palletPose: ViewerScenePose = IDENTITY_VIEWER_POSE,
 ): SimulationFrame {
   const timeMs = clampTimelineCursor(timeline, requestedTimeMs);
   const sample = seekRobotTimeline(timeline, timeMs, "forward");
@@ -155,14 +160,14 @@ export function createSimulationFrame(
 
   for (const layer of materialization.stack?.packageLayers ?? []) {
     for (const placement of layer.placements) {
-      const finalPose: ViewerScenePose = {
+      const finalPose = composeViewerPoses(palletPose, {
         positionMm: {
           x: placement.positionMm.x,
           y: placement.positionMm.y,
           z: (layer.zBottomMm + layer.zTopMm) / 2,
         },
         yawDeg: placement.rotation,
-      };
+      });
       if (completedPlacementIds.has(placement.id)) {
         packages.push({
           placementId: placement.id,

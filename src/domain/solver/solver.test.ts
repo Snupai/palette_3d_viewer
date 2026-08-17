@@ -652,7 +652,7 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(lengthwise.geometryId).toBe(crosswise.geometryId);
     expect(lengthwise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
       { dx: 0, dy: 0 },
-      { dx: 0, dy: 0 },
+      { dx: 0, dy: 1 },
     ]);
     const verticalDependency = {
       beforeGripId: "generated-grip:1",
@@ -661,7 +661,7 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(lengthwise.orderDependencies).toEqual([verticalDependency]);
     expect(crosswise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
       { dx: 0, dy: 0 },
-      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
     ]);
     expect(crosswise.orderDependencies).toEqual([verticalDependency]);
     expect(lengthwise.identityFingerprint).not.toBe(

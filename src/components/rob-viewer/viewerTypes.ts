@@ -11,6 +11,28 @@ export type ViewerScenePose = {
   yawDeg: number;
 };
 
+export type ViewerTemporaryCalibrationTarget = "pallet" | "pickup";
+export type ViewerTemporaryCalibrationMode = "translate" | "rotate";
+
+export type ViewerSceneCalibrationConfig = {
+  robotCellRevision: string;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
+export type ViewerTemporaryCalibrationConfig = {
+  resetKey: string;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
+export type ViewerTemporaryCalibrationState = {
+  activeTarget: ViewerTemporaryCalibrationTarget;
+  mode: ViewerTemporaryCalibrationMode;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
 export type ViewerSimulationPackagePhase = "feed" | "attached" | "placed";
 
 export type ViewerSimulationPackage = {
@@ -118,6 +140,7 @@ export type ViewerSceneBuildOptions = {
   /** Generic per-layer render offsets; RobViewer uses the final entry for lifted-top display. */
   layerOffsetsZMm?: readonly number[];
   showLayerLabels?: boolean;
+  palletPose?: ViewerScenePose;
 };
 
 export type ViewerSceneOptions = ViewerSceneBuildOptions & {
@@ -192,6 +215,8 @@ export type RobViewerProps = {
   liftCarriageMm?: number | null;
   simulationPose?: ViewerScenePose | null;
   simulationState?: ViewerSimulationState | null;
+  sceneCalibration?: ViewerSceneCalibrationConfig;
+  temporaryCalibration?: ViewerTemporaryCalibrationConfig;
   onBoxSelect?: (selection: BoxSelection | null) => void;
 };
 

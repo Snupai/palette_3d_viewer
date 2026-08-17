@@ -1,8 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { RobViewer, type ViewerEquipmentConfig } from "~/components/RobViewer";
-import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
+import {
+  RobViewer,
+  type ViewerEquipmentConfig,
+  type ViewerSceneCalibrationConfig,
+  type ViewerTemporaryCalibrationConfig,
+} from "~/components/RobViewer";
+import {
+  BUNDLED_ROBOT_CELL,
+  BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+} from "~/components/rob-viewer/bundledRobotCell";
 import type { PalletData } from "~/domain/palletTypes";
 import type { Project } from "~/domain/project/projectSchema";
 import {
@@ -19,6 +27,10 @@ import {
   timelinePhaseLabel,
   type PlaybackDirection,
 } from "~/features/simulation/simulationPlayback";
+import {
+  createViewerSimulationCycles,
+  timelinePoseToViewerPose,
+} from "~/features/simulation/viewerSimulationPlan";
 import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
 
 const buttonClass =
@@ -55,9 +67,25 @@ export function SimulationWorkspace({
   previewData,
 }: SimulationWorkspaceProps) {
   const [config, setConfig] = useState<RobotTimelineConfig>(defaultConfig);
+  const sceneCalibration = useMemo<ViewerSceneCalibrationConfig | null>(
+    () =>
+      project.source.kind === "new"
+        ? BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION
+        : null,
+    [project.source.kind],
+  );
+  const viewerCycles = useMemo(
+    () =>
+      createViewerSimulationCycles(
+        materialization.cycles,
+        (pose) => robotPoseToViewerPose(pose, project, materialization),
+        sceneCalibration,
+      ),
+    [materialization, project, sceneCalibration],
+  );
   const timeline = useMemo(
-    () => createRobotTimeline(materialization.cycles, config),
-    [config, materialization.cycles],
+    () => createRobotTimeline(viewerCycles, config),
+    [config, viewerCycles],
   );
   const [cursorMs, setCursorMs] = useState(0);
   const [direction, setDirection] = useState<PlaybackDirection>("forward");
@@ -115,14 +143,15 @@ export function SimulationWorkspace({
   const simulationFrame = createSimulationFrame(
     timeline,
     cursorMs,
-    materialization,
-    (pose) => robotPoseToViewerPose(pose, project, materialization),
+    { cycles: viewerCycles, stack: materialization.stack },
+    timelinePoseToViewerPose,
+    sceneCalibration?.palletPose,
   );
 
   const equipment = useMemo<ViewerEquipmentConfig>(() => {
-    const firstPick = materialization.cycles[0]?.pickPose ?? null;
+    const firstPick = viewerCycles[0]?.pickPose ?? null;
     const robotHomePose = firstPick
-      ? robotPoseToViewerPose(firstPick, project, materialization)
+      ? timelinePoseToViewerPose(firstPick)
       : null;
     const conveyorPose = materialization.conveyor
       ? robotPoseToViewerPose(
@@ -207,7 +236,41 @@ export function SimulationWorkspace({
           : null,
       robotCell,
     };
-  }, [liftCarriageMm, materialization, project]);
+  }, [liftCarriageMm, materialization, project, viewerCycles]);
+
+  const temporaryCalibration = useMemo<ViewerTemporaryCalibrationConfig>(() => {
+    const firstCycle = viewerCycles[0] ?? null;
+    const pickupPose = sceneCalibration
+      ? sceneCalibration.pickupPose
+      : firstCycle
+        ? timelinePoseToViewerPose(firstCycle.pickPose)
+        : materialization.conveyor
+          ? robotPoseToViewerPose(
+              {
+                frame: materialization.conveyor.frame,
+                positionMm: materialization.conveyor.centerMm,
+                yawDeg: 0,
+              },
+              project,
+              materialization,
+            )
+          : {
+              positionMm: {
+                x: 0,
+                y: 0,
+                z: project.package.dimensionsMm.height,
+              },
+              yawDeg: 0,
+            };
+    return {
+      resetKey: `${project.id}:${firstCycle?.id ?? "no-cycle"}:${sceneCalibration?.robotCellRevision ?? "uncalibrated"}`,
+      palletPose: sceneCalibration?.palletPose ?? {
+        positionMm: { x: 0, y: 0, z: 0 },
+        yawDeg: 0,
+      },
+      pickupPose,
+    };
+  }, [materialization, project, sceneCalibration, viewerCycles]);
 
   const canNavigate = timeline.valid && timeline.segments.length > 0;
   const setBoundary = (next: number) => {
@@ -387,7 +450,7 @@ export function SimulationWorkspace({
             <dd className="text-zinc-200">{direction}</dd>
             <dt className="text-zinc-500">Frame</dt>
             <dd className="font-mono text-zinc-200">
-              {sample?.pose.frame ?? "—"}
+              {sample ? "viewer" : "—"}
             </dd>
             <dt className="text-zinc-500">X</dt>
             <dd className="font-mono text-zinc-200">
@@ -514,6 +577,8 @@ export function SimulationWorkspace({
               }
               simulationPose={simulationFrame.tcpPose}
               simulationState={simulationFrame}
+              sceneCalibration={sceneCalibration ?? undefined}
+              temporaryCalibration={temporaryCalibration}
             />
           ) : (
             <div className="flex min-h-[560px] items-center justify-center px-4 text-center text-sm text-zinc-600">

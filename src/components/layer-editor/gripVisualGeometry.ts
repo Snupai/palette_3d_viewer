@@ -73,8 +73,8 @@ export function gripDeltaArrow(
     bottom = Math.max(bottom, footprint.bottom);
   }
 
-  const vectorX = delta.dx;
-  const vectorY = -delta.dy;
+  const vectorX = -delta.dx;
+  const vectorY = delta.dy;
   const vectorLength = Math.hypot(vectorX, vectorY);
   const unitX = vectorX / vectorLength;
   const unitY = vectorY / vectorLength;

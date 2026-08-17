@@ -70,6 +70,7 @@ export type RobotDiagnosticCode =
   | "invalid-orthogonal-yaw"
   | "missing-sign-convention"
   | "mixed-coordinate-frames"
+  | "unresolved-project-coordinate-frame"
   | "unknown-legacy-field-semantics"
   | "missing-explicit-legacy-fields"
   | "nonstandard-interlayer-thickness"
@@ -232,6 +233,8 @@ export type RobotCycle = {
   pickPose: RobotPose;
   transferPose: RobotPose;
   placePose: RobotPose;
+  /** Pallet-local grip pose for legacy .rob place fields; this is not a robot TCP pose. */
+  placeGripPosePallet: RobotPose & { frame: "pallet" };
   legacyUnknownFields: LegacyRobUnknownFields | null;
   provenance: RobotCycleProvenance;
 };

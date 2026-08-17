@@ -215,7 +215,7 @@ describe("PatternCanvas", () => {
       y1: deltaLine.getAttribute("y1"),
       x2: deltaLine.getAttribute("x2"),
       y2: deltaLine.getAttribute("y2"),
-    }).toEqual({ x1: "100", y1: "250", x2: "100", y2: "270" });
+    }).toEqual({ x1: "100", y1: "250", x2: "100", y2: "230" });
     expect(screen.getByText("Δx 0 / Δy -1")).toBeTruthy();
 
     const svg = screen.getByRole("application") as unknown as SVGSVGElement;

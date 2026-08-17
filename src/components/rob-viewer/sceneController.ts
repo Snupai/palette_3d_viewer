@@ -12,6 +12,10 @@ import {
 } from "~/components/rob-viewer/robotCellLoader";
 import { buildViewerScene } from "~/components/rob-viewer/sceneBuilder";
 import {
+  createViewerCalibrationOverlay,
+  type ViewerCalibrationOverlay,
+} from "~/components/rob-viewer/sceneCalibrationOverlay";
+import {
   createViewerEquipment,
   type ViewerEquipmentController,
 } from "~/components/rob-viewer/sceneEquipment";
@@ -46,6 +50,8 @@ import type {
   ViewerSceneOptions,
   ViewerScenePose,
   ViewerSimulationState,
+  ViewerTemporaryCalibrationState,
+  ViewerTemporaryCalibrationTarget,
 } from "~/components/rob-viewer/viewerTypes";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
@@ -62,6 +68,7 @@ export type ViewerRenderer = {
 };
 
 export type ViewerControls = {
+  enabled: boolean;
   enableDamping: boolean;
   dampingFactor: number;
   screenSpacePanning: boolean;
@@ -121,6 +128,7 @@ export type ViewerSceneController = {
   setLiftCarriageMm(value: number | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
+  setTemporaryCalibration(state: ViewerTemporaryCalibrationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
   captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
@@ -136,6 +144,7 @@ type ViewerRuntime = {
   setLiftCarriageMm(value: number | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
+  setTemporaryCalibration(state: ViewerTemporaryCalibrationState | null): void;
   setCameraPreset(preset: ViewerCameraPreset): void;
   captureReportFrame(options?: ViewerCaptureOptions): ViewerCaptureResult;
   dispose(): void;
@@ -190,10 +199,17 @@ function defaultResizeObserverFactory(
 export function createViewerSceneController({
   container,
   getOnBoxSelect,
+  getOnTemporaryCalibrationChange = () => undefined,
   dependencies = {},
 }: {
   container: HTMLElement;
   getOnBoxSelect: () => ((selection: BoxSelection | null) => void) | undefined;
+  getOnTemporaryCalibrationChange?: () =>
+    | ((
+        target: ViewerTemporaryCalibrationTarget,
+        pose: ViewerScenePose,
+      ) => void)
+    | undefined;
   dependencies?: Partial<ViewerSceneControllerDependencies>;
 }): ViewerSceneController {
   const browserWindow =
@@ -232,6 +248,7 @@ export function createViewerSceneController({
   let liftCarriageMm: number | null = 0;
   let simulationPose: ViewerScenePose | null = null;
   let simulationState: ViewerSimulationState | null = null;
+  let temporaryCalibration: ViewerTemporaryCalibrationState | null = null;
   let disposed = false;
 
   const emitSelection = (selection: BoxSelection | null) => {
@@ -279,6 +296,7 @@ export function createViewerSceneController({
     let robotCellLoadKey: string | null = null;
     let robotCellRequest = 0;
     let equipment: ViewerEquipmentController | null = null;
+    let calibrationOverlay: ViewerCalibrationOverlay | null = null;
     let runtimeDisposed = false;
     let pointerDown: PointerPosition | null = null;
     let selectedEntry: BoxPickEntry | null = null;
@@ -299,12 +317,20 @@ export function createViewerSceneController({
     };
 
     const onPointerDown = (event: PointerEvent) => {
+      if (temporaryCalibration) {
+        pointerDown = null;
+        return;
+      }
       pointerDown = { x: event.clientX, y: event.clientY };
     };
 
     const raycaster = new THREE.Raycaster();
     const pointer = new THREE.Vector2();
     const onPointerUp = (event: PointerEvent) => {
+      if (temporaryCalibration) {
+        pointerDown = null;
+        return;
+      }
       if (!pointerDown || !sceneBuild || !highlighter) return;
       const pointerUp = { x: event.clientX, y: event.clientY };
       const startedAt = pointerDown;
@@ -430,6 +456,41 @@ export function createViewerSceneController({
         });
     };
 
+    const syncTemporaryCalibration = (
+      state: ViewerTemporaryCalibrationState | null,
+    ) => {
+      if (!state) {
+        calibrationOverlay?.dispose();
+        calibrationOverlay = null;
+        if (controls) controls.enabled = true;
+        animationLoop?.requestRender();
+        return;
+      }
+      if (!sceneBuild) return;
+      calibrationOverlay ??= createViewerCalibrationOverlay({
+          scene,
+          camera,
+          domElement: renderer.domElement,
+          palletObject: sceneBuild.root,
+          packageDimensionsMm: currentData.package,
+          onPoseChange: (target, pose) => {
+            getOnTemporaryCalibrationChange()?.(target, pose);
+          },
+          onDraggingChange: (dragging) => {
+            if (controls) controls.enabled = !dragging;
+            pointerDown = null;
+          },
+        requestRender: () => animationLoop?.requestRender(),
+      });
+      pointerDown = null;
+      if (selectedEntry) {
+        selectedEntry = null;
+        highlighter?.clear();
+        emitSelection(null);
+      }
+      calibrationOverlay.setState(state);
+    };
+
     const updateVisibility = (nextVisibleUpToLayer: number) => {
       if (!sceneBuild || !highlighter) return;
       maxVisibleLayer = applyLayerVisibility({
@@ -483,6 +544,8 @@ export function createViewerSceneController({
         throw new Error("Viewer highlighter was not created.");
       }
 
+      calibrationOverlay?.dispose();
+      calibrationOverlay = null;
       highlighter?.dispose();
       sceneBuild?.dispose();
       currentData = nextData;
@@ -515,6 +578,7 @@ export function createViewerSceneController({
       }
 
       updateLayerLabelFacing();
+      syncTemporaryCalibration(temporaryCalibration);
       emitSelection(null);
       animationLoop?.requestRender();
     };
@@ -540,6 +604,8 @@ export function createViewerSceneController({
       }
       pointerDown = null;
       selectedEntry = null;
+      calibrationOverlay?.dispose();
+      calibrationOverlay = null;
       highlighter?.dispose();
       highlighter = null;
       equipment?.setRobotCell(null);
@@ -731,6 +797,10 @@ export function createViewerSceneController({
         }
         animationLoop?.requestRender();
       },
+      setTemporaryCalibration(state) {
+        if (runtimeDisposed) return;
+        syncTemporaryCalibration(state);
+      },
       setCameraPreset,
       captureReportFrame,
       dispose: cleanup,
@@ -766,6 +836,11 @@ export function createViewerSceneController({
       if (disposed) return;
       simulationState = state;
       runtime?.setSimulationState(state);
+    },
+    setTemporaryCalibration(state) {
+      if (disposed) return;
+      temporaryCalibration = state;
+      runtime?.setTemporaryCalibration(state);
     },
     setCameraPreset(preset) {
       if (disposed) return;

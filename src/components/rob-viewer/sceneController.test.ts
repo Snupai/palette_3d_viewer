@@ -53,6 +53,7 @@ describe("viewer scene controller cleanup", () => {
     };
     const controlsDispose = vi.fn();
     const controls: ViewerControls = {
+      enabled: true,
       enableDamping: false,
       dampingFactor: 0,
       screenSpacePanning: false,
@@ -305,6 +306,7 @@ describe("viewer scene controller cleanup", () => {
 
     let camera: THREE.PerspectiveCamera | null = null;
     const controls: ViewerControls = {
+      enabled: true,
       enableDamping: false,
       dampingFactor: 0,
       screenSpacePanning: false,

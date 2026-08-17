@@ -1,4 +1,7 @@
-import type { ViewerRobotCellAssetConfig } from "./viewerTypes";
+import type {
+  ViewerRobotCellAssetConfig,
+  ViewerSceneCalibrationConfig,
+} from "./viewerTypes";
 
 export const BUNDLED_ROBOT_CELL = {
   assetUrl: "/models/robot-cell/ur10-palletizer.glb",
@@ -65,3 +68,15 @@ export const BUNDLED_ROBOT_CELL = {
       "The CAD arm meshes carry no joint frames, so the animated arm is the procedural two-link visualization mounted at the measured CAD base. Lift position is a visualization target; UR10 kinematics, synchronized lift timing, reach, and collisions are not checked.",
   },
 } as const satisfies ViewerRobotCellAssetConfig;
+
+export const BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION = {
+  robotCellRevision: BUNDLED_ROBOT_CELL.revision,
+  palletPose: {
+    positionMm: { x: 789, y: -5, z: 0 },
+    yawDeg: 90,
+  },
+  pickupPose: {
+    positionMm: { x: 1_492, y: 207, z: 962 },
+    yawDeg: -90,
+  },
+} as const satisfies ViewerSceneCalibrationConfig;

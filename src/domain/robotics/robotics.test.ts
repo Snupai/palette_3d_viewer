@@ -302,6 +302,7 @@ function cycle(
     pickPose,
     transferPose,
     placePose,
+    placeGripPosePallet: { ...placePose, frame: "pallet" },
     legacyUnknownFields: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
@@ -1310,6 +1311,48 @@ describe("project-derived .rob export", () => {
       signConvention: { id: "identity-station-v1" },
       parserRoundtrip: "pending",
     });
+  });
+
+  it("blocks generated cycles that have not resolved into the station frame", () => {
+    const materialized = materializeRobotCycles(
+      calculatedProject({
+        placements: [placement("package-1", 0, 100, 50)],
+      }),
+      { pickReference },
+    );
+    const unresolved = {
+      ...materialized,
+      cycles: materialized.cycles.map((generatedCycle) => ({
+        ...generatedCycle,
+        pickPose: { ...generatedCycle.pickPose, frame: "pallet" as const },
+        transferPose: {
+          ...generatedCycle.transferPose,
+          frame: "pallet" as const,
+        },
+        placePose: { ...generatedCycle.placePose, frame: "pallet" as const },
+      })),
+    };
+
+    const exported = exportProjectRob(
+      unresolved,
+      identityExportOptions(unresolved.cycles.map(({ id }) => id)),
+    );
+
+    expect(materialized.valid).toBe(true);
+    expect(exported.ok).toBe(false);
+    expect(exported.text).toBeNull();
+    expect(exported.data).toBeNull();
+    expect(exported.diagnostics).toContainEqual(
+      expect.objectContaining({
+        severity: "error",
+        phase: "export",
+        code: "unresolved-project-coordinate-frame",
+        cycleId: unresolved.cycles[0]?.id,
+      }),
+    );
+    expect(exported.diagnostics.map(({ code }) => code)).not.toContain(
+      "mixed-coordinate-frames",
+    );
   });
 
   it("matches the golden text and verifies parser roundtrip", () => {

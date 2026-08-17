@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION } from "~/components/rob-viewer/bundledRobotCell";
 import {
   createRobotTimeline,
   type RobotCycle,
@@ -12,6 +13,10 @@ import {
   stepTimelineCursor,
   timelinePhaseLabel,
 } from "~/features/simulation/simulationPlayback";
+import {
+  createViewerSimulationCycles,
+  timelinePoseToViewerPose,
+} from "~/features/simulation/viewerSimulationPlan";
 
 function pose(x: number, y: number, yawDeg = 0, z = 100): RobotPose {
   return {
@@ -45,6 +50,7 @@ function robotCycle(
     pickPose,
     transferPose,
     placePose,
+    placeGripPosePallet: { ...placePose, frame: "pallet" },
     legacyUnknownFields: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
@@ -318,6 +324,83 @@ describe("absolute-time package state", () => {
       "placed",
       "placed",
       "placed",
+    ]);
+  });
+
+  it("spawns at the confirmed pickup and releases on the calibrated pallet", () => {
+    const calibratedCycles = createViewerSimulationCycles(
+      cycles,
+      toViewerPose,
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+    );
+    const calibratedTimeline = createRobotTimeline(calibratedCycles, {
+      linearSpeedMmPerSec: 100,
+      angularSpeedDegPerSec: 90,
+      pickDwellMs: 100,
+      placeDwellMs: 100,
+      betweenCycleDwellMs: 0,
+    });
+    const calibratedMaterialization = {
+      cycles: calibratedCycles,
+      stack: materialization.stack,
+    };
+    const palletPose =
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
+
+    const feed = createSimulationFrame(
+      calibratedTimeline,
+      0,
+      calibratedMaterialization,
+      timelinePoseToViewerPose,
+      palletPose,
+    );
+    expect(feed.tcpPose).toEqual({
+      positionMm: { x: 1_492, y: 207, z: 962 },
+      yawDeg: 270,
+    });
+    expect(feed.packages).toEqual([
+      {
+        placementId: "placement-1",
+        phase: "feed",
+        pose: {
+          positionMm: { x: 1_492, y: 227, z: 912 },
+          yawDeg: 270,
+        },
+      },
+      {
+        placementId: "placement-2",
+        phase: "feed",
+        pose: {
+          positionMm: { x: 1_492, y: 187, z: 912 },
+          yawDeg: 270,
+        },
+      },
+    ]);
+
+    const released = createSimulationFrame(
+      calibratedTimeline,
+      calibratedTimeline.cycleWindows[0]!.placeMs,
+      calibratedMaterialization,
+      timelinePoseToViewerPose,
+      palletPose,
+    );
+    expect(released.packages).toEqual([
+      {
+        placementId: "placement-1",
+        phase: "placed",
+        pose: {
+          positionMm: { x: 689, y: 75, z: 50 },
+          yawDeg: 90,
+        },
+      },
+      {
+        placementId: "placement-2",
+        phase: "placed",
+        pose: {
+          positionMm: { x: 689, y: 115, z: 50 },
+          yawDeg: 90,
+        },
+      },
     ]);
   });
 

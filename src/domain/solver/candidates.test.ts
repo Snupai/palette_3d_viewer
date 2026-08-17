@@ -35,7 +35,6 @@ describe("generated candidate blue lines", () => {
         100,
         50,
         0,
-        { maxReferenceGapMm: 0 },
       );
       expect(candidate.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual(
         derived.deltas,

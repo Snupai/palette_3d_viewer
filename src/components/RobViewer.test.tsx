@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -11,8 +12,21 @@ import { RobViewer } from "~/components/RobViewer";
 import type {
   RobViewerHandle,
   ViewerCaptureResult,
+  ViewerScenePose,
+  ViewerTemporaryCalibrationTarget,
 } from "~/components/rob-viewer/viewerTypes";
 import type { PalletData } from "~/domain/palletTypes";
+
+const sceneControllerHarness = vi.hoisted(() => ({
+  getOnTemporaryCalibrationChange: undefined as
+    | (() =>
+        | ((
+            target: ViewerTemporaryCalibrationTarget,
+            pose: ViewerScenePose,
+          ) => void)
+        | undefined)
+    | undefined,
+}));
 
 const controller = vi.hoisted(() => ({
   setData: vi.fn(),
@@ -20,6 +34,7 @@ const controller = vi.hoisted(() => ({
   setLiftCarriageMm: vi.fn(),
   setSimulationPose: vi.fn(),
   setSimulationState: vi.fn(),
+  setTemporaryCalibration: vi.fn(),
   setCameraPreset: vi.fn(),
   captureReportFrame: vi.fn<() => ViewerCaptureResult>(() => ({
     status: "fallback",
@@ -31,7 +46,13 @@ const controller = vi.hoisted(() => ({
 }));
 
 vi.mock("~/components/rob-viewer/sceneController", () => ({
-  createViewerSceneController: () => controller,
+  createViewerSceneController: (options: {
+    getOnTemporaryCalibrationChange?: typeof sceneControllerHarness.getOnTemporaryCalibrationChange;
+  }) => {
+    sceneControllerHarness.getOnTemporaryCalibrationChange =
+      options.getOnTemporaryCalibrationChange;
+    return controller;
+  },
 }));
 
 function data(): PalletData {
@@ -66,6 +87,7 @@ function data(): PalletData {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  sceneControllerHarness.getOnTemporaryCalibrationChange = undefined;
   controller.captureReportFrame.mockReturnValue({
     status: "fallback",
     reason: "canvas-capture-failed",
@@ -117,6 +139,82 @@ describe("RobViewer", () => {
       }),
     );
     expect(source.layers[1]?.boxes[0]?.rect.x).toBe(600);
+  });
+
+  it("keeps dragged calibration poses temporary and exposes their exact values", async () => {
+    const temporaryCalibration = {
+      resetKey: "calibration-1",
+      palletPose: {
+        positionMm: { x: 0, y: 0, z: 0 },
+        yawDeg: 0,
+      },
+      pickupPose: {
+        positionMm: { x: -500, y: 400, z: 700 },
+        yawDeg: 90,
+      },
+    };
+    render(
+      <RobViewer
+        data={data()}
+        visibleUpToLayer={2}
+        temporaryCalibration={temporaryCalibration}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Calibrate" }));
+    await waitFor(() =>
+      expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith({
+        activeTarget: "pallet",
+        mode: "translate",
+        palletPose: temporaryCalibration.palletPose,
+        pickupPose: temporaryCalibration.pickupPose,
+      }),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Pickup" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Rotate Z" }));
+    await waitFor(() =>
+      expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          activeTarget: "pickup",
+          mode: "rotate",
+        }),
+      ),
+    );
+
+    const draggedPickup = {
+      positionMm: { x: -615, y: 455, z: 812 },
+      yawDeg: -179,
+    };
+    act(() => {
+      sceneControllerHarness.getOnTemporaryCalibrationChange?.()?.(
+        "pickup",
+        draggedPickup,
+      );
+    });
+
+    await waitFor(() => {
+      const values: unknown = JSON.parse(
+        screen
+          .getByTestId("temporary-calibration-panel")
+          .getAttribute("data-calibration-values") ?? "{}",
+      );
+      expect(values).toEqual({
+        pallet: temporaryCalibration.palletPose,
+        pickup: draggedPickup,
+      });
+    });
+    expect(temporaryCalibration.pickupPose).toEqual({
+      positionMm: { x: -500, y: 400, z: 700 },
+      yawDeg: 90,
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Close calibration" }),
+    );
+    await waitFor(() =>
+      expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith(null),
+    );
   });
 
   it("enriches failed deterministic captures with the reusable 2D fallback", async () => {

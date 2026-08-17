@@ -6,10 +6,7 @@ import {
   savedPalletToProject,
   savedPalletToProjectV2,
 } from "~/lib/projectAdapters";
-import {
-  applyProjectEditorCommand,
-  projectEditorOrderModel,
-} from "~/features/editor/editorModel";
+import { projectEditorOrderModel } from "~/features/editor/editorModel";
 import { updateProject } from "~/domain/project/projectFactory";
 import { semanticRobPlanFingerprint } from "~/lib/parityGoldenCase";
 import type { SavedPallet } from "~/lib/palletTypes";
@@ -172,7 +169,7 @@ describe("project v2 adapters", () => {
     ]);
   });
 
-  it("keeps retained legacy text untouched while editor order remains serializable", () => {
+  it("keeps retained legacy text untouched while the imported project remains serializable", () => {
     const project = savedPalletToProject(savedPallet());
     const solution = project.solutions[0]!;
     const pattern = solution.patterns.reduce((largest, candidate) =>
@@ -180,15 +177,11 @@ describe("project v2 adapters", () => {
     );
     const model = projectEditorOrderModel(project, solution.id, pattern.id);
     expect(model.groups.length).toBeGreaterThan(1);
+    expect(model.diagnostics).toContainEqual(
+      expect.objectContaining({ code: "invalid-order", severity: "error" }),
+    );
 
-    const edited = applyProjectEditorCommand(project, {
-      type: "reorder-group",
-      mode: "order",
-      solutionId: solution.id,
-      patternId: pattern.id,
-      gripId: model.groups[0]!.id,
-      toIndex: model.groups.length - 1,
-    });
+    const edited = project;
     const projected = projectSolutionToPalletData(edited);
     const reparsed = parseRobText(serializeRobText(projected));
 
@@ -204,10 +197,7 @@ describe("project v2 adapters", () => {
         .filter(({ patternId }) => patternId === pattern.id)
         .sort((left, right) => left.sequence - right.sequence)
         .map(({ gripId }) => gripId),
-    ).toEqual(
-      edited.solutions[0]?.patterns.find(({ id }) => id === pattern.id)
-        ?.groupOrder,
-    );
+    ).toEqual(model.order);
   });
 
   it("fails clearly when a requested solution does not exist", () => {

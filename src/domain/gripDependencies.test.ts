@@ -234,7 +234,7 @@ describe("derived grip approach deltas", () => {
     grip("left-top", 50, 150),
   ];
 
-  it("moves toward earlier target-side grips while the opposite approach stays clear", () => {
+  it("stores the opposite approach offset while target-side references stay unchanged", () => {
     const { deltas, dependencies } = deriveGripDeltasForPlacementOrder(
       quadrant,
       100,
@@ -245,9 +245,9 @@ describe("derived grip approach deltas", () => {
 
     expect(deltas).toEqual([
       { dx: 0, dy: 0 },
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: 0 },
-      { dx: 1, dy: -1 },
+      { dx: 0, dy: 1 },
+      { dx: -1, dy: 0 },
+      { dx: -1, dy: 1 },
     ]);
     expect(dependencies).toEqual([
       { prerequisiteIndex: 0, dependentIndex: 1 },
@@ -316,7 +316,7 @@ describe("derived grip approach deltas", () => {
       { maxReferenceGapMm: 0 },
     );
 
-    expect(deltas[3]).toEqual({ dx: 1, dy: 0 });
+    expect(deltas[3]).toEqual({ dx: -1, dy: 0 });
     expect(
       dependencies.filter(({ dependentIndex }) => dependentIndex === 3),
     ).toEqual([{ prerequisiteIndex: 0, dependentIndex: 3 }]);
@@ -341,7 +341,24 @@ describe("derived grip approach deltas", () => {
     ).toEqual([]);
   });
 
-  it("keeps a lone grip and grips beyond the reference gap at zero", () => {
+  it("uses the nearest earlier grip across a layout gap by default", () => {
+    const { deltas, dependencies } = deriveGripDeltasForPlacementOrder(
+      [grip("right", 200, 50), grip("left", 50, 50)],
+      100,
+      100,
+      0,
+    );
+
+    expect(deltas).toEqual([
+      { dx: 0, dy: 0 },
+      { dx: -1, dy: 0 },
+    ]);
+    expect(dependencies).toEqual([
+      { prerequisiteIndex: 0, dependentIndex: 1 },
+    ]);
+  });
+
+  it("keeps a lone grip and grips beyond an explicit reference gap at zero", () => {
     const { deltas, dependencies } = deriveGripDeltasForPlacementOrder(
       [grip("a", 50, 50), grip("far", 950, 50)],
       100,
@@ -361,10 +378,10 @@ describe("derived grip approach deltas", () => {
 describe("merged grip dependency placement", () => {
   it("inserts a merged grip between its prerequisites and dependents", () => {
     const prerequisite = grip("prerequisite", 350, 100);
-    const firstSelected = grip("selected-1", 250, 100, 1);
-    const secondSelected = grip("selected-2", 150, 100, 1);
-    const dependent = grip("dependent", 50, 100, 1);
-    const mergedGrip = grip("merged", 200, 100, 1, 0, { numPackages: 2 });
+    const firstSelected = grip("selected-1", 250, 100, -1);
+    const secondSelected = grip("selected-2", 150, 100, -1);
+    const dependent = grip("dependent", 50, 100, -1);
+    const mergedGrip = grip("merged", 200, 100, -1, 0, { numPackages: 2 });
 
     const result = insertMergedGripByDeltaDependencies(
       [prerequisite, firstSelected, secondSelected, dependent],
@@ -384,7 +401,7 @@ describe("merged grip dependency placement", () => {
   });
 
   it("rejects selections with fewer than two valid grips", () => {
-    const grips = [grip("first", 150, 100), grip("second", 50, 100, 1)];
+    const grips = [grip("first", 150, 100), grip("second", 50, 100, -1)];
 
     expect(
       insertMergedGripByDeltaDependencies(

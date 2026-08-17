@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { describe, expect, it, vi } from "vitest";
+import { BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION } from "~/components/rob-viewer/bundledRobotCell";
 import { buildViewerScene } from "~/components/rob-viewer/sceneBuilder";
 import type { Box, PalletData } from "~/domain/palletTypes";
 
@@ -156,6 +157,44 @@ describe("viewer scene builder", () => {
     built.setSimulationState(null);
     expect(packageA.visible).toBe(false);
     expect(packageB.visible).toBe(false);
+
+    built.dispose();
+  });
+
+  it("renders world-space packages on the confirmed calibrated pallet pose", () => {
+    const scene = new THREE.Scene();
+    const palletPose =
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
+    const built = buildViewerScene(scene, palletData(), { palletPose });
+
+    expect(built.root.position.toArray()).toEqual([789, -5, 0]);
+    expect(built.root.rotation.z).toBeCloseTo(Math.PI / 2);
+    expect(built.bounds?.min.x).toBeCloseTo(-11);
+    expect(built.bounds?.max.y).toBeCloseTo(1_195);
+
+    built.setSimulationState({
+      packages: [
+        {
+          placementId: "calibrated-package",
+          phase: "placed",
+          pose: {
+            positionMm: { x: 769, y: 5, z: 300 },
+            yawDeg: 90,
+          },
+        },
+      ],
+      completedPackageLayerIndexes: [],
+    });
+
+    const packageGroup = built.root.getObjectByName(
+      "simulation-package:calibrated-package",
+    )!;
+    expect(packageGroup.position.toArray()).toEqual([10, 20, 300]);
+    expect(packageGroup.rotation.z).toBeCloseTo(0);
+    const worldPosition = packageGroup.getWorldPosition(new THREE.Vector3());
+    expect(worldPosition.x).toBeCloseTo(769);
+    expect(worldPosition.y).toBeCloseTo(5);
+    expect(worldPosition.z).toBeCloseTo(300);
 
     built.dispose();
   });

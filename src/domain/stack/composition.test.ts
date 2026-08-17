@@ -244,9 +244,9 @@ describe("stack composition transforms", () => {
       ],
       [
         [0, 0],
-        [0, -1],
-        [1, 0],
-        [1, -1],
+        [0, 1],
+        [-1, 0],
+        [-1, 1],
       ],
     ],
     [
@@ -260,9 +260,9 @@ describe("stack composition transforms", () => {
       ],
       [
         [0, 0],
-        [0, -1],
-        [1, 0],
-        [1, -1],
+        [0, 1],
+        [-1, 0],
+        [-1, 1],
       ],
     ],
   ] as const)(
@@ -365,7 +365,6 @@ describe("stack composition transforms", () => {
     const transformed = transformStackPattern(
       stackPatternFromSolverCandidate(candidate, {
         transformFrameMm: input.envelopeMm,
-        maxReferenceGapMm: 0,
       }),
       "identity",
       input.package.dimensionsMm,
@@ -387,6 +386,19 @@ describe("stack composition transforms", () => {
     ];
 
     expect(transformed.grips).toHaveLength(47);
+    expect(
+      [1, 5, 12, 16].map((groupNumber) => {
+        const grip = transformed.grips.find(
+          (candidateGrip) => candidateGrip.groupNumber === groupNumber,
+        );
+        return { groupNumber, dx: grip?.dx, dy: grip?.dy };
+      }),
+    ).toEqual([
+      { groupNumber: 1, dx: 0, dy: 0 },
+      { groupNumber: 5, dx: -1, dy: 0 },
+      { groupNumber: 12, dx: -1, dy: 0 },
+      { groupNumber: 16, dx: -1, dy: 0 },
+    ]);
     expect(
       transformed.grips
         .slice(0, expectedGripPrefix.length)
@@ -609,7 +621,7 @@ describe("stack composition transforms", () => {
           y: 50,
           rotation: 0,
           numPackages: 1,
-          dx: 1,
+          dx: -1,
           dy: 0,
         },
         {
@@ -699,7 +711,7 @@ describe("stack composition transforms", () => {
           y: 50,
           rotation: 0,
           numPackages: 1,
-          dx: 1,
+          dx: -1,
           dy: 0,
         },
         {
@@ -759,7 +771,7 @@ describe("stack composition transforms", () => {
     expect(crosswise.groupOrder).toEqual(["target", "dependent"]);
     expect(crosswise.grips.map(({ dx, dy }) => ({ dx, dy }))).toEqual([
       { dx: 0, dy: 0 },
-      { dx: 1, dy: 0 },
+      { dx: -1, dy: 0 },
     ]);
     expect(crosswise.orderDependencies).toEqual([
       {

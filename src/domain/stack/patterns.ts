@@ -258,9 +258,7 @@ export function stackPatternsFromProjectSolution(
       transformFrameMm,
       transformFrameProvenance:
         projectTransformFrameProvenance(transformFrameMm),
-      generatedGripPolicy: solverGeneratedGripPlanning
-        ? { maxReferenceGapMm: project.package.clearanceMm }
-        : null,
+      generatedGripPolicy: solverGeneratedGripPlanning ? {} : null,
       provenance: {
         kind: "project-pattern",
         projectSchemaVersion: project.schemaVersion,
@@ -355,9 +353,10 @@ export function stackPatternFromSolverCandidate(
           ],
         }
       : null,
-    generatedGripPolicy: {
-      maxReferenceGapMm: options.maxReferenceGapMm ?? 0,
-    },
+    generatedGripPolicy:
+      options.maxReferenceGapMm === undefined
+        ? {}
+        : { maxReferenceGapMm: options.maxReferenceGapMm },
     provenance: {
       kind: "solver-candidate",
       candidateId: candidate.id,

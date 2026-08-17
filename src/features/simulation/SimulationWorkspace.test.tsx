@@ -6,7 +6,10 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { BUNDLED_ROBOT_CELL } from "~/components/rob-viewer/bundledRobotCell";
+import {
+  BUNDLED_ROBOT_CELL,
+  BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+} from "~/components/rob-viewer/bundledRobotCell";
 import type { RobViewerProps } from "~/components/rob-viewer/viewerTypes";
 import type { PalletData } from "~/domain/palletTypes";
 import { createProject } from "~/domain/project/projectFactory";
@@ -88,6 +91,20 @@ describe("SimulationWorkspace robot cell integration", () => {
     expect(lift.value).toBe("0");
     expect(latestViewerProps().equipment?.robotCell).toBe(BUNDLED_ROBOT_CELL);
     expect(latestViewerProps().liftCarriageMm).toBe(0);
+    expect(latestViewerProps().sceneCalibration).toEqual(
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+    );
+    expect(latestViewerProps().temporaryCalibration).toEqual({
+      resetKey: `ordinary-project:no-cycle:${BUNDLED_ROBOT_CELL.revision}`,
+      palletPose: {
+        positionMm: { x: 789, y: -5, z: 0 },
+        yawDeg: 90,
+      },
+      pickupPose: {
+        positionMm: { x: 1_492, y: 207, z: 962 },
+        yawDeg: -90,
+      },
+    });
 
     fireEvent.change(lift, { target: { value: "450" } });
 
@@ -119,5 +136,6 @@ describe("SimulationWorkspace robot cell integration", () => {
     ).toBeNull();
     expect(latestViewerProps().equipment?.robotCell).toBeNull();
     expect(latestViewerProps().liftCarriageMm).toBeNull();
+    expect(latestViewerProps().sceneCalibration).toBeUndefined();
   });
 });

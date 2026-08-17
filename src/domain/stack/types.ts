@@ -96,7 +96,7 @@ export type StackPatternLabelOrientationPolicy = {
 };
 
 export type StackPatternGeneratedGripPolicy = {
-  maxReferenceGapMm: number;
+  maxReferenceGapMm?: number;
 };
 
 export type StackPattern = {

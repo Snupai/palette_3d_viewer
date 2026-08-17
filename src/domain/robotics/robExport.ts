@@ -299,21 +299,21 @@ function gripForCycle(
       cycle,
     ),
     x: quantized(
-      cycle.placePose.positionMm.x * convention.xSign,
+      cycle.placeGripPosePallet.positionMm.x * convention.xSign,
       quantization,
       `${cycle.id}.placeX`,
       diagnostics,
       cycle,
     ),
     y: quantized(
-      cycle.placePose.positionMm.y * convention.ySign,
+      cycle.placeGripPosePallet.positionMm.y * convention.ySign,
       quantization,
       `${cycle.id}.placeY`,
       diagnostics,
       cycle,
     ),
     rotation: exportedYaw(
-      cycle.placePose.yawDeg,
+      cycle.placeGripPosePallet.yawDeg,
       convention,
       diagnostics,
       `${cycle.id}.placeYaw`,
@@ -509,6 +509,13 @@ export function preflightProjectRobExport(
       const status = cycle.provenance.pickReferenceProvenance?.status;
       return status !== "verified" && status !== "derived";
     });
+  const generatedCyclesOutsideStationFrame = materialization.cycles.filter(
+    (cycle) =>
+      cycle.provenance.cycleSource === "calculated-suction-cycle" &&
+      [cycle.pickPose, cycle.transferPose, cycle.placePose].some(
+        ({ frame }) => frame !== "station",
+      ),
+  );
   if (!materialization.project || !materialization.stack) {
     diagnostics.push({
       severity: "error",
@@ -624,6 +631,26 @@ export function preflightProjectRobExport(
       },
     });
   }
+  if (generatedCyclesOutsideStationFrame.length > 0) {
+    const firstCycle = generatedCyclesOutsideStationFrame[0]!;
+    diagnostics.push({
+      severity: "error",
+      phase: "export",
+      code: "unresolved-project-coordinate-frame",
+      message:
+        "Generated project cycles must resolve pick, transfer, and place poses into the station frame before .rob export.",
+      cycleId: firstCycle.id,
+      layerId: firstCycle.physicalLayerId,
+      details: {
+        cycleCount: generatedCyclesOutsideStationFrame.length,
+        coordinateFrames: [
+          firstCycle.pickPose.frame,
+          firstCycle.transferPose.frame,
+          firstCycle.placePose.frame,
+        ].join(", "),
+      },
+    });
+  }
 
   const nonstandardSheets =
     materialization.stack?.sheets.filter(
@@ -653,7 +680,8 @@ export function preflightProjectRobExport(
     unknownFields &&
     coordinateFrames.length <= 1 &&
     repeatedCycleIds.length === 0 &&
-    generatedCyclesWithoutTrustedPickReference.length === 0
+    generatedCyclesWithoutTrustedPickReference.length === 0 &&
+    generatedCyclesOutsideStationFrame.length === 0
       ? buildPalletData(
           materialization,
           quantization,

@@ -512,7 +512,7 @@ describe("Project editor pattern geometry", () => {
     ).toBe(90);
   });
 
-  it("derives upper-corner grip deltas toward the final movement direction", () => {
+  it("derives corner grip deltas from the selected descent sides", () => {
     const imported = importedGripProject();
     let project = applyProjectEditorCommand(imported, {
       type: "set-label-side",
@@ -520,7 +520,7 @@ describe("Project editor pattern geometry", () => {
       solutionId: "solution-1",
       patternId: "pattern-1",
       placementIds: ["p1", "p2"],
-      labelSide: "top_left",
+      labelSide: "bottom_left",
     });
     project = applyProjectEditorCommand(project, {
       type: "set-label-side",
@@ -534,7 +534,7 @@ describe("Project editor pattern geometry", () => {
     expect(
       pattern(project).grips.map(({ id, dx, dy }) => ({ id, dx, dy })),
     ).toEqual([
-      { id: "g1", dx: 1, dy: -1 },
+      { id: "g1", dx: 1, dy: 1 },
       { id: "g2", dx: -1, dy: -1 },
     ]);
   });
@@ -733,7 +733,7 @@ describe("Project editor pattern geometry", () => {
         solutionId: "solution-1",
         patternId: "pattern-1",
         placementIds: ["p1", "p2"],
-        labelSide: "bottom",
+        labelSide: "top",
       }),
     ).toThrow(/dependencies contain a cycle/i);
     expect(rawOffsets()).toEqual(expected);

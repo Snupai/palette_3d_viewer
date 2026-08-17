@@ -4,6 +4,7 @@ import type { Gripper, PalletStation } from "~/domain/project/projectSchema";
 import {
   CALCULATED_CONVEYOR_OBSTACLE_ID,
   PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
+  exportProjectRob,
   materializeRobotCycles,
 } from "~/domain/robotics";
 import {
@@ -13,10 +14,12 @@ import {
   materializationOptionsFromWorkspace,
   materializeRobotWorkspace,
   projectRobExportGate,
+  robotPoseToViewerPose,
   validateRobotWorkspaceSettings,
   workspacePickReferenceComplete,
   workspaceUsesDerivedPickReference,
 } from "~/features/robotics/robotWorkspaceModel";
+import { parseRobText } from "~/lib/robParser";
 
 const gripper: Gripper = {
   id: "gripper-1",
@@ -118,6 +121,75 @@ function projectFixture() {
       activeSolutionId: "solution-1",
     },
     { createId: (kind) => `${kind}-unused`, now: () => 1 },
+  );
+}
+
+function multipackOriginProject() {
+  return createProject(
+    {
+      id: "multipack-origin-project",
+      package: {
+        dimensionsMm: { length: 100, width: 50, height: 50 },
+        multiPickAllowed: true,
+      },
+      pallet: {
+        id: "pallet-1",
+        name: "1200 x 800 pallet",
+        kind: "custom",
+        dimensionsMm: { length: 1200, width: 800, height: 144 },
+        storageEnvelopeMm: null,
+        allowedOverhangMm: { length: 0, width: 0 },
+        tareKg: null,
+        maxGrossKg: null,
+        subPalletPattern: "none",
+      },
+      solutions: [
+        {
+          id: "solution-1",
+          name: "Solution",
+          origin: "calculated",
+          patterns: [
+            {
+              id: "pattern-1",
+              name: "Pattern",
+              grips: [],
+              placements: [
+                {
+                  id: "placement-right",
+                  sequence: 0,
+                  positionMm: { x: 1150, y: 100 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: null,
+                },
+                {
+                  id: "placement-left",
+                  sequence: 1,
+                  positionMm: { x: 50, y: 100 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: null,
+                },
+              ],
+            },
+          ],
+          stack: {
+            interlayerThicknessMm: 3,
+            layers: [
+              {
+                id: "layer-1",
+                patternId: "pattern-1",
+                interlayerBefore: 0,
+              },
+            ],
+            trailingInterlayer: 0,
+          },
+          robotCycles: [],
+        },
+      ],
+      activeSolutionId: "solution-1",
+    },
+    { createId: (kind) => `${kind}-multipack`, now: () => 1 },
   );
 }
 
@@ -235,6 +307,70 @@ describe("robotics workspace validation and export gate", () => {
       signConvention: {
         provenance: { status: "unverified" },
       },
+    });
+  });
+
+  it("exports Multipack place fields in pallet coordinates while retaining station-frame robot poses", () => {
+    const project = multipackOriginProject();
+    const workspace = createInitialRobotWorkspaceSettings(project);
+    const materialization = materializeRobotCycles(
+      project,
+      materializationOptionsFromWorkspace(workspace),
+    );
+
+    expect(project.package.palletizingDirection).toBeNull();
+    expect(
+      materialization.diagnostics.filter(
+        ({ severity }) => severity === "error",
+      ),
+    ).toEqual([]);
+    expect(materialization.valid).toBe(true);
+    expect(materialization.direction).toBe("x-negative-y-positive");
+    const rightPlacementId =
+      materialization.stack?.packageLayers[0]?.placements.find(
+        ({ positionMm }) => positionMm.x === 1150,
+      )?.id;
+    const firstCycle = materialization.cycles[0]!;
+    expect(firstCycle.placementIds).toEqual([rightPlacementId]);
+    expect(firstCycle.pickPose).toMatchObject({
+      frame: "station",
+      positionMm: { x: 50, y: -25, z: 50 },
+      yawDeg: 0,
+    });
+    expect(firstCycle.placePose).toMatchObject({
+      frame: "station",
+      positionMm: { x: 50, y: 100 },
+      yawDeg: 180,
+    });
+    expect(firstCycle.placeGripPosePallet).toMatchObject({
+      frame: "pallet",
+      positionMm: { x: 1150, y: 100 },
+      yawDeg: 0,
+    });
+
+    const gate = projectRobExportGate(
+      materialization,
+      createInitialRobotExportSettings(),
+    );
+    expect(gate.enabled).toBe(true);
+    expect(gate.options.separator).toBe("\t");
+    const exported = exportProjectRob(materialization, gate.options);
+    expect(exported.ok).toBe(true);
+    expect(exported.text).toContain("50\t-25\t0\t1150\t100\t0\t1\t0\t0");
+    expect(
+      parseRobText(exported.text!).uniqueLayers[1]?.map(
+        ({ x, y, rotation }) => ({ x, y, rotation }),
+      ),
+    ).toEqual([
+      { x: 1150, y: 100, rotation: 0 },
+      { x: 50, y: 100, rotation: 0 },
+    ]);
+
+    expect(
+      robotPoseToViewerPose(firstCycle.placePose, project, materialization),
+    ).toMatchObject({
+      positionMm: { x: 1150, y: 100 },
+      yawDeg: 0,
     });
   });
 
