@@ -344,8 +344,7 @@ describe("absolute-time package state", () => {
       cycles: calibratedCycles,
       stack: materialization.stack,
     };
-    const palletPose =
-      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
+    const palletPose = BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
 
     const feed = createSimulationFrame(
       calibratedTimeline,

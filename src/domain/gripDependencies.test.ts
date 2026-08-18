@@ -353,9 +353,7 @@ describe("derived grip approach deltas", () => {
       { dx: 0, dy: 0 },
       { dx: -1, dy: 0 },
     ]);
-    expect(dependencies).toEqual([
-      { prerequisiteIndex: 0, dependentIndex: 1 },
-    ]);
+    expect(dependencies).toEqual([{ prerequisiteIndex: 0, dependentIndex: 1 }]);
   });
 
   it("keeps a lone grip and grips beyond an explicit reference gap at zero", () => {

@@ -7,7 +7,7 @@ export default function HomePage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   return (
-    <main className="flex h-screen min-h-[640px] flex-col overflow-hidden bg-[var(--deck-black)] text-[var(--chalk-text)]">
+    <main className="flex h-screen min-h-[640px] flex-col overflow-hidden bg-[var(--canvas)] text-[var(--ink)]">
       <PlannerProjectWorkspace onUnsavedChange={setHasUnsavedChanges} />
       <span className="sr-only" aria-live="polite">
         {hasUnsavedChanges

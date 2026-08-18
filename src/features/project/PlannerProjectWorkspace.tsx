@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { updateProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
-import type { PalletData } from "~/domain/palletTypes";
 import type {
   LayerSolverInput,
   SolverCandidate,
@@ -23,10 +22,8 @@ import {
   PlanningCaseWorkbench,
   type ProductionTool,
 } from "~/features/planning-case/PlanningCaseWorkbench";
-import type { PlanFieldMode } from "~/features/planning-case/MeasuredPlanField";
 import {
-  comparePatternPreviews,
-  type PatternComparison,
+  clampPlanningStage,
   type PlanningStage,
   type ValidationLedgerRow,
 } from "~/features/planning-case/planningCaseModel";
@@ -56,12 +53,14 @@ import {
   materializedStackToPalletData,
   projectSolutionToPalletData,
   robotCycleMaterializationToPalletData,
+  savedPalletToProject,
 } from "~/lib/projectAdapters";
 import {
   palletLayerToPatternPreview,
   solverCandidateToPatternPreview,
 } from "~/lib/previewAdapters";
 import { parseRobText } from "~/lib/robParser";
+import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
 import {
   createProjectRepository,
   type ProjectConflictPolicy,
@@ -73,7 +72,7 @@ import {
 
 function ProductionToolLoading() {
   return (
-    <div className="flex min-h-[320px] items-center justify-center text-sm text-zinc-500">
+    <div className="flex min-h-[320px] items-center justify-center text-sm text-[var(--muted)]">
       Loading production tool…
     </div>
   );
@@ -126,12 +125,6 @@ export type PlannerProjectWorkspaceProps = {
 
 type DialogMode = "closed" | "create" | "edit";
 
-type RobReference = {
-  fileName: string;
-  rawText: string;
-  data: PalletData;
-};
-
 const productionToolTitles: Record<ProductionTool, string> = {
   "candidate-browser": "Candidate browser",
   "candidate-3d": "Candidate 3D inspection",
@@ -183,80 +176,6 @@ function downloadJson(filename: string, contents: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-type ReferenceInputAssessment = {
-  encodedMatch: boolean;
-  physicalComparable: boolean;
-  detail: string;
-};
-
-function assessReferenceInputs(
-  project: Project | null,
-  referenceData: PalletData | null,
-): ReferenceInputAssessment {
-  if (!referenceData) {
-    return {
-      encodedMatch: false,
-      physicalComparable: false,
-      detail: "? No .rob reference is attached.",
-    };
-  }
-  if (!project) {
-    return {
-      encodedMatch: false,
-      physicalComparable: false,
-      detail:
-        "O Reference dimensions are readable.\n? No current project exists for reconciliation.",
-    };
-  }
-
-  const packageMatch =
-    project.package.dimensionsMm.length === referenceData.package.width &&
-    project.package.dimensionsMm.width === referenceData.package.length &&
-    project.package.dimensionsMm.height === referenceData.package.height;
-  const palletMatch =
-    referenceData.pallet !== null &&
-    project.pallet !== null &&
-    project.pallet.dimensionsMm.length === referenceData.pallet.width &&
-    project.pallet.dimensionsMm.width === referenceData.pallet.length &&
-    project.pallet.dimensionsMm.height === referenceData.pallet.height;
-  const expectedInlet =
-    referenceData.inputDirection === 1 ? "crosswise" : "lengthwise";
-  const inletMatch =
-    !referenceData.inputDirectionExplicit ||
-    project.package.inletOrientation === expectedInlet;
-  const lines = [
-    `${packageMatch ? "PASS" : "FAIL"} package dimensions: current ${project.package.dimensionsMm.length} × ${project.package.dimensionsMm.width} × ${project.package.dimensionsMm.height} mm / observed ${referenceData.package.width} × ${referenceData.package.length} × ${referenceData.package.height} mm`,
-    `${palletMatch ? "PASS" : "FAIL"} pallet dimensions: current ${project.pallet ? `${project.pallet.dimensionsMm.length} × ${project.pallet.dimensionsMm.width} × ${project.pallet.dimensionsMm.height} mm` : "unknown"} / observed ${referenceData.pallet ? `${referenceData.pallet.width} × ${referenceData.pallet.length} × ${referenceData.pallet.height} mm` : "unknown"}`,
-    referenceData.inputDirectionExplicit
-      ? `${inletMatch ? "PASS" : "FAIL"} input direction: current ${project.package.inletOrientation} / observed ${referenceData.inputDirection}`
-      : "? input direction is not encoded in the reference",
-    "? clearance, overhang, multipick policy, weight, resources, and station frame are not proven by .rob",
-  ];
-  return {
-    encodedMatch: packageMatch && palletMatch && inletMatch,
-    physicalComparable: packageMatch && palletMatch,
-    detail: lines.join("\n"),
-  };
-}
-
-function comparisonLedgerStatus(
-  comparison: PatternComparison,
-): ValidationLedgerRow["status"] {
-  if (
-    comparison.status === "exact" ||
-    comparison.status === "integer-compatible"
-  ) {
-    return "PASS";
-  }
-  if (
-    comparison.status === "count-mismatch" ||
-    comparison.status === "no-match"
-  ) {
-    return "FAIL";
-  }
-  return "BLOCKED";
-}
-
 export function PlannerProjectWorkspace({
   repository: providedRepository,
   onUnsavedChange,
@@ -280,9 +199,6 @@ export function PlannerProjectWorkspace({
   const [activeStage, setActiveStage] = useState<PlanningStage>("inputs");
   const [projectDrawerOpen, setProjectDrawerOpen] = useState(false);
   const [activeTool, setActiveTool] = useState<ProductionTool | null>(null);
-  const [planFieldMode, setPlanFieldMode] = useState<PlanFieldMode>("overlay");
-  const [reference, setReference] = useState<RobReference | null>(null);
-  const [referenceLayerIndex, setReferenceLayerIndex] = useState(0);
   const [currentLayerIndex, setCurrentLayerIndex] = useState(0);
   const [legacyDirty, setLegacyDirty] = useState(false);
   const [robotSettings, setRobotSettings] =
@@ -732,113 +648,34 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const attachReference = async (file: File) => {
+  const importRobAsProject = async (file: File) => {
+    if (!confirmDiscardUnsaved("Open the .rob file as a project")) return;
+    discardUnsavedPlannerChanges();
     setError(null);
     setStatusMessage(null);
     try {
       const rawText = await file.text();
       const data = parseRobText(rawText);
-      setReference({ fileName: file.name, rawText, data });
-      setReferenceLayerIndex(0);
-      setActiveStage("reference");
-      setStatusMessage(
-        `Observed reference "${file.name}" attached for this planning session.`,
-      );
-    } catch (cause) {
-      console.error("Failed to attach .rob reference", cause);
-      setError(
-        cause instanceof Error
-          ? `Reference import failed: ${cause.message}`
-          : "Reference import failed.",
-      );
-    }
-  };
-
-  const detachReference = () => {
-    setReference(null);
-    setReferenceLayerIndex(0);
-    setStatusMessage(
-      "Session reference detached; the project was not changed.",
-    );
-  };
-
-  const applyReferenceInputs = async () => {
-    if (!selectedProject || !reference) return;
-    if (!confirmDiscardUnsaved("Apply the encoded reference inputs")) return;
-    const baseProject = selectedProject;
-    discardUnsavedPlannerChanges();
-    const { data } = reference;
-    const nextPalletDimensions = data.pallet
-      ? {
-          length: data.pallet.width,
-          width: data.pallet.length,
-          height: data.pallet.height,
-        }
-      : null;
-    const existingPallet = baseProject.pallet;
-    const allowedOverhangMm = existingPallet?.allowedOverhangMm ?? {
-      length: 0,
-      width: 0,
-    };
-    const existingStorageEnvelope = existingPallet?.storageEnvelopeMm ?? null;
-    const storageEnvelopeRemainsValid =
-      nextPalletDimensions !== null &&
-      existingStorageEnvelope !== null &&
-      existingStorageEnvelope.length >=
-        nextPalletDimensions.length + allowedOverhangMm.length * 2 &&
-      existingStorageEnvelope.width >=
-        nextPalletDimensions.width + allowedOverhangMm.width * 2 &&
-      existingStorageEnvelope.height >= nextPalletDimensions.height;
-    const clearedStorageEnvelope =
-      existingStorageEnvelope !== null && !storageEnvelopeRemainsValid;
-    const nextPallet = nextPalletDimensions
-      ? {
-          ...(existingPallet ?? {
-            id: `reference-pallet-${baseProject.id}`,
-            name: "Reference pallet",
-            kind: "custom" as const,
-            allowedOverhangMm,
-            tareKg: null,
-            maxGrossKg: null,
-            subPalletPattern: "none" as const,
-          }),
-          dimensionsMm: nextPalletDimensions,
-          storageEnvelopeMm: storageEnvelopeRemainsValid
-            ? existingStorageEnvelope
-            : null,
-        }
-      : existingPallet;
-    try {
-      const updated = updateProject(baseProject, {
-        package: {
-          ...baseProject.package,
-          dimensionsMm: {
-            length: data.package.width,
-            width: data.package.length,
-            height: data.package.height,
-          },
-          inletOrientation: data.inputDirectionExplicit
-            ? data.inputDirection === 1
-              ? "crosswise"
-              : "lengthwise"
-            : baseProject.package.inletOrientation,
-        },
-        pallet: nextPallet,
+      const project = savedPalletToProject({
+        schemaVersion: CURRENT_PALLET_SCHEMA_VERSION,
+        id: `rob-${crypto.randomUUID()}`,
+        name: file.name,
+        createdAt: Date.now(),
+        data,
+        rawText,
+        originalRawText: rawText,
       });
-      await saveProject(updated);
-      resetSolver();
-      setActiveStage("generate");
+      const saved = await saveProject(project);
+      setActiveStage("inputs");
       setStatusMessage(
-        clearedStorageEnvelope
-          ? "Encoded package, pallet, and explicit inlet inputs applied. The incompatible storage envelope was cleared to unknown; other unencoded policies remain unchanged and unverified."
-          : "Encoded package, pallet, and explicit inlet inputs applied. Unencoded planning policies remain unchanged and unverified.",
+        `Opened "${saved.source.kind === "rob-import" ? saved.source.fileName : file.name}" as the current plan.`,
       );
     } catch (cause) {
-      console.error("Failed to apply reference inputs", cause);
+      console.error("Failed to open .rob file", cause);
       setError(
         cause instanceof Error
-          ? `Reference input update failed: ${cause.message}`
-          : "Reference input update failed.",
+          ? `.rob import failed: ${cause.message}`
+          : ".rob import failed.",
       );
     }
   };
@@ -964,23 +801,9 @@ export function PlannerProjectWorkspace({
     }
   }, [workspaceProject]);
   const currentPalletData = candidatePreviewData ?? savedCurrentPalletData;
-  const inputAssessment = useMemo(
-    () => assessReferenceInputs(workspaceProject, reference?.data ?? null),
-    [reference, workspaceProject],
-  );
-  const resolvedReferenceLayerIndex = reference?.data.layer_count
-    ? Math.min(referenceLayerIndex, reference.data.layer_count - 1)
-    : 0;
   const resolvedCurrentLayerIndex = currentPalletData?.layer_count
     ? Math.min(currentLayerIndex, currentPalletData.layer_count - 1)
     : 0;
-  const referencePreview = useMemo(() => {
-    if (!reference || reference.data.layer_count === 0) return null;
-    return palletLayerToPatternPreview(
-      reference.data,
-      resolvedReferenceLayerIndex,
-    );
-  }, [reference, resolvedReferenceLayerIndex]);
   const currentPreview = useMemo(() => {
     if (selectedCandidate && solverInput) {
       return solverCandidateToPatternPreview(selectedCandidate, solverInput, {
@@ -999,29 +822,19 @@ export function PlannerProjectWorkspace({
     selectedCandidate,
     solverInput,
   ]);
-  const comparison = useMemo(
-    () =>
-      comparePatternPreviews(
-        inputAssessment.physicalComparable ? referencePreview : null,
-        inputAssessment.physicalComparable ? currentPreview : null,
-        workspaceProject
-          ? {
-              length: workspaceProject.package.dimensionsMm.length,
-              width: workspaceProject.package.dimensionsMm.width,
-            }
-          : { length: 1, width: 1 },
-      ),
-    [
-      currentPreview,
-      inputAssessment.physicalComparable,
-      referencePreview,
-      workspaceProject,
-    ],
-  );
+  const importedRob = workspaceProject?.source.kind === "rob-import";
+  const resolvedStage = clampPlanningStage(activeStage, Boolean(importedRob));
+  const emptyComparison = {
+    status: "unavailable" as const,
+    referenceCount: 0,
+    currentCount: currentPreview?.items.length ?? 0,
+    missingCount: 0,
+    extraCount: currentPreview?.items.length ?? 0,
+    acceptedSymmetry: null,
+    maximumAxisDisplacementMm: null,
+    toleranceMm: 0.500001,
+  };
   const ledgerRows = useMemo<ValidationLedgerRow[]>(() => {
-    const comparisonPassed =
-      comparison.status === "exact" ||
-      comparison.status === "integer-compatible";
     const currentGeometryStatus: ValidationLedgerRow["status"] =
       selectedCandidate
         ? selectedCandidate.validation.valid
@@ -1070,34 +883,28 @@ export function PlannerProjectWorkspace({
       ...(robotMaterialization?.diagnostics.map(({ message }) => message) ??
         []),
     ].join("\n");
+    const importedSource =
+      workspaceProject?.source.kind === "rob-import"
+        ? workspaceProject.source
+        : null;
     return [
-      {
-        id: "reference-parse",
-        label: "Reference parse",
-        status: reference ? "OBSERVED" : "BLOCKED",
-        evidence: reference ? "O" : "?",
-        claim: reference
-          ? "The attached .rob structure was parsed successfully."
-          : "No observed .rob artifact is attached.",
-        detail: reference
-          ? `${reference.fileName}\n${reference.data.layer_count} layers · ${reference.data.total_boxes} packages`
-          : undefined,
-      },
-      {
-        id: "encoded-inputs",
-        label: "Encoded inputs",
-        status:
-          reference && workspaceProject
-            ? inputAssessment.encodedMatch
-              ? "PASS"
-              : "FAIL"
-            : "BLOCKED",
-        evidence: reference ? "O" : "?",
-        claim: inputAssessment.encodedMatch
-          ? "Current package, pallet, and explicit inlet inputs match the reference."
-          : "Reference/current encoded inputs are not fully reconciled.",
-        detail: inputAssessment.detail,
-      },
+      ...(importedSource
+        ? [
+            {
+              id: "imported-plan",
+              label: "Imported plan",
+              status: "OBSERVED" as const,
+              evidence: "O" as const,
+              claim:
+                "The current geometry comes from the imported .rob file; a second reference plan is not required.",
+              detail: `${importedSource.fileName}${
+                currentPalletData
+                  ? `\n${currentPalletData.layer_count} layers · ${currentPalletData.total_boxes} packages`
+                  : ""
+              }`,
+            },
+          ]
+        : []),
       {
         id: "current-geometry",
         label: "Current geometry",
@@ -1108,7 +915,9 @@ export function PlannerProjectWorkspace({
             ? "The selected solver candidate passed internal geometry checks."
             : "The selected solver candidate failed internal geometry checks."
           : currentPreview
-            ? "A saved current layer is observable; solver validation was not rerun."
+            ? importedSource
+              ? "The imported layer geometry is shown as the current plan."
+              : "A saved current layer is observable; solver validation was not rerun."
             : "No current layer geometry is available.",
         detail: selectedCandidate
           ? selectedCandidate.validation.issues
@@ -1116,48 +925,6 @@ export function PlannerProjectWorkspace({
               .join("\n") ||
             `Candidate ${selectedCandidate.rank} · ${selectedCandidate.metrics.packageCount} packages`
           : undefined,
-      },
-      {
-        id: "reference-footprint",
-        label: "Footprint recreation",
-        status: comparisonLedgerStatus(comparison),
-        evidence: reference && currentPreview ? "G" : "?",
-        claim:
-          comparison.status === "exact"
-            ? "Current and reference physical footprints match exactly in an accepted pallet symmetry."
-            : comparison.status === "integer-compatible"
-              ? "Current and reference footprints match only within the legacy integer tolerance."
-              : comparison.status === "count-mismatch"
-                ? "Package counts differ between the selected layers."
-                : comparison.status === "no-match"
-                  ? "No physical footprint match exists in the accepted pallet symmetry orbit."
-                  : "Footprint comparison is blocked until physical inputs and both layers are available.",
-        detail: inputAssessment.physicalComparable
-          ? `symmetry=${comparison.acceptedSymmetry ?? "none"}\nmaxAxisDelta=${comparison.maximumAxisDisplacementMm ?? "unknown"} mm\ntolerance=${comparison.toleranceMm} mm`
-          : inputAssessment.detail,
-      },
-      {
-        id: "operational-equivalence",
-        label: "Yaw + grouping",
-        status: comparisonPassed ? "OBSERVED" : "BLOCKED",
-        evidence: comparisonPassed ? "O" : "?",
-        claim: comparisonPassed
-          ? "Physical equality is observed, but directed yaw and grip grouping equivalence are not proven."
-          : "Operational equivalence cannot be assessed before footprint recreation.",
-      },
-      {
-        id: "stack-parity",
-        label: "Stack parity",
-        status: reference && currentPalletData ? "OBSERVED" : "BLOCKED",
-        evidence: reference && currentPalletData ? "O" : "?",
-        claim:
-          reference && currentPalletData
-            ? "Reference and current sequences are visible; automatic stack equivalence has not been asserted."
-            : "Both reference and current stack sequences are required.",
-        detail:
-          reference && currentPalletData
-            ? `referenceLayers=${reference.data.layer_count}\ncurrentLayers=${currentPalletData.layer_count}`
-            : undefined,
       },
       {
         id: "robot-readiness",
@@ -1191,11 +958,8 @@ export function PlannerProjectWorkspace({
       },
     ];
   }, [
-    comparison,
     currentPalletData,
     currentPreview,
-    inputAssessment,
-    reference,
     resolvedRobotSettings,
     robotMaterialization,
     selectedCandidate,
@@ -1235,8 +999,10 @@ export function PlannerProjectWorkspace({
         loadingProject={loadingProject}
         error={error}
         statusMessage={statusMessage}
-        activeStage={activeStage}
-        onStageChange={setActiveStage}
+        activeStage={resolvedStage}
+        onStageChange={(stage) =>
+          setActiveStage(clampPlanningStage(stage, Boolean(importedRob)))
+        }
         onOpenProjects={() => {
           if (!confirmLeaveActiveTool("Open planner projects")) return;
           setActiveTool(null);
@@ -1250,13 +1016,7 @@ export function PlannerProjectWorkspace({
         }}
         onEditProject={() => setDialogMode("edit")}
         onOpenTool={openProductionTool}
-        referenceFileName={reference?.fileName ?? null}
-        referenceData={reference?.data ?? null}
-        onAttachReference={(file) => void attachReference(file)}
-        onDetachReference={detachReference}
-        onApplyReferenceInputs={() => void applyReferenceInputs()}
-        referenceInputsMatch={inputAssessment.encodedMatch}
-        referenceInputDetail={inputAssessment.detail}
+        onImportRob={(file) => void importRobAsProject(file)}
         solverResult={solverResult}
         solverInput={solverInput}
         selectedCandidate={selectedCandidate}
@@ -1267,16 +1027,11 @@ export function PlannerProjectWorkspace({
         onSolverResult={onSolverResult}
         onResetSolver={resetSolver}
         onCandidateChange={(candidateId) => changeCandidate(candidateId)}
-        referencePreview={referencePreview}
         currentPreview={currentPreview}
-        comparison={comparison}
+        comparison={emptyComparison}
         ledgerRows={ledgerRows}
-        planFieldMode={planFieldMode}
-        onPlanFieldModeChange={setPlanFieldMode}
         currentPalletData={currentPalletData}
-        referenceLayerIndex={resolvedReferenceLayerIndex}
         currentLayerIndex={resolvedCurrentLayerIndex}
-        onReferenceLayerChange={setReferenceLayerIndex}
         onCurrentLayerChange={setCurrentLayerIndex}
         hasUnsavedChanges={hasUnsavedChanges}
       />

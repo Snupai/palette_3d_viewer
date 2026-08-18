@@ -51,7 +51,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={`${geist.variable} ${geistMono.variable}`}>
-      <body className="bg-[var(--deck-black)]">{children}</body>
+      <body className="bg-[var(--canvas)] text-[var(--ink)]">{children}</body>
     </html>
   );
 }

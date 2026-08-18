@@ -317,11 +317,13 @@ function persistedSolverOrderProject(
       return [id, { ...grip, id }] as const;
     }),
   );
-  const placements = sourcePattern.placements.slice(0, 2).map((item, index) => ({
-    ...item,
-    id: `${patternId}-placement-${index + 1}`,
-    gripId: index === 0 ? leftGripId : rightGripId,
-  }));
+  const placements = sourcePattern.placements
+    .slice(0, 2)
+    .map((item, index) => ({
+      ...item,
+      id: `${patternId}-placement-${index + 1}`,
+      gripId: index === 0 ? leftGripId : rightGripId,
+    }));
   const pattern = {
     ...sourcePattern,
     id: patternId,
@@ -339,30 +341,30 @@ function persistedSolverOrderProject(
   const robotCycles =
     gripPlanningSource === "manual"
       ? storedOrder.map((gripId, sequence) => {
-        const grip = gripById.get(gripId)!;
-        return {
-          id: `legacy-cycle-${sequence + 1}`,
-          patternId,
-          sequence,
-          gripId,
-          placementIds: [placementIdByGripId.get(gripId)!],
-          gripperId: project.selectedGripperId,
-          pickPose: {
-            x: grip.pickX,
-            y: grip.pickY,
-            z: null,
-            rotation: grip.pickRotation,
-          },
-          placePose: {
-            x: grip.x,
-            y: grip.y,
-            z: null,
-            rotation: grip.rotation,
-          },
-          labelOffset: { x: grip.dx, y: grip.dy },
-        };
-      })
-    : [];
+          const grip = gripById.get(gripId)!;
+          return {
+            id: `legacy-cycle-${sequence + 1}`,
+            patternId,
+            sequence,
+            gripId,
+            placementIds: [placementIdByGripId.get(gripId)!],
+            gripperId: project.selectedGripperId,
+            pickPose: {
+              x: grip.pickX,
+              y: grip.pickY,
+              z: null,
+              rotation: grip.pickRotation,
+            },
+            placePose: {
+              x: grip.x,
+              y: grip.y,
+              z: null,
+              rotation: grip.rotation,
+            },
+            labelOffset: { x: grip.dx, y: grip.dy },
+          };
+        })
+      : [];
   return projectSchema.parse({
     ...project,
     solutions: [

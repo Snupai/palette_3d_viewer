@@ -769,8 +769,9 @@ export function RoboticsWorkspace({
             Robot setup
           </h2>
           <p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-400">
-            Choose the equipment, review the derived pickup, and check readiness.
-            Detailed equipment and export settings stay closed until needed.
+            Choose the equipment, review the derived pickup, and check
+            readiness. Detailed equipment and export settings stay closed until
+            needed.
           </p>
         </header>
         <div className="grid gap-px bg-zinc-800 sm:grid-cols-3">

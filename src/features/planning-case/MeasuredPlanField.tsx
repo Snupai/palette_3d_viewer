@@ -131,10 +131,16 @@ function PatternItems({
               overflow
                 ? `url(#${overflowPatternId})`
                 : reference
-                  ? "rgba(101, 169, 195, 0.08)"
-                  : "rgba(214, 166, 74, 0.22)"
+                  ? "color-mix(in srgb, var(--measure) 12%, transparent)"
+                  : "var(--plan-fill)"
             }
-            stroke={reference ? "#65A9C3" : overflow ? "#D66A5E" : "#D6A64A"}
+            stroke={
+              reference
+                ? "var(--measure)"
+                : overflow
+                  ? "var(--danger)"
+                  : "var(--plan-stroke)"
+            }
             strokeWidth={reference ? 1.5 : 1.75}
             strokeDasharray={reference ? "7 4" : undefined}
             vectorEffect="non-scaling-stroke"
@@ -161,7 +167,8 @@ function PreviewFrames({
   toSvgY: (value: number) => number;
 }) {
   const physical = preview.palletBoundsMm;
-  const physicalStroke = kind === "reference" ? "#65A9C3" : "#7E8991";
+  const physicalStroke =
+    kind === "reference" ? "var(--measure)" : "var(--muted)";
   const frameRect = (frame: DrawingBounds, frameKind: string) => ({
     x: frame.minX,
     y: toSvgY(frame.maxY),
@@ -175,7 +182,7 @@ function PreviewFrames({
         <rect
           {...frameRect(preview.effectiveEnvelopeMm, "effective-envelope")}
           fill="none"
-          stroke="#65717A"
+          stroke="var(--line)"
           strokeWidth="1.25"
           strokeDasharray="8 5"
           vectorEffect="non-scaling-stroke"
@@ -185,7 +192,7 @@ function PreviewFrames({
         <rect
           {...frameRect(preview.generationBoundsMm, "generation-envelope")}
           fill="none"
-          stroke="#D6A64A"
+          stroke="var(--plan-stroke)"
           strokeWidth="1.5"
           strokeDasharray="4 3"
           vectorEffect="non-scaling-stroke"
@@ -193,7 +200,7 @@ function PreviewFrames({
       ) : null}
       <rect
         {...frameRect(physical, "physical-pallet")}
-        fill="rgba(20, 25, 29, 0.52)"
+        fill="color-mix(in srgb, var(--canvas) 72%, transparent)"
         stroke={physicalStroke}
         strokeWidth="1.5"
         strokeDasharray={kind === "reference" ? "7 4" : undefined}
@@ -245,7 +252,14 @@ function MeasuredSvg({
           patternTransform="rotate(45)"
         >
           <rect width="12" height="12" fill="rgba(214, 106, 94, 0.12)" />
-          <line x1="0" y1="0" x2="0" y2="12" stroke="#D66A5E" strokeWidth="3" />
+          <line
+            x1="0"
+            y1="0"
+            x2="0"
+            y2="12"
+            stroke="var(--danger)"
+            strokeWidth="3"
+          />
         </pattern>
         <marker
           id={arrowId}
@@ -256,7 +270,7 @@ function MeasuredSvg({
           markerHeight="5"
           orient="auto-start-reverse"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="#7E8991" />
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)" />
         </marker>
       </defs>
 
@@ -265,7 +279,7 @@ function MeasuredSvg({
         y={bounds.minY - gutter}
         width={width + gutter + rightGutter}
         height={height + gutter + bottomGutter}
-        fill="#0B0E10"
+        fill="var(--canvas)"
       />
       <g aria-hidden="true">
         {ticks(bounds.minX, bounds.maxX, stepX.minor).map((x) => {
@@ -277,7 +291,7 @@ function MeasuredSvg({
               y1={bounds.minY}
               x2={x}
               y2={bounds.maxY}
-              stroke={major ? "#313940" : "#22292E"}
+              stroke={major ? "var(--line)" : "var(--canvas)"}
               strokeWidth={major ? 1 : 0.65}
               vectorEffect="non-scaling-stroke"
             />
@@ -292,7 +306,7 @@ function MeasuredSvg({
               y1={toSvgY(y)}
               x2={bounds.maxX}
               y2={toSvgY(y)}
-              stroke={major ? "#313940" : "#22292E"}
+              stroke={major ? "var(--line)" : "var(--canvas)"}
               strokeWidth={major ? 1 : 0.65}
               vectorEffect="non-scaling-stroke"
             />
@@ -328,7 +342,7 @@ function MeasuredSvg({
 
       <g
         aria-hidden="true"
-        fill="#7E8991"
+        fill="var(--muted)"
         fontFamily="var(--font-geist-mono), monospace"
       >
         {ticks(bounds.minX, bounds.maxX, stepX.label).map((x) => (
@@ -338,7 +352,7 @@ function MeasuredSvg({
               y1={bounds.minY - gutter * 0.3}
               x2={x}
               y2={bounds.minY}
-              stroke="#7E8991"
+              stroke="var(--muted)"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -359,7 +373,7 @@ function MeasuredSvg({
               y1={toSvgY(y)}
               x2={bounds.minX}
               y2={toSvgY(y)}
-              stroke="#7E8991"
+              stroke="var(--muted)"
               strokeWidth="1"
               vectorEffect="non-scaling-stroke"
             />
@@ -382,17 +396,17 @@ function MeasuredSvg({
         >
           mm
         </text>
-        <circle cx={0} cy={toSvgY(0)} r={5} fill="#65A9C3" />
+        <circle cx={0} cy={toSvgY(0)} r={5} fill="var(--measure)" />
         <path
           d={`M 0 ${toSvgY(0)} h ${gutter * 0.34} M 0 ${toSvgY(0)} v ${-gutter * 0.34}`}
-          stroke="#65A9C3"
+          stroke="var(--measure)"
           strokeWidth="1.5"
           vectorEffect="non-scaling-stroke"
         />
         <text
           x={gutter * 0.14}
           y={toSvgY(0) - gutter * 0.12}
-          fill="#65A9C3"
+          fill="var(--measure)"
           fontSize={Math.max(14, gutter * 0.19)}
         >
           ORIGIN 0/0
@@ -401,8 +415,8 @@ function MeasuredSvg({
 
       <g
         aria-hidden="true"
-        stroke="#7E8991"
-        fill="#AEB7BD"
+        stroke="var(--muted)"
+        fill="var(--ink)"
         fontFamily="var(--font-geist-mono), monospace"
         fontSize={Math.max(20, gutter * 0.28)}
       >
@@ -448,7 +462,10 @@ function MeasuredSvg({
   );
 }
 
-function comparisonText(comparison: PatternComparison): string {
+function comparisonText(
+  comparison: PatternComparison,
+  current: LayerPatternPreview | null,
+): string {
   switch (comparison.status) {
     case "exact":
       return `Exact physical footprint · ${comparison.acceptedSymmetry}`;
@@ -459,7 +476,9 @@ function comparisonText(comparison: PatternComparison): string {
     case "no-match":
       return "No accepted footprint match in the pallet symmetry orbit";
     default:
-      return "Attach a reference and generate or save a current layer to compare";
+      return current
+        ? `${current.items.length} packages`
+        : "Open a .rob file or generate a layer to inspect";
   }
 }
 
@@ -475,29 +494,29 @@ export function MeasuredPlanField({
     mode === "split" ? drawingBounds(reference, current) : undefined;
 
   return (
-    <section className="planning-plan-field grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border border-[var(--steel-rule)] bg-[var(--deck-black)]">
-      <header className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[var(--steel-rule)] px-3 py-1.5 text-[11px]">
-        <span className="font-semibold tracking-[0.14em] text-[var(--chalk-text)] uppercase">
-          Calibrated plan field
-        </span>
-        <span className="flex items-center gap-1.5 text-[var(--measured-blue)]">
-          <span className="inline-block h-2.5 w-4 border border-dashed border-current" />
-          {referenceLabel}
-        </span>
-        <span className="flex items-center gap-1.5 text-[var(--selection-amber)]">
+    <section className="planning-plan-field grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border border-[var(--line)] bg-[var(--canvas)]">
+      <header className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[var(--line)] px-3 py-1.5 text-[12px]">
+        <span className="font-semibold text-[var(--ink)]">Plan field</span>
+        {reference ? (
+          <span className="flex items-center gap-1.5 text-[var(--measure)]">
+            <span className="inline-block h-2.5 w-4 border border-dashed border-current" />
+            {referenceLabel}
+          </span>
+        ) : null}
+        <span className="flex items-center gap-1.5 text-[var(--brand)]">
           <span className="inline-block h-2.5 w-4 border border-current bg-current/20" />
           {currentLabel}
         </span>
-        <span className="ml-auto font-mono text-[var(--muted-text)]">
-          {comparisonText(comparison)}
+        <span className="ml-auto font-mono text-[var(--muted)]">
+          {comparisonText(comparison, current)}
         </span>
       </header>
       <div
         className={`min-h-0 p-2 ${mode === "split" ? "overflow-auto" : "overflow-hidden"}`}
       >
         {mode === "split" ? (
-          <div className="grid min-h-[720px] gap-px bg-[var(--steel-rule)] 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
-            <div className="h-[360px] min-h-0 bg-[var(--deck-black)] 2xl:h-auto">
+          <div className="grid min-h-[720px] gap-px bg-[var(--line)] 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
+            <div className="h-[360px] min-h-0 bg-[var(--canvas)] 2xl:h-auto">
               <MeasuredSvg
                 reference={reference}
                 current={null}
@@ -505,7 +524,7 @@ export function MeasuredPlanField({
                 drawingBoundsOverride={sharedSplitBounds}
               />
             </div>
-            <div className="h-[360px] min-h-0 bg-[var(--deck-black)] 2xl:h-auto">
+            <div className="h-[360px] min-h-0 bg-[var(--canvas)] 2xl:h-auto">
               <MeasuredSvg
                 reference={null}
                 current={current}
@@ -518,7 +537,11 @@ export function MeasuredPlanField({
           <MeasuredSvg
             reference={reference}
             current={current}
-            label={`${referenceLabel} and ${currentLabel} measured overlay`}
+            label={
+              reference
+                ? `${referenceLabel} and ${currentLabel} measured overlay`
+                : `${currentLabel} measured pallet layer`
+            }
           />
         )}
       </div>

@@ -36,10 +36,8 @@ export type ProjectLibraryProps = {
   onImport: (file: File) => void;
 };
 
-const controlClass =
-  "rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-2 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25";
-const buttonClass =
-  "rounded-md border border-zinc-700 px-2.5 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-amber-400/40 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
+const controlClass = "ui-input text-xs";
+const buttonClass = "ui-btn text-xs";
 
 function projectTitle(project: Project): string {
   return project.projectNumber || project.productNumber || "Untitled project";
@@ -82,14 +80,14 @@ export function ProjectLibrary({
   };
 
   return (
-    <aside className="app-chrome flex h-full min-h-0 w-full flex-col bg-zinc-900">
-      <div className="grid gap-2 border-b border-zinc-800 p-3">
+    <aside className="app-chrome flex h-full min-h-0 w-full flex-col bg-[var(--surface)]">
+      <div className="grid gap-2 border-b border-[var(--line)] p-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-zinc-100">Projects</h2>
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Projects</h2>
           <button
             type="button"
             onClick={onCreate}
-            className="rounded-md bg-amber-400 px-2.5 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none"
+            className="ui-btn-primary px-2.5 py-1.5 text-xs"
           >
             New
           </button>
@@ -103,7 +101,7 @@ export function ProjectLibrary({
           placeholder="ID, project, product, file…"
         />
         <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-[11px] text-zinc-500">
+          <label className="grid gap-1 text-[11px] text-[var(--muted)]">
             Project filter
             <input
               type="search"
@@ -116,7 +114,7 @@ export function ProjectLibrary({
               placeholder="Project no."
             />
           </label>
-          <label className="grid gap-1 text-[11px] text-zinc-500">
+          <label className="grid gap-1 text-[11px] text-[var(--muted)]">
             Product filter
             <input
               type="search"
@@ -130,7 +128,7 @@ export function ProjectLibrary({
             />
           </label>
         </div>
-        <label className="grid gap-1 text-[11px] text-zinc-500">
+        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
           Sort
           <select
             value={`${sortBy}:${sortDirection}`}
@@ -156,9 +154,9 @@ export function ProjectLibrary({
 
       <div className="scrollbar-thin min-h-[160px] flex-1 overflow-auto p-2">
         {loading ? (
-          <p className="p-2 text-xs text-zinc-500">Loading projects…</p>
+          <p className="p-2 text-xs text-[var(--muted)]">Loading projects…</p>
         ) : projects.length === 0 ? (
-          <p className="p-2 text-xs leading-5 text-zinc-500">
+          <p className="p-2 text-xs leading-5 text-[var(--muted)]">
             No projects match the current search.
           </p>
         ) : (
@@ -169,19 +167,19 @@ export function ProjectLibrary({
                   type="button"
                   aria-current={project.id === selectedId ? "true" : undefined}
                   onClick={() => onSelect(project.id)}
-                  className={`grid w-full min-w-0 gap-1 rounded-md border px-3 py-2 text-left focus:ring-2 focus:ring-amber-400/40 focus:outline-none ${
+                  className={`grid w-full min-w-0 gap-1 border px-3 py-2 text-left focus:ring-2 focus:ring-[var(--focus)] focus:outline-none ${
                     project.id === selectedId
-                      ? "border-zinc-600 bg-zinc-800"
-                      : "border-transparent hover:border-zinc-800 hover:bg-zinc-800/60"
+                      ? "border-[var(--brand)] bg-[var(--plan-fill)]"
+                      : "border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-hover)]"
                   }`}
                 >
-                  <span className="truncate text-sm font-medium text-zinc-200">
+                  <span className="truncate text-sm font-medium text-[var(--ink)]">
                     {projectTitle(project)}
                   </span>
-                  <span className="truncate text-xs text-zinc-500">
+                  <span className="truncate text-xs text-[var(--muted)]">
                     {project.productNumber || "No product number"}
                   </span>
-                  <span className="text-[11px] text-zinc-600">
+                  <span className="text-[11px] text-[var(--muted)]">
                     {new Date(project.updatedAt).toLocaleString()}
                   </span>
                 </button>
@@ -191,7 +189,7 @@ export function ProjectLibrary({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-zinc-800 p-3">
+      <div className="grid grid-cols-2 gap-2 border-t border-[var(--line)] p-3">
         <button
           type="button"
           onClick={onEdit}
@@ -220,7 +218,7 @@ export function ProjectLibrary({
           type="button"
           onClick={onDelete}
           disabled={!hasSelection}
-          className={`${buttonClass} enabled:text-red-300 enabled:hover:bg-red-500/10`}
+          className={`${buttonClass} text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]`}
         >
           Delete
         </button>
@@ -235,7 +233,7 @@ export function ProjectLibrary({
         <button type="button" onClick={onExportAll} className={buttonClass}>
           Export all
         </button>
-        <label className="grid gap-1 text-[11px] text-zinc-500">
+        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
           Project conflict
           <select
             aria-label="Project import conflict policy"
@@ -252,7 +250,7 @@ export function ProjectLibrary({
             <option value="overwrite">Overwrite existing</option>
           </select>
         </label>
-        <label className="grid gap-1 text-[11px] text-zinc-500">
+        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
           Resource conflict
           <select
             aria-label="Resource import conflict policy"

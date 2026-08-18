@@ -120,7 +120,9 @@ describe("PlannerProjectWorkspace legacy integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /06 Validate/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("button", { name: /Legacy \.rob workspace/i }),
     );

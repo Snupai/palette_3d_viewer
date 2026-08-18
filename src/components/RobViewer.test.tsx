@@ -209,9 +209,7 @@ describe("RobViewer", () => {
       yawDeg: 90,
     });
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Close calibration" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Close calibration" }));
     await waitFor(() =>
       expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith(null),
     );

@@ -5,20 +5,27 @@ import {
   PlanningWorkflowNav,
   ValidationLedger,
 } from "~/features/planning-case/PlanningCaseChrome";
-import type {
-  PlanningStage,
-  ValidationLedgerRow,
+import {
+  GENERATION_STAGES,
+  type PlanningStage,
+  type ValidationLedgerRow,
 } from "~/features/planning-case/planningCaseModel";
 
 afterEach(cleanup);
 
-function WorkflowHarness() {
-  const [stage, setStage] = useState<PlanningStage>("inputs");
-  return <PlanningWorkflowNav activeStage={stage} onChange={setStage} />;
+function WorkflowHarness({ initial = "inputs" }: { initial?: PlanningStage }) {
+  const [stage, setStage] = useState<PlanningStage>(initial);
+  return (
+    <PlanningWorkflowNav
+      stages={GENERATION_STAGES}
+      activeStage={stage}
+      onChange={setStage}
+    />
+  );
 }
 
 describe("planning case chrome", () => {
-  it("exposes the six ordered workflow stages and updates aria-current", () => {
+  it("shows the current step and keeps later steps from being clicked", () => {
     render(<WorkflowHarness />);
 
     expect(
@@ -26,20 +33,29 @@ describe("planning case chrome", () => {
         .getByRole("button", { name: /01 Inputs/i })
         .getAttribute("aria-current"),
     ).toBe("step");
-    expect(screen.getAllByRole("button")).toHaveLength(6);
+    expect(screen.getByText("1/4")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
+    expect(screen.getByText("Generate")).toBeTruthy();
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: /04 Compare/i }));
+  it("lets a completed step be opened again", () => {
+    render(<WorkflowHarness initial="generate" />);
 
     expect(
       screen
-        .getByRole("button", { name: /04 Compare/i })
+        .getByRole("button", { name: /02 Generate/i })
         .getAttribute("aria-current"),
     ).toBe("step");
+
+    fireEvent.click(screen.getByRole("button", { name: /01 Inputs/i }));
+
     expect(
       screen
         .getByRole("button", { name: /01 Inputs/i })
         .getAttribute("aria-current"),
-    ).toBeNull();
+    ).toBe("step");
+    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
   });
 
   it("renders claim-specific statuses, evidence classes, and expandable detail", () => {

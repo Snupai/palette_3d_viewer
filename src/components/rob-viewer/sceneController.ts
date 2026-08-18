@@ -468,18 +468,18 @@ export function createViewerSceneController({
       }
       if (!sceneBuild) return;
       calibrationOverlay ??= createViewerCalibrationOverlay({
-          scene,
-          camera,
-          domElement: renderer.domElement,
-          palletObject: sceneBuild.root,
-          packageDimensionsMm: currentData.package,
-          onPoseChange: (target, pose) => {
-            getOnTemporaryCalibrationChange()?.(target, pose);
-          },
-          onDraggingChange: (dragging) => {
-            if (controls) controls.enabled = !dragging;
-            pointerDown = null;
-          },
+        scene,
+        camera,
+        domElement: renderer.domElement,
+        palletObject: sceneBuild.root,
+        packageDimensionsMm: currentData.package,
+        onPoseChange: (target, pose) => {
+          getOnTemporaryCalibrationChange()?.(target, pose);
+        },
+        onDraggingChange: (dragging) => {
+          if (controls) controls.enabled = !dragging;
+          pointerDown = null;
+        },
         requestRender: () => animationLoop?.requestRender(),
       });
       pointerDown = null;

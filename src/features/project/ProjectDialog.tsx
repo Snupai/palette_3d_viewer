@@ -44,16 +44,15 @@ type FieldProps = {
 
 function Field({ label, error, children }: FieldProps) {
   return (
-    <label className="grid min-w-0 gap-1 text-xs text-zinc-400">
+    <label className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
       <span>{label}</span>
       {children}
-      {error ? <span className="text-red-300">{error}</span> : null}
+      {error ? <span className="text-[var(--danger)]">{error}</span> : null}
     </label>
   );
 }
 
-const inputClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-2.5 py-2 text-sm text-zinc-100 outline-none placeholder:text-zinc-600 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/25";
+const inputClass = "ui-input text-sm";
 
 function errorFor(
   errors: ProjectFieldErrors,
@@ -182,18 +181,21 @@ export function ProjectDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-busy={saving}
-        className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-auto rounded-lg border border-zinc-700 bg-zinc-900 shadow-lg"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-auto border border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
       >
         <form onSubmit={(event) => void submit(event)}>
-          <header className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-            <h2 id={titleId} className="text-base font-semibold text-zinc-100">
+          <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+            <h2
+              id={titleId}
+              className="text-base font-semibold text-[var(--ink)]"
+            >
               {project ? "Edit project" : "Create project"}
             </h2>
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="rounded-md border border-zinc-700 px-2.5 py-1.5 text-sm text-zinc-400 hover:bg-zinc-800 hover:text-zinc-100 focus:ring-2 focus:ring-amber-400/40 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn px-2.5 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
             >
               Close
             </button>
@@ -203,14 +205,14 @@ export function ProjectDialog({
             {failure ? (
               <div
                 role="alert"
-                className="rounded-md border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+                className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]"
               >
                 {failure}
               </div>
             ) : null}
 
-            <fieldset className="grid gap-3 rounded-md border border-zinc-800 p-4">
-              <legend className="px-1 text-sm font-semibold text-zinc-200">
+            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
                 Project and product
               </legend>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -244,8 +246,8 @@ export function ProjectDialog({
               </div>
             </fieldset>
 
-            <fieldset className="grid gap-3 rounded-md border border-zinc-800 p-4">
-              <legend className="px-1 text-sm font-semibold text-zinc-200">
+            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
                 Cuboid package
               </legend>
               <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -346,7 +348,7 @@ export function ProjectDialog({
                 </Field>
               </div>
               <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid min-w-0 gap-1 text-xs text-zinc-400">
+                <div className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
                   <PackageLabelFacePicker
                     packageLengthMm={Number(values.packageLengthMm)}
                     packageWidthMm={Number(values.packageWidthMm)}
@@ -361,27 +363,27 @@ export function ProjectDialog({
                     }
                   />
                   {errorFor(fieldErrors, "package.inletOrientation") ? (
-                    <span className="text-red-300">
+                    <span className="text-[var(--danger)]">
                       {errorFor(fieldErrors, "package.inletOrientation")}
                     </span>
                   ) : null}
                 </div>
-                <label className="flex items-center gap-2 self-end rounded-md border border-zinc-800 px-3 py-2 text-sm text-zinc-300">
+                <label className="flex items-center gap-2 self-end border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink)]">
                   <input
                     type="checkbox"
                     checked={values.multiPickAllowed}
                     onChange={(event) =>
                       set("multiPickAllowed", event.target.checked)
                     }
-                    className="h-4 w-4 accent-amber-400"
+                    className="h-4 w-4 accent-[var(--brand)]"
                   />
                   Allow multipick
                 </label>
               </div>
             </fieldset>
 
-            <fieldset className="grid gap-3 rounded-md border border-zinc-800 p-4">
-              <legend className="px-1 text-sm font-semibold text-zinc-200">
+            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
                 Pallet and load envelope
               </legend>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -432,7 +434,7 @@ export function ProjectDialog({
                     value={values.palletId}
                     onChange={(event) => set("palletId", event.target.value)}
                     disabled={values.palletKind !== "custom"}
-                    className={`${inputClass} disabled:cursor-not-allowed disabled:text-zinc-600`}
+                    className={`${inputClass} disabled:cursor-not-allowed disabled:text-[var(--muted)]`}
                     placeholder="Generated when saved"
                   />
                 </Field>
@@ -545,14 +547,14 @@ export function ProjectDialog({
                   />
                 </Field>
               </div>
-              <label className="flex items-center gap-2 text-sm text-zinc-300">
+              <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
                 <input
                   type="checkbox"
                   checked={values.hasStorageEnvelope}
                   onChange={(event) =>
                     set("hasStorageEnvelope", event.target.checked)
                   }
-                  className="h-4 w-4 accent-amber-400"
+                  className="h-4 w-4 accent-[var(--brand)]"
                 />
                 Limit the load with a storage envelope
               </label>
@@ -614,12 +616,12 @@ export function ProjectDialog({
             </fieldset>
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-zinc-800 px-5 py-4">
+          <footer className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 focus:ring-2 focus:ring-amber-400/40 focus:outline-none disabled:opacity-50"
+              className="ui-btn px-3 py-2 text-sm disabled:opacity-50"
             >
               Cancel
             </button>
@@ -629,7 +631,7 @@ export function ProjectDialog({
                 name="creationAction"
                 value="create-only"
                 disabled={saving}
-                className="rounded-md border border-zinc-700 px-3 py-2 text-sm text-zinc-300 hover:bg-zinc-800 focus:ring-2 focus:ring-amber-400/40 focus:outline-none disabled:cursor-wait disabled:opacity-50"
+                className="ui-btn px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
               >
                 Create only
               </button>
@@ -639,7 +641,7 @@ export function ProjectDialog({
               name="creationAction"
               value={project ? "save" : "generate"}
               disabled={saving}
-              className="rounded-md bg-amber-400 px-3 py-2 text-sm font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-wait disabled:opacity-60"
+              className="ui-btn-primary px-3 py-2 text-sm disabled:cursor-wait"
             >
               {saving
                 ? "Saving…"

@@ -10,16 +10,37 @@ import { matchPhysicalFootprintPlacements } from "~/lib/parity/physicalGeometry"
 
 export const ROB_REFERENCE_TOLERANCE_MM = 0.500001;
 
-export const PLANNING_STAGES = [
+export const GENERATION_STAGES = [
   ["inputs", "Inputs"],
-  ["reference", "Reference"],
   ["generate", "Generate"],
-  ["compare", "Compare"],
   ["stack", "Stack"],
-  ["validate", "Validate"],
+  ["validate", "Tools"],
 ] as const;
 
-export type PlanningStage = (typeof PLANNING_STAGES)[number][0];
+export const IMPORTED_STAGES = [
+  ["inputs", "Plan"],
+  ["validate", "Tools"],
+] as const;
+
+export const PLANNING_STAGES = GENERATION_STAGES;
+
+export type PlanningStage = (typeof GENERATION_STAGES)[number][0];
+
+export type PlanningWorkflowStage = readonly [PlanningStage, string];
+
+export function workflowStages(
+  importedRob: boolean,
+): readonly PlanningWorkflowStage[] {
+  return importedRob ? IMPORTED_STAGES : GENERATION_STAGES;
+}
+
+export function clampPlanningStage(
+  stage: PlanningStage,
+  importedRob: boolean,
+): PlanningStage {
+  const stages = workflowStages(importedRob);
+  return stages.some(([id]) => id === stage) ? stage : stages[0]![0];
+}
 
 export type PatternComparisonStatus =
   | "unavailable"

@@ -38,7 +38,9 @@ describe("viewer pose math", () => {
     expect(
       composeViewerPoses(palletPose, viewerPoseToLocal(palletPose, worldPose)),
     ).toEqual(worldPose);
-    expect(composeViewerPoses(palletPose, invertViewerPose(palletPose))).toEqual({
+    expect(
+      composeViewerPoses(palletPose, invertViewerPose(palletPose)),
+    ).toEqual({
       positionMm: { x: 0, y: 0, z: 0 },
       yawDeg: 0,
     });

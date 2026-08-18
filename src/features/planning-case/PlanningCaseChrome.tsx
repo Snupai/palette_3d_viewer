@@ -4,50 +4,77 @@ import type { ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
 import {
-  PLANNING_STAGES,
   type PlanningStage,
+  type PlanningWorkflowStage,
   type ValidationLedgerRow,
   type ValidationStatus,
 } from "~/features/planning-case/planningCaseModel";
 
 export function PlanningWorkflowNav({
+  stages,
   activeStage,
   onChange,
 }: {
+  stages: readonly PlanningWorkflowStage[];
   activeStage: PlanningStage;
   onChange: (stage: PlanningStage) => void;
 }) {
+  const activeIndex = Math.max(
+    0,
+    stages.findIndex(([stage]) => stage === activeStage),
+  );
   return (
     <nav
       aria-label="Planning workflow"
-      className="app-chrome grid grid-cols-3 border-b border-[var(--steel-rule)] bg-[var(--graphite-surface)] md:grid-cols-6"
+      className="app-chrome flex min-h-11 items-stretch border-b border-[var(--line)] bg-[var(--surface)]"
     >
-      {PLANNING_STAGES.map(([stage, label], index) => {
-        const active = stage === activeStage;
-        return (
-          <button
-            key={stage}
-            type="button"
-            aria-current={active ? "step" : undefined}
-            onClick={() => onChange(stage)}
-            className={`group relative flex min-h-10 items-center gap-2 border-r border-[var(--steel-rule)] px-3 text-left text-[11px] font-semibold tracking-[0.08em] uppercase outline-none last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--selection-amber)] focus-visible:ring-inset ${
-              active
-                ? "bg-[var(--deck-black)] text-[var(--chalk-text)]"
-                : "text-[var(--muted-text)] hover:bg-[#1A2024] hover:text-[var(--chalk-text)]"
-            }`}
-          >
-            <span
-              className={`font-mono ${active ? "text-[var(--selection-amber)]" : "text-[#68747C]"}`}
-            >
-              {String(index + 1).padStart(2, "0")}
-            </span>
-            <span>{label}</span>
-            {active ? (
-              <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--selection-amber)]" />
-            ) : null}
-          </button>
-        );
-      })}
+      <ol className="flex min-w-0 flex-1 items-stretch">
+        {stages.map(([stage, label], index) => {
+          const active = stage === activeStage;
+          const reachable = index <= activeIndex;
+          const className = `relative flex min-h-11 min-w-0 flex-1 items-center gap-2 border-r border-[var(--line)] px-3 text-left text-[13px] last:border-r-0 ${
+            active
+              ? "bg-[var(--canvas)] text-[var(--ink)]"
+              : reachable
+                ? "text-[var(--ink)] hover:bg-[var(--surface-hover)]"
+                : "text-[var(--muted)]"
+          }`;
+          const body = (
+            <>
+              <span
+                className={`font-mono text-[11px] ${
+                  active ? "text-[var(--brand)]" : "text-[var(--muted)]"
+                }`}
+              >
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="truncate">{label}</span>
+              {active ? (
+                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--brand)]" />
+              ) : null}
+            </>
+          );
+          return (
+            <li key={stage} className="flex min-w-0 flex-1">
+              {reachable ? (
+                <button
+                  type="button"
+                  aria-current={active ? "step" : undefined}
+                  onClick={() => onChange(stage)}
+                  className={`${className} outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset`}
+                >
+                  {body}
+                </button>
+              ) : (
+                <span className={className}>{body}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
+      <p className="flex shrink-0 items-center px-3 font-mono text-[12px] text-[var(--muted)]">
+        {activeIndex + 1}/{stages.length}
+      </p>
     </nav>
   );
 }
@@ -65,12 +92,12 @@ export function PlanningCandidateIndex({
 }) {
   const rows = candidates.slice(0, maximumRows);
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--steel-rule)]">
-      <header className="flex items-center justify-between border-b border-[var(--steel-rule)] px-2.5 py-2">
-        <h3 className="text-[11px] font-semibold tracking-[0.12em] text-[var(--chalk-text)] uppercase">
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)]">
+      <header className="flex items-center justify-between border-b border-[var(--line)] px-2.5 py-2">
+        <h3 className="text-[13px] font-semibold text-[var(--ink)]">
           Candidate index
         </h3>
-        <span className="font-mono text-[10px] text-[var(--muted-text)]">
+        <span className="font-mono text-[11px] text-[var(--muted)]">
           {rows.length}/{candidates.length}
         </span>
       </header>
@@ -80,8 +107,8 @@ export function PlanningCandidateIndex({
         className="scrollbar-thin min-h-0 overflow-auto"
       >
         <table className="w-full border-collapse text-[11px]">
-          <thead className="sticky top-0 z-10 bg-[var(--graphite-surface)] text-left text-[10px] tracking-wide text-[var(--muted-text)] uppercase">
-            <tr className="border-b border-[var(--steel-rule)]">
+          <thead className="sticky top-0 z-10 bg-[var(--surface)] text-left text-[11px] text-[var(--muted)]">
+            <tr className="border-b border-[var(--line)]">
               <th className="px-2 py-1.5 font-medium">Rank</th>
               <th className="px-2 py-1.5 font-medium">Pkgs</th>
               <th className="px-2 py-1.5 font-medium">Geometry</th>
@@ -104,10 +131,10 @@ export function PlanningCandidateIndex({
                       onSelect(candidate.id);
                     }
                   }}
-                  className={`cursor-default border-b border-[var(--steel-rule)]/70 outline-none focus-visible:ring-2 focus-visible:ring-[var(--selection-amber)] focus-visible:ring-inset ${
+                  className={`cursor-pointer border-b border-[var(--line)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
                     selected
-                      ? "border-l-2 border-l-[var(--selection-amber)] bg-[rgba(214,166,74,0.1)] text-[var(--chalk-text)]"
-                      : "border-l-2 border-l-transparent text-[#AEB7BD] hover:bg-[#1A2024]"
+                      ? "border-l-2 border-l-[var(--brand)] bg-[var(--plan-fill)] text-[var(--ink)]"
+                      : "border-l-2 border-l-transparent text-[var(--ink)] hover:bg-[var(--surface-hover)]"
                   }`}
                 >
                   <td className="px-2 py-1.5 font-mono">#{candidate.rank}</td>
@@ -117,7 +144,7 @@ export function PlanningCandidateIndex({
                   <td className="px-2 py-1.5">
                     {candidate.validation.valid ? "Geometry OK" : "Rejected"}
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono text-[10px] text-[var(--muted-text)]">
+                  <td className="px-2 py-1.5 text-right font-mono text-[10px] text-[var(--muted)]">
                     {candidate.metrics.boundingBlockLengthMm} ×{" "}
                     {candidate.metrics.boundingBlockWidthMm}
                   </td>
@@ -127,12 +154,12 @@ export function PlanningCandidateIndex({
           </tbody>
         </table>
         {rows.length === 0 ? (
-          <p className="p-3 text-xs leading-5 text-[var(--muted-text)]">
+          <p className="p-3 text-xs leading-5 text-[var(--muted)]">
             Generate patterns to populate the candidate index.
           </p>
         ) : null}
         {candidates.length > maximumRows ? (
-          <p className="border-t border-[var(--steel-rule)] p-2 text-[10px] text-[var(--muted-text)]">
+          <p className="border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
             Showing the first {maximumRows} ranked candidates. Full diagnostics
             remain available in production tools.
           </p>
@@ -153,22 +180,22 @@ const statusSymbol: Record<ValidationStatus, string> = {
 const statusClass: Record<ValidationStatus, string> = {
   PASS: "text-[var(--inspection-pass)]",
   FAIL: "text-[var(--inspection-fail)]",
-  BLOCKED: "text-[#89949B]",
-  OBSERVED: "text-[var(--measured-blue)]",
-  SKIPPED: "text-[#68747C]",
+  BLOCKED: "text-[var(--muted)]",
+  OBSERVED: "text-[var(--measure)]",
+  SKIPPED: "text-[var(--muted)]",
 };
 
 export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
   return (
     <aside
       aria-label="Inspection ledger"
-      className="planning-ledger app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--steel-rule)] bg-[var(--graphite-surface)]"
+      className="planning-ledger app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)] bg-[var(--surface)]"
     >
-      <header className="border-b border-[var(--steel-rule)] px-3 py-2">
-        <h2 className="text-[11px] font-semibold tracking-[0.14em] text-[var(--chalk-text)] uppercase">
+      <header className="border-b border-[var(--line)] px-3 py-2">
+        <h2 className="text-[13px] font-semibold text-[var(--ink)]">
           Inspection ledger
         </h2>
-        <p className="mt-0.5 text-[10px] text-[var(--muted-text)]">
+        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
           G generated · O observed · ? unknown
         </p>
       </header>
@@ -176,9 +203,9 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
         {rows.map((row) => (
           <details
             key={row.id}
-            className="group border-b border-[var(--steel-rule)] last:border-b-0"
+            className="group border-b border-[var(--line)] last:border-b-0"
           >
-            <summary className="grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 text-[10px] marker:hidden hover:bg-[#1A2024] focus-visible:ring-2 focus-visible:ring-[var(--selection-amber)] focus-visible:outline-none">
+            <summary className="grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 text-[11px] marker:hidden hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none">
               <span
                 aria-hidden="true"
                 className={`font-mono ${statusClass[row.status]}`}
@@ -190,20 +217,20 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
               >
                 {row.status}
               </span>
-              <span className="font-mono text-[var(--muted-text)]">
+              <span className="font-mono text-[var(--muted)]">
                 {row.evidence}
               </span>
               <span>
-                <strong className="block font-semibold text-[#C5CDD2]">
+                <strong className="block font-semibold text-[var(--ink)]">
                   {row.label}
                 </strong>
-                <span className="mt-0.5 block leading-4 text-[var(--muted-text)]">
+                <span className="mt-0.5 block leading-4 text-[var(--muted)]">
                   {row.claim}
                 </span>
               </span>
             </summary>
             {row.detail ? (
-              <p className="border-t border-[var(--steel-rule)] bg-[var(--deck-black)] px-3 py-2 font-mono text-[10px] leading-4 whitespace-pre-wrap text-[#AEB7BD]">
+              <p className="border-t border-[var(--line)] bg-[var(--canvas)] px-3 py-2 font-mono text-[10px] leading-4 whitespace-pre-wrap text-[var(--muted)]">
                 {row.detail}
               </p>
             ) : null}
@@ -256,13 +283,13 @@ function StripRow({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[76px_minmax(0,1fr)] border-b border-[var(--steel-rule)] last:border-b-0">
-      <div className="flex items-center border-r border-[var(--steel-rule)] px-2 text-[10px] font-semibold tracking-[0.1em] text-[var(--muted-text)] uppercase">
+    <div className="grid grid-cols-[76px_minmax(0,1fr)] border-b border-[var(--line)] last:border-b-0">
+      <div className="flex items-center border-r border-[var(--line)] px-2 text-[11px] font-semibold text-[var(--muted)]">
         {label}
       </div>
       <div className="scrollbar-thin flex min-w-0 overflow-x-auto">
         {items.length === 0 ? (
-          <span className="px-3 py-2 text-[10px] text-[#68747C]">
+          <span className="px-3 py-2 text-[10px] text-[var(--muted)]">
             No layer sequence
           </span>
         ) : (
@@ -270,7 +297,7 @@ function StripRow({
             <div key={item.id} className="flex shrink-0 items-stretch">
               {item.sheetBefore ? (
                 <span
-                  className="w-1 bg-[repeating-linear-gradient(45deg,#65A9C3_0,#65A9C3_1px,transparent_1px,transparent_3px)]"
+                  className="w-1 bg-[repeating-linear-gradient(45deg,var(--accent)_0,var(--accent)_1px,transparent_1px,transparent_3px)]"
                   title="Interlayer before"
                 />
               ) : null}
@@ -278,14 +305,14 @@ function StripRow({
                 type="button"
                 title={`${item.label} · ${item.pattern}`}
                 onClick={() => onSelect(index)}
-                className={`min-w-14 border-r border-[var(--steel-rule)] px-2 py-1 text-left font-mono text-[9px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--selection-amber)] focus-visible:ring-inset ${
+                className={`min-w-14 border-r border-[var(--line)] px-2 py-1 text-left font-mono text-[9px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
                   selectedIndex === index
-                    ? "bg-[rgba(214,166,74,0.13)] text-[var(--selection-amber)]"
-                    : "text-[#9DA8AF] hover:bg-[#1A2024]"
+                    ? "bg-[var(--plan-fill)] text-[var(--brand)]"
+                    : "text-[var(--ink)] hover:bg-[var(--surface-hover)]"
                 }`}
               >
                 <span className="block">{item.label}</span>
-                <span className="block max-w-24 truncate text-[#68747C]">
+                <span className="block max-w-24 truncate text-[var(--muted)]">
                   {item.pattern}
                 </span>
               </button>
@@ -315,16 +342,18 @@ export function LayerStrips({
   return (
     <section
       aria-label="Layer sequences"
-      className="app-chrome border border-[var(--steel-rule)] bg-[var(--graphite-surface)]"
+      className="app-chrome border border-[var(--line)] bg-[var(--surface)]"
     >
+      {reference ? (
+        <StripRow
+          label="Reference"
+          items={sourceStrip(reference)}
+          selectedIndex={referenceLayerIndex}
+          onSelect={onReferenceLayerChange}
+        />
+      ) : null}
       <StripRow
-        label="Reference"
-        items={sourceStrip(reference)}
-        selectedIndex={referenceLayerIndex}
-        onSelect={onReferenceLayerChange}
-      />
-      <StripRow
-        label="Current"
+        label="Layers"
         items={currentStrip(current)}
         selectedIndex={currentLayerIndex}
         onSelect={onCurrentLayerChange}
@@ -362,20 +391,20 @@ export function CaseDrawer({
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`grid h-full min-w-0 grid-rows-[44px_minmax(0,1fr)] border-l border-[var(--steel-rule)] bg-[var(--graphite-surface)] shadow-2xl ${
+        className={`grid h-full min-w-0 grid-rows-[44px_minmax(0,1fr)] border-l border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)] ${
           width === "narrow"
             ? "w-[min(420px,calc(100vw-32px))]"
             : "w-[min(1180px,calc(100vw-32px))]"
         }`}
       >
-        <header className="app-chrome flex items-center border-b border-[var(--steel-rule)] px-3">
-          <h2 className="mr-auto text-xs font-semibold tracking-[0.12em] text-[var(--chalk-text)] uppercase">
+        <header className="app-chrome flex items-center border-b border-[var(--line)] px-3">
+          <h2 className="mr-auto text-[13px] font-semibold text-[var(--ink)]">
             {title}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="h-7 border border-[var(--steel-rule)] px-2 text-[11px] text-[var(--muted-text)] hover:bg-[#1A2024] hover:text-[var(--chalk-text)] focus-visible:ring-2 focus-visible:ring-[var(--selection-amber)] focus-visible:outline-none"
+            className="ui-btn h-7 px-2 text-[11px]"
           >
             Close
           </button>

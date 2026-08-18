@@ -287,9 +287,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
           ? "bg-zinc-700 text-zinc-100"
           : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
       }`;
-    const setCalibrationTarget = (
-      target: ViewerTemporaryCalibrationTarget,
-    ) => {
+    const setCalibrationTarget = (target: ViewerTemporaryCalibrationTarget) => {
       setCalibrationState((current) =>
         current ? { ...current, activeTarget: target } : current,
       );

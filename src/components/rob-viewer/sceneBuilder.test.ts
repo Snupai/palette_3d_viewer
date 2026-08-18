@@ -163,8 +163,7 @@ describe("viewer scene builder", () => {
 
   it("renders world-space packages on the confirmed calibrated pallet pose", () => {
     const scene = new THREE.Scene();
-    const palletPose =
-      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
+    const palletPose = BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION.palletPose;
     const built = buildViewerScene(scene, palletData(), { palletPose });
 
     expect(built.root.position.toArray()).toEqual([789, -5, 0]);

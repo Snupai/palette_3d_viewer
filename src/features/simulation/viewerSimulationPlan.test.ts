@@ -6,12 +6,7 @@ import {
   timelinePoseToViewerPose,
 } from "~/features/simulation/viewerSimulationPlan";
 
-function pose(
-  x: number,
-  y: number,
-  z: number,
-  yawDeg: number,
-): RobotPose {
+function pose(x: number, y: number, z: number, yawDeg: number): RobotPose {
   return {
     frame: "pallet",
     positionMm: { x, y, z },

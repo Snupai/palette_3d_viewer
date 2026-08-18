@@ -34,11 +34,7 @@ const PICKUP_COLOR = 0x22d3ee;
 const PALLET_COLOR = 0xf59e0b;
 
 function applyPose(object: THREE.Object3D, pose: ViewerScenePose): void {
-  object.position.set(
-    pose.positionMm.x,
-    pose.positionMm.y,
-    pose.positionMm.z,
-  );
+  object.position.set(pose.positionMm.x, pose.positionMm.y, pose.positionMm.z);
   object.rotation.set(0, 0, THREE.MathUtils.degToRad(pose.yawDeg));
 }
 
@@ -112,7 +108,10 @@ function createPickupMarker(dimensions: {
   ring.renderOrder = 22;
   marker.add(ring);
 
-  const arrowLength = Math.max(120, Math.min(dimensions.width, dimensions.length));
+  const arrowLength = Math.max(
+    120,
+    Math.min(dimensions.width, dimensions.length),
+  );
   const arrow = new THREE.ArrowHelper(
     new THREE.Vector3(1, 0, 0),
     new THREE.Vector3(0, 0, 25),

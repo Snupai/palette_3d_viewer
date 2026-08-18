@@ -106,16 +106,16 @@ export function PackageLabelFacePicker({
     : null;
 
   return (
-    <div className="grid gap-2 border border-zinc-700 bg-zinc-950/70 p-2.5">
+    <div className="grid gap-2 border border-[var(--line)] bg-[var(--canvas)] p-2.5">
       <fieldset disabled={disabled} className="grid gap-1.5">
-        <legend className="text-[10px] font-semibold tracking-[0.1em] text-zinc-400 uppercase">
+        <legend className="text-[11px] font-semibold text-[var(--muted)]">
           Infeed orientation
         </legend>
-        <div className="grid grid-cols-2 gap-px overflow-hidden rounded-sm border border-zinc-700 bg-zinc-700">
+        <div className="grid grid-cols-2 gap-px overflow-hidden border border-[var(--line)] bg-[var(--line)]">
           {(["lengthwise", "crosswise"] as const).map((orientation) => (
             <label
               key={orientation}
-              className="relative cursor-pointer bg-zinc-900 text-center text-[10px] font-semibold text-zinc-400 uppercase has-[:checked]:bg-amber-400/15 has-[:checked]:text-amber-300 has-[:disabled]:cursor-not-allowed has-[:disabled]:text-zinc-600"
+              className="relative cursor-pointer bg-[var(--surface)] text-center text-[11px] font-semibold text-[var(--muted)] has-[:checked]:bg-[var(--plan-fill)] has-[:checked]:text-[var(--brand)] has-[:disabled]:cursor-not-allowed has-[:disabled]:text-[var(--muted)]"
             >
               <input
                 type="radio"
@@ -126,7 +126,7 @@ export function PackageLabelFacePicker({
                 onChange={() => onInletOrientationChange(orientation)}
                 className="peer sr-only"
               />
-              <span className="block px-2 py-2 outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-amber-300 peer-focus-visible:ring-inset">
+              <span className="block px-2 py-2 outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-[var(--focus)] peer-focus-visible:ring-inset">
                 {orientation === "lengthwise" ? "Lengthwise" : "Crosswise"}
               </span>
             </label>
@@ -135,29 +135,29 @@ export function PackageLabelFacePicker({
       </fieldset>
 
       <fieldset disabled={disabled} className="grid gap-2">
-        <legend className="text-[10px] font-semibold tracking-[0.1em] text-zinc-400 uppercase">
+        <legend className="text-[11px] font-semibold text-[var(--muted)]">
           Physical label face
         </legend>
-        <p className="text-[10px] leading-4 text-zinc-500">
+        <p className="text-[11px] leading-4 text-[var(--muted)]">
           Click the package edge where the label is attached.
         </p>
 
-        <div className="relative flex h-40 items-center justify-center overflow-hidden border border-zinc-800 bg-[#111619]">
+        <div className="relative flex h-40 items-center justify-center overflow-hidden border border-[var(--line)] bg-[var(--canvas)]">
           <div
             aria-hidden="true"
-            className="absolute inset-x-3 top-[42%] h-px bg-zinc-700"
+            className="absolute inset-x-3 top-[42%] h-px bg-[var(--line)]"
           />
           <div
             aria-hidden="true"
-            className="absolute inset-x-3 top-[58%] h-px bg-zinc-700"
+            className="absolute inset-x-3 top-[58%] h-px bg-[var(--line)]"
           />
           <div
             aria-hidden="true"
-            className="absolute top-1/2 right-3 h-0 w-0 -translate-y-1/2 border-y-[5px] border-l-[8px] border-y-transparent border-l-zinc-500"
+            className="absolute top-1/2 right-3 h-0 w-0 -translate-y-1/2 border-y-[5px] border-l-[8px] border-y-transparent border-l-[var(--muted)]"
           />
 
           <div
-            className="relative grid place-items-center border border-zinc-500 bg-[#20282D] shadow-[0_8px_24px_rgba(0,0,0,0.38)]"
+            className="relative grid place-items-center border border-[var(--line)] bg-[var(--surface)]"
             style={{
               width: `${packageSize.width}px`,
               height: `${packageSize.height}px`,
@@ -165,7 +165,7 @@ export function PackageLabelFacePicker({
           >
             <div
               aria-hidden="true"
-              className="grid place-items-center gap-0.5 font-mono text-[9px] leading-none text-zinc-400"
+              className="grid place-items-center gap-0.5 font-mono text-[9px] leading-none text-[var(--muted)]"
             >
               <span>{inletOrientation === "lengthwise" ? "L →" : "W →"}</span>
               <span>{inletOrientation === "lengthwise" ? "W ↕" : "L ↕"}</span>
@@ -184,15 +184,15 @@ export function PackageLabelFacePicker({
                   aria-pressed={selected}
                   title={`Physical package face: ${physicalSideLabel[packageSide]}`}
                   onClick={() => onPackageSideChange(packageSide)}
-                  className={`${edgePositionClass[displayedEdge]} absolute z-10 grid place-items-center border border-zinc-400 bg-zinc-700 transition-colors outline-none hover:border-amber-200 hover:bg-amber-400/60 focus-visible:ring-2 focus-visible:ring-amber-200 disabled:cursor-not-allowed disabled:border-zinc-700 disabled:bg-zinc-800 ${
+                  className={`${edgePositionClass[displayedEdge]} absolute z-10 grid place-items-center border border-[var(--line)] bg-[var(--surface)] outline-none hover:border-[var(--brand)] hover:bg-[var(--plan-fill)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:border-[var(--line)] disabled:bg-[var(--canvas)] ${
                     selected
-                      ? "border-amber-200 bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.55)]"
+                      ? "border-[var(--brand)] bg-[var(--plan-fill)]"
                       : ""
                   }`}
                 >
                   <span
                     aria-hidden="true"
-                    className={`rounded-full ${selected ? "h-1.5 w-1.5 bg-zinc-950" : "h-1 w-1 bg-zinc-500"}`}
+                    className={`rounded-full ${selected ? "h-1.5 w-1.5 bg-[var(--brand)]" : "h-1 w-1 bg-[var(--muted)]"}`}
                   />
                 </button>
               );
@@ -202,7 +202,7 @@ export function PackageLabelFacePicker({
           <div
             aria-label="Infeed direction: left to right"
             data-infeed-direction="left-to-right"
-            className="absolute right-2 bottom-1.5 left-2 flex items-center justify-between font-mono text-[8px] tracking-[0.08em] text-zinc-500 uppercase"
+            className="absolute right-2 bottom-1.5 left-2 flex items-center justify-between font-mono text-[8px] text-[var(--muted)]"
           >
             <span>Infeed</span>
             <span aria-hidden="true">Left → right</span>
@@ -210,7 +210,10 @@ export function PackageLabelFacePicker({
         </div>
 
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-          <p aria-live="polite" className="text-[10px] leading-4 text-zinc-400">
+          <p
+            aria-live="polite"
+            className="text-[11px] leading-4 text-[var(--muted)]"
+          >
             {selectedPackageSide && selectedDisplayedEdge
               ? `${physicalSideLabel[selectedPackageSide]} · shown on ${selectedDisplayedEdge} edge`
               : "No nearest-edge label preference"}
@@ -220,7 +223,7 @@ export function PackageLabelFacePicker({
             disabled={disabled}
             aria-pressed={selectedPackageSide === null}
             onClick={() => onPackageSideChange(null)}
-            className="min-h-7 rounded-sm border border-zinc-700 px-2 text-[9px] font-semibold text-zinc-400 uppercase outline-none hover:border-zinc-500 hover:text-zinc-200 focus-visible:ring-2 focus-visible:ring-amber-300 disabled:cursor-not-allowed disabled:text-zinc-600"
+            className="ui-btn min-h-7 px-2 text-[11px]"
           >
             No label
           </button>

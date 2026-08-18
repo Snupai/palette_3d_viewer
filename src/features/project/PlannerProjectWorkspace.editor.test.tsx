@@ -171,7 +171,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     );
   });
 
-  it("attaches a session .rob reference, blocks comparison on physical input mismatch, and applies only encoded inputs", async () => {
+  it("opens a .rob file as the current plan instead of attaching a reference", async () => {
     const { project, repository } = await repositoryWithProject();
 
     render(<PlannerProjectWorkspace repository={repository} />);
@@ -182,7 +182,6 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /02 Reference/i }));
 
     const input = document.querySelector<HTMLInputElement>(
       'input[type="file"][accept=".rob,text/plain"]',
@@ -195,52 +194,48 @@ describe("PlannerProjectWorkspace editor integration", () => {
     });
     fireEvent.change(input, { target: { files: [file] } });
 
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "reference" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
     expect(await screen.findAllByText("reference.rob")).not.toHaveLength(0);
     expect(
-      screen.getByText("Footprint recreation").closest("summary")?.textContent,
-    ).toContain("BLOCKED");
-
-    fireEvent.click(
-      screen.getByRole("button", {
-        name: "Apply encoded dimensions + inlet",
-      }),
-    );
+      screen
+        .getByRole("button", { name: /01 Plan/i })
+        .getAttribute("aria-current"),
+    ).toBe("step");
+    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
+    expect(screen.queryByText("Footprint recreation")).toBeNull();
+    expect(screen.getAllByText("Imported plan").length).toBeGreaterThan(0);
 
     await waitFor(async () => {
-      const saved = await repository.getProject(project.id);
-      expect(saved.project?.package.dimensionsMm).toEqual({
+      const listed = (await repository.listProjects()).projects;
+      const imported = listed.find(
+        (entry) =>
+          entry.source.kind === "rob-import" &&
+          entry.source.fileName === "reference.rob",
+      );
+      expect(imported?.package.dimensionsMm).toEqual({
         length: 200,
         width: 300,
         height: 150,
       });
-      expect(saved.project?.package.inletOrientation).toBe("crosswise");
-      expect(saved.project?.package.clearanceMm).toBe(
-        project.package.clearanceMm,
-      );
-      expect(saved.project?.package.multiPickAllowed).toBe(false);
-      expect(saved.project?.pallet?.dimensionsMm).toEqual({
+      expect(imported?.package.inletOrientation).toBe("crosswise");
+      expect(imported?.pallet?.dimensionsMm).toEqual({
         length: 1200,
         width: 800,
         height: 144,
       });
-      expect(saved.project?.pallet?.allowedOverhangMm).toEqual({
-        length: 0,
-        width: 0,
-      });
-      expect(saved.project?.pallet?.storageEnvelopeMm).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: /02 Reference/i }));
-    expect(
-      screen.getByRole<HTMLButtonElement>("button", {
-        name: "Encoded inputs already match",
-      }).disabled,
-    ).toBe(true);
-    await waitFor(() =>
-      expect(
-        screen.getByText("Footprint recreation").closest("summary")
-          ?.textContent,
-      ).toContain("PASS"),
-    );
+    const original = await repository.getProject(project.id);
+    expect(original.project?.package.dimensionsMm).toEqual({
+      length: 100,
+      width: 50,
+      height: 40,
+    });
   });
 });

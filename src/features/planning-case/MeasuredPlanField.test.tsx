@@ -62,7 +62,7 @@ describe("MeasuredPlanField", () => {
 
     const field = container.querySelector(".planning-plan-field");
     const svg = screen.getByRole("img", {
-      name: "Reference and Current measured overlay",
+      name: "Current measured pallet layer",
     });
 
     expect(field).not.toBeNull();

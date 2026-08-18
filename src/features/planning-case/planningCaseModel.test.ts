@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { transformPlacements, type PlacementGeometry } from "~/domain/geometry";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import {
+  clampPlanningStage,
   comparePatternPreviews,
+  workflowStages,
   ROB_REFERENCE_TOLERANCE_MM,
 } from "~/features/planning-case/planningCaseModel";
 
@@ -146,5 +148,27 @@ describe("comparePatternPreviews", () => {
       referenceCount: 0,
       currentCount: 2,
     });
+  });
+});
+
+describe("planning workflow stages", () => {
+  it("uses a four-step generation path and a two-step imported path", () => {
+    expect(workflowStages(false).map(([id]) => id)).toEqual([
+      "inputs",
+      "generate",
+      "stack",
+      "validate",
+    ]);
+    expect(workflowStages(true).map(([id, label]) => [id, label])).toEqual([
+      ["inputs", "Plan"],
+      ["validate", "Tools"],
+    ]);
+  });
+
+  it("clamps generate/stack away when the project already has a .rob", () => {
+    expect(clampPlanningStage("generate", true)).toBe("inputs");
+    expect(clampPlanningStage("stack", true)).toBe("inputs");
+    expect(clampPlanningStage("validate", true)).toBe("validate");
+    expect(clampPlanningStage("generate", false)).toBe("generate");
   });
 });

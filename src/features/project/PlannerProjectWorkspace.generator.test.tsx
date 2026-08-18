@@ -195,7 +195,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create manual project" },
+      { name: "Create project" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -226,7 +226,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("button", { name: /03 Generate/i })
+        .getByRole("button", { name: /02 Generate/i })
         .getAttribute("aria-current"),
     ).toBe("step");
     const selectedSuggestion = await screen.findByRole("option", {
@@ -253,7 +253,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create manual project" },
+      { name: "Create project" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -299,13 +299,13 @@ describe("PlannerProjectWorkspace generator integration", () => {
       ),
     ).toBeTruthy();
     expect(clientMocks.run).not.toHaveBeenCalled();
-
-    fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
     expect(
-      await screen.findByRole("heading", { name: "Layer solver" }),
-    ).toBeTruthy();
-    await Promise.resolve();
-    expect(clientMocks.run).not.toHaveBeenCalled();
+      screen
+        .getByRole("button", { name: /01 Plan/i })
+        .getAttribute("aria-current"),
+    ).toBe("step");
+    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
+    expect(screen.queryByRole("heading", { name: "Layer solver" })).toBeNull();
   });
 
   it("runs zero-allowance generation as compact without changing the saved pallet policy", async () => {
@@ -320,7 +320,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       ),
     ).toBeTruthy();
     expect(clientMocks.run).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },
     });
@@ -356,7 +356,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /03 Generate/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     fireEvent.change(screen.getByLabelText("Package length"), {
       target: { value: "100" },

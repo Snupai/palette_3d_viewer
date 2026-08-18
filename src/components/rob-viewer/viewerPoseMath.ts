@@ -11,7 +11,7 @@ function cleanNumber(value: number): number {
 }
 
 export function normalizeViewerYawDeg(yawDeg: number): number {
-  const normalized = ((yawDeg + 180) % 360 + 360) % 360 - 180;
+  const normalized = ((((yawDeg + 180) % 360) + 360) % 360) - 180;
   return Object.is(normalized, -0) ? 0 : normalized;
 }
 
@@ -47,12 +47,8 @@ export function invertViewerPose(pose: ViewerScenePose): ViewerScenePose {
   const sine = Math.sin(radians);
   return {
     positionMm: {
-      x: cleanNumber(
-        -pose.positionMm.x * cosine + pose.positionMm.y * sine,
-      ),
-      y: cleanNumber(
-        -pose.positionMm.x * sine - pose.positionMm.y * cosine,
-      ),
+      x: cleanNumber(-pose.positionMm.x * cosine + pose.positionMm.y * sine),
+      y: cleanNumber(-pose.positionMm.x * sine - pose.positionMm.y * cosine),
       z: cleanNumber(-pose.positionMm.z),
     },
     yawDeg: normalizeViewerYawDeg(inverseYawDeg),

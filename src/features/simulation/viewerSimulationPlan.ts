@@ -36,11 +36,7 @@ function calibratedTransferPose(
       z:
         Math.max(worldPick.positionMm.z, worldPlace.positionMm.z) + clearanceMm,
     },
-    yawDeg: interpolateViewerYawDeg(
-      worldPick.yawDeg,
-      worldPlace.yawDeg,
-      0.5,
-    ),
+    yawDeg: interpolateViewerYawDeg(worldPick.yawDeg, worldPlace.yawDeg, 0.5),
   };
 }
 
@@ -53,9 +49,7 @@ export function createViewerSimulationCycles(
   toViewerPose: (pose: RobotPose) => ViewerScenePose,
   calibration: ViewerSceneCalibrationConfig | null,
 ): readonly RobotCycle[] {
-  const referencePick = cycles[0]
-    ? toViewerPose(cycles[0].pickPose)
-    : null;
+  const referencePick = cycles[0] ? toViewerPose(cycles[0].pickPose) : null;
   const pickupFrame =
     calibration && referencePick
       ? viewerFrameFromReference(referencePick, calibration.pickupPose)

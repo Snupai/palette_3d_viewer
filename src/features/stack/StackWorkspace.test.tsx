@@ -779,12 +779,13 @@ describe("StackWorkspace", () => {
   ])(
     "keeps one physical layer and applies the $name",
     async ({ transform, label, expected }) => {
-      const onSave = vi.fn<
-        (
-          state: StackWorkspaceState,
-          materialized: MaterializedStackResult,
-        ) => void
-      >();
+      const onSave =
+        vi.fn<
+          (
+            state: StackWorkspaceState,
+            materialized: MaterializedStackResult,
+          ) => void
+        >();
       render(
         <StackWorkspace
           project={project}

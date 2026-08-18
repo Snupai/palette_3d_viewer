@@ -76,11 +76,7 @@ describe("deterministic suction placement partitioning", () => {
         placement("first", 0, 50, 50, rotation),
         placement("third", 2, 50, 250, rotation),
       ];
-      const expected = [
-        ["first", "second"],
-        ["third"],
-        ["fourth", "fifth"],
-      ];
+      const expected = [["first", "second"], ["third"], ["fourth", "fifth"]];
 
       expect(
         groupIds(

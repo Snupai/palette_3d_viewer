@@ -124,25 +124,25 @@ function executionOrderProject(options: {
   const robotCycles =
     options.gripPlanningSource === "manual"
       ? storedOrder.map((gripId, sequence) => {
-        const grip = gripById.get(gripId)!;
-        return {
-          id: `cycle-${sequence + 1}`,
-          patternId: pattern.id,
-          sequence,
-          gripId,
-          placementIds: [placementIdByGripId.get(gripId)!],
-          gripperId: null,
-          pickPose: { x: 0, y: 0, z: null, rotation: 0 as const },
-          placePose: {
-            x: grip.x,
-            y: grip.y,
-            z: null,
-            rotation: grip.rotation,
-          },
-          labelOffset: { x: grip.dx, y: grip.dy },
-        };
-      })
-    : [];
+          const grip = gripById.get(gripId)!;
+          return {
+            id: `cycle-${sequence + 1}`,
+            patternId: pattern.id,
+            sequence,
+            gripId,
+            placementIds: [placementIdByGripId.get(gripId)!],
+            gripperId: null,
+            pickPose: { x: 0, y: 0, z: null, rotation: 0 as const },
+            placePose: {
+              x: grip.x,
+              y: grip.y,
+              z: null,
+              rotation: grip.rotation,
+            },
+            labelOffset: { x: grip.dx, y: grip.dy },
+          };
+        })
+      : [];
   return createProject(
     {
       id: `project-${options.patternId}`,

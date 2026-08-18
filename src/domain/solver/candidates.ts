@@ -321,10 +321,7 @@ function groupCandidatePlacements(
 
 function createUnrankedCandidate(
   input: NormalizedLayerSolverInput,
-  grouped: Pick<
-    SolverCandidate,
-    "placements" | "grips" | "orderDependencies"
-  >,
+  grouped: Pick<SolverCandidate, "placements" | "grips" | "orderDependencies">,
   validation: SolverCandidate["validation"],
   geometryFingerprint: string,
 ): Omit<SolverCandidate, "rank"> {
@@ -537,11 +534,12 @@ export function finalizeGeneratedCandidates(
     };
   }
 
-  const aggregates = [...aggregateBySymmetryClass.values()].sort((left, right) =>
-    compareStrings(
-      left.representative.geometryFingerprint,
-      right.representative.geometryFingerprint,
-    ),
+  const aggregates = [...aggregateBySymmetryClass.values()].sort(
+    (left, right) =>
+      compareStrings(
+        left.representative.geometryFingerprint,
+        right.representative.geometryFingerprint,
+      ),
   );
   const unranked: Array<Omit<SolverCandidate, "rank">> = [];
   const identityByCompactId = new Map<string, string>();
@@ -566,9 +564,7 @@ export function finalizeGeneratedCandidates(
       representative.id,
       representative.identityFingerprint,
     );
-    const previousGeometry = geometryByCompactId.get(
-      representative.geometryId,
-    );
+    const previousGeometry = geometryByCompactId.get(representative.geometryId);
     if (
       previousGeometry &&
       previousGeometry !== representative.geometryFingerprint

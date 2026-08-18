@@ -18,6 +18,13 @@ everything in a Three.js viewer.
 - Expects a typecheck run after each change, with the result reported.
 - Gripper selection marker should stay semi-transparent (~30% opacity), not solid.
 
+## Design
+
+Corporate chrome follows Szaidel Cosmetic GmbH (navy `#173159`, steel `#8bb0c9`,
+system light/dark). Tokens, workflow rules, and banned patterns live in
+`docs/DESIGN.md`. Do not restore skippable planning tabs or a `.rob` “reference”
+overlay when the file is already the plan.
+
 ## Commands
 
 | Purpose                                                   | Command                                                                    |
