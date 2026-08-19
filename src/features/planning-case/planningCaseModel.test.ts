@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { transformPlacements, type PlacementGeometry } from "~/domain/geometry";
+import { createProject } from "~/domain/project/projectFactory";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import {
   clampPlanningStage,
   comparePatternPreviews,
+  planningStageForProject,
   workflowStages,
   ROB_REFERENCE_TOLERANCE_MM,
 } from "~/features/planning-case/planningCaseModel";
@@ -152,23 +154,110 @@ describe("comparePatternPreviews", () => {
 });
 
 describe("planning workflow stages", () => {
-  it("uses a four-step generation path and a two-step imported path", () => {
+  it("uses a three-step generation path and a single imported plan step", () => {
     expect(workflowStages(false).map(([id]) => id)).toEqual([
       "inputs",
       "generate",
       "stack",
-      "validate",
     ]);
     expect(workflowStages(true).map(([id, label]) => [id, label])).toEqual([
       ["inputs", "Plan"],
-      ["validate", "Tools"],
     ]);
   });
 
   it("clamps generate/stack away when the project already has a .rob", () => {
     expect(clampPlanningStage("generate", true)).toBe("inputs");
     expect(clampPlanningStage("stack", true)).toBe("inputs");
-    expect(clampPlanningStage("validate", true)).toBe("validate");
+    expect(clampPlanningStage("validate", true)).toBe("inputs");
     expect(clampPlanningStage("generate", false)).toBe("generate");
+  });
+
+  it("opens a finished stack on Stack and a generated pattern on Generate", () => {
+    const empty = createProject(
+      { id: "empty-stage", projectNumber: "EMPTY" },
+      { now: () => 1, createId: (kind) => `${kind}-empty` },
+    );
+    const generated = createProject(
+      {
+        id: "generated-stage",
+        projectNumber: "GENERATED",
+        solutions: [
+          {
+            id: "solution-1",
+            name: "Generated",
+            origin: "calculated",
+            patterns: [
+              {
+                id: "pattern-1",
+                name: "Pattern 1",
+                grips: [],
+                placements: [
+                  {
+                    id: "placement-1",
+                    sequence: 0,
+                    positionMm: { x: 100, y: 50 },
+                    rotation: 0,
+                    gripId: null,
+                    labelSide: null,
+                  },
+                ],
+              },
+            ],
+            stack: {
+              interlayerThicknessMm: 3,
+              layers: [],
+              trailingInterlayer: 0,
+            },
+            robotCycles: [],
+          },
+        ],
+        activeSolutionId: "solution-1",
+      },
+      { now: () => 1, createId: (kind) => `${kind}-generated` },
+    );
+    const stacked = createProject(
+      {
+        id: "stacked-stage",
+        projectNumber: "STACKED",
+        solutions: [
+          {
+            id: "solution-1",
+            name: "Stacked",
+            origin: "calculated",
+            patterns: generated.solutions[0]!.patterns,
+            stack: {
+              interlayerThicknessMm: 3,
+              layers: [
+                {
+                  id: "layer-1",
+                  patternId: "pattern-1",
+                  interlayerBefore: 0,
+                },
+              ],
+              trailingInterlayer: 0,
+            },
+            robotCycles: [],
+          },
+        ],
+        activeSolutionId: "solution-1",
+      },
+      { now: () => 1, createId: (kind) => `${kind}-stacked` },
+    );
+    const imported = createProject(
+      {
+        id: "imported-stage",
+        projectNumber: "IMPORTED",
+        source: { kind: "rob-import", fileName: "plan.rob" },
+        solutions: stacked.solutions,
+        activeSolutionId: "solution-1",
+      },
+      { now: () => 1, createId: (kind) => `${kind}-imported` },
+    );
+
+    expect(planningStageForProject(empty)).toBe("inputs");
+    expect(planningStageForProject(generated)).toBe("generate");
+    expect(planningStageForProject(stacked)).toBe("stack");
+    expect(planningStageForProject(imported)).toBe("inputs");
+    expect(planningStageForProject(null)).toBe("inputs");
   });
 });

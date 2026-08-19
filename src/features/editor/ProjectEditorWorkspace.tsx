@@ -30,10 +30,8 @@ import { FlowMode } from "~/features/editor/FlowMode";
 import { OrderMode } from "~/features/editor/OrderMode";
 import { PatternMode } from "~/features/editor/PatternMode";
 
-const buttonClass =
-  "cursor-pointer rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
-const inputClass =
-  "cursor-pointer rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
+const buttonClass = "ui-btn h-7 px-2.5 text-[12px]";
+const inputClass = "ui-input";
 
 const modes: ReadonlyArray<readonly [ProjectEditorMode, string]> = [
   ["pattern", "Pattern"],
@@ -319,16 +317,16 @@ export function ProjectEditorWorkspace({
   return (
     <section
       data-testid="project-editor-workspace"
-      className="grid gap-3"
+      className="grid gap-3 bg-[var(--canvas)] p-3 text-[var(--ink)]"
       onKeyDown={handleKeyboard}
     >
-      <header className="border border-zinc-800 bg-zinc-900">
-        <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-3 py-2">
+      <header className="border border-[var(--line)] bg-[var(--surface)]">
+        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-3 py-2">
           <div className="mr-auto">
-            <h2 className="text-sm font-semibold text-zinc-100">
+            <h2 className="text-[13px] font-semibold text-[var(--ink)]">
               Project layer editor
             </h2>
-            <p className="mt-0.5 text-xs text-zinc-500">
+            <p className="mt-0.5 text-[12px] text-[var(--muted)]">
               One command history covers package geometry, labels, groups,
               execution order, and stack interlayers.
             </p>
@@ -336,7 +334,9 @@ export function ProjectEditorWorkspace({
           <span
             role="status"
             className={
-              dirty ? "text-xs text-amber-300" : "text-xs text-zinc-500"
+              dirty
+                ? "text-[12px] text-[var(--brand)]"
+                : "text-[12px] text-[var(--muted)]"
             }
           >
             {dirty ? "Unsaved editor changes" : "Saved editor state"}
@@ -345,7 +345,7 @@ export function ProjectEditorWorkspace({
             type="button"
             disabled={!dirty || saving}
             onClick={() => void save()}
-            className="cursor-pointer rounded-md bg-amber-400 px-3 py-1.5 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
+            className="ui-btn-primary h-7 px-2.5 text-[12px]"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -377,17 +377,17 @@ export function ProjectEditorWorkspace({
             type="button"
             disabled={!projectEditorCanReset(history) || saving}
             onClick={() => dispatch({ type: "reset-to-original" })}
-            className={`${buttonClass} text-red-300`}
+            className={`${buttonClass} text-[var(--danger)]`}
           >
             Reset original
           </button>
-          <span className="border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[11px] text-zinc-500">
+          <span className="border border-[var(--line)] bg-[var(--canvas)] px-2 py-1 font-mono text-[11px] text-[var(--muted)]">
             History {position.position}/{position.length}
           </span>
         </div>
 
         <div className="flex flex-wrap items-end gap-3 p-3">
-          <label className="grid min-w-56 gap-1 text-xs text-zinc-500">
+          <label className="grid min-w-56 gap-1 text-[12px] text-[var(--muted)]">
             Active solution
             <select
               aria-label="Editor active solution"
@@ -411,7 +411,7 @@ export function ProjectEditorWorkspace({
               ))}
             </select>
           </label>
-          <label className="grid min-w-56 gap-1 text-xs text-zinc-500">
+          <label className="grid min-w-56 gap-1 text-[12px] text-[var(--muted)]">
             Active pattern
             <select
               aria-label="Editor active pattern"
@@ -422,7 +422,7 @@ export function ProjectEditorWorkspace({
                 setSelectedPlacementIds(new Set());
                 setSelectedGroupIds(new Set());
               }}
-              className={`${inputClass} disabled:text-zinc-600`}
+              className={`${inputClass} disabled:text-[var(--muted)]`}
             >
               {solution?.patterns.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
@@ -433,7 +433,7 @@ export function ProjectEditorWorkspace({
           </label>
           <nav
             aria-label="Project editor mode"
-            className="flex items-center gap-1 border border-zinc-800 bg-zinc-950 p-1"
+            className="flex items-stretch border border-[var(--line)]"
           >
             {modes.map(([value, label]) => (
               <button
@@ -441,17 +441,20 @@ export function ProjectEditorWorkspace({
                 type="button"
                 aria-current={mode === value ? "page" : undefined}
                 onClick={() => setMode(value)}
-                className={`cursor-pointer rounded-md px-3 py-1.5 text-xs font-medium focus:ring-2 focus:ring-amber-400/35 focus:outline-none ${
+                className={`relative border-r border-[var(--line)] px-3 py-1.5 text-[12px] last:border-r-0 outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
                   mode === value
-                    ? "bg-zinc-700 text-zinc-100"
-                    : "text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+                    ? "bg-[var(--canvas)] text-[var(--ink)]"
+                    : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
                 }`}
               >
                 {label}
+                {mode === value ? (
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--brand)]" />
+                ) : null}
               </button>
             ))}
           </nav>
-          <p className="ml-auto max-w-md text-[11px] leading-5 text-zinc-600">
+          <p className="ml-auto max-w-md text-[11px] leading-5 text-[var(--muted)]">
             Shortcuts outside form controls: Ctrl/Command+Z,
             Shift+Ctrl/Command+Z or Ctrl/Command+Y, Delete, Escape, arrows, R
             rotate, C center, L/T insert.
@@ -462,7 +465,7 @@ export function ProjectEditorWorkspace({
       {history.error || saveError ? (
         <div
           role="alert"
-          className="border border-red-500/35 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+          className="border border-[var(--danger)] px-3 py-2 text-[13px] text-[var(--danger)]"
         >
           {history.error ?? saveError}
         </div>
@@ -470,14 +473,14 @@ export function ProjectEditorWorkspace({
       {status ? (
         <div
           role="status"
-          className="border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-zinc-300"
+          className="border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)]"
         >
           {status}
         </div>
       ) : null}
 
       {!solution || !pattern || !orderModel ? (
-        <div className="flex min-h-[360px] items-center justify-center border border-dashed border-zinc-800 bg-zinc-900/50 px-4 text-center text-sm text-zinc-500">
+        <div className="flex min-h-24 items-center justify-center border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 text-center text-[13px] text-[var(--muted)]">
           Save or import a stack with at least one layer pattern before opening
           the project editor.
         </div>
@@ -515,22 +518,22 @@ export function ProjectEditorWorkspace({
       )}
 
       {resourceDiagnostics.length > 0 ? (
-        <details className="border border-zinc-800 bg-zinc-900">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-medium text-zinc-300 focus:ring-2 focus:ring-amber-400/35 focus:outline-none">
+        <details className="border border-[var(--line)] bg-[var(--surface)]">
+          <summary className="px-3 py-2 text-[12px] font-medium text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset">
             Canonical robotics resource diagnostics (
             {resourceDiagnostics.length})
           </summary>
-          <ul className="grid gap-2 border-t border-zinc-800 p-3">
+          <ul className="grid gap-2 border-t border-[var(--line)] p-3">
             {resourceDiagnostics.map((diagnostic, index) => (
               <li
                 key={`${diagnostic.code}-${diagnostic.message}-${index}`}
                 className={
                   diagnostic.severity === "error"
-                    ? "text-xs leading-5 text-red-200"
-                    : "text-xs leading-5 text-amber-200"
+                    ? "text-[12px] leading-5 text-[var(--danger)]"
+                    : "text-[12px] leading-5 text-[var(--brand)]"
                 }
               >
-                <span className="font-mono text-[10px] text-zinc-500">
+                <span className="font-mono text-[10px] text-[var(--muted)]">
                   {diagnostic.phase}/{diagnostic.code}
                 </span>
                 <br />

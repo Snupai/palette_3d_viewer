@@ -14,10 +14,8 @@ import type {
   ProjectEditorOrderModel,
 } from "~/features/editor/editorModel";
 
-const inputClass =
-  "rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
-const buttonClass =
-  "rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
+const inputClass = "ui-input";
+const buttonClass = "ui-btn h-7 px-2.5 text-[12px]";
 
 const labelSides: ReadonlyArray<readonly [CandidateLabelSide | "", string]> = [
   ["", "No label side"],
@@ -134,10 +132,10 @@ export function PatternMode({
   };
 
   return (
-    <div className="grid gap-3 xl:grid-cols-[minmax(560px,1fr)_300px]">
-      <section className="border border-zinc-800 bg-zinc-900">
+    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_260px]">
+      <section className="border border-[var(--line)] bg-[var(--surface)]">
         <div
-          className="flex flex-wrap items-center gap-2 border-b border-zinc-800 p-2"
+          className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] p-2"
           role="toolbar"
           aria-label="Pattern editing actions"
         >
@@ -173,7 +171,7 @@ export function PatternMode({
           >
             Insert transverse
           </button>
-          <span className="mx-1 h-5 w-px bg-zinc-800" aria-hidden="true" />
+          <span className="mx-1 h-5 w-px bg-[var(--line)]" aria-hidden="true" />
           <button
             type="button"
             disabled={effectiveSelectedPlacementIds.size === 0}
@@ -200,11 +198,11 @@ export function PatternMode({
             type="button"
             disabled={effectiveSelectedPlacementIds.size === 0}
             onClick={remove}
-            className={`${buttonClass} text-red-300`}
+            className={`${buttonClass} text-[var(--danger)]`}
           >
             Delete
           </button>
-          <span className="ml-auto text-[11px] text-zinc-500">
+          <span className="ml-auto text-[11px] text-[var(--muted)]">
             {effectiveSelectedPlacementIds.size} selected
           </span>
         </div>
@@ -224,9 +222,9 @@ export function PatternMode({
       </section>
 
       <aside className="grid content-start gap-3">
-        <section className="border border-zinc-800 bg-zinc-900 p-3">
-          <h3 className="text-sm font-semibold text-zinc-100">Pattern</h3>
-          <label className="mt-3 grid gap-1 text-xs text-zinc-500">
+        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
+          <h3 className="text-sm font-semibold text-[var(--ink)]">Pattern</h3>
+          <label className="mt-3 grid gap-1 text-xs text-[var(--muted)]">
             Pattern name
             <input
               aria-label="Pattern name"
@@ -248,7 +246,7 @@ export function PatternMode({
             />
           </label>
           <div className="mt-3 grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-xs text-zinc-500">
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
               Fine nudge (mm)
               <input
                 aria-label="Fine nudge step"
@@ -260,7 +258,7 @@ export function PatternMode({
                 className={inputClass}
               />
             </label>
-            <label className="grid gap-1 text-xs text-zinc-500">
+            <label className="grid gap-1 text-xs text-[var(--muted)]">
               Coarse nudge (mm)
               <input
                 aria-label="Coarse nudge step"
@@ -273,27 +271,27 @@ export function PatternMode({
               />
             </label>
           </div>
-          <p className="mt-2 text-[11px] leading-5 text-zinc-600">
+          <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
             Arrow keys use the fine step. Hold Shift for the coarse step.
           </p>
         </section>
 
-        <section className="border border-zinc-800 bg-zinc-900 p-3">
+        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-zinc-100">Selection</h3>
-            <span className="font-mono text-[11px] text-zinc-500">
+            <h3 className="text-sm font-semibold text-[var(--ink)]">Selection</h3>
+            <span className="font-mono text-[11px] text-[var(--muted)]">
               {selected.length}/{pattern.placements.length}
             </span>
           </div>
           {selected.length === 0 ? (
-            <p className="mt-3 text-xs leading-5 text-zinc-600">
+            <p className="mt-3 text-xs leading-5 text-[var(--muted)]">
               Click a package, use Ctrl/Command click for multiple packages, or
               Shift-drag empty space for a marquee.
             </p>
           ) : (
             <div className="mt-3 grid gap-3">
               <div className="grid grid-cols-2 gap-2">
-                <label className="grid gap-1 text-xs text-zinc-500">
+                <label className="grid gap-1 text-xs text-[var(--muted)]">
                   X (mm)
                   <input
                     aria-label="Selected package X"
@@ -322,10 +320,10 @@ export function PatternMode({
                         setXDraft(String(selectedOne.positionMm.x));
                       }
                     }}
-                    className={`${inputClass} disabled:text-zinc-600`}
+                    className={`${inputClass} disabled:text-[var(--muted)]`}
                   />
                 </label>
-                <label className="grid gap-1 text-xs text-zinc-500">
+                <label className="grid gap-1 text-xs text-[var(--muted)]">
                   Y (mm)
                   <input
                     aria-label="Selected package Y"
@@ -354,18 +352,18 @@ export function PatternMode({
                         setYDraft(String(selectedOne.positionMm.y));
                       }
                     }}
-                    className={`${inputClass} disabled:text-zinc-600`}
+                    className={`${inputClass} disabled:text-[var(--muted)]`}
                   />
                 </label>
               </div>
               {!selectedOne ? (
-                <p className="text-[11px] text-zinc-600">
+                <p className="text-[11px] text-[var(--muted)]">
                   Numeric coordinates are available when exactly one package is
                   selected. Movement, centering, rotation, and labels apply to
                   the full selection.
                 </p>
               ) : null}
-              <label className="grid gap-1 text-xs text-zinc-500">
+              <label className="grid gap-1 text-xs text-[var(--muted)]">
                 Label side
                 <select
                   aria-label="Selected package label side"
@@ -394,9 +392,9 @@ export function PatternMode({
                   ))}
                 </select>
               </label>
-              <div className="scrollbar-thin max-h-36 overflow-auto border border-zinc-800">
+              <div className="scrollbar-thin max-h-36 overflow-auto border border-[var(--line)]">
                 <table className="w-full text-left text-[11px]">
-                  <thead className="sticky top-0 bg-zinc-950 text-zinc-500">
+                  <thead className="sticky top-0 bg-[var(--canvas)] text-[var(--muted)]">
                     <tr>
                       <th className="px-2 py-1.5 font-medium">Package</th>
                       <th className="px-2 py-1.5 font-medium">X</th>
@@ -408,7 +406,7 @@ export function PatternMode({
                     {selected.map((placement) => (
                       <tr
                         key={placement.id}
-                        className="border-t border-zinc-800"
+                        className="border-t border-[var(--line)]"
                       >
                         <td className="px-2 py-1.5 font-mono">
                           #{placement.sequence + 1}
@@ -431,9 +429,9 @@ export function PatternMode({
           )}
         </section>
 
-        <section className="border border-zinc-800 bg-zinc-900 p-3">
-          <h3 className="text-sm font-semibold text-zinc-100">Interlayers</h3>
-          <label className="mt-3 grid gap-1 text-xs text-zinc-500">
+        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
+          <h3 className="text-sm font-semibold text-[var(--ink)]">Interlayers</h3>
+          <label className="mt-3 grid gap-1 text-xs text-[var(--muted)]">
             Shared thickness (mm)
             <input
               aria-label="Editor interlayer thickness"
@@ -455,7 +453,7 @@ export function PatternMode({
             />
           </label>
           <div className="mt-3 grid gap-2">
-            <div className="grid grid-cols-[1fr_64px_84px] gap-2 text-[10px] text-zinc-600">
+            <div className="grid grid-cols-[1fr_64px_84px] gap-2 text-[10px] text-[var(--muted)]">
               <span>Boundary</span>
               <span>Count</span>
               <span>Thickness</span>
@@ -463,7 +461,7 @@ export function PatternMode({
             {solution.stack.layers.map((layer, index) => (
               <div
                 key={layer.id}
-                className="grid grid-cols-[1fr_64px_84px] items-center gap-2 text-xs text-zinc-500"
+                className="grid grid-cols-[1fr_64px_84px] items-center gap-2 text-xs text-[var(--muted)]"
               >
                 <span>Before layer {index + 1}</span>
                 <input
@@ -509,7 +507,7 @@ export function PatternMode({
                 />
               </div>
             ))}
-            <div className="grid grid-cols-[1fr_64px_84px] items-center gap-2 text-xs text-zinc-500">
+            <div className="grid grid-cols-[1fr_64px_84px] items-center gap-2 text-xs text-[var(--muted)]">
               <span>Deck sheets</span>
               <input
                 aria-label="Trailing interlayer quantity"
@@ -554,12 +552,12 @@ export function PatternMode({
           </div>
         </section>
 
-        <section className="border border-zinc-800 bg-zinc-900 p-3">
-          <h3 className="text-sm font-semibold text-zinc-100">
+        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
+          <h3 className="text-sm font-semibold text-[var(--ink)]">
             Validation ({diagnostics.length})
           </h3>
           {diagnostics.length === 0 ? (
-            <p className="mt-2 text-xs text-zinc-600">
+            <p className="mt-2 text-xs text-[var(--muted)]">
               No pattern, grouping, or order diagnostics.
             </p>
           ) : (
@@ -569,11 +567,11 @@ export function PatternMode({
                   key={`${diagnostic.code}-${diagnostic.message}-${index}`}
                   className={
                     diagnostic.severity === "error"
-                      ? "text-xs leading-5 text-red-200"
-                      : "text-xs leading-5 text-amber-200"
+                      ? "text-xs leading-5 text-[var(--danger)]"
+                      : "text-xs leading-5 text-[var(--brand)]"
                   }
                 >
-                  <span className="font-mono text-[10px] text-zinc-500">
+                  <span className="font-mono text-[10px] text-[var(--muted)]">
                     {diagnostic.code}
                   </span>
                   <br />

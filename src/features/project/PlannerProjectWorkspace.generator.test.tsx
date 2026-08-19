@@ -225,10 +225,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
       ),
     ).toBeTruthy();
     expect(
-      screen
-        .getByRole("button", { name: /02 Generate/i })
-        .getAttribute("aria-current"),
-    ).toBe("step");
+      screen.getByRole("heading", { name: "Generate patterns" }),
+    ).toBeTruthy();
+    expect(screen.getByText("2/3")).toBeTruthy();
     const selectedSuggestion = await screen.findByRole("option", {
       selected: true,
     });
@@ -271,10 +270,10 @@ describe("PlannerProjectWorkspace generator integration", () => {
     ).toBeTruthy();
     expect(clientMocks.run).not.toHaveBeenCalled();
     expect(
-      screen
-        .getByRole("button", { name: /01 Inputs/i })
-        .getAttribute("aria-current"),
-    ).toBe("step");
+      screen.getByRole("heading", { name: "Project inputs" }),
+    ).toBeTruthy();
+    expect(screen.getByText("1/3")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect((await repository.listProjects()).projects).toHaveLength(1);
   });
 
@@ -300,10 +299,11 @@ describe("PlannerProjectWorkspace generator integration", () => {
     ).toBeTruthy();
     expect(clientMocks.run).not.toHaveBeenCalled();
     expect(
-      screen
-        .getByRole("button", { name: /01 Plan/i })
-        .getAttribute("aria-current"),
-    ).toBe("step");
+      screen.getByRole("heading", { name: "Imported .rob plan" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("navigation", { name: "Planning workflow" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect(screen.queryByRole("heading", { name: "Layer solver" })).toBeNull();
   });

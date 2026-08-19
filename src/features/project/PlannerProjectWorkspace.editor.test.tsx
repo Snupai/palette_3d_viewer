@@ -182,6 +182,11 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(
+      screen.getByRole("heading", { name: "Project inputs" }),
+    ).toBeTruthy();
 
     const input = document.querySelector<HTMLInputElement>(
       'input[type="file"][accept=".rob,text/plain"]',
@@ -203,10 +208,11 @@ describe("PlannerProjectWorkspace editor integration", () => {
     ).toBeTruthy();
     expect(await screen.findAllByText("reference.rob")).not.toHaveLength(0);
     expect(
-      screen
-        .getByRole("button", { name: /01 Plan/i })
-        .getAttribute("aria-current"),
-    ).toBe("step");
+      screen.getByRole("heading", { name: "Imported .rob plan" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("navigation", { name: "Planning workflow" }),
+    ).toBeNull();
     expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect(screen.queryByText("Footprint recreation")).toBeNull();
     expect(screen.getAllByText("Imported plan").length).toBeGreaterThan(0);

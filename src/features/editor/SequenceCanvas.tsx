@@ -38,15 +38,18 @@ export function SequenceCanvas({
       viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
       role="img"
       aria-label={ariaLabel}
-      className={`h-full min-h-[300px] w-full ${className}`}
+      className={`mx-auto block h-auto w-full max-w-[min(100%,34rem)] ${className}`}
+      style={{
+        aspectRatio: `${Math.max(width, 1)} / ${Math.max(height, 1)}`,
+      }}
     >
       <rect
         x={envelope.minX}
         y={envelope.minY}
         width={width}
         height={height}
-        fill="#18181b"
-        stroke="#52525b"
+        fill="var(--canvas)"
+        stroke="var(--line)"
         strokeWidth={1}
         vectorEffect="non-scaling-stroke"
       />
@@ -57,7 +60,7 @@ export function SequenceCanvas({
           width={pallet.length}
           height={pallet.width}
           fill="none"
-          stroke="#a1a1aa"
+          stroke="var(--ink)"
           strokeWidth={2}
           vectorEffect="non-scaling-stroke"
         />
@@ -78,8 +81,20 @@ export function SequenceCanvas({
               width={rectWidth}
               height={rectHeight}
               rx={3}
-              fill={current ? "#3f3412" : completed ? "#3f3f46" : "#27272a"}
-              stroke={current ? "#fbbf24" : completed ? "#a1a1aa" : "#71717a"}
+              fill={
+                current
+                  ? "var(--plan-fill)"
+                  : completed
+                    ? "var(--surface-hover)"
+                    : "var(--surface)"
+              }
+              stroke={
+                current
+                  ? "var(--brand)"
+                  : completed
+                    ? "var(--muted)"
+                    : "var(--plan-stroke)"
+              }
               strokeWidth={current ? 3 : 1.5}
               vectorEffect="non-scaling-stroke"
             >
@@ -90,8 +105,8 @@ export function SequenceCanvas({
               y={y + rectHeight / 2}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill="#f4f4f5"
-              stroke="#18181b"
+              fill="var(--ink)"
+              stroke="var(--canvas)"
               strokeWidth={3}
               paintOrder="stroke"
               fontSize={Math.max(11, Math.min(rectWidth, rectHeight) * 0.22)}

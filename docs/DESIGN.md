@@ -68,20 +68,27 @@ Stack / Validate). Steps are sequential.
 1. Inputs
 2. Generate
 3. Stack
-4. Tools
 
 **Imported `.rob`** (`source.kind === "rob-import"`):
 
 1. Plan
-2. Tools
+
+There is no Tools / Validate step and no “Production tools” catalog.
+Editor, Robotics, Simulation, and Report open as named surfaces from the
+header. They cover the viewport; do not leave a tools list visible beside
+them. Legacy `.rob` stays as a quiet action on Plan / Inputs. There is no
+`.mpb` inspector in the product: proprietary MultiPack files are not decoded.
 
 Rules:
 
-- Future steps are not buttons. Back is allowed; Continue advances one step.
-- Compact readout `2/4` (or `1/2` on import) sits on the stepper.
+- There is no step tab strip. Back and Continue move one screen at a time.
+- Compact readout `2/3` sits on the current-step panel, not as skippable tabs.
+- Opening a project starts at the furthest completed step: empty → Inputs,
+  patterns without a stack → Generate, a saved stack → Stack. Imported `.rob`
+  stays on Plan.
 - Opening a `.rob` file **creates the project**. It is not a session
-  “reference” to recreate. If a `.rob` already exists, skip Generate / Compare
-  / Reference.
+  “reference” to recreate. If a `.rob` already exists, skip Generate /
+  Compare / Reference.
 - The plan field shows the current (or imported) layer only. Do not overlay a
   second reference plan in the default chrome.
 
@@ -93,6 +100,6 @@ Rules:
 | `.ui-btn`         | Secondary actions                 |
 | `.ui-btn-primary` | Navy (light) or steel (dark) fill |
 
-Tokens live in `src/styles/globals.css`. Keep production tools (editor,
-robotics, simulation) on the same variables when touching them; do not
-reintroduce zinc/amber palettes.
+Tokens live in `src/styles/globals.css`. Keep editor, robotics, and simulation
+on the same variables when touching them; do not reintroduce zinc/amber
+palettes.

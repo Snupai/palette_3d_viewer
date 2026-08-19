@@ -49,8 +49,15 @@ describe("PackageLabelFacePicker", () => {
         .getByRole("button", {
           name: "Select label on displayed top edge",
         })
-        .getAttribute("aria-pressed"),
-    ).toBe("true");
+        .className,
+    ).toContain("bg-[var(--brand)]");
+    expect(
+      screen
+        .getByRole("button", {
+          name: "Select label on displayed bottom edge",
+        })
+        .className,
+    ).not.toContain("bg-[var(--brand)]");
     expect(
       screen
         .getByLabelText("Infeed direction: left to right")

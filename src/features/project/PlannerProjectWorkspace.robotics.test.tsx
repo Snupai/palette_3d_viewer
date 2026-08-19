@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
@@ -125,7 +126,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(
       screen.getByText("Robot readiness").closest("summary")?.textContent,
     ).toContain("Complete the plan");
-    fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
+    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("X (mm)"), {
@@ -133,14 +134,29 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     });
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
 
-    fireEvent.click(screen.getByRole("button", { name: "Close Robotics" }));
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
     await waitFor(() => {
       expect(screen.queryByTestId("robotics-workspace")).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
+    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
+
+    fireEvent.click(
+      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
+        "button",
+        { name: "Close" },
+      ),
+    );
+    await waitFor(() => {
+      expect(screen.queryByTestId("robotics-workspace")).toBeNull();
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Projects" }));
     expect(
@@ -155,7 +171,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
+    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("");
   });
@@ -177,7 +193,11 @@ describe("PlannerProjectWorkspace robotics integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Production tools" }));
+    expect(
+      screen.getByRole("heading", { name: "Compose the pallet sequence" }),
+    ).toBeTruthy();
+    expect(screen.getByText("3/3")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("X (mm)"), {

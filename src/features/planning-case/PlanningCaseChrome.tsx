@@ -4,80 +4,9 @@ import type { ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
 import {
-  type PlanningStage,
-  type PlanningWorkflowStage,
   type ValidationLedgerRow,
   type ValidationStatus,
 } from "~/features/planning-case/planningCaseModel";
-
-export function PlanningWorkflowNav({
-  stages,
-  activeStage,
-  onChange,
-}: {
-  stages: readonly PlanningWorkflowStage[];
-  activeStage: PlanningStage;
-  onChange: (stage: PlanningStage) => void;
-}) {
-  const activeIndex = Math.max(
-    0,
-    stages.findIndex(([stage]) => stage === activeStage),
-  );
-  return (
-    <nav
-      aria-label="Planning workflow"
-      className="app-chrome flex min-h-11 items-stretch border-b border-[var(--line)] bg-[var(--surface)]"
-    >
-      <ol className="flex min-w-0 flex-1 items-stretch">
-        {stages.map(([stage, label], index) => {
-          const active = stage === activeStage;
-          const reachable = index <= activeIndex;
-          const className = `relative flex min-h-11 min-w-0 flex-1 items-center gap-2 border-r border-[var(--line)] px-3 text-left text-[13px] last:border-r-0 ${
-            active
-              ? "bg-[var(--canvas)] text-[var(--ink)]"
-              : reachable
-                ? "text-[var(--ink)] hover:bg-[var(--surface-hover)]"
-                : "text-[var(--muted)]"
-          }`;
-          const body = (
-            <>
-              <span
-                className={`font-mono text-[11px] ${
-                  active ? "text-[var(--brand)]" : "text-[var(--muted)]"
-                }`}
-              >
-                {String(index + 1).padStart(2, "0")}
-              </span>
-              <span className="truncate">{label}</span>
-              {active ? (
-                <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--brand)]" />
-              ) : null}
-            </>
-          );
-          return (
-            <li key={stage} className="flex min-w-0 flex-1">
-              {reachable ? (
-                <button
-                  type="button"
-                  aria-current={active ? "step" : undefined}
-                  onClick={() => onChange(stage)}
-                  className={`${className} outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset`}
-                >
-                  {body}
-                </button>
-              ) : (
-                <span className={className}>{body}</span>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      <p className="flex shrink-0 items-center px-3 font-mono text-[12px] text-[var(--muted)]">
-        {activeIndex + 1}/{stages.length}
-      </p>
-    </nav>
-  );
-}
 
 export function PlanningCandidateIndex({
   candidates,
@@ -160,8 +89,7 @@ export function PlanningCandidateIndex({
         ) : null}
         {candidates.length > maximumRows ? (
           <p className="border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
-            Showing the first {maximumRows} ranked candidates. Full diagnostics
-            remain available in production tools.
+            Showing the first {maximumRows} ranked candidates.
           </p>
         ) : null}
       </div>
@@ -376,25 +304,28 @@ export function CaseDrawer({
   children: ReactNode;
 }) {
   if (!open) return null;
+  const narrow = width === "narrow";
   return (
     <div
-      className="fixed inset-0 z-40 flex justify-end bg-black/70"
+      className={`fixed inset-0 z-40 flex ${narrow ? "justify-end bg-black/70" : ""}`}
       role="presentation"
     >
-      <button
-        type="button"
-        aria-label={`Close ${title}`}
-        onClick={onClose}
-        className="min-w-8 flex-1 cursor-default"
-      />
+      {narrow ? (
+        <button
+          type="button"
+          aria-label={`Close ${title}`}
+          onClick={onClose}
+          className="min-w-8 flex-1 cursor-default"
+        />
+      ) : null}
       <section
         role="dialog"
         aria-modal="true"
         aria-label={title}
-        className={`grid h-full min-w-0 grid-rows-[44px_minmax(0,1fr)] border-l border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)] ${
-          width === "narrow"
-            ? "w-[min(420px,calc(100vw-32px))]"
-            : "w-[min(1180px,calc(100vw-32px))]"
+        className={`grid h-full min-w-0 grid-rows-[44px_minmax(0,1fr)] bg-[var(--surface)] ${
+          narrow
+            ? "w-[min(420px,calc(100vw-32px))] border-l border-[var(--line)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+            : "w-full"
         }`}
       >
         <header className="app-chrome flex items-center border-b border-[var(--line)] px-3">

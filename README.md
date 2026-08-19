@@ -14,8 +14,7 @@ Import, inspect, and edit `.rob` pallet plans in the browser.
   grip groups, dependency-aware sequencing, and canonical RobotCycle inspection
 - Gripper/station resources, reach/envelope/collision diagnostics, validated
   project-derived `.rob` export, deterministic simulation, and printable reports
-- Safe portable project/resource packages and read-only, explicitly unverified
-  `.mpb` envelope diagnostics
+- Safe portable project/resource packages
 - Existing `.rob` import, local library, original/edited text, 2D editor, and
   Three.js viewer retained as a separate compatible workflow
 

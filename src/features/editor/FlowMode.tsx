@@ -15,8 +15,7 @@ import {
   stepProjectEditorFlow,
 } from "~/features/editor/editorModel";
 
-const buttonClass =
-  "rounded-md border border-zinc-700 px-2.5 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-amber-400/35 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600 disabled:hover:bg-transparent";
+const buttonClass = "ui-btn h-7 px-2.5 text-[12px]";
 
 export type FlowModeProps = {
   project: Project;
@@ -115,9 +114,9 @@ export function FlowMode({
 
   return (
     <div className="grid gap-3">
-      <section className="border border-zinc-800 bg-zinc-900">
+      <section className="border border-[var(--line)] bg-[var(--surface)]">
         <div
-          className="flex flex-wrap items-center gap-2 border-b border-zinc-800 p-2"
+          className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] p-2"
           role="toolbar"
           aria-label="Flow stepping controls"
         >
@@ -153,13 +152,13 @@ export function FlowMode({
           >
             End
           </button>
-          <span className="ml-auto font-mono text-xs text-zinc-500">
+          <span className="ml-auto font-mono text-xs text-[var(--muted)]">
             {phase ? `${phaseIndex + 1} / ${flow.phases.length}` : "0 / 0"}
           </span>
         </div>
 
-        <div className="grid min-h-[420px] xl:grid-cols-[minmax(420px,1fr)_360px]">
-          <div className="min-h-[420px] border-b border-zinc-800 bg-zinc-950 p-2 xl:border-r xl:border-b-0">
+        <div className="grid items-start xl:grid-cols-[minmax(0,1fr)_280px]">
+          <div className="border-b border-[var(--line)] bg-[var(--canvas)] p-3 xl:border-r xl:border-b-0">
             {layer ? (
               <SequenceCanvas
                 ariaLabel={`Robot sequence for physical layer ${layer.packageLayerIndex + 1}`}
@@ -178,82 +177,82 @@ export function FlowMode({
                 completedPlacementIds={completedPlacementIds}
               />
             ) : (
-              <div className="flex min-h-[400px] items-center justify-center px-4 text-center text-sm text-zinc-600">
+              <div className="flex min-h-24 items-center justify-center px-4 text-center text-[13px] text-[var(--muted)]">
                 No canonical robot cycle is available for this pattern.
               </div>
             )}
           </div>
           <div className="p-3">
-            <h3 className="text-sm font-semibold text-zinc-100">
+            <h3 className="text-sm font-semibold text-[var(--ink)]">
               Current canonical phase
             </h3>
             <dl className="mt-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-xs">
-              <dt className="text-zinc-500">Cycle</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Cycle</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {cycle
                   ? `${cycle.sequence + 1} / ${materialization.cycles.length}`
                   : "—"}
               </dd>
-              <dt className="text-zinc-500">Physical layer</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Physical layer</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {cycle ? cycle.physicalLayerIndex + 1 : "—"}
               </dd>
-              <dt className="text-zinc-500">Group</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Group</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {cycle ? `G${cycle.groupNumber}` : "—"}
               </dd>
-              <dt className="text-zinc-500">Order in layer</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Order in layer</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {cycle ? cycle.sequenceInLayer + 1 : "—"}
               </dd>
-              <dt className="text-zinc-500">Phase</dt>
-              <dd className="text-zinc-200">{phase ? phase.phase : "—"}</dd>
-              <dt className="text-zinc-500">Status</dt>
+              <dt className="text-[var(--muted)]">Phase</dt>
+              <dd className="text-[var(--ink)]">{phase ? phase.phase : "—"}</dd>
+              <dt className="text-[var(--muted)]">Status</dt>
               <dd
                 className={
                   phase?.status === "blocked"
-                    ? "text-red-300"
+                    ? "text-[var(--danger)]"
                     : phase?.status === "warning"
-                      ? "text-amber-300"
+                      ? "text-[var(--brand)]"
                       : "text-emerald-300"
                 }
               >
                 {phase?.status ?? "—"}
               </dd>
-              <dt className="text-zinc-500">Frame</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Frame</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {phase?.pose.frame ?? "—"}
               </dd>
-              <dt className="text-zinc-500">TCP X</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">TCP X</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {phase ? numeric(phase.pose.positionMm.x) : "—"}
               </dd>
-              <dt className="text-zinc-500">TCP Y</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">TCP Y</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {phase ? numeric(phase.pose.positionMm.y) : "—"}
               </dd>
-              <dt className="text-zinc-500">TCP Z</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">TCP Z</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {phase ? numeric(phase.pose.positionMm.z) : "—"}
               </dd>
-              <dt className="text-zinc-500">Yaw</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Yaw</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {phase ? `${numeric(phase.pose.yawDeg)}°` : "—"}
               </dd>
-              <dt className="text-zinc-500">Packages</dt>
-              <dd className="font-mono text-zinc-200">
+              <dt className="text-[var(--muted)]">Packages</dt>
+              <dd className="font-mono text-[var(--ink)]">
                 {cycle?.packageCount ?? "—"}
               </dd>
             </dl>
             {phase && phase.diagnostics.length > 0 ? (
-              <ul className="mt-4 space-y-2 border-t border-zinc-800 pt-3">
+              <ul className="mt-4 space-y-2 border-t border-[var(--line)] pt-3">
                 {phase.diagnostics.map((diagnostic, index) => (
                   <li
                     key={`${diagnostic.code}-${index}`}
                     className={
                       diagnostic.severity === "error"
-                        ? "text-xs leading-5 text-red-200"
-                        : "text-xs leading-5 text-amber-200"
+                        ? "text-xs leading-5 text-[var(--danger)]"
+                        : "text-xs leading-5 text-[var(--brand)]"
                     }
                   >
                     {diagnostic.message}
@@ -265,19 +264,19 @@ export function FlowMode({
         </div>
       </section>
 
-      <section className="border border-zinc-800 bg-zinc-900">
-        <header className="border-b border-zinc-800 px-3 py-2">
-          <h3 className="text-sm font-semibold text-zinc-100">
+      <section className="border border-[var(--line)] bg-[var(--surface)]">
+        <header className="border-b border-[var(--line)] px-3 py-2">
+          <h3 className="text-sm font-semibold text-[var(--ink)]">
             Shared RobotCycle sequence
           </h3>
-          <p className="mt-0.5 text-xs text-zinc-500">
+          <p className="mt-0.5 text-xs text-[var(--muted)]">
             These are references from the exact materialization array consumed
             by project export, simulation, and report generation.
           </p>
         </header>
         <div className="scrollbar-thin overflow-auto">
           <table className="w-full min-w-[980px] border-collapse text-left text-xs">
-            <thead className="bg-zinc-950 text-zinc-500">
+            <thead className="bg-[var(--canvas)] text-[var(--muted)]">
               <tr>
                 {[
                   "Cycle",
@@ -291,7 +290,7 @@ export function FlowMode({
                 ].map((label) => (
                   <th
                     key={label}
-                    className="border-b border-zinc-800 px-2 py-2 font-medium"
+                    className="border-b border-[var(--line)] px-2 py-2 font-medium"
                   >
                     {label}
                   </th>
@@ -311,8 +310,8 @@ export function FlowMode({
                     key={item.id}
                     className={
                       cycle?.id === item.id
-                        ? "border-b border-amber-500/30 bg-amber-500/5 text-zinc-200"
-                        : "border-b border-zinc-800 text-zinc-300"
+                        ? "border-b border-[var(--brand)] bg-[var(--plan-fill)] text-[var(--ink)]"
+                        : "border-b border-[var(--line)] text-[var(--ink)]"
                     }
                   >
                     <td className="px-2 py-2 font-mono">{item.sequence + 1}</td>
@@ -340,7 +339,7 @@ export function FlowMode({
                 <tr>
                   <td
                     colSpan={8}
-                    className="px-3 py-6 text-center text-zinc-600"
+                    className="px-3 py-6 text-center text-[var(--muted)]"
                   >
                     No RobotCycle rows are available for this pattern.
                   </td>

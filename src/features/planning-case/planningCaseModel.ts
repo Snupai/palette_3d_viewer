@@ -1,3 +1,4 @@
+import type { Project } from "~/domain/project/projectSchema";
 import {
   envelopePreservingSymmetries,
   transformPlacements,
@@ -14,13 +15,9 @@ export const GENERATION_STAGES = [
   ["inputs", "Inputs"],
   ["generate", "Generate"],
   ["stack", "Stack"],
-  ["validate", "Tools"],
 ] as const;
 
-export const IMPORTED_STAGES = [
-  ["inputs", "Plan"],
-  ["validate", "Tools"],
-] as const;
+export const IMPORTED_STAGES = [["inputs", "Plan"]] as const;
 
 export const PLANNING_STAGES = GENERATION_STAGES;
 
@@ -35,11 +32,25 @@ export function workflowStages(
 }
 
 export function clampPlanningStage(
-  stage: PlanningStage,
+  stage: string,
   importedRob: boolean,
 ): PlanningStage {
   const stages = workflowStages(importedRob);
-  return stages.some(([id]) => id === stage) ? stage : stages[0]![0];
+  return stages.find(([id]) => id === stage)?.[0] ?? stages[0]![0];
+}
+
+export function planningStageForProject(
+  project: Project | null,
+): PlanningStage {
+  if (!project) return "inputs";
+  if (project.source.kind === "rob-import") return "inputs";
+  const solution =
+    project.solutions.find((entry) => entry.id === project.activeSolutionId) ??
+    project.solutions[0];
+  if (!solution) return "inputs";
+  if (solution.stack.layers.length > 0) return "stack";
+  if (solution.patterns.length > 0) return "generate";
+  return "inputs";
 }
 
 export type PatternComparisonStatus =

@@ -120,9 +120,6 @@ describe("PlannerProjectWorkspace legacy integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("button", { name: /Legacy \.rob workspace/i }),
     );
@@ -149,7 +146,7 @@ describe("PlannerProjectWorkspace legacy integration", () => {
     fireEvent.click(within(drawer).getByRole("button", { name: "Close" }));
 
     expect(confirm).toHaveBeenCalledWith(
-      "Close this production tool and discard unsaved changes in Legacy .rob workspace?",
+      "Close and discard unsaved changes in Legacy .rob workspace?",
     );
     expect(
       screen.getByRole("dialog", { name: "Legacy .rob workspace" }),

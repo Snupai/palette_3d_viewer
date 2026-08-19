@@ -16,7 +16,6 @@ import type {
   GeneratorPackageInputs,
 } from "~/features/candidates/SolverControls";
 import { ProjectEditorWorkspace } from "~/features/editor/ProjectEditorWorkspace";
-import { MpbInspector } from "~/features/legacy-mpb/MpbInspector";
 import { CaseDrawer } from "~/features/planning-case/PlanningCaseChrome";
 import {
   PlanningCaseWorkbench,
@@ -24,6 +23,7 @@ import {
 } from "~/features/planning-case/PlanningCaseWorkbench";
 import {
   clampPlanningStage,
+  planningStageForProject,
   type PlanningStage,
   type ValidationLedgerRow,
 } from "~/features/planning-case/planningCaseModel";
@@ -70,10 +70,10 @@ import {
   type SortDirection,
 } from "~/lib/projectRepository";
 
-function ProductionToolLoading() {
+function WorkspaceLoading() {
   return (
     <div className="flex min-h-[320px] items-center justify-center text-sm text-[var(--muted)]">
-      Loading production tool…
+      Loading…
     </div>
   );
 }
@@ -83,7 +83,7 @@ const Candidate3DWorkspace = dynamic(
     import("~/features/project/Candidate3DWorkspace").then(
       (module) => module.Candidate3DWorkspace,
     ),
-  { ssr: false, loading: ProductionToolLoading },
+  { ssr: false, loading: WorkspaceLoading },
 );
 
 const LegacyPlanWorkspace = dynamic(
@@ -91,7 +91,7 @@ const LegacyPlanWorkspace = dynamic(
     import("~/features/legacy-plan/LegacyPlanWorkspace").then(
       (module) => module.LegacyPlanWorkspace,
     ),
-  { ssr: false, loading: ProductionToolLoading },
+  { ssr: false, loading: WorkspaceLoading },
 );
 
 const ReportWorkspace = dynamic(
@@ -99,7 +99,7 @@ const ReportWorkspace = dynamic(
     import("~/features/reporting/ReportWorkspace").then(
       (module) => module.ReportWorkspace,
     ),
-  { ssr: false, loading: ProductionToolLoading },
+  { ssr: false, loading: WorkspaceLoading },
 );
 
 const SimulationWorkspace = dynamic(
@@ -107,7 +107,7 @@ const SimulationWorkspace = dynamic(
     import("~/features/simulation/SimulationWorkspace").then(
       (module) => module.SimulationWorkspace,
     ),
-  { ssr: false, loading: ProductionToolLoading },
+  { ssr: false, loading: WorkspaceLoading },
 );
 
 const StackWorkspace = dynamic(
@@ -115,7 +115,7 @@ const StackWorkspace = dynamic(
     import("~/features/stack/StackWorkspace").then(
       (module) => module.StackWorkspace,
     ),
-  { ssr: false, loading: ProductionToolLoading },
+  { ssr: false, loading: WorkspaceLoading },
 );
 
 export type PlannerProjectWorkspaceProps = {
@@ -133,7 +133,6 @@ const productionToolTitles: Record<ProductionTool, string> = {
   robotics: "Robotics",
   simulation: "Simulation",
   report: "Validation report",
-  "mpb-inspector": "Legacy .mpb inspector",
   "legacy-rob": "Legacy .rob workspace",
 };
 
@@ -226,6 +225,9 @@ export function PlannerProjectWorkspace({
   const generatorLaunchSequence = useRef(0);
   const selectedProjectIdRef = useRef<string | null>(selectedId);
   selectedProjectIdRef.current = selectedId;
+
+  const generatorLaunchRequestRef = useRef(generatorLaunchRequest);
+  generatorLaunchRequestRef.current = generatorLaunchRequest;
 
   const consumeGeneratorLaunchRequest = useCallback((requestId: string) => {
     setGeneratorLaunchRequest((current) =>
@@ -351,6 +353,9 @@ export function PlannerProjectWorkspace({
         }
         setSelectedProject(result.project);
         setRobotSettings(createInitialRobotWorkspaceSettings(result.project));
+        if (!generatorLaunchRequestRef.current) {
+          setActiveStage(planningStageForProject(result.project));
+        }
         const diagnostic = diagnosticText(result.diagnostics);
         if (diagnostic) setError(diagnostic);
       })
@@ -380,7 +385,7 @@ export function PlannerProjectWorkspace({
     setEditorDraftProject(null);
     setEditorDirty(false);
     if (switchedProject) {
-      setActiveStage("inputs");
+      setActiveStage(planningStageForProject(saved));
       setActiveTool(null);
     }
     setStatusMessage(`Project "${projectLabel(saved)}" saved.`);
@@ -437,7 +442,11 @@ export function PlannerProjectWorkspace({
     discardUnsavedPlannerChanges();
     setGeneratorLaunchRequest(null);
     selectedProjectIdRef.current = id;
-    setActiveStage("inputs");
+    setActiveStage(
+      planningStageForProject(
+        projects.find((entry) => entry.id === id) ?? null,
+      ),
+    );
     setProjectDrawerOpen(false);
     setSelectedId(id);
   };
@@ -450,7 +459,7 @@ export function PlannerProjectWorkspace({
   };
 
   const closeProductionTool = () => {
-    if (!confirmLeaveActiveTool("Close this production tool")) return;
+    if (!confirmLeaveActiveTool("Close")) return;
     setActiveTool(null);
   };
 
@@ -477,7 +486,7 @@ export function PlannerProjectWorkspace({
       selectedProjectIdRef.current = result.project.id;
       setSelectedId(result.project.id);
       setSelectedProject(result.project);
-      setActiveStage("inputs");
+      setActiveStage(planningStageForProject(result.project));
       setStatusMessage(
         `Project duplicated as "${projectLabel(result.project)}".`,
       );
@@ -523,7 +532,7 @@ export function PlannerProjectWorkspace({
       selectedProjectIdRef.current = saved.id;
       setSelectedId(saved.id);
       setSelectedProject(saved);
-      setActiveStage("inputs");
+      setActiveStage(planningStageForProject(saved));
       setStatusMessage(`Project saved as "${projectLabel(saved)}".`);
       await refreshProjects();
     } catch (cause) {
@@ -634,7 +643,7 @@ export function PlannerProjectWorkspace({
       if (result.projects[0] && !hasUnsavedChanges) {
         setGeneratorLaunchRequest(null);
         selectedProjectIdRef.current = result.projects[0].id;
-        setActiveStage("inputs");
+        setActiveStage(planningStageForProject(result.projects[0]));
         setSelectedId(result.projects[0].id);
       }
       await refreshProjects();
@@ -666,7 +675,7 @@ export function PlannerProjectWorkspace({
         originalRawText: rawText,
       });
       const saved = await saveProject(project);
-      setActiveStage("inputs");
+      setActiveStage(planningStageForProject(saved));
       setStatusMessage(
         `Opened "${saved.source.kind === "rob-import" ? saved.source.fileName : file.name}" as the current plan.`,
       );
@@ -1084,9 +1093,7 @@ export function PlannerProjectWorkspace({
 
       <CaseDrawer
         open={activeTool !== null}
-        title={
-          activeTool ? productionToolTitles[activeTool] : "Production tools"
-        }
+        title={activeTool ? productionToolTitles[activeTool] : "Workspace"}
         onClose={closeProductionTool}
       >
         {activeTool === "candidate-browser" && solverResult && solverInput ? (
@@ -1165,7 +1172,6 @@ export function PlannerProjectWorkspace({
           />
         ) : null}
 
-        {activeTool === "mpb-inspector" ? <MpbInspector /> : null}
         {activeTool === "legacy-rob" ? (
           <LegacyPlanWorkspace onUnsavedChange={setLegacyDirty} />
         ) : null}

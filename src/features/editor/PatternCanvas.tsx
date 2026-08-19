@@ -304,28 +304,36 @@ export function PatternCanvas({
       : null;
 
   return (
-    <div className="min-h-[520px] overflow-hidden border border-zinc-800 bg-zinc-950 p-2 focus-within:border-zinc-500">
+    <div className="overflow-hidden bg-[var(--canvas)] p-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-[var(--focus)]">
       <p className="sr-only" id="project-pattern-editor-instructions">
         Click a package to select it. Control or Command click toggles multiple
         packages. Hold Shift and drag empty pallet space for marquee selection.
         Arrow keys nudge the selection; Shift plus an arrow uses the configured
         coarse step. Press R to rotate, Delete to remove, and Escape to clear.
       </p>
-      <svg
-        ref={svgRef}
-        viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
-        role="application"
-        aria-label={`Editable top view of ${pattern.name}`}
-        aria-describedby="project-pattern-editor-instructions"
-        tabIndex={0}
-        data-testid="project-pattern-canvas"
-        className="h-full min-h-[500px] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-amber-400"
-        onKeyDown={handleKeyDown}
-        onPointerDown={startBackground}
-        onPointerMove={updatePointer}
-        onPointerUp={finishPointer}
-        onPointerCancel={() => setPointer(null)}
+      <div
+        className="mx-auto w-full"
+        style={{ maxWidth: "min(100%, 34rem)" }}
       >
+        <svg
+          ref={svgRef}
+          viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="application"
+          aria-label={`Editable top view of ${pattern.name}`}
+          aria-describedby="project-pattern-editor-instructions"
+          tabIndex={0}
+          data-testid="project-pattern-canvas"
+          className="block h-auto w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--focus)]"
+          style={{
+            aspectRatio: `${Math.max(width, 1)} / ${Math.max(height, 1)}`,
+          }}
+          onKeyDown={handleKeyDown}
+          onPointerDown={startBackground}
+          onPointerMove={updatePointer}
+          onPointerUp={finishPointer}
+          onPointerCancel={() => setPointer(null)}
+        >
         <defs>
           <marker
             id={deltaArrowMarkerId}
@@ -336,7 +344,7 @@ export function PatternCanvas({
             markerHeight={4}
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 8 4 L 0 8 z" fill="#fbbf24" />
+            <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--brand)" />
           </marker>
         </defs>
         <rect
@@ -344,8 +352,8 @@ export function PatternCanvas({
           y={envelope.minY}
           width={width}
           height={height}
-          fill="#18181b"
-          stroke="#71717a"
+          fill="var(--canvas)"
+          stroke="var(--line)"
           strokeWidth={1}
           vectorEffect="non-scaling-stroke"
           pointerEvents="none"
@@ -357,13 +365,13 @@ export function PatternCanvas({
             width={project.pallet.dimensionsMm.length}
             height={project.pallet.dimensionsMm.width}
             fill="none"
-            stroke="#a1a1aa"
+            stroke="var(--ink)"
             strokeWidth={2}
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"
           />
         ) : null}
-        <g opacity={0.2} pointerEvents="none" aria-hidden="true">
+        <g opacity={0.35} pointerEvents="none" aria-hidden="true">
           {Array.from({ length: 9 }, (_, index) => {
             const x = envelope.minX + (width * index) / 8;
             const y = envelope.minY + (height * index) / 8;
@@ -374,7 +382,7 @@ export function PatternCanvas({
                   y1={envelope.minY}
                   x2={x}
                   y2={envelope.maxY}
-                  stroke="#71717a"
+                  stroke="var(--line)"
                   strokeWidth={1}
                   vectorEffect="non-scaling-stroke"
                 />
@@ -383,7 +391,7 @@ export function PatternCanvas({
                   y1={y}
                   x2={envelope.maxX}
                   y2={y}
-                  stroke="#71717a"
+                  stroke="var(--line)"
                   strokeWidth={1}
                   vectorEffect="non-scaling-stroke"
                 />
@@ -433,11 +441,11 @@ export function PatternCanvas({
                 tabIndex={0}
                 aria-pressed={isSelected}
                 aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, grip G${group.orderIndex + 1}` : ", ungrouped"}`}
-                fill={isSelected ? "#3f3412" : "#27272a"}
-                stroke={isSelected ? "#fbbf24" : "#a1a1aa"}
+                fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
+                stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
                 strokeWidth={isSelected ? 3 : 1.5}
                 vectorEffect="non-scaling-stroke"
-                className="cursor-grab focus:outline-none focus-visible:stroke-amber-200 active:cursor-grabbing"
+                className="cursor-grab focus:outline-none focus-visible:stroke-[var(--brand)] active:cursor-grabbing"
                 onPointerDown={(event) => startPlacement(event, placement.id)}
                 onClick={(event) => clickPlacement(event, placement.id)}
                 onPointerMove={updatePointer}
@@ -457,7 +465,7 @@ export function PatternCanvas({
                 <path
                   d={path}
                   fill="none"
-                  stroke="#38bdf8"
+                  stroke="var(--measure)"
                   strokeWidth={3}
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -471,7 +479,7 @@ export function PatternCanvas({
                   y={y + rectHeight / 2}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill="#e4e4e7"
+                  fill="var(--ink)"
                   fontSize={Math.max(11, Math.min(rectWidth, rectHeight) * 0.2)}
                   fontFamily="ui-monospace, monospace"
                   pointerEvents="none"
@@ -539,7 +547,7 @@ export function PatternCanvas({
                     y1={deltaArrow.centerY}
                     x2={deltaArrow.endX}
                     y2={deltaArrow.endY}
-                    stroke="#fbbf24"
+                    stroke="var(--brand)"
                     strokeWidth={isSelected ? 5 : 2.5}
                     strokeLinecap="round"
                     markerEnd={`url(#${deltaArrowMarkerId})`}
@@ -550,7 +558,7 @@ export function PatternCanvas({
                     cx={deltaArrow.centerX}
                     cy={deltaArrow.centerY}
                     r={isSelected ? 6 : 4}
-                    fill="#fbbf24"
+                    fill="var(--brand)"
                     opacity={isSelected ? 1 : 0.55}
                     vectorEffect="non-scaling-stroke"
                   />
@@ -560,8 +568,8 @@ export function PatternCanvas({
                       y={deltaArrow.labelY}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fill="#fef3c7"
-                      stroke="#18181b"
+                      fill="var(--ink)"
+                      stroke="var(--canvas)"
                       strokeWidth={5}
                       paintOrder="stroke"
                       fontSize={17}
@@ -579,7 +587,7 @@ export function PatternCanvas({
                 y={(firstFootprint.top + firstFootprint.bottom) / 2}
                 textAnchor="middle"
                 dominantBaseline="middle"
-                fill="#e4e4e7"
+                fill="var(--ink)"
                 fontSize={Math.max(
                   11,
                   Math.min(
@@ -602,15 +610,16 @@ export function PatternCanvas({
             y={marquee.y}
             width={marquee.width}
             height={marquee.height}
-            fill="#fbbf24"
-            fillOpacity={0.08}
-            stroke="#fbbf24"
+            fill="var(--brand)"
+            fillOpacity={0.12}
+            stroke="var(--brand)"
             strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"
           />
         ) : null}
       </svg>
+      </div>
       <p className="sr-only" role="status" aria-live="polite">
         {selectedPlacementIds.size} package
         {selectedPlacementIds.size === 1 ? "" : "s"} selected.

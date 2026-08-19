@@ -42,10 +42,17 @@ const packageSideByDisplayedEdge: Record<
 };
 
 const edgePositionClass: Record<Side, string> = {
-  top: "top-0 left-3 right-3 h-4 -translate-y-1/2",
-  right: "top-3 right-0 bottom-3 w-4 translate-x-1/2",
-  bottom: "right-3 bottom-0 left-3 h-4 translate-y-1/2",
-  left: "top-3 bottom-3 left-0 w-4 -translate-x-1/2",
+  top: "inset-x-0 top-0 h-3 -translate-y-1/2",
+  right: "inset-y-0 right-0 w-3 translate-x-1/2",
+  bottom: "inset-x-0 bottom-0 h-3 translate-y-1/2",
+  left: "inset-y-0 left-0 w-3 -translate-x-1/2",
+};
+
+const selectedEdgeInset: Record<Side, string> = {
+  top: "inset 0 8px 0 var(--brand)",
+  right: "inset -8px 0 0 var(--brand)",
+  bottom: "inset 0 -8px 0 var(--brand)",
+  left: "inset 8px 0 0 var(--brand)",
 };
 
 const physicalSideLabel: Record<Side, string> = {
@@ -161,6 +168,9 @@ export function PackageLabelFacePicker({
             style={{
               width: `${packageSize.width}px`,
               height: `${packageSize.height}px`,
+              boxShadow: selectedDisplayedEdge
+                ? selectedEdgeInset[selectedDisplayedEdge]
+                : undefined,
             }}
           >
             <div
@@ -184,17 +194,12 @@ export function PackageLabelFacePicker({
                   aria-pressed={selected}
                   title={`Physical package face: ${physicalSideLabel[packageSide]}`}
                   onClick={() => onPackageSideChange(packageSide)}
-                  className={`${edgePositionClass[displayedEdge]} absolute z-10 grid place-items-center border border-[var(--line)] bg-[var(--surface)] outline-none hover:border-[var(--brand)] hover:bg-[var(--plan-fill)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed disabled:border-[var(--line)] disabled:bg-[var(--canvas)] ${
+                  className={`${edgePositionClass[displayedEdge]} absolute z-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed ${
                     selected
-                      ? "border-[var(--brand)] bg-[var(--plan-fill)]"
-                      : ""
+                      ? "bg-[var(--brand)]"
+                      : "bg-[var(--line)] hover:bg-[var(--brand-hover)]"
                   }`}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={`rounded-full ${selected ? "h-1.5 w-1.5 bg-[var(--brand)]" : "h-1 w-1 bg-[var(--muted)]"}`}
-                  />
-                </button>
+                />
               );
             })}
           </div>
@@ -212,7 +217,11 @@ export function PackageLabelFacePicker({
         <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
           <p
             aria-live="polite"
-            className="text-[11px] leading-4 text-[var(--muted)]"
+            className={`text-[11px] leading-4 ${
+              selectedPackageSide
+                ? "text-[var(--ink)]"
+                : "text-[var(--muted)]"
+            }`}
           >
             {selectedPackageSide && selectedDisplayedEdge
               ? `${physicalSideLabel[selectedPackageSide]} · shown on ${selectedDisplayedEdge} edge`
@@ -223,7 +232,9 @@ export function PackageLabelFacePicker({
             disabled={disabled}
             aria-pressed={selectedPackageSide === null}
             onClick={() => onPackageSideChange(null)}
-            className="ui-btn min-h-7 px-2 text-[11px]"
+            className={`${
+              selectedPackageSide === null ? "ui-btn-primary" : "ui-btn"
+            } min-h-7 px-2 text-[11px]`}
           >
             No label
           </button>

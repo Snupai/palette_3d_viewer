@@ -22,8 +22,9 @@ everything in a Three.js viewer.
 
 Corporate chrome follows Szaidel Cosmetic GmbH (navy `#173159`, steel `#8bb0c9`,
 system light/dark). Tokens, workflow rules, and banned patterns live in
-`docs/DESIGN.md`. Do not restore skippable planning tabs or a `.rob` “reference”
-overlay when the file is already the plan.
+`docs/DESIGN.md`. Do not restore skippable planning tabs, a Tools catalog, or a
+`.rob` “reference” overlay when the file is already the plan. Open a finished
+project on its last completed step, not on Inputs.
 
 ## Commands
 
@@ -52,7 +53,7 @@ domain logic into workspaces, `components` render.
   - `project/` — project schema v2, migration, factory, pallet templates, equipment profiles.
   - `geometry/`, `formats/` — canonical rectangle math; MPB v1.
   - `palletTypes.ts`, `robParser`-adjacent helpers, `gripDependencies`, `layerPatternPreview`.
-- **`src/features/`** — one folder per workspace: `project` (`PlannerProjectWorkspace` is the shell), `candidates`, `editor`, `stack`, `robotics`, `simulation`, `reporting`, `planning-case`, `legacy-plan`, `legacy-mpb`. Non-trivial state lives in a sibling `*Model.ts` that is unit-tested without rendering.
+- **`src/features/`** — one folder per workspace: `project` (`PlannerProjectWorkspace` is the shell), `candidates`, `editor`, `stack`, `robotics`, `simulation`, `reporting`, `planning-case`, `legacy-plan`. Non-trivial state lives in a sibling `*Model.ts` that is unit-tested without rendering.
 - **`src/components/`** — `RobViewer.tsx` + `rob-viewer/` (scene builder/controller, picking, highlight, resources, camera presets, gripper & robot-cell loaders), `LayerEditor2D.tsx` + `layer-editor/`, `LayerSlider`, `LayerPattern`.
 - **`src/lib/`** — `robParser.ts` (`.rob` parse/serialize + Z math), `projectAdapters.ts` (SavedPallet ⇄ project v2), `projectRepository.ts`, `storage.ts` / `plannerDatabase.ts` (IndexedDB), `parity/` (corpus harness), `parityGoldenCase.ts`.
 - **`src/workers/`** — solver runs off the main thread; `solverClient.ts` + `solverProtocol.ts` are the only supported entry points.

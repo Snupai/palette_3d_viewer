@@ -201,7 +201,9 @@ describe("PatternCanvas", () => {
     expect(screen.getAllByText("G1")).toHaveLength(1);
 
     const cyanPaths = [
-      ...container.querySelectorAll<SVGPathElement>('path[stroke="#38bdf8"]'),
+      ...container.querySelectorAll<SVGPathElement>(
+        'path[stroke="var(--measure)"]',
+      ),
     ];
     expect(cyanPaths.map((path) => path.getAttribute("d"))).toEqual([
       "M 0 225 L 100 225",

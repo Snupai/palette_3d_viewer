@@ -17,7 +17,6 @@ import {
 import {
   LayerStrips,
   PlanningCandidateIndex,
-  PlanningWorkflowNav,
   ValidationLedger,
 } from "~/features/planning-case/PlanningCaseChrome";
 import { MeasuredPlanField } from "~/features/planning-case/MeasuredPlanField";
@@ -37,7 +36,6 @@ export type ProductionTool =
   | "robotics"
   | "simulation"
   | "report"
-  | "mpb-inspector"
   | "legacy-rob";
 
 function isImportedRob(project: Project | null): boolean {
@@ -52,8 +50,6 @@ function stageLabel(stage: PlanningStage, importedRob: boolean): string {
       return "Generate patterns";
     case "stack":
       return "Compose the pallet sequence";
-    case "validate":
-      return "Production tools";
   }
 }
 
@@ -69,32 +65,6 @@ function MetricRow({
       <dt className="text-[11px] text-[var(--muted)]">{label}</dt>
       <dd className="font-mono text-[11px] text-[var(--ink)]">{value}</dd>
     </div>
-  );
-}
-
-function ToolButton({
-  label,
-  detail,
-  onClick,
-  disabled = false,
-}: {
-  label: string;
-  detail: string;
-  onClick: () => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={onClick}
-      className="ui-btn grid gap-0.5 text-left"
-    >
-      <span>{label}</span>
-      <span className="text-[11px] leading-4 font-normal text-[var(--muted)]">
-        {detail}
-      </span>
-    </button>
   );
 }
 
@@ -266,6 +236,13 @@ export function PlanningCaseWorkbench({
           <button type="button" onClick={onOpenProjects} className="ui-btn">
             Open project drawer
           </button>
+          <button
+            type="button"
+            onClick={() => onOpenTool("legacy-rob")}
+            className="ui-btn"
+          >
+            Legacy .rob workspace
+          </button>
         </div>
       );
       break;
@@ -350,54 +327,6 @@ export function PlanningCaseWorkbench({
         </div>
       );
       break;
-    case "validate":
-      context = (
-        <div className="grid gap-2">
-          <ToolButton
-            label="Pattern editor"
-            detail="Edit placements, labels, groups, and flow."
-            disabled={!project}
-            onClick={() => onOpenTool("editor")}
-          />
-          <ToolButton
-            label="Robotics"
-            detail="Materialize cycles and validate resources."
-            disabled={!project}
-            onClick={() => onOpenTool("robotics")}
-          />
-          <ToolButton
-            label="Simulation"
-            detail="Inspect cycle timing and collisions."
-            disabled={!project}
-            onClick={() => onOpenTool("simulation")}
-          />
-          <ToolButton
-            label="Report"
-            detail="Review evidence and export readiness."
-            disabled={!project}
-            onClick={() => onOpenTool("report")}
-          />
-          {importedRob ? null : (
-            <ToolButton
-              label="Full candidate browser"
-              detail="Filters, exclusions, provenance, and diagnostics."
-              disabled={!solverInput || candidateCount === 0}
-              onClick={() => onOpenTool("candidate-browser")}
-            />
-          )}
-          <ToolButton
-            label="Legacy .rob workspace"
-            detail="Open the complete compatibility editor."
-            onClick={() => onOpenTool("legacy-rob")}
-          />
-          <ToolButton
-            label="Legacy .mpb inspector"
-            detail="Inspect legacy MultiPack documents."
-            onClick={() => onOpenTool("mpb-inspector")}
-          />
-        </div>
-      );
-      break;
   }
 
   return (
@@ -453,46 +382,70 @@ export function PlanningCaseWorkbench({
             disabled={!project}
             className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
           >
-            Production tools
+            Robotics
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenTool("simulation")}
+            disabled={!project}
+            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+          >
+            Simulation
+          </button>
+          <button
+            type="button"
+            onClick={() => onOpenTool("report")}
+            disabled={!project}
+            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+          >
+            Report
           </button>
         </div>
       </header>
 
-      <PlanningWorkflowNav
-        stages={stages}
-        activeStage={resolvedStage}
-        onChange={onStageChange}
-      />
-
       <div className="scrollbar-thin min-h-0 overflow-auto">
         <div className="planning-case-grid grid h-full min-h-0 min-w-[1040px] grid-cols-[minmax(240px,280px)_minmax(480px,1fr)_minmax(260px,300px)] grid-rows-[minmax(0,1fr)] gap-2 p-2">
           <aside className="app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] border border-[var(--line)] bg-[var(--surface)]">
-            <header className="border-b border-[var(--line)] px-3 py-2">
+            <header className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-3 py-2">
               <h2 className="text-[13px] font-semibold text-[var(--ink)]">
                 {stageLabel(resolvedStage, importedRob)}
               </h2>
+              {stages.length > 1 ? (
+                <p className="font-mono text-[12px] text-[var(--muted)]">
+                  {stageIndex + 1}/{stages.length}
+                </p>
+              ) : null}
             </header>
             <div className="scrollbar-thin min-h-0 overflow-auto p-3">
               {context}
             </div>
-            <div className="grid grid-cols-2 gap-2 border-t border-[var(--line)] p-2">
-              <button
-                type="button"
-                disabled={!previousStage}
-                onClick={() => previousStage && onStageChange(previousStage)}
-                className="ui-btn"
+            {previousStage || nextStage ? (
+              <div
+                className={`grid gap-2 border-t border-[var(--line)] p-2 ${
+                  previousStage && nextStage ? "grid-cols-2" : ""
+                }`}
               >
-                Back
-              </button>
-              <button
-                type="button"
-                disabled={!canContinue}
-                onClick={() => nextStage && onStageChange(nextStage)}
-                className="ui-btn-primary"
-              >
-                {nextStage ? "Continue" : `${stageIndex + 1}/${stages.length}`}
-              </button>
-            </div>
+                {previousStage ? (
+                  <button
+                    type="button"
+                    onClick={() => onStageChange(previousStage)}
+                    className="ui-btn"
+                  >
+                    Back
+                  </button>
+                ) : null}
+                {nextStage ? (
+                  <button
+                    type="button"
+                    disabled={!canContinue}
+                    onClick={() => onStageChange(nextStage)}
+                    className="ui-btn-primary"
+                  >
+                    Continue
+                  </button>
+                ) : null}
+              </div>
+            ) : null}
           </aside>
 
           <MeasuredPlanField
