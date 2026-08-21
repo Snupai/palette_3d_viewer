@@ -121,7 +121,7 @@ afterEach(() => {
 });
 
 describe("SolverControls", () => {
-  it("applies package dimensions and signed underhang with an exact rectangular layer count", async () => {
+  it("applies package dimensions and signed underhang with an exact layer count", async () => {
     const sourceProject = project();
     const onApplyPackageInputs = vi.fn(
       async ({
@@ -250,7 +250,7 @@ describe("SolverControls", () => {
         maximumPackageCount: 3,
         allowMixedPackageOrientations: true,
         unrotatedPackageLabelSide: "right",
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
         rectangularBlockFootprintPolicy: "fill-generation-bounds",
       },
     });
@@ -784,7 +784,7 @@ describe("SolverControls", () => {
       },
       constraints: {
         allowMixedPackageOrientations: false,
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
         rectangularBlockFootprintPolicy: "fill-generation-bounds",
       },
     });
@@ -794,7 +794,7 @@ describe("SolverControls", () => {
     });
   });
 
-  it("uses compact centered blocks when both allowances are zero, including negative zero", async () => {
+  it("uses compact centered footprints when both allowances are zero, including negative zero", async () => {
     const sourceProject = project();
 
     render(
@@ -807,7 +807,7 @@ describe("SolverControls", () => {
     );
 
     expect(
-      screen.getByText(/Zero on both axes creates a tight centered block/),
+      screen.getByText(/Zero on both axes creates a tight centered footprint/),
     ).toBeTruthy();
     fireEvent.change(
       screen.getByLabelText("Length overhang / underhang per side"),
@@ -825,7 +825,7 @@ describe("SolverControls", () => {
       generationBoundsMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
       constraints: {
         rectangularBlockFootprintPolicy: "compact-centered",
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
       },
     });
     expect(sourceProject.pallet?.allowedOverhangMm).toEqual({

@@ -736,6 +736,69 @@ describe("solver input and candidate validation", () => {
     ).toEqual({ minX: 0, minY: 11.5, maxX: 1_200, maxY: 788.5 });
   }, 30_000);
 
+  it("generates an exact five-block offset-bridge mosaic", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 177, width: 123 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1_200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 42,
+        maximumPackageCount: 42,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 10_000,
+      },
+    };
+    const expectedPlacements = [
+      ...[96, 273, 450].flatMap((x) =>
+        [242.5, 365.5, 488.5, 611.5, 734.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[69, 192, 315, 438, 561].map((x) => ({
+        positionMm: { x, y: 92.5 },
+        rotation: 90 as const,
+      })),
+      ...[311.5, 488.5].map((y) => ({
+        positionMm: { x: 600, y },
+        rotation: 90 as const,
+      })),
+      ...[750, 927, 1_104].flatMap((x) =>
+        [65.5, 188.5, 311.5, 434.5, 557.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[639, 762, 885, 1_008, 1_131].map((x) => ({
+        positionMm: { x, y: 707.5 },
+        rotation: 90 as const,
+      })),
+    ];
+    const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometry,
+    );
+
+    expect(expectedPlacements).toHaveLength(42);
+    expect(candidate).toBeDefined();
+    expect(candidate?.validation.valid).toBe(true);
+    expect(candidate?.metrics.packageCount).toBe(42);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 7.5, minY: 4, maxX: 1_192.5, maxY: 796 });
+  }, 30_000);
+
   it("does not let overlapping outer pinwheels starve an exact center fill", () => {
     for (const maxCandidatesPerGenerator of [1, 2]) {
       const result = solveLayer(

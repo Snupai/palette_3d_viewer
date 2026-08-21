@@ -247,7 +247,7 @@ function prepareSolverInput(
         provisionalPackagesPerCycle,
         allowMixedPackageOrientations,
         unrotatedPackageLabelSide: draft.unrotatedPackageLabelSide || null,
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
         rectangularBlockFootprintPolicy,
       },
     };
@@ -714,8 +714,8 @@ export function SolverControls({
             }
           />
           <p className="col-span-2 text-[10px] leading-4 text-[var(--muted)]">
-            Zero on both axes creates a tight centered block. Any positive or
-            negative value defines the requested frame and may distribute
+            Zero on both axes creates a tight centered footprint. Any positive
+            or negative value defines the requested frame and may distribute
             bounded spacing to reach it. The saved pallet policy remains
             unchanged.
           </p>

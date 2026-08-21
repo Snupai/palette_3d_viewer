@@ -333,7 +333,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       generationBoundsMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
       constraints: {
         rectangularBlockFootprintPolicy: "compact-centered",
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
       },
     });
     await waitFor(async () => {
@@ -425,7 +425,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
         allowMixedPackageOrientations: true,
         provisionalPackagesPerCycle: 2,
         unrotatedPackageLabelSide: "top",
-        requiredShape: "rectangular-block",
+        requiredShape: "any",
         rectangularBlockFootprintPolicy: "fill-generation-bounds",
       },
     });

@@ -2502,18 +2502,60 @@ type PinwheelResidualPlan = {
   residualMm: number;
 };
 
-type PinwheelRegionPlan = {
+type PinwheelOccupiedRegion = {
+  occupiedBounds: RectangleBoundsMm;
+};
+
+type PinwheelRegionPlan = PinwheelOccupiedRegion & {
   rotation: Rotation;
   xCenters: readonly number[];
   yCenters: readonly number[];
-  occupiedBounds: RectangleBoundsMm;
 };
+
+function symmetricPinwheelOccupiedRegions(
+  input: NormalizedLayerSolverInput,
+  placements: readonly GeneratedPlacement[],
+  widthPair: MixedCountPair,
+  heightPair: MixedCountPair,
+  chirality: PinwheelChirality,
+): PinwheelOccupiedRegion[] | null {
+  const lengthwisePackageCount = widthPair.firstCount * heightPair.firstCount;
+  const crosswisePackageCount = widthPair.secondCount * heightPair.secondCount;
+  const regionPackageCounts =
+    chirality === "cross-bottom-left"
+      ? [
+          crosswisePackageCount,
+          lengthwisePackageCount,
+          lengthwisePackageCount,
+          crosswisePackageCount,
+        ]
+      : [
+          lengthwisePackageCount,
+          crosswisePackageCount,
+          crosswisePackageCount,
+          lengthwisePackageCount,
+        ];
+  const regions: PinwheelOccupiedRegion[] = [];
+  let offset = 0;
+  for (const packageCount of regionPackageCounts) {
+    const occupiedBounds = boundingRectangleForPlacements(
+      placements.slice(offset, offset + packageCount),
+      input.package.dimensionsMm,
+    );
+    if (occupiedBounds === null) return null;
+    regions.push({ occupiedBounds });
+    offset += packageCount;
+  }
+  return offset === placements.length ? regions : null;
+}
 
 type PinwheelCenterFillPlan = {
   rotation: Rotation;
   columns: number;
   rows: number;
   bounds: RectangleBoundsMm;
+  occupiedAreaMm2: number;
+  occupiedPerimeterMm: number;
 };
 
 function pinwheelCenterFillBounds(
@@ -2591,14 +2633,28 @@ function exactPinwheelCenterFillPlans(
       maxCountAlong(rectangleBoundsWidth(bounds), footprint.width, clearance),
       input.constraints.maxBands,
     );
-    for (let columns = 1; columns <= maximumColumns; columns += 1) {
-      if (centerPackageCount % columns !== 0) continue;
-      const rows = centerPackageCount / columns;
-      if (rows <= 0 || rows > maximumRows) continue;
-      plans.push({ rotation, columns, rows, bounds });
+    for (const [columns, rows] of exactFactorPairs(centerPackageCount)) {
+      if (columns > maximumColumns || rows > maximumRows) continue;
+      const occupiedLengthMm = usedSpan(columns, footprint.length, clearance);
+      const occupiedWidthMm = usedSpan(rows, footprint.width, clearance);
+      plans.push({
+        rotation,
+        columns,
+        rows,
+        bounds,
+        occupiedAreaMm2: occupiedLengthMm * occupiedWidthMm,
+        occupiedPerimeterMm: 2 * (occupiedLengthMm + occupiedWidthMm),
+      });
     }
   }
-  return plans;
+  return plans.sort(
+    (left, right) =>
+      left.occupiedAreaMm2 - right.occupiedAreaMm2 ||
+      left.occupiedPerimeterMm - right.occupiedPerimeterMm ||
+      left.rotation - right.rotation ||
+      left.columns - right.columns ||
+      left.rows - right.rows,
+  );
 }
 
 function lineCentersRespectGapPolicy(
@@ -2700,16 +2756,12 @@ function pinwheelRegionPlan(
 }
 
 function pinwheelRegionPlansOverlap(
-  regions: readonly PinwheelRegionPlan[],
+  regions: readonly PinwheelOccupiedRegion[],
   clearance: number,
 ): boolean {
-  const expansion = clearance / 2;
-  const expanded = regions.map(({ occupiedBounds }) => ({
-    minX: occupiedBounds.minX - expansion,
-    minY: occupiedBounds.minY - expansion,
-    maxX: occupiedBounds.maxX + expansion,
-    maxY: occupiedBounds.maxY + expansion,
-  }));
+  const expanded = regions.map(({ occupiedBounds }) =>
+    inflateRectangleBounds(occupiedBounds, clearance / 2),
+  );
   for (let leftIndex = 0; leftIndex < expanded.length; leftIndex += 1) {
     const left = expanded[leftIndex]!;
     for (
@@ -2717,13 +2769,7 @@ function pinwheelRegionPlansOverlap(
       rightIndex < expanded.length;
       rightIndex += 1
     ) {
-      const right = expanded[rightIndex]!;
-      if (
-        left.minX < right.maxX - SOLVER_GEOMETRY_EPSILON_MM &&
-        left.maxX > right.minX + SOLVER_GEOMETRY_EPSILON_MM &&
-        left.minY < right.maxY - SOLVER_GEOMETRY_EPSILON_MM &&
-        left.maxY > right.minY + SOLVER_GEOMETRY_EPSILON_MM
-      ) {
+      if (solverRectangleBoundsOverlap(left, expanded[rightIndex]!)) {
         return true;
       }
     }
@@ -2739,6 +2785,664 @@ function materializePinwheelRegions(
       xCenters.map((x) => ({ positionMm: { x, y }, rotation })),
     ),
   );
+}
+
+type FiveBlockMosaicBlock = {
+  rotation: Rotation;
+  columns: number;
+  rows: number;
+  occupiedLengthMm: number;
+  occupiedWidthMm: number;
+  packageCount: number;
+};
+
+type FiveBlockCornerChainDescriptor = {
+  topLeft: FiveBlockMosaicBlock;
+  bottomLeft: FiveBlockMosaicBlock;
+  bottomMiddle: FiveBlockMosaicBlock;
+  topRight: FiveBlockMosaicBlock;
+  bottomRight: FiveBlockMosaicBlock;
+  occupiedLengthMm: number;
+  occupiedWidthMm: number;
+};
+
+type FiveBlockOffsetBridgeDescriptor = {
+  leftMain: FiveBlockMosaicBlock;
+  bottomBand: FiveBlockMosaicBlock;
+  bridge: FiveBlockMosaicBlock;
+  rightMain: FiveBlockMosaicBlock;
+  topBand: FiveBlockMosaicBlock;
+  occupiedLengthMm: number;
+  occupiedWidthMm: number;
+};
+
+function fiveBlockMetricKey(value: number): string {
+  return String(
+    normalizeGeneratedGeometryMetric(value, "fiveBlockMosaic.metric"),
+  );
+}
+
+function compareFiveBlockMosaicBlocks(
+  left: FiveBlockMosaicBlock,
+  right: FiveBlockMosaicBlock,
+): number {
+  return (
+    left.rotation - right.rotation ||
+    left.columns - right.columns ||
+    left.rows - right.rows
+  );
+}
+
+function exactFiveBlockMosaicBlocks(
+  input: NormalizedLayerSolverInput,
+  rotations: readonly Rotation[],
+  exactPackageCount: number,
+): FiveBlockMosaicBlock[] {
+  const availableLength = rectangleBoundsLength(input.generationBoundsMm);
+  const availableWidth = rectangleBoundsWidth(input.generationBoundsMm);
+  const clearance = input.package.clearanceMm;
+  const blocks: FiveBlockMosaicBlock[] = [];
+
+  for (const rotation of rotations) {
+    const footprint = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      rotation,
+    );
+    const maximumColumns = Math.min(
+      maxCountAlong(availableLength, footprint.length, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumRows = Math.min(
+      maxCountAlong(availableWidth, footprint.width, clearance),
+      input.constraints.maxBands,
+    );
+    for (let columns = 1; columns <= maximumColumns; columns += 1) {
+      for (let rows = 1; rows <= maximumRows; rows += 1) {
+        const packageCount = columns * rows;
+        if (packageCount >= exactPackageCount) continue;
+        blocks.push({
+          rotation,
+          columns,
+          rows,
+          occupiedLengthMm: usedSpan(columns, footprint.length, clearance),
+          occupiedWidthMm: usedSpan(rows, footprint.width, clearance),
+          packageCount,
+        });
+      }
+    }
+  }
+
+  return blocks.sort(compareFiveBlockMosaicBlocks);
+}
+
+function fiveBlockCornerChainDescriptors(
+  input: NormalizedLayerSolverInput,
+  rotations: readonly Rotation[],
+  exactPackageCount: number,
+  collector: DraftCollector,
+): FiveBlockCornerChainDescriptor[] {
+  const availableLength = rectangleBoundsLength(input.generationBoundsMm);
+  const availableWidth = rectangleBoundsWidth(input.generationBoundsMm);
+  const clearance = input.package.clearanceMm;
+  const blocks = exactFiveBlockMosaicBlocks(
+    input,
+    rotations,
+    exactPackageCount,
+  );
+  const blocksByHeight = new Map<string, FiveBlockMosaicBlock[]>();
+  const blocksByLengthAndCount = new Map<string, FiveBlockMosaicBlock[]>();
+  for (const block of blocks) {
+    const heightKey = fiveBlockMetricKey(block.occupiedWidthMm);
+    const sameHeight = blocksByHeight.get(heightKey) ?? [];
+    sameHeight.push(block);
+    blocksByHeight.set(heightKey, sameHeight);
+
+    const lengthAndCountKey = `${fiveBlockMetricKey(block.occupiedLengthMm)}:${block.packageCount}`;
+    const sameLengthAndCount =
+      blocksByLengthAndCount.get(lengthAndCountKey) ?? [];
+    sameLengthAndCount.push(block);
+    blocksByLengthAndCount.set(lengthAndCountKey, sameLengthAndCount);
+  }
+
+  const descriptors: FiveBlockCornerChainDescriptor[] = [];
+  const maximumAttempts = Math.min(
+    2_000_000,
+    Math.max(100_000, input.constraints.maxCandidatesPerGenerator * 100),
+  );
+  let attempts = 0;
+  let truncated = false;
+
+  search: for (const topLeft of blocks) {
+    if (!collector.checkCancellation()) break;
+    for (const bottomLeft of blocks) {
+      if (
+        bottomLeft.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
+        topLeft.occupiedLengthMm
+      ) {
+        continue;
+      }
+      const occupiedWidthMm =
+        bottomLeft.occupiedWidthMm + clearance + topLeft.occupiedWidthMm;
+      if (occupiedWidthMm > availableWidth + SOLVER_GEOMETRY_EPSILON_MM) {
+        continue;
+      }
+
+      for (const topRight of blocks) {
+        attempts += 1;
+        if (attempts > maximumAttempts) {
+          truncated = true;
+          break search;
+        }
+        const occupiedLengthMm =
+          topLeft.occupiedLengthMm + clearance + topRight.occupiedLengthMm;
+        if (occupiedLengthMm > availableLength + SOLVER_GEOMETRY_EPSILON_MM) {
+          continue;
+        }
+        const requiredMiddleHeight =
+          occupiedWidthMm - clearance - topRight.occupiedWidthMm;
+        if (requiredMiddleHeight <= SOLVER_GEOMETRY_EPSILON_MM) continue;
+
+        for (const bottomMiddle of blocksByHeight.get(
+          fiveBlockMetricKey(requiredMiddleHeight),
+        ) ?? []) {
+          if (
+            bottomLeft.occupiedWidthMm >
+            bottomMiddle.occupiedWidthMm + SOLVER_GEOMETRY_EPSILON_MM
+          ) {
+            continue;
+          }
+          const requiredRightLength =
+            occupiedLengthMm -
+            bottomLeft.occupiedLengthMm -
+            bottomMiddle.occupiedLengthMm -
+            2 * clearance;
+          const requiredRightCount =
+            exactPackageCount -
+            topLeft.packageCount -
+            bottomLeft.packageCount -
+            bottomMiddle.packageCount -
+            topRight.packageCount;
+          if (
+            requiredRightLength <= SOLVER_GEOMETRY_EPSILON_MM ||
+            requiredRightCount <= 0
+          ) {
+            continue;
+          }
+
+          const rightCandidates =
+            blocksByLengthAndCount.get(
+              `${fiveBlockMetricKey(requiredRightLength)}:${requiredRightCount}`,
+            ) ?? [];
+          for (const bottomRight of rightCandidates) {
+            if (
+              bottomRight.occupiedWidthMm >
+              bottomMiddle.occupiedWidthMm + SOLVER_GEOMETRY_EPSILON_MM
+            ) {
+              continue;
+            }
+            descriptors.push({
+              topLeft,
+              bottomLeft,
+              bottomMiddle,
+              topRight,
+              bottomRight,
+              occupiedLengthMm,
+              occupiedWidthMm,
+            });
+          }
+        }
+      }
+    }
+  }
+
+  if (truncated) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "five-block-mosaic-search-limit-reached",
+      message: `pinwheel five-block mosaic generation stopped after the deterministic search limit of ${maximumAttempts} descriptor attempts.`,
+      generator: "pinwheel",
+      count: attempts,
+    });
+  }
+
+  const blockKey = (block: FiveBlockMosaicBlock) =>
+    `${block.rotation}:${block.columns}:${block.rows}`;
+  const descriptorKey = (descriptor: FiveBlockCornerChainDescriptor) =>
+    [
+      descriptor.topLeft,
+      descriptor.bottomLeft,
+      descriptor.bottomMiddle,
+      descriptor.topRight,
+      descriptor.bottomRight,
+    ]
+      .map(blockKey)
+      .join("|");
+  return descriptors.sort((left, right) => {
+    const metricComparison =
+      left.occupiedLengthMm * left.occupiedWidthMm -
+        right.occupiedLengthMm * right.occupiedWidthMm ||
+      2 * (left.occupiedLengthMm + left.occupiedWidthMm) -
+        2 * (right.occupiedLengthMm + right.occupiedWidthMm);
+    if (metricComparison !== 0) return metricComparison;
+    const leftKey = descriptorKey(left);
+    const rightKey = descriptorKey(right);
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+}
+
+function fiveBlockOffsetBridgeDescriptors(
+  input: NormalizedLayerSolverInput,
+  rotations: readonly Rotation[],
+  exactPackageCount: number,
+  collector: DraftCollector,
+): FiveBlockOffsetBridgeDescriptor[] {
+  const availableLength = rectangleBoundsLength(input.generationBoundsMm);
+  const availableWidth = rectangleBoundsWidth(input.generationBoundsMm);
+  const clearance = input.package.clearanceMm;
+  const blocks = exactFiveBlockMosaicBlocks(
+    input,
+    rotations,
+    exactPackageCount,
+  );
+  const rightStacksByHeightAndCount = new Map<
+    string,
+    Array<{
+      rightMain: FiveBlockMosaicBlock;
+      topBand: FiveBlockMosaicBlock;
+    }>
+  >();
+  for (const rightMain of blocks) {
+    for (const topBand of blocks) {
+      if (
+        topBand.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
+        rightMain.occupiedLengthMm
+      ) {
+        continue;
+      }
+      const occupiedWidthMm =
+        rightMain.occupiedWidthMm + clearance + topBand.occupiedWidthMm;
+      if (occupiedWidthMm > availableWidth + SOLVER_GEOMETRY_EPSILON_MM) {
+        continue;
+      }
+      const key = `${fiveBlockMetricKey(occupiedWidthMm)}:${rightMain.packageCount + topBand.packageCount}`;
+      const sameStack = rightStacksByHeightAndCount.get(key) ?? [];
+      sameStack.push({ rightMain, topBand });
+      rightStacksByHeightAndCount.set(key, sameStack);
+    }
+  }
+
+  const descriptors: FiveBlockOffsetBridgeDescriptor[] = [];
+  const maximumAttempts = Math.min(
+    2_000_000,
+    Math.max(100_000, input.constraints.maxCandidatesPerGenerator * 100),
+  );
+  let attempts = 0;
+  let truncated = false;
+
+  search: for (const leftMain of blocks) {
+    if (!collector.checkCancellation()) break;
+    for (const bottomBand of blocks) {
+      if (
+        bottomBand.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
+        leftMain.occupiedLengthMm
+      ) {
+        continue;
+      }
+      const occupiedWidthMm =
+        bottomBand.occupiedWidthMm + clearance + leftMain.occupiedWidthMm;
+      if (occupiedWidthMm > availableWidth + SOLVER_GEOMETRY_EPSILON_MM) {
+        continue;
+      }
+
+      for (const bridge of blocks) {
+        attempts += 1;
+        if (attempts > maximumAttempts) {
+          truncated = true;
+          break search;
+        }
+        const requiredRightStackCount =
+          exactPackageCount -
+          leftMain.packageCount -
+          bottomBand.packageCount -
+          bridge.packageCount;
+        if (requiredRightStackCount <= 0) continue;
+
+        const rightStacks =
+          rightStacksByHeightAndCount.get(
+            `${fiveBlockMetricKey(occupiedWidthMm)}:${requiredRightStackCount}`,
+          ) ?? [];
+        for (const { rightMain, topBand } of rightStacks) {
+          const bridgeCorridorHeight =
+            rightMain.occupiedWidthMm - bottomBand.occupiedWidthMm - clearance;
+          if (
+            bridge.occupiedWidthMm >
+            bridgeCorridorHeight + SOLVER_GEOMETRY_EPSILON_MM
+          ) {
+            continue;
+          }
+          const occupiedLengthMm =
+            leftMain.occupiedLengthMm +
+            clearance +
+            bridge.occupiedLengthMm +
+            clearance +
+            rightMain.occupiedLengthMm;
+          if (occupiedLengthMm > availableLength + SOLVER_GEOMETRY_EPSILON_MM) {
+            continue;
+          }
+          if (
+            bottomBand.occupiedLengthMm >
+            leftMain.occupiedLengthMm +
+              bridge.occupiedLengthMm +
+              clearance +
+              SOLVER_GEOMETRY_EPSILON_MM
+          ) {
+            continue;
+          }
+          if (
+            topBand.occupiedLengthMm >
+            bridge.occupiedLengthMm +
+              clearance +
+              rightMain.occupiedLengthMm +
+              SOLVER_GEOMETRY_EPSILON_MM
+          ) {
+            continue;
+          }
+          descriptors.push({
+            leftMain,
+            bottomBand,
+            bridge,
+            rightMain,
+            topBand,
+            occupiedLengthMm,
+            occupiedWidthMm,
+          });
+        }
+      }
+    }
+  }
+
+  if (truncated) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "five-block-offset-bridge-search-limit-reached",
+      message: `pinwheel five-block offset-bridge generation stopped after the deterministic search limit of ${maximumAttempts} descriptor attempts.`,
+      generator: "pinwheel",
+      count: attempts,
+    });
+  }
+
+  const blockKey = (block: FiveBlockMosaicBlock) =>
+    `${block.rotation}:${block.columns}:${block.rows}`;
+  const descriptorKey = (descriptor: FiveBlockOffsetBridgeDescriptor) =>
+    [
+      descriptor.leftMain,
+      descriptor.bottomBand,
+      descriptor.bridge,
+      descriptor.rightMain,
+      descriptor.topBand,
+    ]
+      .map(blockKey)
+      .join("|");
+  return descriptors.sort((left, right) => {
+    const metricComparison =
+      left.occupiedLengthMm * left.occupiedWidthMm -
+        right.occupiedLengthMm * right.occupiedWidthMm ||
+      2 * (left.occupiedLengthMm + left.occupiedWidthMm) -
+        2 * (right.occupiedLengthMm + right.occupiedWidthMm);
+    if (metricComparison !== 0) return metricComparison;
+    const leftKey = descriptorKey(left);
+    const rightKey = descriptorKey(right);
+    return leftKey < rightKey ? -1 : leftKey > rightKey ? 1 : 0;
+  });
+}
+
+function materializeFiveBlockCornerChain(
+  input: NormalizedLayerSolverInput,
+  descriptor: FiveBlockCornerChainDescriptor,
+): GeneratedPlacement[] {
+  const clearance = input.package.clearanceMm;
+  const startX = input.generationBoundsMm.minX;
+  const startY = input.generationBoundsMm.minY;
+  const plan = (
+    block: FiveBlockMosaicBlock,
+    minX: number,
+    minY: number,
+    label: string,
+  ) =>
+    pinwheelRegionPlan(
+      input,
+      {
+        minX,
+        minY,
+        maxX: minX + block.occupiedLengthMm,
+        maxY: minY + block.occupiedWidthMm,
+      },
+      block.rotation,
+      block.columns,
+      block.rows,
+      null,
+      label,
+    );
+
+  const plannedRegions = [
+    plan(
+      descriptor.topLeft,
+      startX,
+      startY + descriptor.bottomLeft.occupiedWidthMm + clearance,
+      "fiveBlockMosaic.topLeft",
+    ),
+    plan(descriptor.bottomLeft, startX, startY, "fiveBlockMosaic.bottomLeft"),
+    plan(
+      descriptor.bottomMiddle,
+      startX + descriptor.bottomLeft.occupiedLengthMm + clearance,
+      startY,
+      "fiveBlockMosaic.bottomMiddle",
+    ),
+    plan(
+      descriptor.topRight,
+      startX + descriptor.topLeft.occupiedLengthMm + clearance,
+      startY + descriptor.bottomMiddle.occupiedWidthMm + clearance,
+      "fiveBlockMosaic.topRight",
+    ),
+    plan(
+      descriptor.bottomRight,
+      startX +
+        descriptor.bottomLeft.occupiedLengthMm +
+        clearance +
+        descriptor.bottomMiddle.occupiedLengthMm +
+        clearance,
+      startY,
+      "fiveBlockMosaic.bottomRight",
+    ),
+  ];
+  const regions: PinwheelRegionPlan[] = [];
+  for (const region of plannedRegions) {
+    if (region === null) return [];
+    regions.push(region);
+  }
+  if (pinwheelRegionPlansOverlap(regions, clearance)) return [];
+  return materializePinwheelRegions(regions);
+}
+
+function materializeFiveBlockOffsetBridge(
+  input: NormalizedLayerSolverInput,
+  descriptor: FiveBlockOffsetBridgeDescriptor,
+): GeneratedPlacement[] {
+  const clearance = input.package.clearanceMm;
+  const startX = input.generationBoundsMm.minX;
+  const startY = input.generationBoundsMm.minY;
+  const plan = (
+    block: FiveBlockMosaicBlock,
+    minX: number,
+    minY: number,
+    label: string,
+  ) =>
+    pinwheelRegionPlan(
+      input,
+      {
+        minX,
+        minY,
+        maxX: minX + block.occupiedLengthMm,
+        maxY: minY + block.occupiedWidthMm,
+      },
+      block.rotation,
+      block.columns,
+      block.rows,
+      null,
+      label,
+    );
+
+  const bridgeCorridorMinY =
+    startY + descriptor.bottomBand.occupiedWidthMm + clearance;
+  const bridgeCorridorHeight =
+    descriptor.rightMain.occupiedWidthMm -
+    descriptor.bottomBand.occupiedWidthMm -
+    clearance;
+  const bridgeMinY = normalizeGeneratedGeometryMetric(
+    bridgeCorridorMinY +
+      (bridgeCorridorHeight - descriptor.bridge.occupiedWidthMm) / 2,
+    "fiveBlockOffsetBridge.bridgeMinY",
+  );
+  const plannedRegions = [
+    plan(
+      descriptor.leftMain,
+      startX,
+      startY + descriptor.bottomBand.occupiedWidthMm + clearance,
+      "fiveBlockOffsetBridge.leftMain",
+    ),
+    plan(
+      descriptor.bottomBand,
+      startX,
+      startY,
+      "fiveBlockOffsetBridge.bottomBand",
+    ),
+    plan(
+      descriptor.bridge,
+      startX + descriptor.leftMain.occupiedLengthMm + clearance,
+      bridgeMinY,
+      "fiveBlockOffsetBridge.bridge",
+    ),
+    plan(
+      descriptor.rightMain,
+      startX +
+        descriptor.leftMain.occupiedLengthMm +
+        clearance +
+        descriptor.bridge.occupiedLengthMm +
+        clearance,
+      startY,
+      "fiveBlockOffsetBridge.rightMain",
+    ),
+    plan(
+      descriptor.topBand,
+      startX +
+        descriptor.occupiedLengthMm -
+        descriptor.topBand.occupiedLengthMm,
+      startY + descriptor.rightMain.occupiedWidthMm + clearance,
+      "fiveBlockOffsetBridge.topBand",
+    ),
+  ];
+  const regions: PinwheelRegionPlan[] = [];
+  for (const region of plannedRegions) {
+    if (region === null) return [];
+    regions.push(region);
+  }
+  if (pinwheelRegionPlansOverlap(regions, clearance)) return [];
+  return materializePinwheelRegions(regions);
+}
+
+function generateExactFiveBlockMosaics(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  rotations: readonly Rotation[],
+  exactPackageCount: number,
+): void {
+  if (
+    input.constraints.requiredShape !== "any" ||
+    !input.constraints.allowMixedPackageOrientations ||
+    exactPackageCount < 5
+  ) {
+    return;
+  }
+
+  for (const descriptor of fiveBlockCornerChainDescriptors(
+    input,
+    rotations,
+    exactPackageCount,
+    collector,
+  )) {
+    if (!collector.checkCancellation()) return;
+    const placements = materializeFiveBlockCornerChain(input, descriptor);
+    if (placements.length !== exactPackageCount) continue;
+    if (
+      !collector.add(placements, {
+        family: "pinwheel",
+        variant: "five-block-corner-chain",
+        parameters: {
+          topology: "corner-chain-v1",
+          topLeftRotation: descriptor.topLeft.rotation,
+          topLeftColumns: descriptor.topLeft.columns,
+          topLeftRows: descriptor.topLeft.rows,
+          bottomLeftRotation: descriptor.bottomLeft.rotation,
+          bottomLeftColumns: descriptor.bottomLeft.columns,
+          bottomLeftRows: descriptor.bottomLeft.rows,
+          bottomMiddleRotation: descriptor.bottomMiddle.rotation,
+          bottomMiddleColumns: descriptor.bottomMiddle.columns,
+          bottomMiddleRows: descriptor.bottomMiddle.rows,
+          topRightRotation: descriptor.topRight.rotation,
+          topRightColumns: descriptor.topRight.columns,
+          topRightRows: descriptor.topRight.rows,
+          bottomRightRotation: descriptor.bottomRight.rotation,
+          bottomRightColumns: descriptor.bottomRight.columns,
+          bottomRightRows: descriptor.bottomRight.rows,
+          occupiedLengthMm: descriptor.occupiedLengthMm,
+          occupiedWidthMm: descriptor.occupiedWidthMm,
+        },
+      })
+    ) {
+      return;
+    }
+  }
+
+  for (const descriptor of fiveBlockOffsetBridgeDescriptors(
+    input,
+    rotations,
+    exactPackageCount,
+    collector,
+  )) {
+    if (!collector.checkCancellation()) return;
+    const placements = materializeFiveBlockOffsetBridge(input, descriptor);
+    if (placements.length !== exactPackageCount) continue;
+    if (
+      !collector.add(placements, {
+        family: "pinwheel",
+        variant: "five-block-offset-bridge",
+        parameters: {
+          topology: "offset-bridge-v1",
+          leftMainRotation: descriptor.leftMain.rotation,
+          leftMainColumns: descriptor.leftMain.columns,
+          leftMainRows: descriptor.leftMain.rows,
+          bottomBandRotation: descriptor.bottomBand.rotation,
+          bottomBandColumns: descriptor.bottomBand.columns,
+          bottomBandRows: descriptor.bottomBand.rows,
+          bridgeRotation: descriptor.bridge.rotation,
+          bridgeColumns: descriptor.bridge.columns,
+          bridgeRows: descriptor.bridge.rows,
+          rightMainRotation: descriptor.rightMain.rotation,
+          rightMainColumns: descriptor.rightMain.columns,
+          rightMainRows: descriptor.rightMain.rows,
+          topBandRotation: descriptor.topBand.rotation,
+          topBandColumns: descriptor.topBand.columns,
+          topBandRows: descriptor.topBand.rows,
+          occupiedLengthMm: descriptor.occupiedLengthMm,
+          occupiedWidthMm: descriptor.occupiedWidthMm,
+        },
+      })
+    ) {
+      return;
+    }
+  }
 }
 
 function asymmetricPinwheelPackageCount(
@@ -2825,9 +3529,7 @@ function asymmetricPinwheelResidualPlans(
 
   const totalGapCount = bottomGapCount + topGapCount;
   const equalGapBottomResidual =
-    totalGapCount === 0
-      ? 0
-      : (residualMm * bottomGapCount) / totalGapCount;
+    totalGapCount === 0 ? 0 : (residualMm * bottomGapCount) / totalGapCount;
   const midpoint = (minimumBottomResidual + maximumBottomResidual) / 2;
   const allocationCandidates = [
     minimumBottomResidual,
@@ -3166,7 +3868,7 @@ function generatePinwheels(
         "cross-bottom-left",
         "lengthwise-bottom-left",
       ] as const) {
-        if (!collector.canContinue()) return collector.output();
+        if (!collector.checkCancellation()) return collector.output();
         const outerPlacements = pinwheelPlacements(
           input,
           lengthwiseRotation,
@@ -3175,19 +3877,36 @@ function generatePinwheels(
           heightPair,
           chirality,
         );
-        collector.add(outerPlacements, {
-          family: "pinwheel",
-          variant: chirality,
-          parameters: {
-            lengthwiseRotation,
-            crosswiseRotation,
-            lengthwiseColumns: widthPair.firstCount,
-            crosswiseColumns: widthPair.secondCount,
-            lengthwiseRows: heightPair.firstCount,
-            crosswiseRows: heightPair.secondCount,
-            chirality,
-          },
-        });
+        const outerRegions = symmetricPinwheelOccupiedRegions(
+          input,
+          outerPlacements,
+          widthPair,
+          heightPair,
+          chirality,
+        );
+        if (
+          outerRegions === null ||
+          pinwheelRegionPlansOverlap(outerRegions, input.package.clearanceMm)
+        ) {
+          continue;
+        }
+        if (
+          !collector.add(outerPlacements, {
+            family: "pinwheel",
+            variant: chirality,
+            parameters: {
+              lengthwiseRotation,
+              crosswiseRotation,
+              lengthwiseColumns: widthPair.firstCount,
+              crosswiseColumns: widthPair.secondCount,
+              lengthwiseRows: heightPair.firstCount,
+              crosswiseRows: heightPair.secondCount,
+              chirality,
+            },
+          })
+        ) {
+          return collector.output();
+        }
 
         for (const centerFillPlan of centerFillPlans) {
           if (!collector.checkCancellation()) return collector.output();
@@ -3206,22 +3925,39 @@ function generatePinwheels(
           ) {
             continue;
           }
-          collector.add([...outerPlacements, ...centerPlacements], {
-            family: "pinwheel",
-            variant: `${chirality}-center-fill`,
-            parameters: {
-              lengthwiseRotation,
-              crosswiseRotation,
-              lengthwiseColumns: widthPair.firstCount,
-              crosswiseColumns: widthPair.secondCount,
-              lengthwiseRows: heightPair.firstCount,
-              crosswiseRows: heightPair.secondCount,
-              centerRotation: centerFillPlan.rotation,
-              centerColumns: centerFillPlan.columns,
-              centerRows: centerFillPlan.rows,
-              chirality,
-            },
-          });
+          const centerOccupiedBounds = boundingRectangleForPlacements(
+            centerPlacements,
+            input.package.dimensionsMm,
+          );
+          if (
+            centerOccupiedBounds === null ||
+            pinwheelRegionPlansOverlap(
+              [...outerRegions, { occupiedBounds: centerOccupiedBounds }],
+              input.package.clearanceMm,
+            )
+          ) {
+            continue;
+          }
+          if (
+            !collector.add([...outerPlacements, ...centerPlacements], {
+              family: "pinwheel",
+              variant: `${chirality}-center-fill`,
+              parameters: {
+                lengthwiseRotation,
+                crosswiseRotation,
+                lengthwiseColumns: widthPair.firstCount,
+                crosswiseColumns: widthPair.secondCount,
+                lengthwiseRows: heightPair.firstCount,
+                crosswiseRows: heightPair.secondCount,
+                centerRotation: centerFillPlan.rotation,
+                centerColumns: centerFillPlan.columns,
+                centerRows: centerFillPlan.rows,
+                chirality,
+              },
+            })
+          ) {
+            return collector.output();
+          }
         }
       }
     }
@@ -3229,6 +3965,13 @@ function generatePinwheels(
 
   const exactPackageCount = exactRequestedPackageCount(input);
   if (exactPackageCount === null) return collector.output();
+  generateExactFiveBlockMosaics(
+    input,
+    collector,
+    representatives,
+    exactPackageCount,
+  );
+  if (!collector.checkCancellation()) return collector.output();
   for (const widthPair of widthPairs) {
     for (const crossBottomLengthwiseTopPair of heightPairs) {
       for (const lengthwiseBottomCrosswiseTopPair of heightPairs) {
@@ -3288,8 +4031,7 @@ function generatePinwheels(
                     ? null
                     : residualPlan.bottomResidualMm >
                           SOLVER_GEOMETRY_EPSILON_MM &&
-                        residualPlan.topResidualMm >
-                          SOLVER_GEOMETRY_EPSILON_MM
+                        residualPlan.topResidualMm > SOLVER_GEOMETRY_EPSILON_MM
                       ? "split"
                       : residualPlan.bottomResidualMm >
                           SOLVER_GEOMETRY_EPSILON_MM
