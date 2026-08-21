@@ -2751,8 +2751,7 @@ function pinwheelPlacements(
 type PinwheelChirality = "cross-bottom-left" | "lengthwise-bottom-left";
 
 type PinwheelSidePattern =
-  | "cross-bottom-lengthwise-top"
-  | "lengthwise-bottom-crosswise-top";
+  "cross-bottom-lengthwise-top" | "lengthwise-bottom-crosswise-top";
 
 type PinwheelResidualRegion = "bottom" | "top";
 
@@ -3085,28 +3084,29 @@ function fiveBlockMetricKey(value: number): string {
   );
 }
 
-function compareFiveBlockMosaicBlocks(
-  left: FiveBlockMosaicBlock,
-  right: FiveBlockMosaicBlock,
-): number {
-  return (
-    left.rotation - right.rotation ||
-    left.columns - right.columns ||
-    left.rows - right.rows
-  );
+function fiveBlockMetricJoinKeys(value: number): string[] {
+  return [
+    ...new Set([
+      fiveBlockMetricKey(value - SOLVER_GEOMETRY_EPSILON_MM),
+      fiveBlockMetricKey(value),
+      fiveBlockMetricKey(value + SOLVER_GEOMETRY_EPSILON_MM),
+    ]),
+  ];
 }
 
 function exactFiveBlockMosaicBlocks(
   input: NormalizedLayerSolverInput,
   rotations: readonly Rotation[],
   exactPackageCount: number,
+  consumeWork?: () => boolean,
 ): FiveBlockMosaicBlock[] {
   const availableLength = rectangleBoundsLength(input.generationBoundsMm);
   const availableWidth = rectangleBoundsWidth(input.generationBoundsMm);
   const clearance = input.package.clearanceMm;
   const blocks: FiveBlockMosaicBlock[] = [];
+  const orderedRotations = [...rotations].sort((left, right) => left - right);
 
-  for (const rotation of rotations) {
+  for (const rotation of orderedRotations) {
     const footprint = rectangleSizeForRotation(
       input.package.dimensionsMm,
       rotation,
@@ -3121,6 +3121,7 @@ function exactFiveBlockMosaicBlocks(
     );
     for (let columns = 1; columns <= maximumColumns; columns += 1) {
       for (let rows = 1; rows <= maximumRows; rows += 1) {
+        if (consumeWork?.() === false) return [];
         const packageCount = columns * rows;
         if (packageCount >= exactPackageCount) continue;
         blocks.push({
@@ -3135,7 +3136,7 @@ function exactFiveBlockMosaicBlocks(
     }
   }
 
-  return blocks.sort(compareFiveBlockMosaicBlocks);
+  return blocks;
 }
 
 function fiveBlockCornerChainDescriptors(
@@ -3303,49 +3304,69 @@ function fiveBlockOffsetBridgeDescriptors(
   const availableLength = rectangleBoundsLength(input.generationBoundsMm);
   const availableWidth = rectangleBoundsWidth(input.generationBoundsMm);
   const clearance = input.package.clearanceMm;
+  const maximumWork = Math.min(
+    2_000_000,
+    Math.max(100_000, input.constraints.maxCandidatesPerGenerator * 100),
+  );
+  let consumedWork = 0;
+  let truncated = false;
+  const consumeWork = (): boolean => {
+    if (!collector.canContinue()) return false;
+    if (consumedWork >= maximumWork) {
+      truncated = true;
+      return false;
+    }
+    if (!collector.checkCancellation()) return false;
+    consumedWork += 1;
+    return true;
+  };
+  const reportSearchLimit = () => {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "five-block-offset-bridge-search-limit-reached",
+      message: `pinwheel five-block offset-bridge generation stopped after the deterministic hard search budget of ${maximumWork} work units.`,
+      generator: "pinwheel",
+      count: consumedWork,
+    });
+  };
+
   const blocks = exactFiveBlockMosaicBlocks(
     input,
     rotations,
     exactPackageCount,
+    consumeWork,
   );
-  const rightStacksByHeightAndCount = new Map<
-    string,
-    Array<{
-      rightMain: FiveBlockMosaicBlock;
-      topBand: FiveBlockMosaicBlock;
-    }>
-  >();
-  for (const rightMain of blocks) {
-    for (const topBand of blocks) {
-      if (
-        topBand.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
-        rightMain.occupiedLengthMm
-      ) {
-        continue;
-      }
-      const occupiedWidthMm =
-        rightMain.occupiedWidthMm + clearance + topBand.occupiedWidthMm;
-      if (occupiedWidthMm > availableWidth + SOLVER_GEOMETRY_EPSILON_MM) {
-        continue;
-      }
-      const key = `${fiveBlockMetricKey(occupiedWidthMm)}:${rightMain.packageCount + topBand.packageCount}`;
-      const sameStack = rightStacksByHeightAndCount.get(key) ?? [];
-      sameStack.push({ rightMain, topBand });
-      rightStacksByHeightAndCount.set(key, sameStack);
+  if (!collector.canContinue()) return [];
+  if (truncated) {
+    reportSearchLimit();
+    return [];
+  }
+
+  const topBandsByHeight = new Map<string, FiveBlockMosaicBlock[]>();
+  const bridgesByCount = new Map<number, FiveBlockMosaicBlock[]>();
+  for (const block of blocks) {
+    if (!consumeWork()) {
+      if (!collector.canContinue()) return [];
+      reportSearchLimit();
+      return [];
     }
+    const heightKey = fiveBlockMetricKey(block.occupiedWidthMm);
+    const sameHeight = topBandsByHeight.get(heightKey) ?? [];
+    sameHeight.push(block);
+    topBandsByHeight.set(heightKey, sameHeight);
+
+    const sameCount = bridgesByCount.get(block.packageCount) ?? [];
+    sameCount.push(block);
+    bridgesByCount.set(block.packageCount, sameCount);
   }
 
   const descriptors: FiveBlockOffsetBridgeDescriptor[] = [];
-  const maximumAttempts = Math.min(
-    2_000_000,
-    Math.max(100_000, input.constraints.maxCandidatesPerGenerator * 100),
-  );
-  let attempts = 0;
-  let truncated = false;
 
   search: for (const leftMain of blocks) {
-    if (!collector.checkCancellation()) break;
+    if (!consumeWork()) break search;
     for (const bottomBand of blocks) {
+      if (!consumeWork()) break search;
       if (
         bottomBand.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
         leftMain.occupiedLengthMm
@@ -3358,83 +3379,102 @@ function fiveBlockOffsetBridgeDescriptors(
         continue;
       }
 
-      for (const bridge of blocks) {
-        attempts += 1;
-        if (attempts > maximumAttempts) {
-          truncated = true;
-          break search;
-        }
-        const requiredRightStackCount =
-          exactPackageCount -
-          leftMain.packageCount -
-          bottomBand.packageCount -
-          bridge.packageCount;
-        if (requiredRightStackCount <= 0) continue;
+      const occupiedWidthKey = fiveBlockMetricKey(occupiedWidthMm);
+      for (const rightMain of blocks) {
+        if (!consumeWork()) break search;
+        const bridgeCorridorHeight =
+          rightMain.occupiedWidthMm - bottomBand.occupiedWidthMm - clearance;
+        if (bridgeCorridorHeight <= SOLVER_GEOMETRY_EPSILON_MM) continue;
+        const requiredTopBandHeight =
+          occupiedWidthMm - clearance - rightMain.occupiedWidthMm;
+        if (requiredTopBandHeight <= SOLVER_GEOMETRY_EPSILON_MM) continue;
 
-        const rightStacks =
-          rightStacksByHeightAndCount.get(
-            `${fiveBlockMetricKey(occupiedWidthMm)}:${requiredRightStackCount}`,
-          ) ?? [];
-        for (const { rightMain, topBand } of rightStacks) {
-          const bridgeCorridorHeight =
-            rightMain.occupiedWidthMm - bottomBand.occupiedWidthMm - clearance;
-          if (
-            bridge.occupiedWidthMm >
-            bridgeCorridorHeight + SOLVER_GEOMETRY_EPSILON_MM
-          ) {
-            continue;
+        for (const topBandHeightKey of fiveBlockMetricJoinKeys(
+          requiredTopBandHeight,
+        )) {
+          if (!consumeWork()) break search;
+          const topBands = topBandsByHeight.get(topBandHeightKey) ?? [];
+          for (const topBand of topBands) {
+            if (!consumeWork()) break search;
+            if (
+              fiveBlockMetricKey(
+                rightMain.occupiedWidthMm + clearance + topBand.occupiedWidthMm,
+              ) !== occupiedWidthKey
+            ) {
+              continue;
+            }
+            if (
+              topBand.occupiedLengthMm + SOLVER_GEOMETRY_EPSILON_MM <
+              rightMain.occupiedLengthMm
+            ) {
+              continue;
+            }
+            const requiredBridgeCount =
+              exactPackageCount -
+              leftMain.packageCount -
+              bottomBand.packageCount -
+              rightMain.packageCount -
+              topBand.packageCount;
+            if (requiredBridgeCount <= 0) continue;
+
+            const bridges = bridgesByCount.get(requiredBridgeCount) ?? [];
+            for (const bridge of bridges) {
+              if (!consumeWork()) break search;
+              if (
+                bridge.occupiedWidthMm >
+                bridgeCorridorHeight + SOLVER_GEOMETRY_EPSILON_MM
+              ) {
+                continue;
+              }
+              const occupiedLengthMm =
+                leftMain.occupiedLengthMm +
+                clearance +
+                bridge.occupiedLengthMm +
+                clearance +
+                rightMain.occupiedLengthMm;
+              if (
+                occupiedLengthMm >
+                availableLength + SOLVER_GEOMETRY_EPSILON_MM
+              ) {
+                continue;
+              }
+              if (
+                bottomBand.occupiedLengthMm >
+                leftMain.occupiedLengthMm +
+                  bridge.occupiedLengthMm +
+                  clearance +
+                  SOLVER_GEOMETRY_EPSILON_MM
+              ) {
+                continue;
+              }
+              if (
+                topBand.occupiedLengthMm >
+                bridge.occupiedLengthMm +
+                  clearance +
+                  rightMain.occupiedLengthMm +
+                  SOLVER_GEOMETRY_EPSILON_MM
+              ) {
+                continue;
+              }
+              descriptors.push({
+                leftMain,
+                bottomBand,
+                bridge,
+                rightMain,
+                topBand,
+                occupiedLengthMm,
+                occupiedWidthMm,
+              });
+            }
           }
-          const occupiedLengthMm =
-            leftMain.occupiedLengthMm +
-            clearance +
-            bridge.occupiedLengthMm +
-            clearance +
-            rightMain.occupiedLengthMm;
-          if (occupiedLengthMm > availableLength + SOLVER_GEOMETRY_EPSILON_MM) {
-            continue;
-          }
-          if (
-            bottomBand.occupiedLengthMm >
-            leftMain.occupiedLengthMm +
-              bridge.occupiedLengthMm +
-              clearance +
-              SOLVER_GEOMETRY_EPSILON_MM
-          ) {
-            continue;
-          }
-          if (
-            topBand.occupiedLengthMm >
-            bridge.occupiedLengthMm +
-              clearance +
-              rightMain.occupiedLengthMm +
-              SOLVER_GEOMETRY_EPSILON_MM
-          ) {
-            continue;
-          }
-          descriptors.push({
-            leftMain,
-            bottomBand,
-            bridge,
-            rightMain,
-            topBand,
-            occupiedLengthMm,
-            occupiedWidthMm,
-          });
         }
       }
     }
   }
 
-  if (truncated) {
-    collector.diagnostics.push({
-      severity: "warning",
-      phase: "generation",
-      code: "five-block-offset-bridge-search-limit-reached",
-      message: `pinwheel five-block offset-bridge generation stopped after the deterministic search limit of ${maximumAttempts} descriptor attempts.`,
-      generator: "pinwheel",
-      count: attempts,
-    });
-  }
+  if (!collector.canContinue()) return [];
+
+  if (truncated) reportSearchLimit();
 
   const blockKey = (block: FiveBlockMosaicBlock) =>
     `${block.rotation}:${block.columns}:${block.rows}`;
@@ -3668,6 +3708,7 @@ function generateExactFiveBlockMosaics(
     }
   }
 
+  if (!collector.canContinue()) return;
   for (const descriptor of fiveBlockOffsetBridgeDescriptors(
     input,
     rotations,

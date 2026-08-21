@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   boundingRectangleForPlacements,
+  canonicalPlacementGeometryKey,
   rectangleBoundsCenter,
   transformPlacements,
 } from "~/domain/geometry";
@@ -159,6 +160,254 @@ describe("justified split-grid generator", () => {
     expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
       true,
     );
+  });
+
+  it("cancels during five-block offset-bridge preparation and matching", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 1 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 16, maxY: 16 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 257,
+        maximumPackageCount: 257,
+        maxPlacements: 257,
+        maxBands: 16,
+        maxCandidatesPerGenerator: 1,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+      },
+    });
+    let cancellationPolls = 0;
+
+    const output = generateCandidateFamily(input, "pinwheel", {
+      shouldCancel: () => {
+        cancellationPolls += 1;
+        return cancellationPolls >= 5_000;
+      },
+    });
+
+    expect(output.cancelled).toBe(true);
+    expect(output.drafts).toEqual([]);
+    expect(cancellationPolls).toBe(5_000);
+    expect(output.diagnostics).not.toContainEqual(
+      expect.objectContaining({
+        code: "five-block-offset-bridge-search-limit-reached",
+      }),
+    );
+  });
+
+  it("hard-bounds all five-block offset-bridge search work", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 1 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 64, maxY: 64 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 4_097,
+        maximumPackageCount: 4_097,
+        maxPlacements: 4_097,
+        maxBands: 64,
+        maxCandidatesPerGenerator: 1,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "pinwheel");
+    const offsetBridgeLimit = output.diagnostics.find(
+      ({ code }) => code === "five-block-offset-bridge-search-limit-reached",
+    );
+
+    expect(output.cancelled).toBe(false);
+    expect(output.drafts).toEqual([]);
+    expect(offsetBridgeLimit).toEqual(
+      expect.objectContaining({
+        generator: "pinwheel",
+        count: 100_000,
+      }),
+    );
+  });
+
+  it("preserves the synthetic 42-package offset-bridge candidate and provenance", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 177, width: 123 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1_200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 42,
+        maximumPackageCount: 42,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 10_000,
+      },
+    });
+    const expectedPlacements = [
+      ...[96, 273, 450].flatMap((x) =>
+        [242.5, 365.5, 488.5, 611.5, 734.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[69, 192, 315, 438, 561].map((x) => ({
+        positionMm: { x, y: 92.5 },
+        rotation: 90 as const,
+      })),
+      ...[311.5, 488.5].map((y) => ({
+        positionMm: { x: 600, y },
+        rotation: 90 as const,
+      })),
+      ...[750, 927, 1_104].flatMap((x) =>
+        [65.5, 188.5, 311.5, 434.5, 557.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[639, 762, 885, 1_008, 1_131].map((x) => ({
+        positionMm: { x, y: 707.5 },
+        rotation: 90 as const,
+      })),
+    ];
+
+    const first = generateCandidateFamily(input, "pinwheel");
+    const second = generateCandidateFamily(input, "pinwheel");
+    const candidate = first.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "five-block-offset-bridge" &&
+          parameters?.topology === "offset-bridge-v1" &&
+          parameters.leftMainRotation === 0 &&
+          parameters.leftMainColumns === 3 &&
+          parameters.leftMainRows === 5 &&
+          parameters.bottomBandRotation === 90 &&
+          parameters.bottomBandColumns === 5 &&
+          parameters.bottomBandRows === 1 &&
+          parameters.bridgeRotation === 90 &&
+          parameters.bridgeColumns === 1 &&
+          parameters.bridgeRows === 2 &&
+          parameters.rightMainRotation === 0 &&
+          parameters.rightMainColumns === 3 &&
+          parameters.rightMainRows === 5 &&
+          parameters.topBandRotation === 90 &&
+          parameters.topBandColumns === 5 &&
+          parameters.topBandRows === 1 &&
+          parameters.occupiedLengthMm === 1_185 &&
+          parameters.occupiedWidthMm === 792,
+      ),
+    );
+
+    expect(second).toEqual(first);
+    expect(expectedPlacements).toHaveLength(42);
+    expect(candidate).toBeDefined();
+    expect(candidate?.placements).toHaveLength(42);
+    expect(canonicalPlacementGeometryKey(candidate?.placements ?? [])).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      validateCandidatePlacements(input, candidate?.placements ?? []).valid,
+    ).toBe(true);
+  });
+
+  it("preserves offset-bridge joins across metric rounding boundaries", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 0.1 },
+        clearanceMm: 5e-10,
+      },
+      envelopeMm: {
+        minX: 0,
+        minY: 0,
+        maxX: 3.000000001,
+        maxY: 1.0000000045,
+      },
+      generationBoundsMm: {
+        minX: 0,
+        minY: 0,
+        maxX: 3.000000001,
+        maxY: 1.0000000045,
+      },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 21,
+        maximumPackageCount: 21,
+        maxPlacements: 21,
+        maxBands: 9,
+        maxCandidatesPerGenerator: 500,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+      },
+    });
+    const expectedPlacements = [
+      ...[
+        0.150000001, 0.250000001, 0.350000001, 0.450000002, 0.550000003,
+        0.650000003, 0.750000004, 0.850000004, 0.950000005,
+      ].map((y) => ({
+        positionMm: { x: 0.5, y },
+        rotation: 0 as const,
+      })),
+      {
+        positionMm: { x: 0.5, y: 0.05 },
+        rotation: 0 as const,
+      },
+      {
+        positionMm: { x: 1.500000001, y: 0.150000001 },
+        rotation: 0 as const,
+      },
+      ...[
+        0.05, 0.150000001, 0.250000001, 0.350000002, 0.450000002, 0.550000003,
+        0.650000003, 0.750000004, 0.850000004, 0.950000005,
+      ].map((y) => ({
+        positionMm: { x: 2.500000001, y },
+        rotation: 0 as const,
+      })),
+    ];
+
+    const output = generateCandidateFamily(input, "pinwheel");
+    const candidate = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "five-block-offset-bridge" &&
+          parameters?.topology === "offset-bridge-v1" &&
+          parameters.leftMainRotation === 0 &&
+          parameters.leftMainColumns === 1 &&
+          parameters.leftMainRows === 9 &&
+          parameters.bottomBandRotation === 0 &&
+          parameters.bottomBandColumns === 1 &&
+          parameters.bottomBandRows === 1 &&
+          parameters.bridgeRotation === 0 &&
+          parameters.bridgeColumns === 1 &&
+          parameters.bridgeRows === 1 &&
+          parameters.rightMainRotation === 0 &&
+          parameters.rightMainColumns === 1 &&
+          parameters.rightMainRows === 2 &&
+          parameters.topBandRotation === 0 &&
+          parameters.topBandColumns === 1 &&
+          parameters.topBandRows === 8 &&
+          parameters.occupiedLengthMm === 3.000000001 &&
+          parameters.occupiedWidthMm === 1.0000000045,
+      ),
+    );
+
+    expect(expectedPlacements).toHaveLength(21);
+    expect(candidate).toBeDefined();
+    expect(candidate?.placements).toHaveLength(21);
+    expect(canonicalPlacementGeometryKey(candidate?.placements ?? [])).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      validateCandidatePlacements(input, candidate?.placements ?? []).valid,
+    ).toBe(true);
   });
 
   it("generates a nested side region with top and bottom bands around a dense core", () => {
