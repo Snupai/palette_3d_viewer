@@ -340,6 +340,55 @@ describe("solver input and candidate validation", () => {
     }
   });
 
+  it("keeps exact rectangular grids available when other shapes are allowed", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 100 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
+      constraints: {
+        allowedRotations: [0],
+        minimumPackageCount: 6,
+        maximumPackageCount: 6,
+        allowMixedPackageOrientations: false,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+        maxCandidatesPerGenerator: 100,
+      },
+    };
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const exactGridCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ family, variant }) =>
+          family === "row" && variant === "exact-rectangular-grid-compact",
+      ),
+    );
+
+    expect(exactGridCandidates).toHaveLength(2);
+    expect(
+      exactGridCandidates
+        .map(({ placements }) =>
+          boundingRectangleForPlacements(
+            placements,
+            input.package.dimensionsMm,
+          ),
+        )
+        .sort((left, right) => left!.minX - right!.minX),
+    ).toEqual([
+      { minX: 50, minY: 50, maxX: 350, maxY: 250 },
+      { minX: 100, minY: 0, maxX: 300, maxY: 300 },
+    ]);
+    expect(
+      exactGridCandidates.every(
+        ({ metrics, validation }) =>
+          metrics.packageCount === 6 && validation.valid,
+      ),
+    ).toBe(true);
+  });
+
   it("generates an exact asymmetric pinwheel with independently sized opposite regions", () => {
     const input: LayerSolverInput = {
       package: {
@@ -797,6 +846,231 @@ describe("solver input and candidate validation", () => {
         input.package.dimensionsMm,
       ),
     ).toEqual({ minX: 7.5, minY: 4, maxX: 1_192.5, maxY: 796 });
+  }, 30_000);
+
+  it("distributes compact mixed-strip slack only between generated grip rows", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 154, width: 107 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1_200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 54,
+        maximumPackageCount: 54,
+        allowMixedPackageOrientations: true,
+        provisionalPackagesPerCycle: 2,
+        rectangularBlockFootprintPolicy: "compact-centered",
+        requiredShape: "any",
+        maxCandidatesPerGenerator: 500,
+      },
+    };
+    const leftRowYCenters = [68.5, 179, 289.5, 400, 510.5, 621, 731.5];
+    const expectedPlacements = [
+      ...[95, 249].flatMap((x) =>
+        leftRowYCenters.map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[379.5, 486.5, 593.5, 700.5, 807.5, 914.5, 1_021.5, 1_128.5].flatMap(
+        (x) =>
+          [92, 246, 400, 554, 708].map((y) => ({
+            positionMm: { x, y },
+            rotation: 90 as const,
+          })),
+      ),
+    ];
+    const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometry,
+    );
+    const matchingTopology = result.candidates.filter(({ placements }) => {
+      const bands = new Map<number, { rotation: number; count: number }>();
+      for (const placement of placements) {
+        const existing = bands.get(placement.positionMm.x);
+        if (existing && existing.rotation !== placement.rotation % 180) {
+          return false;
+        }
+        bands.set(placement.positionMm.x, {
+          rotation: placement.rotation % 180,
+          count: (existing?.count ?? 0) + 1,
+        });
+      }
+      return (
+        [...bands.entries()]
+          .sort(([left], [right]) => left - right)
+          .map(([, band]) => `${band.rotation}:${band.count}`)
+          .join("|") ===
+        ["0:7", "0:7", ...Array.from({ length: 8 }, () => "90:5")].join("|")
+      );
+    });
+
+    expect(expectedPlacements).toHaveLength(54);
+    expect(candidate).toBeDefined();
+    expect(matchingTopology).toHaveLength(1);
+    expect(candidate?.validation.valid).toBe(true);
+    expect(candidate?.metrics).toMatchObject({
+      packageCount: 54,
+      provisionalCycleCount: 31,
+      boundingBlockLengthMm: 1_164,
+      boundingBlockWidthMm: 770,
+    });
+    expect(candidate?.grips).toHaveLength(31);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 18, minY: 15, maxX: 1_182, maxY: 785 });
+    expect(
+      candidate?.provenance.some(
+        ({ family, variant }) =>
+          family === "mixed-orientation" &&
+          variant.endsWith("exact-rectangular-compact"),
+      ),
+    ).toBe(true);
+
+    const leftRowGripIds = leftRowYCenters.map((y) => {
+      const row = candidate?.placements
+        .filter(
+          (placement) =>
+            placement.rotation === 0 && placement.positionMm.y === y,
+        )
+        .sort((left, right) => left.positionMm.x - right.positionMm.x);
+      expect(row?.map(({ positionMm }) => positionMm.x)).toEqual([95, 249]);
+      expect(new Set(row?.map(({ gripId }) => gripId)).size).toBe(1);
+      return row?.[0]?.gripId;
+    });
+    expect(new Set(leftRowGripIds).size).toBe(7);
+    expect(
+      leftRowYCenters
+        .slice(1)
+        .map((center, index) => center - leftRowYCenters[index]!),
+    ).toEqual([110.5, 110.5, 110.5, 110.5, 110.5, 110.5]);
+  }, 30_000);
+
+  it("distributes inline slack between complete suction groups", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 65 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 165, maxY: 520 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 13,
+        maximumPackageCount: 13,
+        allowMixedPackageOrientations: true,
+        provisionalPackagesPerCycle: 2,
+        rectangularBlockFootprintPolicy: "compact-centered",
+        requiredShape: "any",
+        maxCandidatesPerGenerator: 100,
+      },
+    };
+    const expectedPlacements = [
+      ...[50, 150, 260, 370, 470].map((y) => ({
+        positionMm: { x: 32.5, y },
+        rotation: 90 as const,
+      })),
+      ...[32.5, 97.5, 162.5, 227.5, 292.5, 357.5, 422.5, 487.5].map((y) => ({
+        positionMm: { x: 115, y },
+        rotation: 0 as const,
+      })),
+    ];
+    const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometry,
+    );
+
+    expect(expectedPlacements).toHaveLength(13);
+    expect(candidate).toBeDefined();
+    expect(candidate?.validation.valid).toBe(true);
+    expect(candidate?.metrics).toMatchObject({
+      packageCount: 13,
+      provisionalCycleCount: 11,
+      boundingBlockLengthMm: 165,
+      boundingBlockWidthMm: 520,
+    });
+    expect(candidate?.grips).toHaveLength(11);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 0, maxX: 165, maxY: 520 });
+
+    const crosswise = candidate?.placements
+      .filter(({ rotation }) => rotation === 90)
+      .sort((left, right) => left.positionMm.y - right.positionMm.y);
+    expect(crosswise?.map(({ positionMm }) => positionMm.y)).toEqual([
+      50, 150, 260, 370, 470,
+    ]);
+    expect(
+      crosswise
+        ?.slice(1)
+        .map(
+          ({ positionMm }, index) =>
+            positionMm.y - crosswise[index]!.positionMm.y,
+        ),
+    ).toEqual([100, 110, 110, 100]);
+    const crosswiseGripIds = crosswise?.map(({ gripId }) => gripId) ?? [];
+    expect(crosswiseGripIds[0]).toBe(crosswiseGripIds[1]);
+    expect(crosswiseGripIds[1]).not.toBe(crosswiseGripIds[2]);
+    expect(crosswiseGripIds[2]).not.toBe(crosswiseGripIds[3]);
+    expect(crosswiseGripIds[3]).toBe(crosswiseGripIds[4]);
+    expect(new Set(crosswiseGripIds).size).toBe(3);
+  }, 30_000);
+
+  it("keeps forced rectangular mixed strips uniformly spaced", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 65 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 165, maxY: 520 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 13,
+        maximumPackageCount: 13,
+        allowMixedPackageOrientations: true,
+        provisionalPackagesPerCycle: 2,
+        rectangularBlockFootprintPolicy: "compact-centered",
+        requiredShape: "rectangular-block",
+        maxCandidatesPerGenerator: 100,
+      },
+    };
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(({ placements }) => {
+      const crosswiseY = placements
+        .filter(({ rotation }) => rotation === 90)
+        .map(({ positionMm }) => positionMm.y)
+        .sort((left, right) => left - right);
+      return (
+        JSON.stringify(crosswiseY) === JSON.stringify([50, 155, 260, 365, 470])
+      );
+    });
+
+    expect(candidate?.metrics).toMatchObject({
+      packageCount: 13,
+      boundingBlockLengthMm: 165,
+      boundingBlockWidthMm: 520,
+    });
+    expect(candidate?.validation.valid).toBe(true);
   }, 30_000);
 
   it("does not let overlapping outer pinwheels starve an exact center fill", () => {

@@ -798,9 +798,9 @@ export function SolverControls({
           </label>
         </div>
         <p className="text-[10px] leading-4 text-[var(--muted)]">
-          Every valid result remains a clean rectangle. Multipick groups only
-          equal-yaw packages that are directly adjacent along their package
-          length; incompatible packages remain single picks.
+          Valid results may include compact rectangles, pinwheels, and mosaics.
+          Multipick groups only equal-yaw packages that are directly adjacent
+          along their package length; incompatible packages remain single picks.
         </p>
 
         <details className="border-t border-[var(--line)] pt-2">

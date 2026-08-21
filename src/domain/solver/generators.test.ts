@@ -299,6 +299,253 @@ describe("justified split-grid generator", () => {
     }
   });
 
+  it("falls back to singleton spacing when one suction group cannot span the shared strip", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 53 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 212, maxY: 153 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 6,
+        maximumPackageCount: 6,
+        maxBands: 2,
+        maxCandidatesPerGenerator: 100,
+        provisionalPackagesPerCycle: 2,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "mixed-orientation");
+    const draft = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant }) =>
+          variant ===
+          "horizontal-grouped-lengthwise-first-exact-rectangular-compact",
+      ),
+    );
+
+    expect(
+      draft?.placements
+        .filter(({ rotation }) => rotation === 0)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([50, 162]);
+    expect(draft?.placements).toHaveLength(6);
+  });
+
+  it("keeps alternating mixed strips alongside compact rectangles when any shape is allowed", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 50 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 270, maxY: 220 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 10,
+        maximumPackageCount: 10,
+        maxCandidatesPerGenerator: 100,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "mixed-orientation");
+    const compact = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant }) =>
+          variant ===
+          "vertical-grouped-lengthwise-first-exact-rectangular-compact",
+      ),
+    );
+    const alternating = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) =>
+          parameters?.axis === "vertical" &&
+          parameters.order === "grouped-lengthwise-first" &&
+          parameters.inlinePolicy === "alternate-start-end",
+      ),
+    );
+
+    expect(
+      compact?.placements
+        .filter(({ rotation }) => rotation === 0)
+        .map(({ positionMm }) => positionMm.y),
+    ).toEqual([35, 85, 135, 185]);
+    expect(
+      alternating?.placements
+        .filter(({ rotation }) => rotation === 0)
+        .map(({ positionMm }) => positionMm.y),
+    ).toEqual([25, 75, 125, 175]);
+    expect(
+      alternating?.placements
+        .filter(
+          ({ positionMm, rotation }) => rotation === 90 && positionMm.x === 135,
+        )
+        .map(({ positionMm }) => positionMm.y),
+    ).toEqual([70, 170]);
+  });
+
+  it("enumerates exact mixed band counts below per-band capacity when any shape is allowed", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 50, width: 30 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 270, maxY: 130 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 22,
+        maximumPackageCount: 22,
+        maxBands: 3,
+        maxCandidatesPerGenerator: 100,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "mixed-orientation");
+    const draft = output.drafts.find(
+      ({ placements, provenance }) =>
+        placements.length === 22 &&
+        provenance.some(
+          ({ variant, parameters }) =>
+            variant ===
+              "horizontal-grouped-lengthwise-first-exact-rectangular-compact" &&
+            parameters?.lengthwiseBandCount === 1 &&
+            parameters.crosswiseBandCount === 2,
+        ),
+    );
+    const packageCountsByBand = [
+      ...(
+        draft?.placements.reduce((counts, { positionMm }) => {
+          counts.set(positionMm.y, (counts.get(positionMm.y) ?? 0) + 1);
+          return counts;
+        }, new Map<number, number>()) ?? new Map<number, number>()
+      ).values(),
+    ].sort((left, right) => left - right);
+
+    expect(packageCountsByBand).toEqual([5, 8, 9]);
+  });
+
+  it("keeps aligned block splits alongside compact rectangles when any shape is allowed", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 50 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 270, maxY: 220 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 10,
+        maximumPackageCount: 10,
+        maxCandidatesPerGenerator: 100,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "block");
+    const compact = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "vertical-split-exact-rectangular-compact" &&
+          parameters?.firstRotation === 0 &&
+          parameters.firstColumns === 1,
+      ),
+    );
+    const centered = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "vertical-split-center" &&
+          parameters?.firstRotation === 0 &&
+          parameters.firstColumns === 1,
+      ),
+    );
+
+    expect(
+      compact?.placements
+        .filter(({ rotation }) => rotation === 0)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([60, 60, 60, 60]);
+    expect(
+      centered?.placements
+        .filter(({ rotation }) => rotation === 0)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([55, 55, 55, 55]);
+    expect(
+      centered?.placements
+        .filter(({ rotation }) => rotation === 90)
+        .map(({ positionMm }) => positionMm.x)
+        .sort((left, right) => left - right),
+    ).toEqual([140, 140, 190, 190, 240, 240]);
+  });
+
+  it("bounds compact block materialization before constructing band arrays", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1e-10, width: 2e-10 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1, maxY: 1 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 1,
+        maximumPackageCount: 1,
+        maxPlacements: 2,
+        maxBands: 2,
+        maxCandidatesPerGenerator: 100,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "block");
+
+    expect(
+      output.drafts.every(({ placements }) => placements.length <= 2),
+    ).toBe(true);
+  });
+
+  it("cancels compact block generation before band arrays are materialized", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 50 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 270, maxY: 220 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 10,
+        maximumPackageCount: 10,
+        maxCandidatesPerGenerator: 100,
+        allowMixedPackageOrientations: true,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "block", {
+      shouldCancel: () => true,
+    });
+
+    expect(output.cancelled).toBe(true);
+    expect(output.drafts).toEqual([]);
+  });
+
   it("merges translation-only alignments before consuming the family limit", () => {
     const input = normalized({
       package: {
@@ -331,6 +578,55 @@ describe("justified split-grid generator", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("keeps staggered row layouts alongside exact grids when any shape is allowed", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 100 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 350, maxY: 200 },
+      constraints: {
+        allowedRotations: [0],
+        minimumPackageCount: 6,
+        maximumPackageCount: 6,
+        maxCandidatesPerGenerator: 100,
+        requiredShape: "any",
+        rectangularBlockFootprintPolicy: "compact-centered",
+      },
+    });
+
+    const output = generateCandidateFamily(input, "row");
+    const exactGrid = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant }) => variant === "exact-rectangular-grid-compact",
+      ),
+    );
+    const staggered = output.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) =>
+          parameters?.axis === "horizontal" &&
+          parameters.inlinePolicy === "alternate-start-end",
+      ),
+    );
+
+    expect(
+      exactGrid?.placements
+        .filter(({ positionMm }) => positionMm.y === 50)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([75, 175, 275]);
+    expect(
+      staggered?.placements
+        .filter(({ positionMm }) => positionMm.y === 50)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([50, 150, 250]);
+    expect(
+      staggered?.placements
+        .filter(({ positionMm }) => positionMm.y === 150)
+        .map(({ positionMm }) => positionMm.x),
+    ).toEqual([100, 200, 300]);
   });
 
   it("preserves opposite provisional yaws on a nearest-edge tie", () => {

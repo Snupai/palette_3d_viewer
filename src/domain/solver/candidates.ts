@@ -415,9 +415,40 @@ export function finalizeGeneratedCandidates(
   draftsInput: readonly GeneratedCandidateDraft[],
   hooks: CandidateFinalizationHooks = {},
 ): CandidateFinalizationResult {
-  const drafts = [...draftsInput].sort(compareDraftsForRepresentative);
+  const orderedDrafts = [...draftsInput].sort(compareDraftsForRepresentative);
   const diagnostics: SolverDiagnostic[] = [];
   const exclusions: SolverExclusion[] = [];
+  const bestSelectionPriorityByGroup = new Map<string, number>();
+  for (const draft of orderedDrafts) {
+    for (const preference of draft.candidateSelectionPreferences ?? []) {
+      const current = bestSelectionPriorityByGroup.get(preference.groupKey);
+      if (current === undefined || preference.priority < current) {
+        bestSelectionPriorityByGroup.set(
+          preference.groupKey,
+          preference.priority,
+        );
+      }
+    }
+  }
+  const drafts = orderedDrafts.filter((draft) => {
+    const preferences = draft.candidateSelectionPreferences ?? [];
+    const preferred =
+      preferences.length === 0 ||
+      preferences.some(
+        ({ groupKey, priority }) =>
+          priority === bestSelectionPriorityByGroup.get(groupKey),
+      );
+    if (!preferred) {
+      exclusions.push({
+        reason: "topology-dominated",
+        provenance: sortedUniqueProvenance(draft.provenance),
+        issues: [],
+        message:
+          "Draft uses a less compact spacing variant of an exact generated topology.",
+      });
+    }
+    return preferred;
+  });
   const aggregateBySymmetryClass = new Map<string, CandidateAggregate>();
   let validDraftCount = 0;
   let invalidDraftCount = 0;

@@ -11,6 +11,10 @@ import {
 } from "~/domain/geometry";
 import type { RectangleBoundsMm } from "~/domain/geometry";
 import {
+  contiguousSuctionGroupSizes,
+  DEFAULT_SUCTION_GROUPING_TOLERANCE_MM,
+} from "~/domain/robotics/grouping";
+import {
   normalizeGeneratedCoordinateMm,
   normalizeGeneratedGeometryMetric,
   normalizeGeneratedOffsetMm,
@@ -171,6 +175,89 @@ function distributedLineCenters(
       `${label}[${index}]`,
     ),
   );
+}
+
+function distributedSuctionGroupLineCenters(
+  minimum: number,
+  maximum: number,
+  itemSpan: number,
+  clearance: number,
+  count: number,
+  maxPackagesPerPick: number,
+  rotation: Rotation,
+  label: string,
+): number[] {
+  if (clearance > DEFAULT_SUCTION_GROUPING_TOLERANCE_MM) {
+    return distributedLineCenters(
+      minimum,
+      maximum,
+      itemSpan,
+      clearance,
+      count,
+      label,
+    );
+  }
+  const available = maximum - minimum;
+  const minimumUsed = usedSpan(count, itemSpan, clearance);
+  if (
+    count <= 0 ||
+    maximum < minimum ||
+    minimumUsed > available + SOLVER_GEOMETRY_EPSILON_MM
+  ) {
+    return [];
+  }
+  const groupSizes = contiguousSuctionGroupSizes(
+    count,
+    maxPackagesPerPick,
+    rotation,
+  );
+  const groupGapCount = groupSizes.length - 1;
+  if (groupGapCount === 0) {
+    return Math.abs(available - minimumUsed) <= SOLVER_GEOMETRY_EPSILON_MM
+      ? compactLineCenters(minimum, maximum, itemSpan, clearance, count, label)
+      : distributedLineCenters(
+          minimum,
+          maximum,
+          itemSpan,
+          clearance,
+          count,
+          label,
+        );
+  }
+
+  const additionalGap = (available - minimumUsed) / groupGapCount;
+  if (
+    additionalGap >
+    maximumDistributedExtraGapMm(itemSpan) + SOLVER_GEOMETRY_EPSILON_MM
+  ) {
+    return distributedLineCenters(
+      minimum,
+      maximum,
+      itemSpan,
+      clearance,
+      count,
+      label,
+    );
+  }
+
+  const centers: number[] = [];
+  let cursor = minimum;
+  let itemIndex = 0;
+  groupSizes.forEach((groupSize, groupIndex) => {
+    for (let index = 0; index < groupSize; index += 1) {
+      centers.push(
+        normalizeGeneratedCoordinateMm(
+          cursor + itemSpan / 2,
+          `${label}[${itemIndex}]`,
+        ),
+      );
+      cursor += itemSpan;
+      itemIndex += 1;
+      if (itemIndex < count) cursor += clearance;
+    }
+    if (groupIndex < groupGapCount) cursor += additionalGap;
+  });
+  return centers;
 }
 
 function compactLineCenters(
@@ -351,6 +438,31 @@ function uniqueProvenance(
   return [...byKey.values()];
 }
 
+type CandidateSelectionPreference = NonNullable<
+  GeneratedCandidateDraft["candidateSelectionPreferences"]
+>[number];
+
+function mergeCandidateSelectionPreferences(
+  ...values: Array<readonly CandidateSelectionPreference[] | undefined>
+): CandidateSelectionPreference[] {
+  const byGroupKey = new Map<string, CandidateSelectionPreference>();
+  for (const preferences of values) {
+    for (const preference of preferences ?? []) {
+      const existing = byGroupKey.get(preference.groupKey);
+      if (!existing || preference.priority < existing.priority) {
+        byGroupKey.set(preference.groupKey, preference);
+      }
+    }
+  }
+  return [...byGroupKey.values()].sort((left, right) =>
+    left.groupKey < right.groupKey
+      ? -1
+      : left.groupKey > right.groupKey
+        ? 1
+        : left.priority - right.priority,
+  );
+}
+
 type CenteredPlacements = {
   placements: GeneratedPlacement[];
   sourceGeometryKey: string;
@@ -432,6 +544,7 @@ class DraftCollector {
   add(
     placements: readonly GeneratedPlacement[],
     provenanceInput: GeneratorProvenance | readonly GeneratorProvenance[],
+    candidateSelectionPreferences?: readonly CandidateSelectionPreference[],
   ): boolean {
     if (!this.canContinue()) return false;
     if (placements.length === 0) return true;
@@ -494,12 +607,19 @@ class DraftCollector {
     const existingDraftIndex = this.draftIndexByGeometry.get(geometryKey);
     if (existingDraftIndex !== undefined) {
       const existing = this.drafts[existingDraftIndex]!;
+      const mergedSelectionPreferences = mergeCandidateSelectionPreferences(
+        existing.candidateSelectionPreferences,
+        candidateSelectionPreferences,
+      );
       this.drafts[existingDraftIndex] = {
         ...existing,
         provenance: uniqueProvenance([
           ...existing.provenance,
           ...centeredProvenance,
         ]),
+        ...(mergedSelectionPreferences.length > 0
+          ? { candidateSelectionPreferences: mergedSelectionPreferences }
+          : {}),
       };
       return true;
     }
@@ -536,6 +656,14 @@ class DraftCollector {
         family: this.family,
         index: draftIndex,
       },
+      ...(candidateSelectionPreferences &&
+      candidateSelectionPreferences.length > 0
+        ? {
+            candidateSelectionPreferences: mergeCandidateSelectionPreferences(
+              candidateSelectionPreferences,
+            ),
+          }
+        : {}),
     });
     this.draftIndexByGeometry.set(geometryKey, draftIndex);
     if (this.hooks.checkpoint?.(this.family, this.drafts.length) === false) {
@@ -763,10 +891,7 @@ function generateRows(
 ): GeneratorOutput {
   const collector = new DraftCollector("row", input, hooks);
   const exactCount = exactRequestedPackageCount(input);
-  if (
-    exactCount !== null &&
-    input.constraints.requiredShape === "rectangular-block"
-  ) {
+  if (exactCount !== null) {
     if (
       input.constraints.rectangularBlockFootprintPolicy === "compact-centered"
     ) {
@@ -795,7 +920,6 @@ function generateRows(
           },
         );
       }
-      return collector.output();
     } else {
       for (const rotation of input.constraints.allowedRotations) {
         for (const [columnCount, rowCount] of exactFactorPairs(exactCount)) {
@@ -822,6 +946,9 @@ function generateRows(
           );
         }
       }
+    }
+    if (input.constraints.requiredShape === "rectangular-block") {
+      return collector.output();
     }
   }
   for (const rotation of input.constraints.allowedRotations) {
@@ -1503,14 +1630,29 @@ function rectangularMixedStripPlacements(
   for (let bandIndex = 0; bandIndex < rotations.length; bandIndex += 1) {
     const rotation = rotations[bandIndex]!;
     const inlineCount = inlineCounts[bandIndex]!;
-    const inlineCenters = distributedLineCenters(
-      inlineMinimum,
-      inlineMaximum,
-      inlineSpans[bandIndex]!,
-      input.package.clearanceMm,
-      inlineCount,
-      `rectangularMixed.inline[${bandIndex}]`,
-    );
+    const inlineFollowsSuctionAxis =
+      horizontal === (rotation === 0 || rotation === 180);
+    const inlineCenters =
+      inlineFollowsSuctionAxis &&
+      input.constraints.requiredShape !== "rectangular-block"
+        ? distributedSuctionGroupLineCenters(
+            inlineMinimum,
+            inlineMaximum,
+            inlineSpans[bandIndex]!,
+            input.package.clearanceMm,
+            inlineCount,
+            input.constraints.provisionalPackagesPerCycle,
+            rotation,
+            `rectangularMixed.inline[${bandIndex}]`,
+          )
+        : distributedLineCenters(
+            inlineMinimum,
+            inlineMaximum,
+            inlineSpans[bandIndex]!,
+            input.package.clearanceMm,
+            inlineCount,
+            `rectangularMixed.inline[${bandIndex}]`,
+          );
     if (inlineCenters.length !== inlineCount) return [];
     for (const inlineCenter of inlineCenters) {
       placements.push({
@@ -1883,12 +2025,27 @@ function generateMixedOrientation(
     crosswise,
   );
   const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  const shouldAddCompactRectangle =
+    exactPackageCount !== null &&
+    input.constraints.rectangularBlockFootprintPolicy === "compact-centered";
+  const compactRectangleIsExclusive =
+    shouldAddCompactRectangle &&
+    input.constraints.requiredShape === "rectangular-block";
 
   for (const axis of ["horizontal", "vertical"] as const) {
+    const inlineAvailable =
+      axis === "horizontal"
+        ? rectangleBoundsLength(input.generationBoundsMm)
+        : rectangleBoundsWidth(input.generationBoundsMm);
     const crossAvailable =
       axis === "horizontal"
         ? rectangleBoundsWidth(input.generationBoundsMm)
         : rectangleBoundsLength(input.generationBoundsMm);
+    const lengthwiseInline =
+      axis === "horizontal" ? lengthwiseSize.length : lengthwiseSize.width;
+    const crosswiseInline =
+      axis === "horizontal" ? crosswiseSize.length : crosswiseSize.width;
     const lengthwiseBand =
       axis === "horizontal" ? lengthwiseSize.width : lengthwiseSize.length;
     const crosswiseBand =
@@ -1931,6 +2088,109 @@ function generateMixedOrientation(
           crosswise,
           crosswiseCount,
         )) {
+          const maximumInlineCounts = order.rotations.map((rotation) =>
+            maxCountAlong(
+              inlineAvailable,
+              rotation === lengthwise ? lengthwiseInline : crosswiseInline,
+              clearance,
+            ),
+          );
+          let exactInlineCounts: readonly number[] | null = null;
+          if (shouldAddCompactRectangle && exactPackageCount !== null) {
+            if (
+              maximumInlineCounts.reduce((sum, count) => sum + count, 0) ===
+              exactPackageCount
+            ) {
+              exactInlineCounts = maximumInlineCounts;
+            } else {
+              const sharedInline = minimumCompactMixedSharedInlineSpan(
+                exactPackageCount,
+                lengthwiseCount,
+                crosswiseCount,
+                lengthwiseInline,
+                crosswiseInline,
+                clearance,
+                inlineAvailable,
+              );
+              if (sharedInline) {
+                exactInlineCounts = compactMixedInlineCounts(
+                  order.rotations,
+                  lengthwise,
+                  sharedInline.lengthwiseRange,
+                  sharedInline.crosswiseRange,
+                  lengthwiseInline,
+                  crosswiseInline,
+                  sharedInline.sharedSpan,
+                  clearance,
+                  exactPackageCount,
+                );
+              }
+            }
+          }
+          const candidateSelectionGroupKey = shouldAddCompactRectangle
+            ? [
+                "mixed-strip-v1",
+                axis,
+                lengthwise,
+                crosswise,
+                lengthwiseCount,
+                crosswiseCount,
+                order.name,
+              ].join(":")
+            : null;
+          const compactRectanglePlacements = exactInlineCounts
+            ? rectangularMixedStripPlacements(
+                input,
+                axis,
+                order.rotations,
+                exactInlineCounts,
+              )
+            : [];
+          if (
+            exactInlineCounts &&
+            compactRectanglePlacements.length === exactPackageCount
+          ) {
+            if (
+              !collector.add(
+                compactRectanglePlacements,
+                {
+                  family: "mixed-orientation",
+                  variant: `${axis}-${order.name}-exact-rectangular-compact`,
+                  parameters: {
+                    axis,
+                    lengthwiseRotation: lengthwise,
+                    crosswiseRotation: crosswise,
+                    lengthwiseBandCount: lengthwiseCount,
+                    crosswiseBandCount: crosswiseCount,
+                    lengthwiseInlineCounts: order.rotations
+                      .flatMap((rotation, index) =>
+                        rotation === lengthwise
+                          ? [exactInlineCounts[index]!]
+                          : [],
+                      )
+                      .join(","),
+                    crosswiseInlineCounts: order.rotations
+                      .flatMap((rotation, index) =>
+                        rotation === crosswise
+                          ? [exactInlineCounts[index]!]
+                          : [],
+                      )
+                      .join(","),
+                    requestedCount: exactPackageCount,
+                    order: order.name,
+                    spacingPolicy: "clearance-only-cross-bands",
+                  },
+                },
+                candidateSelectionGroupKey
+                  ? [{ groupKey: candidateSelectionGroupKey, priority: 0 }]
+                  : undefined,
+              )
+            ) {
+              return collector.output();
+            }
+            if (compactRectangleIsExclusive) continue;
+          }
+
           for (const inlinePolicy of INLINE_POLICIES) {
             for (const crossAlignment of ALIGNMENTS) {
               if (!collector.canContinue()) return collector.output();
@@ -1956,6 +2216,9 @@ function generateMixedOrientation(
                     crossAlignment,
                   },
                 },
+                candidateSelectionGroupKey
+                  ? [{ groupKey: candidateSelectionGroupKey, priority: 1 }]
+                  : undefined,
               );
             }
           }
@@ -4255,6 +4518,13 @@ function generateBlocks(
   const totalLength = rectangleBoundsLength(envelope);
   const totalWidth = rectangleBoundsWidth(envelope);
   const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  const shouldAddCompactRectangle =
+    exactPackageCount !== null &&
+    input.constraints.rectangularBlockFootprintPolicy === "compact-centered";
+  const compactRectangleIsExclusive =
+    shouldAddCompactRectangle &&
+    input.constraints.requiredShape === "rectangular-block";
   const orientationOrders: Array<readonly [Rotation, Rotation]> = [
     representatives,
     [representatives[1], representatives[0]],
@@ -4301,41 +4571,111 @@ function generateBlocks(
         clearance,
       );
       const secondRows = maxCountAlong(totalWidth, secondSize.width, clearance);
-      for (const alignment of ALIGNMENTS) {
-        if (!collector.canContinue()) return collector.output();
-        collector.add(
-          [
-            ...gridPlacements(
-              input,
-              firstBounds,
-              firstRotation,
-              firstColumns,
-              firstRows,
-              "start",
-              alignment,
-            ),
-            ...gridPlacements(
-              input,
-              secondBounds,
-              secondRotation,
-              secondColumns,
-              secondRows,
-              alignment,
-              alignment,
-            ),
-          ],
-          {
-            family: "block",
-            variant: `vertical-split-${alignment}`,
-            parameters: {
-              splitAxis: "x",
-              firstRotation,
-              secondRotation,
-              firstColumns,
-              alignment,
+      const candidateSelectionGroupKey = shouldAddCompactRectangle
+        ? [
+            "block-vertical-split-v1",
+            firstRotation,
+            secondRotation,
+            firstColumns,
+            secondColumns,
+            firstRows,
+            secondRows,
+          ].join(":")
+        : null;
+      const compactRectanglePackageCount =
+        firstColumns * firstRows + secondColumns * secondRows;
+      const canMaterializeCompactRectangle =
+        shouldAddCompactRectangle &&
+        compactRectanglePackageCount === exactPackageCount &&
+        compactRectanglePackageCount <= input.constraints.maxPlacements;
+      if (canMaterializeCompactRectangle && !collector.checkCancellation()) {
+        return collector.output();
+      }
+      const compactRectanglePlacements = canMaterializeCompactRectangle
+        ? rectangularMixedStripPlacements(
+            input,
+            "vertical",
+            [
+              ...Array.from({ length: firstColumns }, () => firstRotation),
+              ...Array.from({ length: secondColumns }, () => secondRotation),
+            ],
+            [
+              ...Array.from({ length: firstColumns }, () => firstRows),
+              ...Array.from({ length: secondColumns }, () => secondRows),
+            ],
+          )
+        : [];
+
+      const compactRectangleMatchesExactCount =
+        exactPackageCount !== null &&
+        compactRectanglePlacements.length === exactPackageCount;
+      if (compactRectangleMatchesExactCount) {
+        if (
+          !collector.add(
+            compactRectanglePlacements,
+            {
+              family: "block",
+              variant: "vertical-split-exact-rectangular-compact",
+              parameters: {
+                splitAxis: "x",
+                firstRotation,
+                secondRotation,
+                firstColumns,
+                secondColumns,
+                firstRows,
+                secondRows,
+                requestedCount: exactPackageCount,
+                spacingPolicy: "clearance-only-cross-bands",
+              },
             },
-          },
-        );
+            candidateSelectionGroupKey
+              ? [{ groupKey: candidateSelectionGroupKey, priority: 0 }]
+              : undefined,
+          )
+        ) {
+          return collector.output();
+        }
+      }
+      if (!compactRectangleMatchesExactCount || !compactRectangleIsExclusive) {
+        for (const alignment of ALIGNMENTS) {
+          if (!collector.canContinue()) return collector.output();
+          collector.add(
+            [
+              ...gridPlacements(
+                input,
+                firstBounds,
+                firstRotation,
+                firstColumns,
+                firstRows,
+                "start",
+                alignment,
+              ),
+              ...gridPlacements(
+                input,
+                secondBounds,
+                secondRotation,
+                secondColumns,
+                secondRows,
+                alignment,
+                alignment,
+              ),
+            ],
+            {
+              family: "block",
+              variant: `vertical-split-${alignment}`,
+              parameters: {
+                splitAxis: "x",
+                firstRotation,
+                secondRotation,
+                firstColumns,
+                alignment,
+              },
+            },
+            candidateSelectionGroupKey
+              ? [{ groupKey: candidateSelectionGroupKey, priority: 1 }]
+              : undefined,
+          );
+        }
       }
     }
 
@@ -4374,41 +4714,111 @@ function generateBlocks(
         secondSize.width,
         clearance,
       );
-      for (const alignment of ALIGNMENTS) {
-        if (!collector.canContinue()) return collector.output();
-        collector.add(
-          [
-            ...gridPlacements(
-              input,
-              firstBounds,
-              firstRotation,
-              firstColumns,
-              firstRows,
-              alignment,
-              "start",
-            ),
-            ...gridPlacements(
-              input,
-              secondBounds,
-              secondRotation,
-              secondColumns,
-              secondRows,
-              alignment,
-              alignment,
-            ),
-          ],
-          {
-            family: "block",
-            variant: `horizontal-split-${alignment}`,
-            parameters: {
-              splitAxis: "y",
-              firstRotation,
-              secondRotation,
-              firstRows,
-              alignment,
+      const candidateSelectionGroupKey = shouldAddCompactRectangle
+        ? [
+            "block-horizontal-split-v1",
+            firstRotation,
+            secondRotation,
+            firstColumns,
+            secondColumns,
+            firstRows,
+            secondRows,
+          ].join(":")
+        : null;
+      const compactRectanglePackageCount =
+        firstRows * firstColumns + secondRows * secondColumns;
+      const canMaterializeCompactRectangle =
+        shouldAddCompactRectangle &&
+        compactRectanglePackageCount === exactPackageCount &&
+        compactRectanglePackageCount <= input.constraints.maxPlacements;
+      if (canMaterializeCompactRectangle && !collector.checkCancellation()) {
+        return collector.output();
+      }
+      const compactRectanglePlacements = canMaterializeCompactRectangle
+        ? rectangularMixedStripPlacements(
+            input,
+            "horizontal",
+            [
+              ...Array.from({ length: firstRows }, () => firstRotation),
+              ...Array.from({ length: secondRows }, () => secondRotation),
+            ],
+            [
+              ...Array.from({ length: firstRows }, () => firstColumns),
+              ...Array.from({ length: secondRows }, () => secondColumns),
+            ],
+          )
+        : [];
+
+      const compactRectangleMatchesExactCount =
+        exactPackageCount !== null &&
+        compactRectanglePlacements.length === exactPackageCount;
+      if (compactRectangleMatchesExactCount) {
+        if (
+          !collector.add(
+            compactRectanglePlacements,
+            {
+              family: "block",
+              variant: "horizontal-split-exact-rectangular-compact",
+              parameters: {
+                splitAxis: "y",
+                firstRotation,
+                secondRotation,
+                firstColumns,
+                secondColumns,
+                firstRows,
+                secondRows,
+                requestedCount: exactPackageCount,
+                spacingPolicy: "clearance-only-cross-bands",
+              },
             },
-          },
-        );
+            candidateSelectionGroupKey
+              ? [{ groupKey: candidateSelectionGroupKey, priority: 0 }]
+              : undefined,
+          )
+        ) {
+          return collector.output();
+        }
+      }
+      if (!compactRectangleMatchesExactCount || !compactRectangleIsExclusive) {
+        for (const alignment of ALIGNMENTS) {
+          if (!collector.canContinue()) return collector.output();
+          collector.add(
+            [
+              ...gridPlacements(
+                input,
+                firstBounds,
+                firstRotation,
+                firstColumns,
+                firstRows,
+                alignment,
+                "start",
+              ),
+              ...gridPlacements(
+                input,
+                secondBounds,
+                secondRotation,
+                secondColumns,
+                secondRows,
+                alignment,
+                alignment,
+              ),
+            ],
+            {
+              family: "block",
+              variant: `horizontal-split-${alignment}`,
+              parameters: {
+                splitAxis: "y",
+                firstRotation,
+                secondRotation,
+                firstRows,
+                alignment,
+              },
+            },
+            candidateSelectionGroupKey
+              ? [{ groupKey: candidateSelectionGroupKey, priority: 1 }]
+              : undefined,
+          );
+        }
       }
     }
   }
@@ -4638,22 +5048,26 @@ export function generateSymmetryCandidateDrafts(
         input.generationBoundsMm,
         symmetry,
       );
-      collector.add(transformed, [
-        ...draft.provenance,
-        {
-          family: "symmetry",
-          variant: symmetry,
-          symmetry,
-          sourceGeometryKey,
-          parameters: {
-            sourceFamilies: draft.provenance
-              .map(({ family }) => family)
-              .sort()
-              .join(","),
-            frame: "generationBoundsMm",
+      collector.add(
+        transformed,
+        [
+          ...draft.provenance,
+          {
+            family: "symmetry",
+            variant: symmetry,
+            symmetry,
+            sourceGeometryKey,
+            parameters: {
+              sourceFamilies: draft.provenance
+                .map(({ family }) => family)
+                .sort()
+                .join(","),
+              frame: "generationBoundsMm",
+            },
           },
-        },
-      ]);
+        ],
+        draft.candidateSelectionPreferences,
+      );
     }
   }
   return collector.output();

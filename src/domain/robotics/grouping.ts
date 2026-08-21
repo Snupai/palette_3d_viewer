@@ -1,3 +1,4 @@
+import type { Rotation } from "~/domain/palletTypes";
 import type { PackageSpec } from "~/domain/project/projectSchema";
 import type {
   MaterializedPackageLayer,
@@ -23,6 +24,8 @@ export type SuctionPlacementPartitionOptions = {
   toleranceMm?: number;
 };
 
+export const DEFAULT_SUCTION_GROUPING_TOLERANCE_MM = 0.001;
+
 function finitePositive(value: number, field: string): number {
   if (!Number.isFinite(value) || value <= 0) {
     throw new Error(`${field} must be positive and finite.`);
@@ -39,25 +42,53 @@ function placementAxis(placement: SuctionGroupingPlacement): {
     : { axis: placement.positionMm.y, perpendicular: placement.positionMm.x };
 }
 
-function partitionContiguousSuctionRun<
-  Placement extends SuctionGroupingPlacement,
->(run: readonly Placement[], maxPackagesPerPick: number): Placement[][] {
-  const first = run[0];
-  const vertical = first?.rotation === 90 || first?.rotation === 270;
-  const fullGroupCount = Math.floor(run.length / maxPackagesPerPick);
-  const remainder = run.length % maxPackagesPerPick;
+export function contiguousSuctionGroupSizes(
+  packageCount: number,
+  maxPackagesPerPick: number,
+  rotation: Rotation,
+): number[] {
+  if (!Number.isInteger(packageCount) || packageCount < 0) {
+    throw new Error("packageCount must be a non-negative integer.");
+  }
+  const groupCapacity = Math.max(
+    1,
+    Math.trunc(finitePositive(maxPackagesPerPick, "maxPackagesPerPick")),
+  );
+  const vertical = rotation === 90 || rotation === 270;
+  const fullGroupCount = Math.floor(packageCount / groupCapacity);
+  const remainder = packageCount % groupCapacity;
   const centersSingleton =
     vertical &&
     remainder === 1 &&
     fullGroupCount >= 2 &&
     fullGroupCount % 2 === 0;
   const singletonIndex = centersSingleton
-    ? (fullGroupCount / 2) * maxPackagesPerPick
+    ? (fullGroupCount / 2) * groupCapacity
     : null;
-  const groups: Placement[][] = [];
+  const groupSizes: number[] = [];
 
-  for (let start = 0; start < run.length; ) {
-    const groupSize = start === singletonIndex ? 1 : maxPackagesPerPick;
+  for (let start = 0; start < packageCount; ) {
+    const groupSize = start === singletonIndex ? 1 : groupCapacity;
+    groupSizes.push(Math.min(groupSize, packageCount - start));
+    start += groupSize;
+  }
+
+  return groupSizes;
+}
+
+function partitionContiguousSuctionRun<
+  Placement extends SuctionGroupingPlacement,
+>(run: readonly Placement[], maxPackagesPerPick: number): Placement[][] {
+  const first = run[0];
+  if (!first) return [];
+  const groups: Placement[][] = [];
+  let start = 0;
+
+  for (const groupSize of contiguousSuctionGroupSizes(
+    run.length,
+    maxPackagesPerPick,
+    first.rotation,
+  )) {
     groups.push(run.slice(start, start + groupSize));
     start += groupSize;
   }
@@ -75,7 +106,8 @@ export function partitionPlacementsForSuction<
   placements: readonly Placement[],
   options: SuctionPlacementPartitionOptions,
 ): Placement[][] {
-  const tolerance = options.toleranceMm ?? 0.001;
+  const tolerance =
+    options.toleranceMm ?? DEFAULT_SUCTION_GROUPING_TOLERANCE_MM;
   if (!Number.isFinite(tolerance) || tolerance < 0) {
     throw new Error("toleranceMm must be finite and non-negative.");
   }

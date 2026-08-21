@@ -113,6 +113,10 @@ export type GeneratedCandidateDraft = {
     family: GeneratorFamily;
     index: number;
   }>;
+  candidateSelectionPreferences?: readonly Readonly<{
+    groupKey: string;
+    priority: number;
+  }>[];
 };
 
 export type SolverIssueCode =
@@ -207,7 +211,8 @@ export type SolverCandidate = {
 export type SolverExclusionReason =
   | "candidate-invalid"
   | "geometric-duplicate"
-  | "generation-limit";
+  | "generation-limit"
+  | "topology-dominated";
 
 export type SolverExclusion = {
   reason: SolverExclusionReason;
