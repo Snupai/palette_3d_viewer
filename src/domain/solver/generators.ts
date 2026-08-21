@@ -2,6 +2,7 @@ import {
   boundingRectangleForPlacements,
   canonicalPlacementGeometryKey,
   envelopePreservingSymmetries,
+  inflateRectangleBounds,
   rectangleBoundsCenter,
   rectangleBoundsLength,
   rectangleBoundsWidth,
@@ -14,6 +15,7 @@ import {
   normalizeGeneratedGeometryMetric,
   normalizeGeneratedOffsetMm,
   SOLVER_GEOMETRY_EPSILON_MM,
+  solverRectangleBoundsOverlap,
 } from "~/domain/solver/geometryPolicy";
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import { placementsUseMixedPackageOrientations } from "~/domain/solver/orientationPolicy";
@@ -2483,6 +2485,627 @@ function pinwheelPlacements(
   ];
 }
 
+type PinwheelChirality = "cross-bottom-left" | "lengthwise-bottom-left";
+
+type PinwheelSidePattern =
+  | "cross-bottom-lengthwise-top"
+  | "lengthwise-bottom-crosswise-top";
+
+type PinwheelResidualRegion = "bottom" | "top";
+
+type PinwheelResidualPlan = {
+  side: PinwheelSidePattern;
+  bottomResidualMm: number;
+  topResidualMm: number;
+  bottomSpacingPolicy: JustifiedSpacingPolicy | null;
+  topSpacingPolicy: JustifiedSpacingPolicy | null;
+  residualMm: number;
+};
+
+type PinwheelRegionPlan = {
+  rotation: Rotation;
+  xCenters: readonly number[];
+  yCenters: readonly number[];
+  occupiedBounds: RectangleBoundsMm;
+};
+
+type PinwheelCenterFillPlan = {
+  rotation: Rotation;
+  columns: number;
+  rows: number;
+  bounds: RectangleBoundsMm;
+};
+
+function pinwheelCenterFillBounds(
+  input: NormalizedLayerSolverInput,
+  widthPair: MixedCountPair,
+  heightPair: MixedCountPair,
+): RectangleBoundsMm | null {
+  const horizontalDifference = widthPair.firstSpan - widthPair.secondSpan;
+  const verticalDifference = heightPair.firstSpan - heightPair.secondSpan;
+  if (
+    Math.abs(horizontalDifference) <= SOLVER_GEOMETRY_EPSILON_MM ||
+    Math.abs(verticalDifference) <= SOLVER_GEOMETRY_EPSILON_MM ||
+    Math.sign(horizontalDifference) === Math.sign(verticalDifference)
+  ) {
+    return null;
+  }
+
+  const clearance = input.package.clearanceMm;
+  const startX = alignedStart(
+    input.generationBoundsMm.minX,
+    rectangleBoundsLength(input.generationBoundsMm),
+    widthPair.totalSpan,
+    "center",
+  );
+  const startY = alignedStart(
+    input.generationBoundsMm.minY,
+    rectangleBoundsWidth(input.generationBoundsMm),
+    heightPair.totalSpan,
+    "center",
+  );
+  const bounds = {
+    minX:
+      startX + Math.min(widthPair.firstSpan, widthPair.secondSpan) + clearance,
+    minY:
+      startY +
+      Math.min(heightPair.firstSpan, heightPair.secondSpan) +
+      clearance,
+    maxX: startX + Math.max(widthPair.firstSpan, widthPair.secondSpan),
+    maxY: startY + Math.max(heightPair.firstSpan, heightPair.secondSpan),
+  };
+  return bounds.maxX > bounds.minX && bounds.maxY > bounds.minY ? bounds : null;
+}
+
+function exactPinwheelCenterFillPlans(
+  input: NormalizedLayerSolverInput,
+  widthPair: MixedCountPair,
+  heightPair: MixedCountPair,
+  rotations: readonly Rotation[],
+  outerPackageCount: number,
+): PinwheelCenterFillPlan[] {
+  const exactPackageCount = exactRequestedPackageCount(input);
+  if (
+    exactPackageCount === null ||
+    exactPackageCount <= outerPackageCount ||
+    exactPackageCount > input.constraints.maxPlacements
+  ) {
+    return [];
+  }
+  const centerPackageCount = exactPackageCount - outerPackageCount;
+  const bounds = pinwheelCenterFillBounds(input, widthPair, heightPair);
+  if (!bounds) return [];
+
+  const plans: PinwheelCenterFillPlan[] = [];
+  const clearance = input.package.clearanceMm;
+  for (const rotation of rotations) {
+    const footprint = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      rotation,
+    );
+    const maximumColumns = Math.min(
+      maxCountAlong(rectangleBoundsLength(bounds), footprint.length, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumRows = Math.min(
+      maxCountAlong(rectangleBoundsWidth(bounds), footprint.width, clearance),
+      input.constraints.maxBands,
+    );
+    for (let columns = 1; columns <= maximumColumns; columns += 1) {
+      if (centerPackageCount % columns !== 0) continue;
+      const rows = centerPackageCount / columns;
+      if (rows <= 0 || rows > maximumRows) continue;
+      plans.push({ rotation, columns, rows, bounds });
+    }
+  }
+  return plans;
+}
+
+function lineCentersRespectGapPolicy(
+  centers: readonly number[],
+  itemSpan: number,
+  clearance: number,
+  enforceDistributedMaximum: boolean,
+): boolean {
+  const maximumExtraGap = maximumDistributedExtraGapMm(itemSpan);
+  for (let index = 1; index < centers.length; index += 1) {
+    const extraGap =
+      centers[index]! - centers[index - 1]! - itemSpan - clearance;
+    if (extraGap < -SOLVER_GEOMETRY_EPSILON_MM) return false;
+    if (
+      enforceDistributedMaximum &&
+      extraGap > maximumExtraGap + SOLVER_GEOMETRY_EPSILON_MM
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function pinwheelRegionPlan(
+  input: NormalizedLayerSolverInput,
+  bounds: RectangleBoundsMm,
+  rotation: Rotation,
+  columnCount: number,
+  rowCount: number,
+  rowSpacingPolicy: JustifiedSpacingPolicy | null,
+  label: string,
+): PinwheelRegionPlan | null {
+  const footprint = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    rotation,
+  );
+  const clearance = input.package.clearanceMm;
+  const xCenters = compactLineCenters(
+    bounds.minX,
+    bounds.maxX,
+    footprint.length,
+    clearance,
+    columnCount,
+    `${label}.x`,
+  );
+  const yCenters = rowSpacingPolicy
+    ? justifiedLineCenters(
+        bounds.minY,
+        bounds.maxY,
+        footprint.width,
+        clearance,
+        rowCount,
+        rowSpacingPolicy,
+      )
+    : compactLineCenters(
+        bounds.minY,
+        bounds.maxY,
+        footprint.width,
+        clearance,
+        rowCount,
+        `${label}.y`,
+      );
+  if (xCenters.length !== columnCount || yCenters.length !== rowCount) {
+    return null;
+  }
+  if (
+    !lineCentersRespectGapPolicy(
+      xCenters,
+      footprint.length,
+      clearance,
+      false,
+    ) ||
+    !lineCentersRespectGapPolicy(
+      yCenters,
+      footprint.width,
+      clearance,
+      rowSpacingPolicy !== null,
+    )
+  ) {
+    return null;
+  }
+
+  const occupiedBounds = {
+    minX: xCenters[0]! - footprint.length / 2,
+    minY: yCenters[0]! - footprint.width / 2,
+    maxX: xCenters[xCenters.length - 1]! + footprint.length / 2,
+    maxY: yCenters[yCenters.length - 1]! + footprint.width / 2,
+  };
+  if (
+    occupiedBounds.minX < bounds.minX - SOLVER_GEOMETRY_EPSILON_MM ||
+    occupiedBounds.minY < bounds.minY - SOLVER_GEOMETRY_EPSILON_MM ||
+    occupiedBounds.maxX > bounds.maxX + SOLVER_GEOMETRY_EPSILON_MM ||
+    occupiedBounds.maxY > bounds.maxY + SOLVER_GEOMETRY_EPSILON_MM
+  ) {
+    return null;
+  }
+
+  return { rotation, xCenters, yCenters, occupiedBounds };
+}
+
+function pinwheelRegionPlansOverlap(
+  regions: readonly PinwheelRegionPlan[],
+  clearance: number,
+): boolean {
+  const expansion = clearance / 2;
+  const expanded = regions.map(({ occupiedBounds }) => ({
+    minX: occupiedBounds.minX - expansion,
+    minY: occupiedBounds.minY - expansion,
+    maxX: occupiedBounds.maxX + expansion,
+    maxY: occupiedBounds.maxY + expansion,
+  }));
+  for (let leftIndex = 0; leftIndex < expanded.length; leftIndex += 1) {
+    const left = expanded[leftIndex]!;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < expanded.length;
+      rightIndex += 1
+    ) {
+      const right = expanded[rightIndex]!;
+      if (
+        left.minX < right.maxX - SOLVER_GEOMETRY_EPSILON_MM &&
+        left.maxX > right.minX + SOLVER_GEOMETRY_EPSILON_MM &&
+        left.minY < right.maxY - SOLVER_GEOMETRY_EPSILON_MM &&
+        left.maxY > right.minY + SOLVER_GEOMETRY_EPSILON_MM
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+function materializePinwheelRegions(
+  regions: readonly PinwheelRegionPlan[],
+): GeneratedPlacement[] {
+  return regions.flatMap(({ rotation, xCenters, yCenters }) =>
+    yCenters.flatMap((y) =>
+      xCenters.map((x) => ({ positionMm: { x, y }, rotation })),
+    ),
+  );
+}
+
+function asymmetricPinwheelPackageCount(
+  widthPair: MixedCountPair,
+  crossBottomLengthwiseTopPair: MixedCountPair,
+  lengthwiseBottomCrosswiseTopPair: MixedCountPair,
+): number {
+  return (
+    widthPair.firstCount *
+      (crossBottomLengthwiseTopPair.firstCount +
+        lengthwiseBottomCrosswiseTopPair.firstCount) +
+    widthPair.secondCount *
+      (crossBottomLengthwiseTopPair.secondCount +
+        lengthwiseBottomCrosswiseTopPair.secondCount)
+  );
+}
+
+function asymmetricPinwheelResidualPlans(
+  crossBottomLengthwiseTopPair: MixedCountPair,
+  lengthwiseBottomCrosswiseTopPair: MixedCountPair,
+  lengthwiseRowHeight: number,
+  crosswiseRowHeight: number,
+): Array<PinwheelResidualPlan | null> {
+  const heightDifference =
+    crossBottomLengthwiseTopPair.totalSpan -
+    lengthwiseBottomCrosswiseTopPair.totalSpan;
+  if (Math.abs(heightDifference) <= SOLVER_GEOMETRY_EPSILON_MM) {
+    return [null];
+  }
+
+  const crossBottomLengthwiseTopIsShorter = heightDifference < 0;
+  const residualMm = Math.abs(heightDifference);
+  const side: PinwheelSidePattern = crossBottomLengthwiseTopIsShorter
+    ? "cross-bottom-lengthwise-top"
+    : "lengthwise-bottom-crosswise-top";
+  const shorterPair = crossBottomLengthwiseTopIsShorter
+    ? crossBottomLengthwiseTopPair
+    : lengthwiseBottomCrosswiseTopPair;
+  const regions: Array<{
+    region: PinwheelResidualRegion;
+    rowCount: number;
+    rowHeight: number;
+  }> = crossBottomLengthwiseTopIsShorter
+    ? [
+        {
+          region: "bottom",
+          rowCount: shorterPair.secondCount,
+          rowHeight: crosswiseRowHeight,
+        },
+        {
+          region: "top",
+          rowCount: shorterPair.firstCount,
+          rowHeight: lengthwiseRowHeight,
+        },
+      ]
+    : [
+        {
+          region: "bottom",
+          rowCount: shorterPair.firstCount,
+          rowHeight: lengthwiseRowHeight,
+        },
+        {
+          region: "top",
+          rowCount: shorterPair.secondCount,
+          rowHeight: crosswiseRowHeight,
+        },
+      ];
+  const bottomRegion = regions[0]!;
+  const topRegion = regions[1]!;
+  const bottomGapCount = Math.max(0, bottomRegion.rowCount - 1);
+  const topGapCount = Math.max(0, topRegion.rowCount - 1);
+  const bottomCapacity =
+    bottomGapCount * maximumDistributedExtraGapMm(bottomRegion.rowHeight);
+  const topCapacity =
+    topGapCount * maximumDistributedExtraGapMm(topRegion.rowHeight);
+  const minimumBottomResidual = Math.max(0, residualMm - topCapacity);
+  const maximumBottomResidual = Math.min(residualMm, bottomCapacity);
+  if (
+    minimumBottomResidual >
+    maximumBottomResidual + SOLVER_GEOMETRY_EPSILON_MM
+  ) {
+    return [];
+  }
+
+  const totalGapCount = bottomGapCount + topGapCount;
+  const equalGapBottomResidual =
+    totalGapCount === 0
+      ? 0
+      : (residualMm * bottomGapCount) / totalGapCount;
+  const midpoint = (minimumBottomResidual + maximumBottomResidual) / 2;
+  const allocationCandidates = [
+    minimumBottomResidual,
+    maximumBottomResidual,
+    equalGapBottomResidual,
+    midpoint,
+    Math.floor(midpoint),
+    Math.ceil(midpoint),
+  ];
+  const allocationsByKey = new Map<
+    string,
+    { bottomResidualMm: number; topResidualMm: number }
+  >();
+  for (const candidate of allocationCandidates) {
+    const bottomResidualMm = normalizeGeneratedGeometryMetric(
+      Math.min(
+        maximumBottomResidual,
+        Math.max(minimumBottomResidual, candidate),
+      ),
+      "asymmetricPinwheel.bottomResidualMm",
+    );
+    const topResidualMm = normalizeGeneratedGeometryMetric(
+      residualMm - bottomResidualMm,
+      "asymmetricPinwheel.topResidualMm",
+    );
+    allocationsByKey.set(`${bottomResidualMm}:${topResidualMm}`, {
+      bottomResidualMm,
+      topResidualMm,
+    });
+  }
+
+  const plans: PinwheelResidualPlan[] = [];
+  for (const { bottomResidualMm, topResidualMm } of allocationsByKey.values()) {
+    const bottomPolicies =
+      bottomResidualMm <= SOLVER_GEOMETRY_EPSILON_MM
+        ? [null]
+        : JUSTIFIED_SPACING_POLICIES;
+    const topPolicies =
+      topResidualMm <= SOLVER_GEOMETRY_EPSILON_MM
+        ? [null]
+        : JUSTIFIED_SPACING_POLICIES;
+    for (const bottomSpacingPolicy of bottomPolicies) {
+      for (const topSpacingPolicy of topPolicies) {
+        plans.push({
+          side,
+          bottomResidualMm,
+          topResidualMm,
+          bottomSpacingPolicy,
+          topSpacingPolicy,
+          residualMm,
+        });
+      }
+    }
+  }
+  return plans;
+}
+
+function asymmetricPinwheelPlacements(
+  input: NormalizedLayerSolverInput,
+  lengthwiseRotation: Rotation,
+  crosswiseRotation: Rotation,
+  widthPair: MixedCountPair,
+  crossBottomLengthwiseTopPair: MixedCountPair,
+  lengthwiseBottomCrosswiseTopPair: MixedCountPair,
+  chirality: PinwheelChirality,
+  residualPlan: PinwheelResidualPlan | null,
+): GeneratedPlacement[] {
+  const clearance = input.package.clearanceMm;
+  const targetHeight = Math.max(
+    crossBottomLengthwiseTopPair.totalSpan,
+    lengthwiseBottomCrosswiseTopPair.totalSpan,
+  );
+  const availableHeight = rectangleBoundsWidth(input.generationBoundsMm);
+  if (targetHeight > availableHeight + SOLVER_GEOMETRY_EPSILON_MM) return [];
+
+  const startX = alignedStart(
+    input.generationBoundsMm.minX,
+    rectangleBoundsLength(input.generationBoundsMm),
+    widthPair.totalSpan,
+    "center",
+  );
+  const startY = alignedStart(
+    input.generationBoundsMm.minY,
+    availableHeight,
+    targetHeight,
+    "center",
+  );
+  const endX = startX + widthPair.totalSpan;
+  const endY = startY + targetHeight;
+  const lengthwiseWidth = widthPair.firstSpan;
+  const crosswiseWidth = widthPair.secondSpan;
+  const crossBottomExtra =
+    residualPlan?.side === "cross-bottom-lengthwise-top"
+      ? residualPlan.bottomResidualMm
+      : 0;
+  const crossTopExtra =
+    residualPlan?.side === "cross-bottom-lengthwise-top"
+      ? residualPlan.topResidualMm
+      : 0;
+  const lengthwiseBottomExtra =
+    residualPlan?.side === "lengthwise-bottom-crosswise-top"
+      ? residualPlan.bottomResidualMm
+      : 0;
+  const lengthwiseTopExtra =
+    residualPlan?.side === "lengthwise-bottom-crosswise-top"
+      ? residualPlan.topResidualMm
+      : 0;
+  const crossBottomHeight =
+    crossBottomLengthwiseTopPair.secondSpan + crossBottomExtra;
+  const lengthwiseTopHeight =
+    crossBottomLengthwiseTopPair.firstSpan + crossTopExtra;
+  const lengthwiseBottomHeight =
+    lengthwiseBottomCrosswiseTopPair.firstSpan + lengthwiseBottomExtra;
+  const crossTopHeight =
+    lengthwiseBottomCrosswiseTopPair.secondSpan + lengthwiseTopExtra;
+  if (
+    Math.abs(
+      crossBottomHeight + clearance + lengthwiseTopHeight - targetHeight,
+    ) > SOLVER_GEOMETRY_EPSILON_MM ||
+    Math.abs(
+      lengthwiseBottomHeight + clearance + crossTopHeight - targetHeight,
+    ) > SOLVER_GEOMETRY_EPSILON_MM
+  ) {
+    return [];
+  }
+
+  const spacingPolicy = (
+    side: PinwheelSidePattern,
+    region: PinwheelResidualRegion,
+  ): JustifiedSpacingPolicy | null => {
+    if (residualPlan?.side !== side) return null;
+    return region === "bottom"
+      ? residualPlan.bottomSpacingPolicy
+      : residualPlan.topSpacingPolicy;
+  };
+  const plan = (
+    bounds: RectangleBoundsMm,
+    rotation: Rotation,
+    columns: number,
+    rows: number,
+    side: PinwheelSidePattern,
+    region: PinwheelResidualRegion,
+    label: string,
+  ) =>
+    pinwheelRegionPlan(
+      input,
+      bounds,
+      rotation,
+      columns,
+      rows,
+      spacingPolicy(side, region),
+      label,
+    );
+
+  const regions =
+    chirality === "cross-bottom-left"
+      ? [
+          plan(
+            {
+              minX: startX,
+              minY: startY,
+              maxX: startX + crosswiseWidth,
+              maxY: startY + crossBottomHeight,
+            },
+            crosswiseRotation,
+            widthPair.secondCount,
+            crossBottomLengthwiseTopPair.secondCount,
+            "cross-bottom-lengthwise-top",
+            "bottom",
+            "asymmetricPinwheel.bottomLeft",
+          ),
+          plan(
+            {
+              minX: startX + crosswiseWidth + clearance,
+              minY: startY,
+              maxX: endX,
+              maxY: startY + lengthwiseBottomHeight,
+            },
+            lengthwiseRotation,
+            widthPair.firstCount,
+            lengthwiseBottomCrosswiseTopPair.firstCount,
+            "lengthwise-bottom-crosswise-top",
+            "bottom",
+            "asymmetricPinwheel.bottomRight",
+          ),
+          plan(
+            {
+              minX: startX,
+              minY: startY + crossBottomHeight + clearance,
+              maxX: startX + lengthwiseWidth,
+              maxY: endY,
+            },
+            lengthwiseRotation,
+            widthPair.firstCount,
+            crossBottomLengthwiseTopPair.firstCount,
+            "cross-bottom-lengthwise-top",
+            "top",
+            "asymmetricPinwheel.topLeft",
+          ),
+          plan(
+            {
+              minX: startX + lengthwiseWidth + clearance,
+              minY: startY + lengthwiseBottomHeight + clearance,
+              maxX: endX,
+              maxY: endY,
+            },
+            crosswiseRotation,
+            widthPair.secondCount,
+            lengthwiseBottomCrosswiseTopPair.secondCount,
+            "lengthwise-bottom-crosswise-top",
+            "top",
+            "asymmetricPinwheel.topRight",
+          ),
+        ]
+      : [
+          plan(
+            {
+              minX: startX,
+              minY: startY,
+              maxX: startX + lengthwiseWidth,
+              maxY: startY + lengthwiseBottomHeight,
+            },
+            lengthwiseRotation,
+            widthPair.firstCount,
+            lengthwiseBottomCrosswiseTopPair.firstCount,
+            "lengthwise-bottom-crosswise-top",
+            "bottom",
+            "asymmetricPinwheel.bottomLeft",
+          ),
+          plan(
+            {
+              minX: startX + lengthwiseWidth + clearance,
+              minY: startY,
+              maxX: endX,
+              maxY: startY + crossBottomHeight,
+            },
+            crosswiseRotation,
+            widthPair.secondCount,
+            crossBottomLengthwiseTopPair.secondCount,
+            "cross-bottom-lengthwise-top",
+            "bottom",
+            "asymmetricPinwheel.bottomRight",
+          ),
+          plan(
+            {
+              minX: startX,
+              minY: startY + lengthwiseBottomHeight + clearance,
+              maxX: startX + crosswiseWidth,
+              maxY: endY,
+            },
+            crosswiseRotation,
+            widthPair.secondCount,
+            lengthwiseBottomCrosswiseTopPair.secondCount,
+            "lengthwise-bottom-crosswise-top",
+            "top",
+            "asymmetricPinwheel.topLeft",
+          ),
+          plan(
+            {
+              minX: startX + crosswiseWidth + clearance,
+              minY: startY + crossBottomHeight + clearance,
+              maxX: endX,
+              maxY: endY,
+            },
+            lengthwiseRotation,
+            widthPair.firstCount,
+            crossBottomLengthwiseTopPair.firstCount,
+            "cross-bottom-lengthwise-top",
+            "top",
+            "asymmetricPinwheel.topRight",
+          ),
+        ];
+  if (regions.some((region) => region === null)) return [];
+  const completeRegions = regions as PinwheelRegionPlan[];
+  if (pinwheelRegionPlansOverlap(completeRegions, clearance)) return [];
+  return materializePinwheelRegions(completeRegions);
+}
+
 function generatePinwheels(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
@@ -2528,23 +3151,64 @@ function generatePinwheels(
 
   for (const widthPair of widthPairs) {
     for (const heightPair of heightPairs) {
+      const outerPackageCount =
+        2 *
+        (widthPair.firstCount * heightPair.firstCount +
+          widthPair.secondCount * heightPair.secondCount);
+      const centerFillPlans = exactPinwheelCenterFillPlans(
+        input,
+        widthPair,
+        heightPair,
+        representatives,
+        outerPackageCount,
+      );
       for (const chirality of [
         "cross-bottom-left",
         "lengthwise-bottom-left",
       ] as const) {
         if (!collector.canContinue()) return collector.output();
-        collector.add(
-          pinwheelPlacements(
-            input,
+        const outerPlacements = pinwheelPlacements(
+          input,
+          lengthwiseRotation,
+          crosswiseRotation,
+          widthPair,
+          heightPair,
+          chirality,
+        );
+        collector.add(outerPlacements, {
+          family: "pinwheel",
+          variant: chirality,
+          parameters: {
             lengthwiseRotation,
             crosswiseRotation,
-            widthPair,
-            heightPair,
+            lengthwiseColumns: widthPair.firstCount,
+            crosswiseColumns: widthPair.secondCount,
+            lengthwiseRows: heightPair.firstCount,
+            crosswiseRows: heightPair.secondCount,
             chirality,
-          ),
-          {
+          },
+        });
+
+        for (const centerFillPlan of centerFillPlans) {
+          if (!collector.checkCancellation()) return collector.output();
+          const centerPlacements = gridPlacements(
+            input,
+            centerFillPlan.bounds,
+            centerFillPlan.rotation,
+            centerFillPlan.columns,
+            centerFillPlan.rows,
+            "center",
+            "center",
+          );
+          if (
+            centerPlacements.length !==
+            centerFillPlan.columns * centerFillPlan.rows
+          ) {
+            continue;
+          }
+          collector.add([...outerPlacements, ...centerPlacements], {
             family: "pinwheel",
-            variant: chirality,
+            variant: `${chirality}-center-fill`,
             parameters: {
               lengthwiseRotation,
               crosswiseRotation,
@@ -2552,10 +3216,104 @@ function generatePinwheels(
               crosswiseColumns: widthPair.secondCount,
               lengthwiseRows: heightPair.firstCount,
               crosswiseRows: heightPair.secondCount,
+              centerRotation: centerFillPlan.rotation,
+              centerColumns: centerFillPlan.columns,
+              centerRows: centerFillPlan.rows,
               chirality,
             },
-          },
+          });
+        }
+      }
+    }
+  }
+
+  const exactPackageCount = exactRequestedPackageCount(input);
+  if (exactPackageCount === null) return collector.output();
+  for (const widthPair of widthPairs) {
+    for (const crossBottomLengthwiseTopPair of heightPairs) {
+      for (const lengthwiseBottomCrosswiseTopPair of heightPairs) {
+        if (!collector.checkCancellation()) return collector.output();
+        if (crossBottomLengthwiseTopPair === lengthwiseBottomCrosswiseTopPair) {
+          continue;
+        }
+        const packageCount = asymmetricPinwheelPackageCount(
+          widthPair,
+          crossBottomLengthwiseTopPair,
+          lengthwiseBottomCrosswiseTopPair,
         );
+        if (packageCount > input.constraints.maxPlacements) continue;
+        if (packageCount !== exactPackageCount) continue;
+        const residualPlans = asymmetricPinwheelResidualPlans(
+          crossBottomLengthwiseTopPair,
+          lengthwiseBottomCrosswiseTopPair,
+          lengthwiseSize.width,
+          crosswiseSize.width,
+        );
+        for (const chirality of [
+          "cross-bottom-left",
+          "lengthwise-bottom-left",
+        ] as const) {
+          for (const residualPlan of residualPlans) {
+            if (!collector.checkCancellation()) return collector.output();
+            const placements = asymmetricPinwheelPlacements(
+              input,
+              lengthwiseRotation,
+              crosswiseRotation,
+              widthPair,
+              crossBottomLengthwiseTopPair,
+              lengthwiseBottomCrosswiseTopPair,
+              chirality,
+              residualPlan,
+            );
+            if (placements.length !== packageCount) continue;
+            collector.add(placements, {
+              family: "pinwheel",
+              variant: `asymmetric-${chirality}`,
+              parameters: {
+                lengthwiseRotation,
+                crosswiseRotation,
+                lengthwiseColumns: widthPair.firstCount,
+                crosswiseColumns: widthPair.secondCount,
+                firstLengthwiseRows: crossBottomLengthwiseTopPair.firstCount,
+                firstCrosswiseRows: crossBottomLengthwiseTopPair.secondCount,
+                firstSidePattern: "cross-bottom-lengthwise-top",
+                secondLengthwiseRows:
+                  lengthwiseBottomCrosswiseTopPair.firstCount,
+                secondCrosswiseRows:
+                  lengthwiseBottomCrosswiseTopPair.secondCount,
+                secondSidePattern: "lengthwise-bottom-crosswise-top",
+                residualSide: residualPlan?.side ?? null,
+                residualRegion:
+                  residualPlan === null
+                    ? null
+                    : residualPlan.bottomResidualMm >
+                          SOLVER_GEOMETRY_EPSILON_MM &&
+                        residualPlan.topResidualMm >
+                          SOLVER_GEOMETRY_EPSILON_MM
+                      ? "split"
+                      : residualPlan.bottomResidualMm >
+                          SOLVER_GEOMETRY_EPSILON_MM
+                        ? "bottom"
+                        : "top",
+                residualSpacingPolicy:
+                  residualPlan === null
+                    ? null
+                    : residualPlan.bottomSpacingPolicy ===
+                        residualPlan.topSpacingPolicy
+                      ? residualPlan.bottomSpacingPolicy
+                      : "split",
+                bottomResidualMm: residualPlan?.bottomResidualMm ?? 0,
+                topResidualMm: residualPlan?.topResidualMm ?? 0,
+                bottomResidualSpacingPolicy:
+                  residualPlan?.bottomSpacingPolicy ?? null,
+                topResidualSpacingPolicy:
+                  residualPlan?.topSpacingPolicy ?? null,
+                residualMm: residualPlan?.residualMm ?? 0,
+                chirality,
+              },
+            });
+          }
+        }
       }
     }
   }

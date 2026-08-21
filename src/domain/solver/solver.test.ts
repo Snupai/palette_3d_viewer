@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   boundingRectangleForPlacements,
+  canonicalPlacementGeometryKey,
   createCenteredEffectivePalletEnvelope,
   placementRectangleBounds,
   placementWithinBounds,
@@ -336,6 +337,434 @@ describe("solver input and candidate validation", () => {
           ({ variant }) => variant === "occupied-bounds-center-v1",
         ),
       ).toBe(true);
+    }
+  });
+
+  it("generates an exact asymmetric pinwheel with independently sized opposite regions", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 112, width: 76 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1168, maxY: 756 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 103,
+        maximumPackageCount: 103,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 1_000,
+      },
+    };
+    const expectedPlacements = [
+      ...[38, 114, 190, 266, 342, 418, 494, 570].flatMap((x) =>
+        [56, 168].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[664, 776, 888, 1_000, 1_112].flatMap((x) =>
+        [38, 115, 193, 270].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[56, 168, 280, 392, 504].flatMap((x) =>
+        [262, 338, 414, 490, 566, 642, 718].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[598, 674, 750, 826, 902, 978, 1_054, 1_130].flatMap((x) =>
+        [364, 476, 588, 700].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+    ];
+    const geometry = (
+      placements: readonly {
+        positionMm: { x: number; y: number };
+        rotation: number;
+      }[],
+    ) =>
+      placements
+        .map(
+          ({ positionMm, rotation }) =>
+            `${positionMm.x},${positionMm.y},${rotation}`,
+        )
+        .sort();
+
+    const first = solveLayer(input, {
+      generatorOrder: [
+        "pinwheel",
+        "row",
+        "block",
+        "justified-grid",
+        "nested-side",
+        "edge-ring",
+        "mixed-orientation",
+      ],
+      includeSymmetryVariants: false,
+    });
+    const second = solveLayer(input, {
+      generatorOrder: [
+        "mixed-orientation",
+        "edge-ring",
+        "nested-side",
+        "justified-grid",
+        "block",
+        "row",
+        "pinwheel",
+      ],
+      includeSymmetryVariants: false,
+    });
+    const expectedGeometry = geometry(expectedPlacements);
+    const candidate = first.candidates.find(
+      ({ placements }) =>
+        JSON.stringify(geometry(placements)) ===
+        JSON.stringify(expectedGeometry),
+    );
+
+    expect(second).toEqual(first);
+    expect(expectedPlacements).toHaveLength(103);
+    expect(candidate).toBeDefined();
+    expect(candidate?.metrics.packageCount).toBe(103);
+    expect(candidate?.validation.valid).toBe(true);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 0, maxX: 1168, maxY: 756 });
+    expect(
+      candidate?.placements.filter(
+        ({ rotation }) => packageOrientationClass(rotation) === "lengthwise",
+      ),
+    ).toHaveLength(55);
+    expect(
+      candidate?.placements.filter(
+        ({ rotation }) => packageOrientationClass(rotation) === "crosswise",
+      ),
+    ).toHaveLength(48);
+
+    let overlapCount = 0;
+    const placements = candidate?.placements ?? [];
+    for (let leftIndex = 0; leftIndex < placements.length; leftIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < placements.length;
+        rightIndex += 1
+      ) {
+        if (
+          placementsOverlap(
+            placements[leftIndex]!,
+            placements[rightIndex]!,
+            input.package.dimensionsMm,
+            input.package.clearanceMm,
+          )
+        ) {
+          overlapCount += 1;
+        }
+      }
+    }
+    expect(overlapCount).toBe(0);
+  }, 30_000);
+
+  it("splits asymmetric pinwheel residual height across opposite regions", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 112, width: 76 },
+        clearanceMm: 2,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 652, maxY: 574 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 41,
+        maximumPackageCount: 41,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 10_000,
+      },
+    };
+    const expectedPlacements = [
+      ...[38, 116, 194, 272].flatMap((x) =>
+        [56, 180].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[368, 482, 596].flatMap((x) =>
+        [38, 116, 194].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[56, 170, 284].flatMap((x) =>
+        [276, 362.666666667, 449.333333333, 536].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[380, 458, 536, 614].flatMap((x) =>
+        [290, 404, 518].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+    ];
+    const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometry,
+    );
+
+    expect(expectedPlacements).toHaveLength(41);
+    expect(candidate).toBeDefined();
+    expect(candidate?.metrics.packageCount).toBe(41);
+    expect(candidate?.validation.valid).toBe(true);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual(input.envelopeMm);
+  }, 30_000);
+
+  it("fills a pinwheel center to reach an exact package count", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 177, width: 123 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1_200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 42,
+        maximumPackageCount: 42,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 1_000,
+      },
+    };
+    const expectedPlacements = [
+      ...[61.5, 184.5, 307.5, 430.5].flatMap((x) =>
+        [100, 277, 454].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[580.5, 757.5, 934.5, 1_111.5].flatMap((x) =>
+        [73, 196].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[88.5, 265.5, 442.5, 619.5].flatMap((x) =>
+        [604, 727].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[769.5, 892.5, 1_015.5, 1_138.5].flatMap((x) =>
+        [346, 523, 700].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[338.5, 461.5].map((y) => ({
+        positionMm: { x: 600, y },
+        rotation: 0 as const,
+      })),
+    ];
+    const geometry = (
+      placements: readonly {
+        positionMm: { x: number; y: number };
+        rotation: number;
+      }[],
+    ) =>
+      placements
+        .map(
+          ({ positionMm, rotation }) =>
+            `${positionMm.x},${positionMm.y},${rotation}`,
+        )
+        .sort();
+
+    const first = solveLayer(input, {
+      generatorOrder: [
+        "pinwheel",
+        "row",
+        "block",
+        "justified-grid",
+        "nested-side",
+        "edge-ring",
+        "mixed-orientation",
+      ],
+      includeSymmetryVariants: false,
+    });
+    const second = solveLayer(input, {
+      generatorOrder: [
+        "mixed-orientation",
+        "edge-ring",
+        "nested-side",
+        "justified-grid",
+        "block",
+        "row",
+        "pinwheel",
+      ],
+      includeSymmetryVariants: false,
+    });
+    const expectedGeometry = geometry(expectedPlacements);
+    const candidate = first.candidates.find(
+      ({ placements }) =>
+        JSON.stringify(geometry(placements)) ===
+        JSON.stringify(expectedGeometry),
+    );
+
+    expect(second).toEqual(first);
+    expect(expectedPlacements).toHaveLength(42);
+    expect(candidate).toBeDefined();
+    expect(candidate?.metrics.packageCount).toBe(42);
+    expect(candidate?.validation.valid).toBe(true);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 11.5, maxX: 1_200, maxY: 788.5 });
+    expect(
+      candidate?.placements.filter(
+        ({ rotation }) => packageOrientationClass(rotation) === "lengthwise",
+      ),
+    ).toHaveLength(18);
+    expect(
+      candidate?.placements.filter(
+        ({ rotation }) => packageOrientationClass(rotation) === "crosswise",
+      ),
+    ).toHaveLength(24);
+
+    let overlapCount = 0;
+    const placements = candidate?.placements ?? [];
+    for (let leftIndex = 0; leftIndex < placements.length; leftIndex += 1) {
+      for (
+        let rightIndex = leftIndex + 1;
+        rightIndex < placements.length;
+        rightIndex += 1
+      ) {
+        if (
+          placementsOverlap(
+            placements[leftIndex]!,
+            placements[rightIndex]!,
+            input.package.dimensionsMm,
+            input.package.clearanceMm,
+          )
+        ) {
+          overlapCount += 1;
+        }
+      }
+    }
+    expect(overlapCount).toBe(0);
+  }, 30_000);
+
+  it("generates an exact five-block corner-chain mosaic", () => {
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 177, width: 123 },
+        clearanceMm: 0,
+        inletOrientation: "lengthwise",
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1_200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 42,
+        maximumPackageCount: 42,
+        allowMixedPackageOrientations: true,
+        maxCandidatesPerGenerator: 10_000,
+      },
+    };
+    const expectedPlacements = [
+      ...[61.5, 184.5, 307.5, 430.5].flatMap((x) =>
+        [346, 523, 700].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[88.5, 265.5, 442.5].flatMap((x) =>
+        [73, 196].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[592.5, 715.5, 838.5, 961.5].flatMap((x) =>
+        [100, 277, 454].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[580.5, 757.5, 934.5, 1_111.5].flatMap((x) =>
+        [604, 727].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[73, 196, 319, 442].map((y) => ({
+        positionMm: { x: 1_111.5, y },
+        rotation: 0 as const,
+      })),
+    ];
+    const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
+
+    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const candidate = result.candidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometry,
+    );
+
+    expect(expectedPlacements).toHaveLength(42);
+    expect(candidate).toBeDefined();
+    expect(candidate?.validation.valid).toBe(true);
+    expect(candidate?.metrics.packageCount).toBe(42);
+    expect(
+      boundingRectangleForPlacements(
+        candidate?.placements ?? [],
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 11.5, maxX: 1_200, maxY: 788.5 });
+  }, 30_000);
+
+  it("does not let overlapping outer pinwheels starve an exact center fill", () => {
+    for (const maxCandidatesPerGenerator of [1, 2]) {
+      const result = solveLayer(
+        {
+          package: {
+            shape: "cuboid",
+            dimensionsMm: { length: 54, width: 30 },
+            clearanceMm: 5,
+          },
+          envelopeMm: { minX: 0, minY: 0, maxX: 296, maxY: 251 },
+          constraints: {
+            allowedRotations: [0, 90],
+            minimumPackageCount: 32,
+            maximumPackageCount: 32,
+            allowMixedPackageOrientations: true,
+            maxCandidatesPerGenerator,
+          },
+        },
+        { includeSymmetryVariants: false },
+      );
+      const candidate = result.candidates.find(({ provenance }) =>
+        provenance.some(
+          ({ family, variant }) =>
+            family === "pinwheel" && variant.endsWith("-center-fill"),
+        ),
+      );
+
+      expect(candidate?.metrics.packageCount).toBe(32);
+      expect(candidate?.validation.valid).toBe(true);
     }
   });
 
