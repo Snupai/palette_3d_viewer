@@ -4366,22 +4366,237 @@ function generatePinwheels(
   return collector.output();
 }
 
+const BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK = 100_000;
+const BALANCED_CAPPED_STRIP_MAX_RETAINED_PLACEMENTS = 10_000;
+
+type BalancedCappedStripDescriptor = {
+  mainRotation: Rotation;
+  capRotation: Rotation;
+  mainColumns: number;
+  mainRows: number;
+  capRows: number;
+  coreColumns: number;
+  coreRows: number;
+  packageCount: number;
+  mainLengthMm: number;
+  mainHeightMm: number;
+  capLengthMm: number;
+  capHeightMm: number;
+  coreLengthMm: number;
+  coreHeightMm: number;
+  stripHeightMm: number;
+  coreCorridorLengthMm: number;
+  occupiedLengthMm: number;
+  occupiedWidthMm: number;
+};
+
+function compareBalancedCappedStripDescriptors(
+  left: BalancedCappedStripDescriptor,
+  right: BalancedCappedStripDescriptor,
+): number {
+  return (
+    right.packageCount - left.packageCount ||
+    left.occupiedLengthMm * left.occupiedWidthMm -
+      right.occupiedLengthMm * right.occupiedWidthMm ||
+    2 * (left.occupiedLengthMm + left.occupiedWidthMm) -
+      2 * (right.occupiedLengthMm + right.occupiedWidthMm) ||
+    left.mainRotation - right.mainRotation ||
+    right.mainColumns - left.mainColumns ||
+    left.mainRows - right.mainRows ||
+    right.capRows - left.capRows ||
+    right.coreRows - left.coreRows ||
+    right.coreColumns - left.coreColumns
+  );
+}
+
+function balancedCappedStripDescriptorIsFeasible(
+  input: NormalizedLayerSolverInput,
+  descriptor: BalancedCappedStripDescriptor,
+): boolean {
+  const clearance = input.package.clearanceMm;
+  const mainSize = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    descriptor.mainRotation,
+  );
+  const capSize = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    descriptor.capRotation,
+  );
+  const regionCenters = distributedSequenceCenters(
+    0,
+    descriptor.occupiedLengthMm,
+    [
+      descriptor.capLengthMm,
+      descriptor.coreLengthMm,
+      descriptor.capLengthMm,
+    ],
+    clearance,
+    "balancedCappedStrip.feasibility.regions",
+  );
+  const capRowCenters = justifiedLineCenters(
+    0,
+    descriptor.stripHeightMm,
+    capSize.width,
+    clearance,
+    descriptor.capRows,
+    "continuous-space-between",
+  );
+  const coreRowCenters = justifiedLineCenters(
+    0,
+    descriptor.stripHeightMm,
+    mainSize.width,
+    clearance,
+    descriptor.coreRows,
+    "continuous-space-between",
+  );
+  return (
+    regionCenters.length === 3 &&
+    capRowCenters.length === descriptor.capRows &&
+    coreRowCenters.length === descriptor.coreRows &&
+    lineCentersRespectGapPolicy(
+      capRowCenters,
+      capSize.width,
+      clearance,
+      true,
+    ) &&
+    lineCentersRespectGapPolicy(
+      coreRowCenters,
+      mainSize.width,
+      clearance,
+      true,
+    )
+  );
+}
+
+function materializeBalancedCappedStrip(
+  input: NormalizedLayerSolverInput,
+  descriptor: BalancedCappedStripDescriptor,
+): GeneratedPlacement[] {
+  const envelope = input.generationBoundsMm;
+  const clearance = input.package.clearanceMm;
+  const compositeMinX = alignedStart(
+    envelope.minX,
+    rectangleBoundsLength(envelope),
+    descriptor.occupiedLengthMm,
+    "center",
+  );
+  const compositeMinY = alignedStart(
+    envelope.minY,
+    rectangleBoundsWidth(envelope),
+    descriptor.occupiedWidthMm,
+    "center",
+  );
+  const regionCenters = distributedSequenceCenters(
+    compositeMinX,
+    compositeMinX + descriptor.occupiedLengthMm,
+    [
+      descriptor.capLengthMm,
+      descriptor.coreLengthMm,
+      descriptor.capLengthMm,
+    ],
+    clearance,
+    "balancedCappedStrip.regions",
+  );
+  if (regionCenters.length !== 3) return [];
+
+  const stripMinY = compositeMinY;
+  const stripMaxY = stripMinY + descriptor.stripHeightMm;
+  const mainMinY = stripMaxY + clearance;
+  const blockBounds = (
+    centerX: number,
+    length: number,
+  ): RectangleBoundsMm => ({
+    minX: centerX - length / 2,
+    minY: stripMinY,
+    maxX: centerX + length / 2,
+    maxY: stripMaxY,
+  });
+  const plannedRegions = [
+    pinwheelRegionPlan(
+      input,
+      {
+        minX: compositeMinX,
+        minY: mainMinY,
+        maxX: compositeMinX + descriptor.occupiedLengthMm,
+        maxY: mainMinY + descriptor.mainHeightMm,
+      },
+      descriptor.mainRotation,
+      descriptor.mainColumns,
+      descriptor.mainRows,
+      null,
+      "balancedCappedStrip.main",
+    ),
+    pinwheelRegionPlan(
+      input,
+      blockBounds(regionCenters[0]!, descriptor.capLengthMm),
+      descriptor.capRotation,
+      1,
+      descriptor.capRows,
+      "continuous-space-between",
+      "balancedCappedStrip.leftCap",
+    ),
+    pinwheelRegionPlan(
+      input,
+      blockBounds(regionCenters[1]!, descriptor.coreLengthMm),
+      descriptor.mainRotation,
+      descriptor.coreColumns,
+      descriptor.coreRows,
+      "continuous-space-between",
+      "balancedCappedStrip.core",
+    ),
+    pinwheelRegionPlan(
+      input,
+      blockBounds(regionCenters[2]!, descriptor.capLengthMm),
+      descriptor.capRotation,
+      1,
+      descriptor.capRows,
+      "continuous-space-between",
+      "balancedCappedStrip.rightCap",
+    ),
+  ];
+  if (plannedRegions.some((region) => region === null)) return [];
+  const regions = plannedRegions as PinwheelRegionPlan[];
+  return pinwheelRegionPlansOverlap(regions, clearance)
+    ? []
+    : materializePinwheelRegions(regions);
+}
+
 function generateBalancedCappedStrips(
   input: NormalizedLayerSolverInput,
   collector: DraftCollector,
   representatives: readonly [Rotation, Rotation],
 ): void {
-  const envelope = input.generationBoundsMm;
-  const totalLength = rectangleBoundsLength(envelope);
-  const totalWidth = rectangleBoundsWidth(envelope);
+  const totalLength = rectangleBoundsLength(input.generationBoundsMm);
+  const totalWidth = rectangleBoundsWidth(input.generationBoundsMm);
   const clearance = input.package.clearanceMm;
   const requestedExactCount = exactRequestedPackageCount(input);
   const orientationOrders: Array<readonly [Rotation, Rotation]> = [
     representatives,
     [representatives[1], representatives[0]],
   ];
+  const factorPairsByCount = new Map<
+    number,
+    Array<readonly [number, number]>
+  >();
+  const descriptors: BalancedCappedStripDescriptor[] = [];
+  let consumedSearchWork = 0;
+  let searchLimitReached = false;
+  const consumeSearchWork = (amount = 1): boolean => {
+    if (!collector.canContinue()) return false;
+    if (
+      consumedSearchWork + amount >
+      BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK
+    ) {
+      consumedSearchWork = BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK;
+      searchLimitReached = true;
+      return false;
+    }
+    if (!collector.checkCancellation()) return false;
+    consumedSearchWork += amount;
+    return true;
+  };
 
-  for (const [mainRotation, capRotation] of orientationOrders) {
+  search: for (const [mainRotation, capRotation] of orientationOrders) {
     const mainSize = rectangleSizeForRotation(
       input.package.dimensionsMm,
       mainRotation,
@@ -4400,6 +4615,40 @@ function generateBalancedCappedStrips(
     );
     if (maximumMainColumns === 0 || maximumMainRows === 0) continue;
 
+    const maximumMainLength = usedSpan(
+      maximumMainColumns,
+      mainSize.length,
+      clearance,
+    );
+    const maximumCoreCorridorLength =
+      maximumMainLength - 2 * capSize.length - 2 * clearance;
+    const maximumCoreColumns = Math.min(
+      maxCountAlong(
+        maximumCoreCorridorLength,
+        mainSize.length,
+        clearance,
+      ),
+      input.constraints.maxBands,
+    );
+    const maximumCapRows = Math.min(
+      maxCountAlong(totalWidth, capSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumCoreRows = Math.min(
+      maxCountAlong(totalWidth, mainSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumPossiblePackageCount =
+      maximumMainColumns * maximumMainRows +
+      2 * maximumCapRows +
+      maximumCoreColumns * maximumCoreRows;
+    if (
+      requestedExactCount !== null &&
+      requestedExactCount > maximumPossiblePackageCount
+    ) {
+      continue;
+    }
+
     const mainColumnCounts =
       requestedExactCount === null
         ? [maximumMainColumns]
@@ -4408,62 +4657,85 @@ function generateBalancedCappedStrips(
             (_, index) => maximumMainColumns - index,
           );
     for (const mainColumns of mainColumnCounts) {
-      const mainLength = usedSpan(mainColumns, mainSize.length, clearance);
-      const coreCorridorLength =
-        mainLength - 2 * capSize.length - 2 * clearance;
-      if (coreCorridorLength <= 0) continue;
-      const maximumCoreColumns = Math.min(
-        maxCountAlong(coreCorridorLength, mainSize.length, clearance),
+      const mainLengthMm = usedSpan(
+        mainColumns,
+        mainSize.length,
+        clearance,
+      );
+      const coreCorridorLengthMm =
+        mainLengthMm - 2 * capSize.length - 2 * clearance;
+      if (coreCorridorLengthMm <= 0) continue;
+      const maximumDescriptorCoreColumns = Math.min(
+        maxCountAlong(coreCorridorLengthMm, mainSize.length, clearance),
         input.constraints.maxBands,
       );
-      if (maximumCoreColumns === 0) continue;
+      if (maximumDescriptorCoreColumns === 0) continue;
 
       for (let mainRows = 1; mainRows <= maximumMainRows; mainRows += 1) {
-        if (!collector.checkCancellation()) return;
-        const mainHeight = usedSpan(mainRows, mainSize.width, clearance);
-        const availableStripHeight = totalWidth - mainHeight - clearance;
+        const mainHeightMm = usedSpan(
+          mainRows,
+          mainSize.width,
+          clearance,
+        );
+        const availableStripHeight = totalWidth - mainHeightMm - clearance;
         if (availableStripHeight <= 0) continue;
 
-        const maximumCapRows = Math.min(
+        const maximumDescriptorCapRows = Math.min(
           maxCountAlong(availableStripHeight, capSize.width, clearance),
           input.constraints.maxBands,
         );
-        const maximumCoreRows = Math.min(
+        const maximumDescriptorCoreRows = Math.min(
           maxCountAlong(availableStripHeight, mainSize.width, clearance),
           input.constraints.maxBands,
         );
-        if (maximumCapRows < 2 || maximumCoreRows < 2) continue;
+        if (
+          maximumDescriptorCapRows < 2 ||
+          maximumDescriptorCoreRows < 2
+        ) {
+          continue;
+        }
 
         const capRowCounts =
           requestedExactCount === null
-            ? [maximumCapRows]
+            ? [maximumDescriptorCapRows]
             : Array.from(
-                { length: maximumCapRows - 1 },
-                (_, index) => maximumCapRows - index,
+                { length: maximumDescriptorCapRows - 1 },
+                (_, index) => maximumDescriptorCapRows - index,
               );
         for (const capRows of capRowCounts) {
-          if (!collector.checkCancellation()) return;
-          const coreShapes: Array<readonly [number, number]> =
-            requestedExactCount === null
-              ? [[maximumCoreColumns, maximumCoreRows]]
-              : exactFactorPairs(
-                  requestedExactCount -
-                    mainColumns * mainRows -
-                    2 * capRows,
-                )
-                  .filter(
-                    ([coreColumns, coreRows]) =>
-                      coreColumns <= maximumCoreColumns &&
-                      coreRows >= 2 &&
-                      coreRows <= maximumCoreRows,
-                  )
-                  .sort(
-                    (left, right) =>
-                      right[1] - left[1] || right[0] - left[0],
-                  );
+          if (!consumeSearchWork()) break search;
+          let coreShapes: Array<readonly [number, number]>;
+          if (requestedExactCount === null) {
+            coreShapes = [
+              [maximumDescriptorCoreColumns, maximumDescriptorCoreRows],
+            ];
+          } else {
+            const corePackageCount =
+              requestedExactCount - mainColumns * mainRows - 2 * capRows;
+            if (corePackageCount <= 0) continue;
+            let factorPairs = factorPairsByCount.get(corePackageCount);
+            if (!factorPairs) {
+              if (!consumeSearchWork(Math.floor(Math.sqrt(corePackageCount)))) {
+                break search;
+              }
+              factorPairs = exactFactorPairs(corePackageCount);
+              factorPairsByCount.set(corePackageCount, factorPairs);
+            }
+            coreShapes = factorPairs
+              .filter(
+                ([coreColumns, coreRows]) =>
+                  coreColumns <= maximumDescriptorCoreColumns &&
+                  coreRows >= 2 &&
+                  coreRows <= maximumDescriptorCoreRows,
+              )
+              .sort(
+                (left, right) =>
+                  right[1] - left[1] || right[0] - left[0],
+              );
+          }
 
           for (const [coreColumns, coreRows] of coreShapes) {
-            if (!collector.checkCancellation()) return;
+            if (!consumeSearchWork()) break search;
             const packageCount =
               mainColumns * mainRows + 2 * capRows + coreColumns * coreRows;
             if (
@@ -4474,141 +4746,139 @@ function generateBalancedCappedStrips(
               continue;
             }
 
-            const capLength = capSize.length;
-            const capHeight = usedSpan(capRows, capSize.width, clearance);
-            const coreLength = usedSpan(
+            const capHeightMm = usedSpan(
+              capRows,
+              capSize.width,
+              clearance,
+            );
+            const coreLengthMm = usedSpan(
               coreColumns,
               mainSize.length,
               clearance,
             );
-            const coreHeight = usedSpan(coreRows, mainSize.width, clearance);
-            const stripHeight = Math.max(capHeight, coreHeight);
-            const occupiedLengthMm = normalizeGeneratedGeometryMetric(
-              mainLength,
-              "balancedCappedStrip.occupiedLengthMm",
-            );
-            const occupiedWidthMm = normalizeGeneratedGeometryMetric(
-              stripHeight + clearance + mainHeight,
-              "balancedCappedStrip.occupiedWidthMm",
-            );
-            const compositeMinX = alignedStart(
-              envelope.minX,
-              totalLength,
-              occupiedLengthMm,
-              "center",
-            );
-            const compositeMinY = alignedStart(
-              envelope.minY,
-              totalWidth,
-              occupiedWidthMm,
-              "center",
-            );
-            const regionCenters = distributedSequenceCenters(
-              compositeMinX,
-              compositeMinX + occupiedLengthMm,
-              [capLength, coreLength, capLength],
+            const coreHeightMm = usedSpan(
+              coreRows,
+              mainSize.width,
               clearance,
-              "balancedCappedStrip.regions",
             );
-            if (regionCenters.length !== 3) continue;
-
-            const stripMinY = compositeMinY;
-            const stripMaxY = stripMinY + stripHeight;
-            const mainMinY = stripMaxY + clearance;
-            const blockBounds = (
-              centerX: number,
-              length: number,
-            ): RectangleBoundsMm => ({
-              minX: centerX - length / 2,
-              minY: stripMinY,
-              maxX: centerX + length / 2,
-              maxY: stripMaxY,
-            });
-            const plannedRegions = [
-              pinwheelRegionPlan(
-                input,
-                {
-                  minX: compositeMinX,
-                  minY: mainMinY,
-                  maxX: compositeMinX + occupiedLengthMm,
-                  maxY: mainMinY + mainHeight,
-                },
-                mainRotation,
-                mainColumns,
-                mainRows,
-                null,
-                "balancedCappedStrip.main",
+            const stripHeightMm = Math.max(capHeightMm, coreHeightMm);
+            const descriptor: BalancedCappedStripDescriptor = {
+              mainRotation,
+              capRotation,
+              mainColumns,
+              mainRows,
+              capRows,
+              coreColumns,
+              coreRows,
+              packageCount,
+              mainLengthMm,
+              mainHeightMm,
+              capLengthMm: capSize.length,
+              capHeightMm,
+              coreLengthMm,
+              coreHeightMm,
+              stripHeightMm,
+              coreCorridorLengthMm,
+              occupiedLengthMm: normalizeGeneratedGeometryMetric(
+                mainLengthMm,
+                "balancedCappedStrip.occupiedLengthMm",
               ),
-              pinwheelRegionPlan(
-                input,
-                blockBounds(regionCenters[0]!, capLength),
-                capRotation,
-                1,
-                capRows,
-                "continuous-space-between",
-                "balancedCappedStrip.leftCap",
+              occupiedWidthMm: normalizeGeneratedGeometryMetric(
+                stripHeightMm + clearance + mainHeightMm,
+                "balancedCappedStrip.occupiedWidthMm",
               ),
-              pinwheelRegionPlan(
-                input,
-                blockBounds(regionCenters[1]!, coreLength),
-                mainRotation,
-                coreColumns,
-                coreRows,
-                "continuous-space-between",
-                "balancedCappedStrip.core",
-              ),
-              pinwheelRegionPlan(
-                input,
-                blockBounds(regionCenters[2]!, capLength),
-                capRotation,
-                1,
-                capRows,
-                "continuous-space-between",
-                "balancedCappedStrip.rightCap",
-              ),
-            ];
-            if (plannedRegions.some((region) => region === null)) continue;
-            const regions = plannedRegions as PinwheelRegionPlan[];
-            if (pinwheelRegionPlansOverlap(regions, clearance)) continue;
-
-            const coreInlineResidualMm = normalizeGeneratedGeometryMetric(
-              coreCorridorLength - coreLength,
-              "balancedCappedStrip.coreInlineResidualMm",
-            );
-            const coreCrossResidualMm = normalizeGeneratedGeometryMetric(
-              stripHeight - coreHeight,
-              "balancedCappedStrip.coreCrossResidualMm",
-            );
-            if (
-              !collector.add(materializePinwheelRegions(regions), {
-                family: "nested-side",
-                variant: "balanced-capped-strip",
-                parameters: {
-                  topology: "balanced-capped-strip-v1",
-                  splitAxis: "y",
-                  mainSide: "end",
-                  mainRotation,
-                  capRotation,
-                  mainColumns,
-                  mainRows,
-                  capColumns: 1,
-                  capRows,
-                  coreRotation: mainRotation,
-                  coreColumns,
-                  coreRows,
-                  spacingPolicy: "continuous-space-between",
-                  coreInlineResidualMm,
-                  coreCrossResidualMm,
-                  occupiedLengthMm,
-                  occupiedWidthMm,
-                },
-              })
-            ) {
-              return;
+            };
+            if (balancedCappedStripDescriptorIsFeasible(input, descriptor)) {
+              descriptors.push(descriptor);
             }
           }
         }
       }
+    }
+  }
+
+  if (!collector.canContinue()) return;
+  if (searchLimitReached) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "balanced-capped-strip-search-limit-reached",
+      message: `nested-side balanced capped-strip generation stopped after the deterministic hard search budget of ${BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK} work units.`,
+      generator: "nested-side",
+      count: consumedSearchWork,
+    });
+  }
+
+  descriptors.sort(compareBalancedCappedStripDescriptors);
+  const familyMaterializationLimit = Math.max(
+    1,
+    input.constraints.maxCandidatesPerGenerator - collector.drafts.length + 1,
+  );
+  const retainedDescriptors: BalancedCappedStripDescriptor[] = [];
+  let retainedPlacementCount = 0;
+  let placementBudgetReached = false;
+  for (const descriptor of descriptors) {
+    if (retainedDescriptors.length >= familyMaterializationLimit) break;
+    if (
+      retainedDescriptors.length > 0 &&
+      retainedPlacementCount + descriptor.packageCount >
+        BALANCED_CAPPED_STRIP_MAX_RETAINED_PLACEMENTS
+    ) {
+      placementBudgetReached = true;
+      continue;
+    }
+    retainedDescriptors.push(descriptor);
+    retainedPlacementCount += descriptor.packageCount;
+  }
+  if (placementBudgetReached) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "balanced-capped-strip-materialization-limit-reached",
+      message: `nested-side balanced capped-strip generation retained descriptors for at most ${BALANCED_CAPPED_STRIP_MAX_RETAINED_PLACEMENTS} total placements before materialization.`,
+      generator: "nested-side",
+      count: retainedPlacementCount,
+    });
+  }
+
+  for (const descriptor of retainedDescriptors) {
+    if (!collector.checkCancellation()) return;
+    const placements = materializeBalancedCappedStrip(input, descriptor);
+    if (placements.length !== descriptor.packageCount) continue;
+    const coreInlineResidualMm = normalizeGeneratedGeometryMetric(
+      descriptor.coreCorridorLengthMm - descriptor.coreLengthMm,
+      "balancedCappedStrip.coreInlineResidualMm",
+    );
+    const coreCrossResidualMm = normalizeGeneratedGeometryMetric(
+      descriptor.stripHeightMm - descriptor.coreHeightMm,
+      "balancedCappedStrip.coreCrossResidualMm",
+    );
+    if (
+      !collector.add(placements, {
+        family: "nested-side",
+        variant: "balanced-capped-strip",
+        parameters: {
+          topology: "balanced-capped-strip-v1",
+          splitAxis: "y",
+          mainSide: "end",
+          mainRotation: descriptor.mainRotation,
+          capRotation: descriptor.capRotation,
+          mainColumns: descriptor.mainColumns,
+          mainRows: descriptor.mainRows,
+          capColumns: 1,
+          capRows: descriptor.capRows,
+          coreRotation: descriptor.mainRotation,
+          coreColumns: descriptor.coreColumns,
+          coreRows: descriptor.coreRows,
+          spacingPolicy: "continuous-space-between",
+          coreInlineResidualMm,
+          coreCrossResidualMm,
+          occupiedLengthMm: descriptor.occupiedLengthMm,
+          occupiedWidthMm: descriptor.occupiedWidthMm,
+        },
+      })
+    ) {
+      return;
     }
   }
 }

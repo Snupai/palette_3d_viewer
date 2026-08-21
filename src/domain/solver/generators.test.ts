@@ -660,6 +660,108 @@ describe("justified split-grid generator", () => {
     );
   });
 
+  it("bounds exact capped-strip placement materialization", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 20, width: 40 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 500,
+        maximumPackageCount: 500,
+        maxPlacements: 10_000,
+        maxBands: 64,
+        maxCandidatesPerGenerator: 500,
+      },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const cappedStrips = output.drafts.filter(({ provenance }) =>
+      provenance.some(({ variant }) => variant === "balanced-capped-strip"),
+    );
+
+    expect(cappedStrips).toHaveLength(20);
+    expect(
+      cappedStrips.reduce(
+        (sum, { placements }) => sum + placements.length,
+        0,
+      ),
+    ).toBe(10_000);
+    expect(output.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "balanced-capped-strip-materialization-limit-reached",
+        generator: "nested-side",
+        count: 10_000,
+      }),
+    );
+  });
+
+  it("hard-bounds exact capped-strip search work", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 128, maxY: 128 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 7_000,
+        maximumPackageCount: 7_000,
+        maxPlacements: 10_000,
+        maxBands: 64,
+        maxCandidatesPerGenerator: 1,
+      },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+
+    expect(output.cancelled).toBe(false);
+    expect(output.drafts).toEqual([]);
+    expect(output.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "balanced-capped-strip-search-limit-reached",
+        generator: "nested-side",
+        count: 100_000,
+      }),
+    );
+  });
+
+  it("rejects impossible exact capped-strip counts before searching", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 128, maxY: 128 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 10_000,
+        maximumPackageCount: 10_000,
+        maxPlacements: 10_000,
+        maxBands: 64,
+        maxCandidatesPerGenerator: 1,
+      },
+    });
+    let cancellationPolls = 0;
+    const output = generateCandidateFamily(input, "nested-side", {
+      shouldCancel: () => {
+        cancellationPolls += 1;
+        return false;
+      },
+    });
+
+    expect(output.drafts).toEqual([]);
+    expect(cancellationPolls).toBe(0);
+    expect(output.diagnostics).not.toContainEqual(
+      expect.objectContaining({
+        code: "balanced-capped-strip-search-limit-reached",
+      }),
+    );
+  });
+
   it("is deterministic, cooperatively cancellable, and reports only true truncation", () => {
     const input = normalized({
       package: {
