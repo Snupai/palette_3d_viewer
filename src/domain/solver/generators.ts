@@ -4366,6 +4366,253 @@ function generatePinwheels(
   return collector.output();
 }
 
+function generateBalancedCappedStrips(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  representatives: readonly [Rotation, Rotation],
+): void {
+  const envelope = input.generationBoundsMm;
+  const totalLength = rectangleBoundsLength(envelope);
+  const totalWidth = rectangleBoundsWidth(envelope);
+  const clearance = input.package.clearanceMm;
+  const requestedExactCount = exactRequestedPackageCount(input);
+  const orientationOrders: Array<readonly [Rotation, Rotation]> = [
+    representatives,
+    [representatives[1], representatives[0]],
+  ];
+
+  for (const [mainRotation, capRotation] of orientationOrders) {
+    const mainSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      mainRotation,
+    );
+    const capSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      capRotation,
+    );
+    const maximumMainColumns = Math.min(
+      maxCountAlong(totalLength, mainSize.length, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumMainRows = Math.min(
+      maxCountAlong(totalWidth, mainSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    if (maximumMainColumns === 0 || maximumMainRows === 0) continue;
+
+    const mainColumnCounts =
+      requestedExactCount === null
+        ? [maximumMainColumns]
+        : Array.from(
+            { length: maximumMainColumns },
+            (_, index) => maximumMainColumns - index,
+          );
+    for (const mainColumns of mainColumnCounts) {
+      const mainLength = usedSpan(mainColumns, mainSize.length, clearance);
+      const coreCorridorLength =
+        mainLength - 2 * capSize.length - 2 * clearance;
+      if (coreCorridorLength <= 0) continue;
+      const maximumCoreColumns = Math.min(
+        maxCountAlong(coreCorridorLength, mainSize.length, clearance),
+        input.constraints.maxBands,
+      );
+      if (maximumCoreColumns === 0) continue;
+
+      for (let mainRows = 1; mainRows <= maximumMainRows; mainRows += 1) {
+        if (!collector.checkCancellation()) return;
+        const mainHeight = usedSpan(mainRows, mainSize.width, clearance);
+        const availableStripHeight = totalWidth - mainHeight - clearance;
+        if (availableStripHeight <= 0) continue;
+
+        const maximumCapRows = Math.min(
+          maxCountAlong(availableStripHeight, capSize.width, clearance),
+          input.constraints.maxBands,
+        );
+        const maximumCoreRows = Math.min(
+          maxCountAlong(availableStripHeight, mainSize.width, clearance),
+          input.constraints.maxBands,
+        );
+        if (maximumCapRows < 2 || maximumCoreRows < 2) continue;
+
+        const capRowCounts =
+          requestedExactCount === null
+            ? [maximumCapRows]
+            : Array.from(
+                { length: maximumCapRows - 1 },
+                (_, index) => maximumCapRows - index,
+              );
+        for (const capRows of capRowCounts) {
+          if (!collector.checkCancellation()) return;
+          const coreShapes: Array<readonly [number, number]> =
+            requestedExactCount === null
+              ? [[maximumCoreColumns, maximumCoreRows]]
+              : exactFactorPairs(
+                  requestedExactCount -
+                    mainColumns * mainRows -
+                    2 * capRows,
+                )
+                  .filter(
+                    ([coreColumns, coreRows]) =>
+                      coreColumns <= maximumCoreColumns &&
+                      coreRows >= 2 &&
+                      coreRows <= maximumCoreRows,
+                  )
+                  .sort(
+                    (left, right) =>
+                      right[1] - left[1] || right[0] - left[0],
+                  );
+
+          for (const [coreColumns, coreRows] of coreShapes) {
+            if (!collector.checkCancellation()) return;
+            const packageCount =
+              mainColumns * mainRows + 2 * capRows + coreColumns * coreRows;
+            if (
+              packageCount < input.constraints.minimumPackageCount ||
+              packageCount > input.constraints.maximumPackageCount ||
+              packageCount > input.constraints.maxPlacements
+            ) {
+              continue;
+            }
+
+            const capLength = capSize.length;
+            const capHeight = usedSpan(capRows, capSize.width, clearance);
+            const coreLength = usedSpan(
+              coreColumns,
+              mainSize.length,
+              clearance,
+            );
+            const coreHeight = usedSpan(coreRows, mainSize.width, clearance);
+            const stripHeight = Math.max(capHeight, coreHeight);
+            const occupiedLengthMm = normalizeGeneratedGeometryMetric(
+              mainLength,
+              "balancedCappedStrip.occupiedLengthMm",
+            );
+            const occupiedWidthMm = normalizeGeneratedGeometryMetric(
+              stripHeight + clearance + mainHeight,
+              "balancedCappedStrip.occupiedWidthMm",
+            );
+            const compositeMinX = alignedStart(
+              envelope.minX,
+              totalLength,
+              occupiedLengthMm,
+              "center",
+            );
+            const compositeMinY = alignedStart(
+              envelope.minY,
+              totalWidth,
+              occupiedWidthMm,
+              "center",
+            );
+            const regionCenters = distributedSequenceCenters(
+              compositeMinX,
+              compositeMinX + occupiedLengthMm,
+              [capLength, coreLength, capLength],
+              clearance,
+              "balancedCappedStrip.regions",
+            );
+            if (regionCenters.length !== 3) continue;
+
+            const stripMinY = compositeMinY;
+            const stripMaxY = stripMinY + stripHeight;
+            const mainMinY = stripMaxY + clearance;
+            const blockBounds = (
+              centerX: number,
+              length: number,
+            ): RectangleBoundsMm => ({
+              minX: centerX - length / 2,
+              minY: stripMinY,
+              maxX: centerX + length / 2,
+              maxY: stripMaxY,
+            });
+            const plannedRegions = [
+              pinwheelRegionPlan(
+                input,
+                {
+                  minX: compositeMinX,
+                  minY: mainMinY,
+                  maxX: compositeMinX + occupiedLengthMm,
+                  maxY: mainMinY + mainHeight,
+                },
+                mainRotation,
+                mainColumns,
+                mainRows,
+                null,
+                "balancedCappedStrip.main",
+              ),
+              pinwheelRegionPlan(
+                input,
+                blockBounds(regionCenters[0]!, capLength),
+                capRotation,
+                1,
+                capRows,
+                "continuous-space-between",
+                "balancedCappedStrip.leftCap",
+              ),
+              pinwheelRegionPlan(
+                input,
+                blockBounds(regionCenters[1]!, coreLength),
+                mainRotation,
+                coreColumns,
+                coreRows,
+                "continuous-space-between",
+                "balancedCappedStrip.core",
+              ),
+              pinwheelRegionPlan(
+                input,
+                blockBounds(regionCenters[2]!, capLength),
+                capRotation,
+                1,
+                capRows,
+                "continuous-space-between",
+                "balancedCappedStrip.rightCap",
+              ),
+            ];
+            if (plannedRegions.some((region) => region === null)) continue;
+            const regions = plannedRegions as PinwheelRegionPlan[];
+            if (pinwheelRegionPlansOverlap(regions, clearance)) continue;
+
+            const coreInlineResidualMm = normalizeGeneratedGeometryMetric(
+              coreCorridorLength - coreLength,
+              "balancedCappedStrip.coreInlineResidualMm",
+            );
+            const coreCrossResidualMm = normalizeGeneratedGeometryMetric(
+              stripHeight - coreHeight,
+              "balancedCappedStrip.coreCrossResidualMm",
+            );
+            if (
+              !collector.add(materializePinwheelRegions(regions), {
+                family: "nested-side",
+                variant: "balanced-capped-strip",
+                parameters: {
+                  topology: "balanced-capped-strip-v1",
+                  splitAxis: "y",
+                  mainSide: "end",
+                  mainRotation,
+                  capRotation,
+                  mainColumns,
+                  mainRows,
+                  capColumns: 1,
+                  capRows,
+                  coreRotation: mainRotation,
+                  coreColumns,
+                  coreRows,
+                  spacingPolicy: "continuous-space-between",
+                  coreInlineResidualMm,
+                  coreCrossResidualMm,
+                  occupiedLengthMm,
+                  occupiedWidthMm,
+                },
+              })
+            ) {
+              return;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
 function generateNestedSides(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
@@ -4532,6 +4779,7 @@ function generateNestedSides(
       },
     });
   }
+  generateBalancedCappedStrips(input, collector, representatives);
   return collector.output();
 }
 

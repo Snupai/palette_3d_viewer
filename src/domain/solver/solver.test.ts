@@ -1748,12 +1748,28 @@ describe("deterministic solve orchestration", () => {
     const progressA: string[] = [];
     const progressB: string[] = [];
     const first = solveLayer(input, {
-      generatorOrder: ["row", "block", "edge-ring", "mixed-orientation"],
+      generatorOrder: [
+        "nested-side",
+        "row",
+        "block",
+        "justified-grid",
+        "pinwheel",
+        "edge-ring",
+        "mixed-orientation",
+      ],
       progressBatchSize: 1,
       onProgress: ({ phase }) => progressA.push(phase),
     });
     const second = solveLayer(input, {
-      generatorOrder: ["mixed-orientation", "edge-ring", "block", "row"],
+      generatorOrder: [
+        "mixed-orientation",
+        "edge-ring",
+        "pinwheel",
+        "justified-grid",
+        "block",
+        "row",
+        "nested-side",
+      ],
       progressBatchSize: 97,
       onProgress: ({ phase }) => progressB.push(phase),
     });
@@ -1868,7 +1884,7 @@ describe("deterministic solve orchestration", () => {
 });
 
 describe("observed AP5006 geometry", () => {
-  it("reaches 55 from the committed dimensions when the effective envelope supports it", () => {
+  it("generates the observed 55-package balanced capped strip", () => {
     const values = observedAp5006.input.values;
     const envelopeMm = createCenteredEffectivePalletEnvelope(
       {
@@ -1879,6 +1895,30 @@ describe("observed AP5006 geometry", () => {
         length: values.pallet.underhangLengthMm,
         width: values.pallet.underhangWidthMm,
       },
+    );
+    const expectedPlacements = [
+      ...[95.5, 1104.5].flatMap((x) =>
+        [58.5, 164.5, 270.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[229, 335, 441, 547, 653, 759, 865, 971].flatMap((x) =>
+        [84, 245].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap(
+        (x) =>
+          [402, 559, 716].map((y) => ({
+            positionMm: { x, y },
+            rotation: 90 as const,
+          })),
+      ),
+    ];
+    const expectedGeometryKey = canonicalPlacementGeometryKey(
+      expectedPlacements,
     );
     const result = solveLayer({
       package: {
@@ -1896,9 +1936,28 @@ describe("observed AP5006 geometry", () => {
     const maximumCandidates = result.candidates.filter(
       ({ metrics }) => metrics.packageCount === maximum,
     );
+    const observedCandidate = maximumCandidates.find(
+      ({ placements }) =>
+        canonicalPlacementGeometryKey(placements) === expectedGeometryKey,
+    );
 
     expect(maximum).toBe(55);
-    expect(maximumCandidates).toHaveLength(4);
+    expect(maximumCandidates).toHaveLength(5);
+    expect(observedCandidate).toBeDefined();
+    expect(observedCandidate?.metrics).toEqual(
+      expect.objectContaining({
+        packageCount: 55,
+        boundingBlockLengthMm: 1166,
+        boundingBlockWidthMm: 789,
+      }),
+    );
+    const observedProvenance = observedCandidate?.provenance.find(
+      ({ family, variant }) =>
+        family === "nested-side" && variant === "balanced-capped-strip",
+    );
+    expect(observedProvenance?.parameters?.topology).toBe(
+      "balanced-capped-strip-v1",
+    );
     expect(
       maximumCandidates.filter(
         ({ metrics }) =>

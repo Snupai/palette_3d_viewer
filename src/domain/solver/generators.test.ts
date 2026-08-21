@@ -43,8 +43,7 @@ function matchingDraft(
       ([key, value]) => parameters[key] === value,
     );
   });
-  if (!draft)
-    throw new Error(`Missing justified draft ${JSON.stringify(expected)}.`);
+  if (!draft) throw new Error(`Missing draft ${JSON.stringify(expected)}.`);
   return draft;
 }
 
@@ -450,6 +449,213 @@ describe("justified split-grid generator", () => {
       ),
     ).toEqual({ minX: 19.5, minY: 12.5, maxX: 1180.5, maxY: 787.5 });
     expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("generates the observed 55-package balanced capped strip", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 157, width: 106 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 17, minY: 5.5, maxX: 1183, maxY: 794.5 },
+      constraints: { maxCandidatesPerGenerator: 2_000 },
+    });
+    const expectedPlacements = [
+      ...[95.5, 1104.5].flatMap((x) =>
+        [58.5, 164.5, 270.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[229, 335, 441, 547, 653, 759, 865, 971].flatMap((x) =>
+        [84, 245].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap(
+        (x) =>
+          [402, 559, 716].map((y) => ({
+            positionMm: { x, y },
+            rotation: 90 as const,
+          })),
+      ),
+    ];
+
+    const first = generateCandidateFamily(input, "nested-side");
+    const second = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(first.drafts, {
+      topology: "balanced-capped-strip-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 11,
+      mainRows: 3,
+      capRows: 3,
+      coreColumns: 8,
+      coreRows: 2,
+    });
+
+    expect(second).toEqual(first);
+    expect(expectedPlacements).toHaveLength(55);
+    expect(candidate.placements).toHaveLength(55);
+    expect(canonicalPlacementGeometryKey(candidate.placements)).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      candidate.placements.filter(({ rotation }) => rotation === 0),
+    ).toHaveLength(6);
+    expect(
+      candidate.placements.filter(({ rotation }) => rotation === 90),
+    ).toHaveLength(49);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 17, minY: 5.5, maxX: 1183, maxY: 794.5 });
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        coreInlineResidualMm: 4,
+        coreCrossResidualMm: 4,
+        occupiedLengthMm: 1166,
+        occupiedWidthMm: 789,
+      }),
+    );
+    const centeredProvenance = candidate.provenance.find(
+      ({ variant }) => variant === "occupied-bounds-center-v1",
+    );
+    expect(centeredProvenance?.parameters).toEqual(
+      expect.objectContaining({ dxMm: 0, dyMm: 0 }),
+    );
+  });
+
+  it("derives balanced capped strips from other package dimensions", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 120, width: 85 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 595, maxY: 495 },
+      constraints: { maxCandidatesPerGenerator: 2_000 },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-strip-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 7,
+      mainRows: 2,
+      capRows: 3,
+      coreColumns: 4,
+      coreRows: 2,
+    });
+
+    expect(candidate.placements).toHaveLength(28);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 0, maxX: 595, maxY: 495 });
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        coreInlineResidualMm: 15,
+        coreCrossResidualMm: 15,
+        occupiedLengthMm: 595,
+        occupiedWidthMm: 495,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("derives non-maximal capped-strip regions for an exact count", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 110, width: 100 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1200, maxY: 800 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 70,
+        maximumPackageCount: 70,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-strip-v1",
+      mainRotation: 0,
+      capRotation: 90,
+      mainColumns: 10,
+      mainRows: 2,
+      capRows: 5,
+      coreColumns: 8,
+      coreRows: 5,
+    });
+
+    expect(candidate.placements).toHaveLength(70);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 50, minY: 25, maxX: 1150, maxY: 775 });
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        coreInlineResidualMm: 20,
+        coreCrossResidualMm: 50,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("includes the highest main-row count when maxBands is binding", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 60, width: 40 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 500, maxY: 600 },
+      constraints: {
+        allowedRotations: [0, 90],
+        maxBands: 6,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-strip-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 6,
+      mainRows: 6,
+      capRows: 6,
+      coreColumns: 3,
+      coreRows: 4,
+    });
+
+    expect(candidate.placements).toHaveLength(60);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 130, minY: 0, maxX: 370, maxY: 600 });
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
       true,
     );
   });
