@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import { CandidateBrowser } from "~/features/candidates/CandidateBrowser";
 
@@ -91,8 +91,33 @@ function Harness() {
 describe("CandidateBrowser", () => {
   it("navigates the filtered listbox with arrows, Home, End, and pointer selection", () => {
     render(<Harness />);
-    const listbox = screen.getByRole("listbox", { name: "Solver candidates" });
+    const listbox = screen.getByRole("listbox", {
+      name: "Selectable candidate layouts",
+    });
+    const options = screen.getAllByRole("option");
     listbox.focus();
+
+    expect(fireEvent.keyDown(listbox, { key: "ArrowRight" })).toBe(false);
+    expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
+    expect(listbox.getAttribute("aria-activedescendant")).toBe(options[1]!.id);
+    expect(
+      options.filter(
+        (option) => option.getAttribute("aria-selected") === "true",
+      ),
+    ).toEqual([options[1]]);
+
+    for (const modifier of ["altKey", "ctrlKey", "metaKey"] as const) {
+      expect(
+        fireEvent.keyDown(listbox, {
+          key: "ArrowLeft",
+          [modifier]: true,
+        }),
+      ).toBe(true);
+      expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
+    }
+
+    fireEvent.keyDown(listbox, { key: "ArrowLeft" });
+    expect(screen.getByTestId("selected").textContent).toBe("candidate-1");
 
     fireEvent.keyDown(listbox, { key: "ArrowDown" });
     expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
@@ -100,11 +125,47 @@ describe("CandidateBrowser", () => {
     fireEvent.keyDown(listbox, { key: "End" });
     expect(screen.getByTestId("selected").textContent).toBe("candidate-3");
 
+    fireEvent.keyDown(listbox, { key: "ArrowRight" });
+    expect(screen.getByTestId("selected").textContent).toBe("candidate-3");
+
     fireEvent.keyDown(listbox, { key: "Home" });
     expect(screen.getByTestId("selected").textContent).toBe("candidate-1");
 
-    fireEvent.click(screen.getAllByRole("option")[2]!);
+    fireEvent.keyDown(listbox, { key: "ArrowUp" });
+    expect(screen.getByTestId("selected").textContent).toBe("candidate-1");
+    expect(document.activeElement).toBe(listbox);
+
+    fireEvent.click(options[2]!);
     expect(screen.getByTestId("selected").textContent).toBe("candidate-3");
+    expect(document.activeElement).toBe(listbox);
+
+    fireEvent.keyDown(listbox, { key: "ArrowUp" });
+    expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
+    expect(listbox.getAttribute("aria-activedescendant")).toBe(options[1]!.id);
+    expect(
+      options.filter(
+        (option) => option.getAttribute("aria-selected") === "true",
+      ),
+    ).toEqual([options[1]]);
+  });
+
+  it("selects a pointer-clicked candidate exactly once", () => {
+    const onSelectionChange = vi.fn();
+    render(
+      <CandidateBrowser
+        candidates={candidates}
+        solverInput={solverInput}
+        selectedCandidateId="candidate-1"
+        onSelectionChange={onSelectionChange}
+      />,
+    );
+    const option = screen.getAllByRole("option")[1]!;
+
+    fireEvent.pointerDown(option);
+    fireEvent.click(option);
+
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange).toHaveBeenCalledWith("candidate-2");
   });
 
   it("applies exact and Maximum filters, reports x of y, and resets without losing candidates", () => {
@@ -113,16 +174,16 @@ describe("CandidateBrowser", () => {
     fireEvent.change(screen.getByLabelText("Exact package count"), {
       target: { value: "5" },
     });
-    expect(screen.getByText("2 of 3")).toBeTruthy();
+    expect(screen.getByText(/2 of 3 layouts/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Maximum (6)" }));
-    expect(screen.getByText("1 of 3")).toBeTruthy();
+    expect(screen.getByText(/1 of 3 layouts/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
 
     fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
-    expect(screen.getByText("3 of 3")).toBeTruthy();
+    expect(screen.getByText(/3 of 3 layouts/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 });

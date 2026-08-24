@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
 import {
@@ -19,12 +19,71 @@ export function PlanningCandidateIndex({
   onSelect: (candidateId: string) => void;
   maximumRows?: number;
 }) {
-  const rows = candidates.slice(0, maximumRows);
+  const rowLimit = Math.max(0, maximumRows);
+  const topRows = candidates.slice(0, rowLimit);
+  const selectedCandidate = candidates.find(
+    ({ id }) => id === selectedCandidateId,
+  );
+  const selectedOutsideTopRows = Boolean(
+    selectedCandidate &&
+      rowLimit > 0 &&
+      !topRows.some(({ id }) => id === selectedCandidate.id),
+  );
+  const rows = selectedOutsideTopRows
+    ? [...topRows.slice(0, rowLimit - 1), selectedCandidate!]
+    : topRows;
+  const rowRefs = useRef(new Map<string, HTMLTableRowElement>());
+  const selectedRowIndex = rows.findIndex(
+    ({ id }) => id === selectedCandidateId,
+  );
+  const tabStopIndex = selectedRowIndex >= 0 ? selectedRowIndex : 0;
+  const positionByCandidateId = new Map(
+    candidates.map(({ id }, index) => [id, index + 1]),
+  );
+
+  const selectAt = (index: number) => {
+    const candidate = rows[index];
+    if (!candidate) return;
+    onSelect(candidate.id);
+    const row = rowRefs.current.get(candidate.id);
+    row?.focus();
+    row?.scrollIntoView?.({ block: "nearest" });
+  };
+
+  const onCandidateKeyDown = (
+    event: KeyboardEvent<HTMLTableRowElement>,
+    index: number,
+  ) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+
+    let nextIndex: number;
+    switch (event.key) {
+      case "ArrowDown":
+      case "ArrowRight":
+        nextIndex = Math.min(rows.length - 1, index + 1);
+        break;
+      case "ArrowUp":
+      case "ArrowLeft":
+        nextIndex = Math.max(0, index - 1);
+        break;
+      case "Enter":
+      case " ":
+        event.preventDefault();
+        selectAt(index);
+        return;
+      default:
+        return;
+    }
+
+    event.preventDefault();
+    selectAt(nextIndex);
+  };
+
   return (
     <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)]">
       <header className="flex items-center justify-between border-b border-[var(--line)] px-2.5 py-2">
         <h3 className="text-[13px] font-semibold text-[var(--ink)]">
-          Candidate index
+          Candidate layouts
         </h3>
         <span className="font-mono text-[11px] text-[var(--muted)]">
           {rows.length}/{candidates.length}
@@ -32,7 +91,7 @@ export function PlanningCandidateIndex({
       </header>
       <div
         role="listbox"
-        aria-label="Generated pattern candidates"
+        aria-label="Generated pattern layouts"
         className="scrollbar-thin min-h-0 overflow-auto"
       >
         <table className="w-full border-collapse text-[11px]">
@@ -45,21 +104,22 @@ export function PlanningCandidateIndex({
             </tr>
           </thead>
           <tbody>
-            {rows.map((candidate) => {
+            {rows.map((candidate, index) => {
               const selected = candidate.id === selectedCandidateId;
               return (
                 <tr
                   key={candidate.id}
+                  ref={(node) => {
+                    if (node) rowRefs.current.set(candidate.id, node);
+                    else rowRefs.current.delete(candidate.id);
+                  }}
                   role="option"
                   aria-selected={selected}
-                  tabIndex={0}
-                  onClick={() => onSelect(candidate.id)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
-                      onSelect(candidate.id);
-                    }
-                  }}
+                  aria-posinset={positionByCandidateId.get(candidate.id)}
+                  aria-setsize={candidates.length}
+                  tabIndex={index === tabStopIndex ? 0 : -1}
+                  onClick={() => selectAt(index)}
+                  onKeyDown={(event) => onCandidateKeyDown(event, index)}
                   className={`cursor-pointer border-b border-[var(--line)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
                     selected
                       ? "border-l-2 border-l-[var(--brand)] bg-[var(--plan-fill)] text-[var(--ink)]"
@@ -84,12 +144,14 @@ export function PlanningCandidateIndex({
         </table>
         {rows.length === 0 ? (
           <p className="p-3 text-xs leading-5 text-[var(--muted)]">
-            Generate patterns to populate the candidate index.
+            Generate patterns to populate the candidate layouts.
           </p>
         ) : null}
-        {candidates.length > maximumRows ? (
+        {candidates.length > rowLimit ? (
           <p className="border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
-            Showing the first {maximumRows} ranked candidates.
+            {selectedOutsideTopRows
+              ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
+              : `Showing the first ${rowLimit} ranked candidates.`}
           </p>
         ) : null}
       </div>

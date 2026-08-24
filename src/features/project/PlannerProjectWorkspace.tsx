@@ -11,6 +11,7 @@ import type {
 } from "~/domain/solver";
 import { createLayerSolverInputFromProject } from "~/domain/solver/projectInput";
 import { CandidateBrowser } from "~/features/candidates/CandidateBrowser";
+import { selectDistinctCandidateLayouts } from "~/features/candidates/candidateListModel";
 import type {
   GeneratorLaunchRequest,
   GeneratorPackageInputs,
@@ -746,10 +747,19 @@ export function PlannerProjectWorkspace({
   const changeCandidate = useCallback((candidateId: string | null) => {
     setSelectedCandidateId(candidateId);
   }, []);
+  const candidateLayouts = useMemo(
+    () =>
+      solverResult && solverInput
+        ? selectDistinctCandidateLayouts(
+            solverResult.candidates,
+            solverInput.package.dimensionsMm,
+          )
+        : [],
+    [solverInput, solverResult],
+  );
 
   const selectedCandidate: SolverCandidate | null =
-    solverResult?.candidates.find(({ id }) => id === selectedCandidateId) ??
-    null;
+    candidateLayouts.find(({ id }) => id === selectedCandidateId) ?? null;
   const workspaceProject = editorDraftProject ?? selectedProject;
   const physicalPalletBoundsMm = useMemo(
     () =>
@@ -1028,6 +1038,7 @@ export function PlannerProjectWorkspace({
         onImportRob={(file) => void importRobAsProject(file)}
         solverResult={solverResult}
         solverInput={solverInput}
+        candidates={candidateLayouts}
         selectedCandidate={selectedCandidate}
         selectedCandidateId={selectedCandidateId}
         generatorLaunchRequest={generatorLaunchRequest}
@@ -1098,11 +1109,12 @@ export function PlannerProjectWorkspace({
       >
         {activeTool === "candidate-browser" && solverResult && solverInput ? (
           <CandidateBrowser
-            candidates={solverResult.candidates}
+            candidates={candidateLayouts}
             solverInput={solverInput}
             physicalPalletBoundsMm={physicalPalletBoundsMm}
             selectedCandidateId={selectedCandidateId}
             onSelectionChange={changeCandidate}
+            generatedCandidateCount={solverResult.statistics.candidateCount}
             diagnostics={solverResult.diagnostics}
             exclusions={solverResult.exclusions}
           />

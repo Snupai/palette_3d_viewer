@@ -4,10 +4,11 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
-import type { SolverResult } from "~/domain/solver";
+import type { SolverCandidate, SolverResult } from "~/domain/solver";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
@@ -29,6 +30,17 @@ vi.mock("~/workers/solverClient", () => ({
 }));
 vi.mock("~/components/RobViewer", () => ({
   RobViewer: () => <div data-testid="rob-viewer" />,
+}));
+vi.mock("~/features/stack/StackWorkspace", () => ({
+  StackWorkspace: ({
+    candidates,
+  }: {
+    candidates: readonly SolverCandidate[];
+  }) => (
+    <output data-testid="stack-candidate-ids">
+      {candidates.map(({ id }) => id).join("|")}
+    </output>
+  ),
 }));
 
 const solverResult: SolverResult = {
@@ -137,6 +149,40 @@ const solverResult: SolverResult = {
   },
 };
 
+function candidateVariant(
+  rank: number,
+  id: string,
+  rotationOffset: 0 | 180,
+  shiftX = 0,
+): SolverCandidate {
+  const source = solverResult.candidates[0]!;
+  return {
+    ...source,
+    rank,
+    id,
+    geometryId: `geometry-${id}`,
+    identityFingerprint: `identity-${id}`,
+    geometryFingerprint: `geometry-fingerprint-${id}`,
+    placements: source.placements.map((placement) => ({
+      ...placement,
+      positionMm: {
+        x: placement.positionMm.x + shiftX,
+        y: placement.positionMm.y,
+      },
+      rotation: ((placement.rotation + rotationOffset) % 360) as
+        | 0
+        | 90
+        | 180
+        | 270,
+    })),
+    grips: source.grips.map((grip) => ({
+      ...grip,
+      x: grip.x + shiftX,
+      rotation: ((grip.rotation + rotationOffset) % 360) as 0 | 90 | 180 | 270,
+    })),
+  };
+}
+
 function emptyRepository() {
   return new ProjectRepository(new MemoryPlannerRecordStorage(), {
     now: () => 10,
@@ -188,6 +234,18 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
+function fillNewProjectPackageDimensions() {
+  fireEvent.change(screen.getByLabelText("Length (mm)"), {
+    target: { value: "400" },
+  });
+  fireEvent.change(screen.getByLabelText("Width (mm)"), {
+    target: { value: "300" },
+  });
+  fireEvent.change(screen.getByLabelText("Height (mm)"), {
+    target: { value: "200" },
+  });
+}
+
 describe("PlannerProjectWorkspace generator integration", () => {
   it("creates a project, opens Generate, solves once, and selects the first suggestion", async () => {
     const repository = emptyRepository();
@@ -203,6 +261,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Project number"), {
       target: { value: "AUTO-GENERATE" },
     });
+    fillNewProjectPackageDimensions();
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },
     });
@@ -246,6 +305,83 @@ describe("PlannerProjectWorkspace generator integration", () => {
     });
   });
 
+  it("deduplicates visible candidate lists while preserving raw stack variants", async () => {
+    const repository = emptyRepository();
+    const duplicate = candidateVariant(2, "candidate-duplicate", 180);
+    const distinct = candidateVariant(3, "candidate-distinct", 0, 300);
+    const resultWithVisualDuplicate: SolverResult = {
+      ...solverResult,
+      candidates: [solverResult.candidates[0]!, duplicate, distinct],
+      diagnostics: [
+        {
+          severity: "info",
+          phase: "deduplication",
+          code: "test-diagnostic",
+          message: "Candidate grouping integration fixture.",
+        },
+      ],
+      statistics: {
+        ...solverResult.statistics,
+        generatedDraftCount: 3,
+        validDraftCount: 3,
+        candidateCount: 3,
+      },
+    };
+    clientMocks.run.mockReturnValueOnce({
+      runId: "workspace-visual-dedup-run",
+      cancel: clientMocks.cancel,
+      result: Promise.resolve(resultWithVisualDuplicate),
+    });
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    const createButtons = await screen.findAllByRole(
+      "button",
+      { name: "Create project" },
+      { timeout: 5_000 },
+    );
+    fireEvent.click(createButtons[0]!);
+    fireEvent.change(screen.getByLabelText("Project number"), {
+      target: { value: "VISUAL-DEDUPE" },
+    });
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
+      timeout: 5_000,
+    });
+    const compactOptions = await screen.findAllByRole("option", undefined, {
+      timeout: 5_000,
+    });
+    expect(
+      compactOptions.map((option) => option.querySelector("td")?.textContent),
+    ).toEqual(["#1", "#3"]);
+    expect(
+      await screen.findByText(/3 candidates \(2 distinct layouts\)/),
+    ).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open full diagnostics (1)" }),
+    );
+    const candidateDialog = await screen.findByRole("dialog", {
+      name: "Candidate browser",
+    });
+    expect(within(candidateDialog).getAllByRole("option")).toHaveLength(2);
+    fireEvent.click(
+      within(candidateDialog).getByRole("button", { name: "Close" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open stack composer" }),
+    );
+    expect((await screen.findByTestId("stack-candidate-ids")).textContent).toBe(
+      "candidate-exact-4|candidate-duplicate|candidate-distinct",
+    );
+  });
+
   it("creates without solving when Create only is chosen", async () => {
     const repository = emptyRepository();
 
@@ -259,6 +395,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Project number"), {
       target: { value: "MANUAL-ONLY" },
     });
+    fillNewProjectPackageDimensions();
     fireEvent.click(screen.getByRole("button", { name: "Create only" }));
 
     expect(

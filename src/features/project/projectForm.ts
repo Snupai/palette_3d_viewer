@@ -48,9 +48,9 @@ export function projectToFormValues(
   return {
     projectNumber: project?.projectNumber ?? "",
     productNumber: project?.productNumber ?? "",
-    packageLengthMm: String(project?.package.dimensionsMm.length ?? 400),
-    packageWidthMm: String(project?.package.dimensionsMm.width ?? 300),
-    packageHeightMm: String(project?.package.dimensionsMm.height ?? 200),
+    packageLengthMm: project ? String(project.package.dimensionsMm.length) : "",
+    packageWidthMm: project ? String(project.package.dimensionsMm.width) : "",
+    packageHeightMm: project ? String(project.package.dimensionsMm.height) : "",
     packageWeightKg: text(project?.package.weightKg ?? null),
     packageClearanceMm: String(project?.package.clearanceMm ?? 0),
     inletOrientation: project?.package.inletOrientation ?? "lengthwise",

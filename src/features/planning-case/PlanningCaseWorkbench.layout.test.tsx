@@ -33,6 +33,7 @@ describe("PlanningCaseWorkbench layout", () => {
         onImportRob={vi.fn()}
         solverResult={null}
         solverInput={null}
+        candidates={[]}
         selectedCandidate={null}
         selectedCandidateId={null}
         onApplyGeneratorPackageInputs={async () => {

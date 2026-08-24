@@ -23,6 +23,7 @@ export type CandidateBrowserProps = {
   physicalPalletBoundsMm?: RectangleBoundsMm;
   selectedCandidateId: string | null;
   onSelectionChange: (candidateId: string | null) => void;
+  generatedCandidateCount?: number;
   diagnostics?: readonly SolverDiagnostic[];
   exclusions?: readonly SolverExclusion[];
 };
@@ -43,11 +44,13 @@ export function CandidateBrowser({
   physicalPalletBoundsMm,
   selectedCandidateId,
   onSelectionChange,
+  generatedCandidateCount = candidates.length,
   diagnostics = [],
   exclusions = [],
 }: CandidateBrowserProps) {
   const [exactCount, setExactCount] = useState("");
   const [maximumOnly, setMaximumOnly] = useState(false);
+  const listboxRef = useRef<HTMLDivElement>(null);
   const rowRefs = useRef(new Map<string, HTMLElement>());
 
   const maximumCount = useMemo(
@@ -105,6 +108,7 @@ export function CandidateBrowser({
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
     if (filteredCandidates.length === 0) return;
     const currentIndex = filteredCandidates.findIndex(
       ({ id }) => id === selectedCandidateId,
@@ -112,12 +116,14 @@ export function CandidateBrowser({
     let nextIndex: number | null = null;
     switch (event.key) {
       case "ArrowDown":
+      case "ArrowRight":
         nextIndex = Math.min(
           filteredCandidates.length - 1,
           Math.max(0, currentIndex + 1),
         );
         break;
       case "ArrowUp":
+      case "ArrowLeft":
         nextIndex = Math.max(
           0,
           currentIndex < 0 ? filteredCandidates.length - 1 : currentIndex - 1,
@@ -140,9 +146,12 @@ export function CandidateBrowser({
     <section className="grid min-h-0 grid-rows-[auto_minmax(240px,1fr)_auto] border border-zinc-800 bg-zinc-900">
       <header className="flex flex-wrap items-end gap-2 border-b border-zinc-800 p-3">
         <div className="mr-auto">
-          <h2 className="text-sm font-semibold text-zinc-100">Candidates</h2>
+          <h2 className="text-sm font-semibold text-zinc-100">
+            Selectable layouts
+          </h2>
           <p className="text-xs text-zinc-500" aria-live="polite">
-            {filteredCandidates.length} of {candidates.length}
+            {filteredCandidates.length} of {candidates.length} layouts ·{" "}
+            {generatedCandidateCount} generated candidates
           </p>
         </div>
         <label className="grid gap-1 text-[11px] text-zinc-500">
@@ -180,14 +189,15 @@ export function CandidateBrowser({
       </header>
 
       <div
+        ref={listboxRef}
         role="listbox"
-        aria-label="Solver candidates"
+        aria-label="Selectable candidate layouts"
         aria-activedescendant={
           selectedCandidateId ? optionId(selectedCandidateId) : undefined
         }
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="scrollbar-thin min-h-0 overflow-auto outline-none focus:ring-2 focus:ring-amber-400/50 focus:ring-inset"
+        className="scrollbar-thin min-h-0 overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 focus-visible:ring-inset"
       >
         <table
           role="presentation"
@@ -217,8 +227,11 @@ export function CandidateBrowser({
                   }}
                   role="option"
                   aria-selected={selected}
-                  onPointerDown={() => onSelectionChange(candidate.id)}
-                  onClick={() => onSelectionChange(candidate.id)}
+                  onPointerDown={() => listboxRef.current?.focus()}
+                  onClick={() => {
+                    listboxRef.current?.focus();
+                    onSelectionChange(candidate.id);
+                  }}
                   className={`cursor-default border-b border-zinc-800/80 text-zinc-300 ${
                     selected
                       ? "bg-amber-400/15 text-zinc-100"

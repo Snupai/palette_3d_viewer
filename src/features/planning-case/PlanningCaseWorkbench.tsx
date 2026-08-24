@@ -82,6 +82,7 @@ export type PlanningCaseWorkbenchProps = {
   onImportRob: (file: File) => void;
   solverResult: SolverResult | null;
   solverInput: LayerSolverInput | null;
+  candidates: readonly SolverCandidate[];
   selectedCandidate: SolverCandidate | null;
   selectedCandidateId: string | null;
   generatorLaunchRequest?: GeneratorLaunchRequest | null;
@@ -119,6 +120,7 @@ export function PlanningCaseWorkbench({
   onImportRob,
   solverResult,
   solverInput,
+  candidates,
   selectedCandidate,
   selectedCandidateId,
   generatorLaunchRequest,
@@ -147,7 +149,8 @@ export function PlanningCaseWorkbench({
   const previousStage = stages[stageIndex - 1]?.[0] ?? null;
   const packageDimensions = project?.package.dimensionsMm;
   const palletDimensions = project?.pallet?.dimensionsMm;
-  const candidateCount = solverResult?.candidates.length ?? 0;
+  const generatedCandidateCount = solverResult?.statistics.candidateCount ?? 0;
+  const candidateLayoutCount = candidates.length;
   const sourceName =
     project?.source.kind === "rob-import" ? project.source.fileName : null;
 
@@ -260,7 +263,7 @@ export function PlanningCaseWorkbench({
             onReset={onResetSolver}
           />
           <PlanningCandidateIndex
-            candidates={solverResult?.candidates ?? []}
+            candidates={candidates}
             selectedCandidateId={selectedCandidateId}
             onSelect={onCandidateChange}
           />
@@ -305,12 +308,19 @@ export function PlanningCaseWorkbench({
                 label="Visible packages"
                 value={currentPalletData?.total_boxes ?? 0}
               />
-              <MetricRow label="Generated candidates" value={candidateCount} />
+              <MetricRow
+                label="Generated candidates"
+                value={generatedCandidateCount}
+              />
+              <MetricRow
+                label="Selectable layouts"
+                value={candidateLayoutCount}
+              />
             </dl>
           </section>
           <button
             type="button"
-            disabled={!project || !solverInput || candidateCount === 0}
+            disabled={!project || !solverInput || candidateLayoutCount === 0}
             onClick={() => onOpenTool("stack")}
             className="ui-btn-primary"
           >

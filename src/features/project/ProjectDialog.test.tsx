@@ -16,6 +16,37 @@ import {
 afterEach(cleanup);
 
 describe("ProjectDialog", () => {
+  it("starts create mode with empty package dimensions and does not save implicit defaults", async () => {
+    const onSave = vi.fn();
+    render(
+      <ProjectDialog
+        open
+        project={null}
+        onClose={() => undefined}
+        onSave={onSave}
+      />,
+    );
+
+    expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
+      "",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Width (mm)").value).toBe(
+      "",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Height (mm)").value).toBe(
+      "",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
+
+    expect(
+      await screen.findByText(
+        "Correct the marked project fields before saving.",
+      ),
+    ).toBeTruthy();
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
   it("shows field-level Zod errors and blocks invalid saves", async () => {
     const onSave = vi.fn();
     render(
@@ -32,6 +63,12 @@ describe("ProjectDialog", () => {
     });
     fireEvent.change(screen.getByLabelText("Length (mm)"), {
       target: { value: "0" },
+    });
+    fireEvent.change(screen.getByLabelText("Width (mm)"), {
+      target: { value: "300" },
+    });
+    fireEvent.change(screen.getByLabelText("Height (mm)"), {
+      target: { value: "200" },
     });
     fireEvent.change(screen.getByLabelText("Pallet name"), {
       target: { value: "" },
@@ -120,6 +157,12 @@ describe("ProjectDialog", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
       "157",
     );
+    expect(screen.getByLabelText<HTMLInputElement>("Width (mm)").value).toBe(
+      "106",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Height (mm)").value).toBe(
+      "150",
+    );
     expect(
       screen.getByLabelText<HTMLInputElement>("Allow multipick").checked,
     ).toBe(true);
@@ -128,7 +171,12 @@ describe("ProjectDialog", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save project" }));
     await waitFor(() => expect(onEditSave).toHaveBeenCalledTimes(1));
     expect(onEditSave.mock.calls[0]?.[0]).toMatchObject({
-      project: { id: reopened.project?.id },
+      project: {
+        id: reopened.project?.id,
+        package: {
+          dimensionsMm: { length: 157, width: 106, height: 150 },
+        },
+      },
       generationIntent: null,
     });
   });
@@ -161,6 +209,15 @@ describe("ProjectDialog", () => {
     ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
 
+    fireEvent.change(screen.getByLabelText("Length (mm)"), {
+      target: { value: "157" },
+    });
+    fireEvent.change(screen.getByLabelText("Width (mm)"), {
+      target: { value: "106" },
+    });
+    fireEvent.change(screen.getByLabelText("Height (mm)"), {
+      target: { value: "150" },
+    });
     fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
       target: { value: "4" },
     });
@@ -168,6 +225,11 @@ describe("ProjectDialog", () => {
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+      project: {
+        package: {
+          dimensionsMm: { length: 157, width: 106, height: 150 },
+        },
+      },
       generationIntent: { exactPackageCount: 4 },
     });
     expect(onClose).toHaveBeenCalledTimes(1);

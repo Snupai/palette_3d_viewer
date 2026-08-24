@@ -18,6 +18,7 @@ import {
   PackageLabelFacePicker,
   type PackageInletOrientation,
 } from "~/features/candidates/PackageLabelFacePicker";
+import { selectDistinctCandidateLayouts } from "~/features/candidates/candidateListModel";
 import {
   createLayerSolverClient,
   SolverRunCancelledError,
@@ -452,6 +453,16 @@ export function SolverControls({
   const prepared = useMemo(
     () => prepareSolverInput(project, draft, allowMixedPackageOrientations),
     [allowMixedPackageOrientations, draft, project],
+  );
+  const distinctCandidateLayoutCount = useMemo(
+    () =>
+      resultSummary && prepared.input
+        ? selectDistinctCandidateLayouts(
+            resultSummary.candidates,
+            prepared.input.package.dimensionsMm,
+          ).length
+        : 0,
+    [prepared.input, resultSummary],
   );
   const preflightIssues = prepared.error
     ? [prepared.error]
@@ -935,7 +946,8 @@ export function SolverControls({
             className="border border-[var(--line)] bg-[var(--canvas)] px-3 py-2 text-[var(--ink)]"
           >
             {resultSummary.status === "completed" ? "Completed" : "Cancelled"}:{" "}
-            {resultSummary.statistics.candidateCount} candidates from{" "}
+            {resultSummary.statistics.candidateCount} candidates (
+            {distinctCandidateLayoutCount} distinct layouts) from{" "}
             {resultSummary.statistics.generatedDraftCount} drafts;{" "}
             {resultSummary.statistics.invalidDraftCount} invalid and{" "}
             {resultSummary.statistics.geometricDuplicateCount} equivalent layout
