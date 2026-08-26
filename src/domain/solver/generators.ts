@@ -2751,7 +2751,8 @@ function pinwheelPlacements(
 type PinwheelChirality = "cross-bottom-left" | "lengthwise-bottom-left";
 
 type PinwheelSidePattern =
-  "cross-bottom-lengthwise-top" | "lengthwise-bottom-crosswise-top";
+  | "cross-bottom-lengthwise-top"
+  | "lengthwise-bottom-crosswise-top";
 
 type PinwheelResidualRegion = "bottom" | "top";
 
@@ -3192,11 +3193,11 @@ function fiveBlockCornerChainDescriptors(
       }
 
       for (const topRight of blocks) {
-        attempts += 1;
-        if (attempts > maximumAttempts) {
+        if (attempts >= maximumAttempts) {
           truncated = true;
           break search;
         }
+        attempts += 1;
         const occupiedLengthMm =
           topLeft.occupiedLengthMm + clearance + topRight.occupiedLengthMm;
         if (occupiedLengthMm > availableLength + SOLVER_GEOMETRY_EPSILON_MM) {
@@ -3655,6 +3656,122 @@ function materializeFiveBlockOffsetBridge(
   return materializePinwheelRegions(regions);
 }
 
+const SINGLE_ORIENTATION_VOID_MAX_LATTICE_CELLS = 100_000;
+
+function singleOrientationDenseGridHasEnclosedVoid(
+  input: NormalizedLayerSolverInput,
+  placements: readonly GeneratedPlacement[],
+  checkCancellation: () => boolean,
+): boolean {
+  if (
+    placements.length === 0 ||
+    placementsUseMixedPackageOrientations(placements)
+  ) {
+    return false;
+  }
+  const footprint = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    placements[0]!.rotation,
+  );
+  const stepX = footprint.length + input.package.clearanceMm;
+  const stepY = footprint.width + input.package.clearanceMm;
+  let minimumX = Number.POSITIVE_INFINITY;
+  let minimumY = Number.POSITIVE_INFINITY;
+  let scannedPlacements = 0;
+  for (const { positionMm } of placements) {
+    if (scannedPlacements % 1_024 === 0 && !checkCancellation()) return true;
+    minimumX = Math.min(minimumX, positionMm.x);
+    minimumY = Math.min(minimumY, positionMm.y);
+    scannedPlacements += 1;
+  }
+
+  const indexedPlacements: Array<readonly [number, number]> = [];
+  let maximumColumn = 0;
+  let maximumRow = 0;
+  scannedPlacements = 0;
+  for (const { positionMm } of placements) {
+    if (scannedPlacements % 1_024 === 0 && !checkCancellation()) return true;
+    const column = Math.round((positionMm.x - minimumX) / stepX);
+    const row = Math.round((positionMm.y - minimumY) / stepY);
+    if (
+      Math.abs(positionMm.x - (minimumX + column * stepX)) >
+        SOLVER_GEOMETRY_EPSILON_MM ||
+      Math.abs(positionMm.y - (minimumY + row * stepY)) >
+        SOLVER_GEOMETRY_EPSILON_MM
+    ) {
+      return false;
+    }
+    indexedPlacements.push([column, row]);
+    maximumColumn = Math.max(maximumColumn, column);
+    maximumRow = Math.max(maximumRow, row);
+    scannedPlacements += 1;
+  }
+
+  const columnCount = maximumColumn + 1;
+  const rowCount = maximumRow + 1;
+  const latticeCellCount = columnCount * rowCount;
+  if (latticeCellCount > SINGLE_ORIENTATION_VOID_MAX_LATTICE_CELLS) {
+    return true;
+  }
+  const key = (column: number, row: number) => row * columnCount + column;
+  const occupiedCells = new Set<number>(
+    indexedPlacements.map(([column, row]) => key(column, row)),
+  );
+  const missingCells = new Set<number>();
+  const queue: number[] = [];
+  let scannedLatticeCells = 0;
+  for (let row = 0; row < rowCount; row += 1) {
+    for (let column = 0; column < columnCount; column += 1) {
+      if (scannedLatticeCells % 1_024 === 0 && !checkCancellation())
+        return true;
+      scannedLatticeCells += 1;
+      const cellKey = key(column, row);
+      if (occupiedCells.has(cellKey)) continue;
+      missingCells.add(cellKey);
+      if (
+        column === 0 ||
+        column === maximumColumn ||
+        row === 0 ||
+        row === maximumRow
+      ) {
+        queue.push(cellKey);
+      }
+    }
+  }
+  if (missingCells.size === 0) return false;
+
+  const exteriorConnected = new Set<number>();
+  for (const cellKey of queue) {
+    if (exteriorConnected.has(cellKey)) continue;
+    exteriorConnected.add(cellKey);
+    const column = cellKey % columnCount;
+    const row = Math.floor(cellKey / columnCount);
+    for (const [nextColumn, nextRow] of [
+      [column - 1, row],
+      [column + 1, row],
+      [column, row - 1],
+      [column, row + 1],
+    ] as const) {
+      if (
+        nextColumn < 0 ||
+        nextColumn > maximumColumn ||
+        nextRow < 0 ||
+        nextRow > maximumRow
+      ) {
+        continue;
+      }
+      const nextKey = key(nextColumn, nextRow);
+      if (missingCells.has(nextKey) && !exteriorConnected.has(nextKey)) {
+        queue.push(nextKey);
+      }
+    }
+  }
+  for (const cellKey of missingCells) {
+    if (!exteriorConnected.has(cellKey)) return true;
+  }
+  return false;
+}
+
 function generateExactFiveBlockMosaics(
   input: NormalizedLayerSolverInput,
   collector: DraftCollector,
@@ -3678,6 +3795,12 @@ function generateExactFiveBlockMosaics(
     if (!collector.checkCancellation()) return;
     const placements = materializeFiveBlockCornerChain(input, descriptor);
     if (placements.length !== exactPackageCount) continue;
+    if (
+      singleOrientationDenseGridHasEnclosedVoid(input, placements, () =>
+        collector.checkCancellation(),
+      )
+    )
+      continue;
     if (
       !collector.add(placements, {
         family: "pinwheel",
@@ -3718,6 +3841,12 @@ function generateExactFiveBlockMosaics(
     if (!collector.checkCancellation()) return;
     const placements = materializeFiveBlockOffsetBridge(input, descriptor);
     if (placements.length !== exactPackageCount) continue;
+    if (
+      singleOrientationDenseGridHasEnclosedVoid(input, placements, () =>
+        collector.checkCancellation(),
+      )
+    )
+      continue;
     if (
       !collector.add(placements, {
         family: "pinwheel",
@@ -4374,6 +4503,7 @@ type BalancedCappedStripDescriptor = {
   capRotation: Rotation;
   mainColumns: number;
   mainRows: number;
+  capColumns: number;
   capRows: number;
   coreColumns: number;
   coreRows: number;
@@ -4396,6 +4526,7 @@ function compareBalancedCappedStripDescriptors(
 ): number {
   return (
     right.packageCount - left.packageCount ||
+    left.capColumns - right.capColumns ||
     left.occupiedLengthMm * left.occupiedWidthMm -
       right.occupiedLengthMm * right.occupiedWidthMm ||
     2 * (left.occupiedLengthMm + left.occupiedWidthMm) -
@@ -4425,11 +4556,7 @@ function balancedCappedStripDescriptorIsFeasible(
   const regionCenters = distributedSequenceCenters(
     0,
     descriptor.occupiedLengthMm,
-    [
-      descriptor.capLengthMm,
-      descriptor.coreLengthMm,
-      descriptor.capLengthMm,
-    ],
+    [descriptor.capLengthMm, descriptor.coreLengthMm, descriptor.capLengthMm],
     clearance,
     "balancedCappedStrip.feasibility.regions",
   );
@@ -4459,12 +4586,7 @@ function balancedCappedStripDescriptorIsFeasible(
       clearance,
       true,
     ) &&
-    lineCentersRespectGapPolicy(
-      coreRowCenters,
-      mainSize.width,
-      clearance,
-      true,
-    )
+    lineCentersRespectGapPolicy(coreRowCenters, mainSize.width, clearance, true)
   );
 }
 
@@ -4489,11 +4611,7 @@ function materializeBalancedCappedStrip(
   const regionCenters = distributedSequenceCenters(
     compositeMinX,
     compositeMinX + descriptor.occupiedLengthMm,
-    [
-      descriptor.capLengthMm,
-      descriptor.coreLengthMm,
-      descriptor.capLengthMm,
-    ],
+    [descriptor.capLengthMm, descriptor.coreLengthMm, descriptor.capLengthMm],
     clearance,
     "balancedCappedStrip.regions",
   );
@@ -4502,10 +4620,7 @@ function materializeBalancedCappedStrip(
   const stripMinY = compositeMinY;
   const stripMaxY = stripMinY + descriptor.stripHeightMm;
   const mainMinY = stripMaxY + clearance;
-  const blockBounds = (
-    centerX: number,
-    length: number,
-  ): RectangleBoundsMm => ({
+  const blockBounds = (centerX: number, length: number): RectangleBoundsMm => ({
     minX: centerX - length / 2,
     minY: stripMinY,
     maxX: centerX + length / 2,
@@ -4530,7 +4645,7 @@ function materializeBalancedCappedStrip(
       input,
       blockBounds(regionCenters[0]!, descriptor.capLengthMm),
       descriptor.capRotation,
-      1,
+      descriptor.capColumns,
       descriptor.capRows,
       "continuous-space-between",
       "balancedCappedStrip.leftCap",
@@ -4548,7 +4663,7 @@ function materializeBalancedCappedStrip(
       input,
       blockBounds(regionCenters[2]!, descriptor.capLengthMm),
       descriptor.capRotation,
-      1,
+      descriptor.capColumns,
       descriptor.capRows,
       "continuous-space-between",
       "balancedCappedStrip.rightCap",
@@ -4583,10 +4698,7 @@ function generateBalancedCappedStrips(
   let searchLimitReached = false;
   const consumeSearchWork = (amount = 1): boolean => {
     if (!collector.canContinue()) return false;
-    if (
-      consumedSearchWork + amount >
-      BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK
-    ) {
+    if (consumedSearchWork + amount > BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK) {
       consumedSearchWork = BALANCED_CAPPED_STRIP_MAX_SEARCH_WORK;
       searchLimitReached = true;
       return false;
@@ -4615,33 +4727,11 @@ function generateBalancedCappedStrips(
     );
     if (maximumMainColumns === 0 || maximumMainRows === 0) continue;
 
-    const maximumMainLength = usedSpan(
-      maximumMainColumns,
-      mainSize.length,
-      clearance,
+    const packageAreaMm2 = mainSize.length * mainSize.width;
+    const maximumPossiblePackageCount = Math.min(
+      input.constraints.maxPlacements,
+      Math.floor((totalLength * totalWidth + 1e-9) / packageAreaMm2),
     );
-    const maximumCoreCorridorLength =
-      maximumMainLength - 2 * capSize.length - 2 * clearance;
-    const maximumCoreColumns = Math.min(
-      maxCountAlong(
-        maximumCoreCorridorLength,
-        mainSize.length,
-        clearance,
-      ),
-      input.constraints.maxBands,
-    );
-    const maximumCapRows = Math.min(
-      maxCountAlong(totalWidth, capSize.width, clearance),
-      input.constraints.maxBands,
-    );
-    const maximumCoreRows = Math.min(
-      maxCountAlong(totalWidth, mainSize.width, clearance),
-      input.constraints.maxBands,
-    );
-    const maximumPossiblePackageCount =
-      maximumMainColumns * maximumMainRows +
-      2 * maximumCapRows +
-      maximumCoreColumns * maximumCoreRows;
     if (
       requestedExactCount !== null &&
       requestedExactCount > maximumPossiblePackageCount
@@ -4649,147 +4739,155 @@ function generateBalancedCappedStrips(
       continue;
     }
 
-    const mainColumnCounts =
-      requestedExactCount === null
-        ? [maximumMainColumns]
-        : Array.from(
-            { length: maximumMainColumns },
-            (_, index) => maximumMainColumns - index,
+    const mainColumnCounts = Array.from(
+      { length: maximumMainColumns },
+      (_, index) => maximumMainColumns - index,
+    );
+    const maximumMainLengthMm = usedSpan(
+      maximumMainColumns,
+      mainSize.length,
+      clearance,
+    );
+    for (
+      let capColumns = 1;
+      capColumns <= input.constraints.maxBands;
+      capColumns += 1
+    ) {
+      const capLengthMm = usedSpan(capColumns, capSize.length, clearance);
+      if (maximumMainLengthMm - 2 * capLengthMm - 2 * clearance <= 0) break;
+
+      for (const mainColumns of mainColumnCounts) {
+        const mainLengthMm = usedSpan(mainColumns, mainSize.length, clearance);
+        const coreCorridorLengthMm =
+          mainLengthMm - 2 * capLengthMm - 2 * clearance;
+        if (coreCorridorLengthMm <= 0) break;
+        const maximumDescriptorCoreColumns = Math.min(
+          maxCountAlong(coreCorridorLengthMm, mainSize.length, clearance),
+          input.constraints.maxBands,
+        );
+        if (maximumDescriptorCoreColumns === 0) break;
+
+        for (let mainRows = 1; mainRows <= maximumMainRows; mainRows += 1) {
+          const mainHeightMm = usedSpan(mainRows, mainSize.width, clearance);
+          const availableStripHeight = totalWidth - mainHeightMm - clearance;
+          if (availableStripHeight <= 0) continue;
+
+          const maximumDescriptorCapRows = Math.min(
+            maxCountAlong(availableStripHeight, capSize.width, clearance),
+            input.constraints.maxBands,
           );
-    for (const mainColumns of mainColumnCounts) {
-      const mainLengthMm = usedSpan(
-        mainColumns,
-        mainSize.length,
-        clearance,
-      );
-      const coreCorridorLengthMm =
-        mainLengthMm - 2 * capSize.length - 2 * clearance;
-      if (coreCorridorLengthMm <= 0) continue;
-      const maximumDescriptorCoreColumns = Math.min(
-        maxCountAlong(coreCorridorLengthMm, mainSize.length, clearance),
-        input.constraints.maxBands,
-      );
-      if (maximumDescriptorCoreColumns === 0) continue;
-
-      for (let mainRows = 1; mainRows <= maximumMainRows; mainRows += 1) {
-        const mainHeightMm = usedSpan(
-          mainRows,
-          mainSize.width,
-          clearance,
-        );
-        const availableStripHeight = totalWidth - mainHeightMm - clearance;
-        if (availableStripHeight <= 0) continue;
-
-        const maximumDescriptorCapRows = Math.min(
-          maxCountAlong(availableStripHeight, capSize.width, clearance),
-          input.constraints.maxBands,
-        );
-        const maximumDescriptorCoreRows = Math.min(
-          maxCountAlong(availableStripHeight, mainSize.width, clearance),
-          input.constraints.maxBands,
-        );
-        if (
-          maximumDescriptorCapRows < 2 ||
-          maximumDescriptorCoreRows < 2
-        ) {
-          continue;
-        }
-
-        const capRowCounts =
-          requestedExactCount === null
-            ? [maximumDescriptorCapRows]
-            : Array.from(
-                { length: maximumDescriptorCapRows - 1 },
-                (_, index) => maximumDescriptorCapRows - index,
-              );
-        for (const capRows of capRowCounts) {
-          if (!consumeSearchWork()) break search;
-          let coreShapes: Array<readonly [number, number]>;
-          if (requestedExactCount === null) {
-            coreShapes = [
-              [maximumDescriptorCoreColumns, maximumDescriptorCoreRows],
-            ];
-          } else {
-            const corePackageCount =
-              requestedExactCount - mainColumns * mainRows - 2 * capRows;
-            if (corePackageCount <= 0) continue;
-            let factorPairs = factorPairsByCount.get(corePackageCount);
-            if (!factorPairs) {
-              if (!consumeSearchWork(Math.floor(Math.sqrt(corePackageCount)))) {
-                break search;
-              }
-              factorPairs = exactFactorPairs(corePackageCount);
-              factorPairsByCount.set(corePackageCount, factorPairs);
-            }
-            coreShapes = factorPairs
-              .filter(
-                ([coreColumns, coreRows]) =>
-                  coreColumns <= maximumDescriptorCoreColumns &&
-                  coreRows >= 2 &&
-                  coreRows <= maximumDescriptorCoreRows,
-              )
-              .sort(
-                (left, right) =>
-                  right[1] - left[1] || right[0] - left[0],
-              );
+          const maximumDescriptorCoreRows = Math.min(
+            maxCountAlong(availableStripHeight, mainSize.width, clearance),
+            input.constraints.maxBands,
+          );
+          if (maximumDescriptorCapRows < 2 || maximumDescriptorCoreRows < 2) {
+            continue;
           }
 
-          for (const [coreColumns, coreRows] of coreShapes) {
+          const capRowCounts = Array.from(
+            { length: maximumDescriptorCapRows - 1 },
+            (_, index) => maximumDescriptorCapRows - index,
+          );
+          for (const capRows of capRowCounts) {
             if (!consumeSearchWork()) break search;
-            const packageCount =
-              mainColumns * mainRows + 2 * capRows + coreColumns * coreRows;
-            if (
-              packageCount < input.constraints.minimumPackageCount ||
-              packageCount > input.constraints.maximumPackageCount ||
-              packageCount > input.constraints.maxPlacements
-            ) {
-              continue;
+            let coreShapes: Array<readonly [number, number]>;
+            if (requestedExactCount === null) {
+              coreShapes = Array.from(
+                { length: maximumDescriptorCoreColumns },
+                (_, columnIndex) =>
+                  Array.from(
+                    { length: maximumDescriptorCoreRows - 1 },
+                    (_, rowIndex) =>
+                      [
+                        maximumDescriptorCoreColumns - columnIndex,
+                        maximumDescriptorCoreRows - rowIndex,
+                      ] as const,
+                  ),
+              ).flat();
+            } else {
+              const corePackageCount =
+                requestedExactCount -
+                mainColumns * mainRows -
+                2 * capColumns * capRows;
+              if (corePackageCount <= 0) continue;
+              let factorPairs = factorPairsByCount.get(corePackageCount);
+              if (!factorPairs) {
+                if (
+                  !consumeSearchWork(Math.floor(Math.sqrt(corePackageCount)))
+                ) {
+                  break search;
+                }
+                factorPairs = exactFactorPairs(corePackageCount);
+                factorPairsByCount.set(corePackageCount, factorPairs);
+              }
+              coreShapes = factorPairs
+                .filter(
+                  ([coreColumns, coreRows]) =>
+                    coreColumns <= maximumDescriptorCoreColumns &&
+                    coreRows >= 2 &&
+                    coreRows <= maximumDescriptorCoreRows,
+                )
+                .sort(
+                  (left, right) => right[1] - left[1] || right[0] - left[0],
+                );
             }
 
-            const capHeightMm = usedSpan(
-              capRows,
-              capSize.width,
-              clearance,
-            );
-            const coreLengthMm = usedSpan(
-              coreColumns,
-              mainSize.length,
-              clearance,
-            );
-            const coreHeightMm = usedSpan(
-              coreRows,
-              mainSize.width,
-              clearance,
-            );
-            const stripHeightMm = Math.max(capHeightMm, coreHeightMm);
-            const descriptor: BalancedCappedStripDescriptor = {
-              mainRotation,
-              capRotation,
-              mainColumns,
-              mainRows,
-              capRows,
-              coreColumns,
-              coreRows,
-              packageCount,
-              mainLengthMm,
-              mainHeightMm,
-              capLengthMm: capSize.length,
-              capHeightMm,
-              coreLengthMm,
-              coreHeightMm,
-              stripHeightMm,
-              coreCorridorLengthMm,
-              occupiedLengthMm: normalizeGeneratedGeometryMetric(
+            for (const [coreColumns, coreRows] of coreShapes) {
+              if (!consumeSearchWork()) break search;
+              const packageCount =
+                mainColumns * mainRows +
+                2 * capColumns * capRows +
+                coreColumns * coreRows;
+              if (
+                packageCount < input.constraints.minimumPackageCount ||
+                packageCount > input.constraints.maximumPackageCount ||
+                packageCount > input.constraints.maxPlacements
+              ) {
+                continue;
+              }
+
+              const capHeightMm = usedSpan(capRows, capSize.width, clearance);
+              const coreLengthMm = usedSpan(
+                coreColumns,
+                mainSize.length,
+                clearance,
+              );
+              const coreHeightMm = usedSpan(
+                coreRows,
+                mainSize.width,
+                clearance,
+              );
+              const stripHeightMm = Math.max(capHeightMm, coreHeightMm);
+              const descriptor: BalancedCappedStripDescriptor = {
+                mainRotation,
+                capRotation,
+                mainColumns,
+                mainRows,
+                capColumns,
+                capRows,
+                coreColumns,
+                coreRows,
+                packageCount,
                 mainLengthMm,
-                "balancedCappedStrip.occupiedLengthMm",
-              ),
-              occupiedWidthMm: normalizeGeneratedGeometryMetric(
-                stripHeightMm + clearance + mainHeightMm,
-                "balancedCappedStrip.occupiedWidthMm",
-              ),
-            };
-            if (balancedCappedStripDescriptorIsFeasible(input, descriptor)) {
-              descriptors.push(descriptor);
+                mainHeightMm,
+                capLengthMm,
+                capHeightMm,
+                coreLengthMm,
+                coreHeightMm,
+                stripHeightMm,
+                coreCorridorLengthMm,
+                occupiedLengthMm: normalizeGeneratedGeometryMetric(
+                  mainLengthMm,
+                  "balancedCappedStrip.occupiedLengthMm",
+                ),
+                occupiedWidthMm: normalizeGeneratedGeometryMetric(
+                  stripHeightMm + clearance + mainHeightMm,
+                  "balancedCappedStrip.occupiedWidthMm",
+                ),
+              };
+              if (balancedCappedStripDescriptorIsFeasible(input, descriptor)) {
+                descriptors.push(descriptor);
+              }
             }
           }
         }
@@ -4853,19 +4951,32 @@ function generateBalancedCappedStrips(
       descriptor.stripHeightMm - descriptor.coreHeightMm,
       "balancedCappedStrip.coreCrossResidualMm",
     );
+    const capCrossResidualMm = normalizeGeneratedGeometryMetric(
+      descriptor.stripHeightMm - descriptor.capHeightMm,
+      "balancedCappedStrip.capCrossResidualMm",
+    );
     if (
       !collector.add(placements, {
         family: "nested-side",
-        variant: "balanced-capped-strip",
+        variant:
+          descriptor.capColumns === 1
+            ? "balanced-capped-strip"
+            : "balanced-capped-block",
         parameters: {
-          topology: "balanced-capped-strip-v1",
+          topology:
+            descriptor.capColumns === 1
+              ? "balanced-capped-strip-v1"
+              : "balanced-capped-block-v1",
+          ...(descriptor.capColumns === 1
+            ? {}
+            : { blockCount: 4, capCrossResidualMm }),
           splitAxis: "y",
           mainSide: "end",
           mainRotation: descriptor.mainRotation,
           capRotation: descriptor.capRotation,
           mainColumns: descriptor.mainColumns,
           mainRows: descriptor.mainRows,
-          capColumns: 1,
+          capColumns: descriptor.capColumns,
           capRows: descriptor.capRows,
           coreRotation: descriptor.mainRotation,
           coreColumns: descriptor.coreColumns,
@@ -5053,15 +5164,1029 @@ function generateNestedSides(
   return collector.output();
 }
 
+function generateThreeBlockSplits(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  orientationOrders: readonly (readonly [Rotation, Rotation])[],
+): void {
+  const envelope = input.generationBoundsMm;
+  const totalLength = rectangleBoundsLength(envelope);
+  const totalWidth = rectangleBoundsWidth(envelope);
+  const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  const maximumAllowedPackageCount = Math.min(
+    input.constraints.maximumPackageCount,
+    input.constraints.maxPlacements,
+  );
+  if (!collector.checkCancellation()) return;
+
+  for (const [outerRotation, middleRotation] of orientationOrders) {
+    const outerSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      outerRotation,
+    );
+    const middleSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      middleRotation,
+    );
+    const outerRows = Math.min(
+      maxCountAlong(totalWidth, outerSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const middleRows = Math.min(
+      maxCountAlong(totalWidth, middleSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const maximumOuterColumns = Math.min(
+      maxCountAlong(totalLength, outerSize.length, clearance),
+      input.constraints.maxBands,
+    );
+    if (
+      outerRows === 0 ||
+      middleRows === 0 ||
+      2 * outerRows + middleRows > maximumAllowedPackageCount
+    ) {
+      continue;
+    }
+
+    for (
+      let outerColumns = 2;
+      outerColumns <= maximumOuterColumns;
+      outerColumns += 1
+    ) {
+      if (!collector.checkCancellation()) return;
+      const middleAvailableLengthMm =
+        totalLength -
+        usedSpan(outerColumns, outerSize.length, clearance) -
+        clearance;
+      const maximumMiddleColumns = Math.min(
+        maxCountAlong(middleAvailableLengthMm, middleSize.length, clearance),
+        input.constraints.maxBands,
+      );
+      if (maximumMiddleColumns === 0) continue;
+
+      let firstMiddleColumns: number;
+      let lastMiddleColumns: number;
+      if (exactPackageCount === null) {
+        const maximumByPackageCount = Math.floor(
+          (maximumAllowedPackageCount - outerColumns * outerRows) / middleRows,
+        );
+        firstMiddleColumns = Math.min(
+          maximumMiddleColumns,
+          maximumByPackageCount,
+        );
+        lastMiddleColumns = 1;
+        if (firstMiddleColumns < lastMiddleColumns) continue;
+      } else {
+        const middlePackageCount = exactPackageCount - outerColumns * outerRows;
+        if (middlePackageCount <= 0 || middlePackageCount % middleRows !== 0) {
+          continue;
+        }
+        const middleColumns = middlePackageCount / middleRows;
+        if (
+          middleColumns < 1 ||
+          middleColumns > maximumMiddleColumns ||
+          middleColumns > input.constraints.maxBands
+        ) {
+          continue;
+        }
+        firstMiddleColumns = middleColumns;
+        lastMiddleColumns = middleColumns;
+      }
+
+      for (
+        let middleColumns = firstMiddleColumns;
+        middleColumns >= lastMiddleColumns;
+        middleColumns -= 1
+      ) {
+        if (!collector.checkCancellation()) return;
+        const packageCount =
+          outerColumns * outerRows + middleColumns * middleRows;
+        if (
+          packageCount < input.constraints.minimumPackageCount ||
+          packageCount > input.constraints.maximumPackageCount ||
+          packageCount > input.constraints.maxPlacements
+        ) {
+          continue;
+        }
+        const middleLengthMm = usedSpan(
+          middleColumns,
+          middleSize.length,
+          clearance,
+        );
+
+        for (
+          let leftOuterColumns = 1;
+          leftOuterColumns < outerColumns;
+          leftOuterColumns += 1
+        ) {
+          if (!collector.checkCancellation()) return;
+          const rightOuterColumns = outerColumns - leftOuterColumns;
+          const leftLengthMm = usedSpan(
+            leftOuterColumns,
+            outerSize.length,
+            clearance,
+          );
+          const rightLengthMm = usedSpan(
+            rightOuterColumns,
+            outerSize.length,
+            clearance,
+          );
+          const occupiedLengthMm = normalizeGeneratedGeometryMetric(
+            leftLengthMm +
+              clearance +
+              middleLengthMm +
+              clearance +
+              rightLengthMm,
+            "threeBlockSplit.occupiedLengthMm",
+          );
+          if (occupiedLengthMm > totalLength + SOLVER_GEOMETRY_EPSILON_MM) {
+            continue;
+          }
+          const occupiedWidthMm = normalizeGeneratedGeometryMetric(
+            Math.max(
+              usedSpan(outerRows, outerSize.width, clearance),
+              usedSpan(middleRows, middleSize.width, clearance),
+            ),
+            "threeBlockSplit.occupiedWidthMm",
+          );
+          const compositeMinX = alignedStart(
+            envelope.minX,
+            totalLength,
+            occupiedLengthMm,
+            "center",
+          );
+          const middleMinX = compositeMinX + leftLengthMm + clearance;
+          const rightMinX = middleMinX + middleLengthMm + clearance;
+          const materializeRegions = (
+            leftMinX: number,
+            distributedMiddleMinX: number,
+            distributedRightMinX: number,
+          ) => [
+            ...gridPlacements(
+              input,
+              {
+                minX: leftMinX,
+                minY: envelope.minY,
+                maxX: leftMinX + leftLengthMm,
+                maxY: envelope.maxY,
+              },
+              outerRotation,
+              leftOuterColumns,
+              outerRows,
+              "start",
+              "start",
+            ),
+            ...gridPlacements(
+              input,
+              {
+                minX: distributedMiddleMinX,
+                minY: envelope.minY,
+                maxX: distributedMiddleMinX + middleLengthMm,
+                maxY: envelope.maxY,
+              },
+              middleRotation,
+              middleColumns,
+              middleRows,
+              "start",
+              "start",
+            ),
+            ...gridPlacements(
+              input,
+              {
+                minX: distributedRightMinX,
+                minY: envelope.minY,
+                maxX: distributedRightMinX + rightLengthMm,
+                maxY: envelope.maxY,
+              },
+              outerRotation,
+              rightOuterColumns,
+              outerRows,
+              "start",
+              "start",
+            ),
+          ];
+          const placements = materializeRegions(
+            compositeMinX,
+            middleMinX,
+            rightMinX,
+          );
+          if (
+            !collector.add(placements, {
+              family: "block",
+              variant: "vertical-three-block-split",
+              parameters: {
+                topology: "three-block-split-v1",
+                blockCount: 3,
+                splitAxis: "x",
+                outerRotation,
+                middleRotation,
+                leftOuterColumns,
+                middleColumns,
+                rightOuterColumns,
+                outerRows,
+                middleRows,
+                occupiedLengthMm,
+                occupiedWidthMm,
+              },
+            })
+          ) {
+            return;
+          }
+
+          if (
+            outerRows < middleRows &&
+            occupiedLengthMm < totalLength - SOLVER_GEOMETRY_EPSILON_MM
+          ) {
+            const regionCenters = distributedSequenceCenters(
+              envelope.minX,
+              envelope.maxX,
+              [leftLengthMm, middleLengthMm, rightLengthMm],
+              clearance,
+              "threeBlockSplit.distributedRegions",
+            );
+            if (regionCenters.length === 3) {
+              const distributedPlacements = materializeRegions(
+                regionCenters[0]! - leftLengthMm / 2,
+                regionCenters[1]! - middleLengthMm / 2,
+                regionCenters[2]! - rightLengthMm / 2,
+              );
+              const regionGapResidualMm = normalizeGeneratedGeometryMetric(
+                totalLength - occupiedLengthMm,
+                "threeBlockSplit.regionGapResidualMm",
+              );
+              if (
+                !collector.add(distributedPlacements, {
+                  family: "block",
+                  variant: "vertical-three-block-split-distributed",
+                  parameters: {
+                    topology: "three-block-split-distributed-v1",
+                    blockCount: 3,
+                    splitAxis: "x",
+                    outerRotation,
+                    middleRotation,
+                    leftOuterColumns,
+                    middleColumns,
+                    rightOuterColumns,
+                    outerRows,
+                    middleRows,
+                    spacingPolicy: "continuous-space-between",
+                    regionGapResidualMm,
+                    occupiedLengthMm: normalizeGeneratedGeometryMetric(
+                      totalLength,
+                      "threeBlockSplit.distributedOccupiedLengthMm",
+                    ),
+                    occupiedWidthMm,
+                  },
+                })
+              ) {
+                return;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+function generateFourBlockCFrames(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  orientationOrders: readonly (readonly [Rotation, Rotation])[],
+): void {
+  const envelope = input.generationBoundsMm;
+  const totalLength = rectangleBoundsLength(envelope);
+  const totalWidth = rectangleBoundsWidth(envelope);
+  const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  const maximumAllowedPackageCount = Math.min(
+    input.constraints.maximumPackageCount,
+    input.constraints.maxPlacements,
+  );
+  if (!collector.checkCancellation()) return;
+
+  for (const [frameRotation, coreRotation] of orientationOrders) {
+    const frameSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      frameRotation,
+    );
+    const coreSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      coreRotation,
+    );
+    if (frameSize.length >= coreSize.length) continue;
+    const frameColumns = Math.min(
+      maxCountAlong(totalLength, frameSize.length, clearance),
+      input.constraints.maxBands,
+    );
+    const frameLengthMm = usedSpan(frameColumns, frameSize.length, clearance);
+    if (frameColumns === 0) continue;
+    const frameMinX = alignedStart(
+      envelope.minX,
+      totalLength,
+      frameLengthMm,
+      "center",
+    );
+    const frameMaxX = frameMinX + frameLengthMm;
+    const middleMinY = envelope.minY + frameSize.width + clearance;
+    const middleMaxY = envelope.maxY - frameSize.width - clearance;
+    const middleHeightMm = middleMaxY - middleMinY;
+    const stemRows = Math.min(
+      maxCountAlong(middleHeightMm, frameSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const coreRows = Math.min(
+      maxCountAlong(middleHeightMm, coreSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    if (
+      stemRows === 0 ||
+      coreRows === 0 ||
+      2 * frameColumns + stemRows + 2 * coreRows > maximumAllowedPackageCount
+    ) {
+      continue;
+    }
+
+    for (let stemColumns = 1; stemColumns < frameColumns; stemColumns += 1) {
+      if (!collector.checkCancellation()) return;
+      const stemLengthMm = usedSpan(stemColumns, frameSize.length, clearance);
+      const coreMinX = frameMinX + stemLengthMm + clearance;
+      const coreCorridorLengthMm = frameMaxX - coreMinX;
+      const maximumCoreColumns = Math.min(
+        maxCountAlong(coreCorridorLengthMm, coreSize.length, clearance),
+        input.constraints.maxBands,
+      );
+      if (maximumCoreColumns === 0) continue;
+
+      let firstCoreColumns: number;
+      let lastCoreColumns: number;
+      if (exactPackageCount === null) {
+        const maximumByPackageCount = Math.floor(
+          (maximumAllowedPackageCount -
+            2 * frameColumns -
+            stemColumns * stemRows) /
+            coreRows,
+        );
+        firstCoreColumns = Math.min(maximumCoreColumns, maximumByPackageCount);
+        lastCoreColumns = 2;
+        if (firstCoreColumns < lastCoreColumns) continue;
+      } else {
+        const corePackageCount =
+          exactPackageCount - 2 * frameColumns - stemColumns * stemRows;
+        if (corePackageCount <= 0 || corePackageCount % coreRows !== 0) {
+          continue;
+        }
+        const coreColumns = corePackageCount / coreRows;
+        if (coreColumns < 2 || coreColumns > maximumCoreColumns) continue;
+        firstCoreColumns = coreColumns;
+        lastCoreColumns = coreColumns;
+      }
+
+      for (
+        let coreColumns = firstCoreColumns;
+        coreColumns >= lastCoreColumns;
+        coreColumns -= 1
+      ) {
+        if (!collector.checkCancellation()) return;
+        const packageCount =
+          2 * frameColumns + stemColumns * stemRows + coreColumns * coreRows;
+        if (
+          packageCount < input.constraints.minimumPackageCount ||
+          packageCount > input.constraints.maximumPackageCount ||
+          packageCount > input.constraints.maxPlacements
+        ) {
+          continue;
+        }
+        if (!collector.checkCancellation()) return;
+        const coreXCenters = justifiedLineCenters(
+          coreMinX,
+          frameMaxX,
+          coreSize.length,
+          clearance,
+          coreColumns,
+          "continuous-space-between",
+        );
+        const coreYCenters = compactLineCenters(
+          middleMinY,
+          middleMaxY,
+          coreSize.width,
+          clearance,
+          coreRows,
+          "fourBlockCFrame.coreY",
+        );
+        if (
+          coreXCenters.length !== coreColumns ||
+          coreYCenters.length !== coreRows ||
+          !lineCentersRespectGapPolicy(
+            coreXCenters,
+            coreSize.length,
+            clearance,
+            true,
+          )
+        ) {
+          continue;
+        }
+        const placements = [
+          ...gridPlacements(
+            input,
+            {
+              minX: frameMinX,
+              minY: envelope.minY,
+              maxX: frameMaxX,
+              maxY: envelope.minY + frameSize.width,
+            },
+            frameRotation,
+            frameColumns,
+            1,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: frameMinX,
+              minY: envelope.maxY - frameSize.width,
+              maxX: frameMaxX,
+              maxY: envelope.maxY,
+            },
+            frameRotation,
+            frameColumns,
+            1,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: frameMinX,
+              minY: middleMinY,
+              maxX: frameMinX + stemLengthMm,
+              maxY: middleMaxY,
+            },
+            frameRotation,
+            stemColumns,
+            stemRows,
+            "start",
+            "start",
+          ),
+          ...coreYCenters.flatMap((y) =>
+            coreXCenters.map((x) => ({
+              positionMm: {
+                x: normalizeGeneratedCoordinateMm(x, "fourBlockCFrame.coreX"),
+                y: normalizeGeneratedCoordinateMm(y, "fourBlockCFrame.coreY"),
+              },
+              rotation: coreRotation,
+            })),
+          ),
+        ];
+        const coreInlineResidualMm = normalizeGeneratedGeometryMetric(
+          coreCorridorLengthMm -
+            usedSpan(coreColumns, coreSize.length, clearance),
+          "fourBlockCFrame.coreInlineResidualMm",
+        );
+        const coreCrossResidualMm = normalizeGeneratedGeometryMetric(
+          middleHeightMm - usedSpan(coreRows, coreSize.width, clearance),
+          "fourBlockCFrame.coreCrossResidualMm",
+        );
+        if (
+          !collector.add(placements, {
+            family: "block",
+            variant: "four-block-c-frame",
+            parameters: {
+              topology: "four-block-c-frame-v1",
+              blockCount: 4,
+              frameRotation,
+              coreRotation,
+              frameColumns,
+              stemColumns,
+              stemRows,
+              coreColumns,
+              coreRows,
+              spacingPolicy: "continuous-space-between",
+              coreInlineResidualMm,
+              coreCrossResidualMm,
+              occupiedLengthMm: normalizeGeneratedGeometryMetric(
+                frameLengthMm,
+                "fourBlockCFrame.occupiedLengthMm",
+              ),
+              envelopeInlineResidualMm: normalizeGeneratedGeometryMetric(
+                totalLength - frameLengthMm,
+                "fourBlockCFrame.envelopeInlineResidualMm",
+              ),
+              occupiedWidthMm: normalizeGeneratedGeometryMetric(
+                totalWidth,
+                "fourBlockCFrame.occupiedWidthMm",
+              ),
+            },
+          })
+        ) {
+          return;
+        }
+      }
+    }
+  }
+}
+
+function generateSideCoreCornerBands(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  orientationOrders: readonly (readonly [Rotation, Rotation])[],
+): void {
+  const envelope = input.generationBoundsMm;
+  const totalLength = rectangleBoundsLength(envelope);
+  const totalWidth = rectangleBoundsWidth(envelope);
+  const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  const maximumAllowedPackageCount = Math.min(
+    input.constraints.maximumPackageCount,
+    input.constraints.maxPlacements,
+  );
+  if (!collector.checkCancellation()) return;
+
+  for (const [coreRotation, sideRotation] of orientationOrders) {
+    const coreSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      coreRotation,
+    );
+    const sideSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      sideRotation,
+    );
+    const coreRows = Math.min(
+      maxCountAlong(totalWidth, coreSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    const sideRows = Math.min(
+      maxCountAlong(totalWidth, sideSize.width, clearance),
+      input.constraints.maxBands,
+    );
+    if (
+      coreRows === 0 ||
+      sideRows < 3 ||
+      coreRows + 2 * sideRows > maximumAllowedPackageCount
+    ) {
+      continue;
+    }
+    const coreHeightMm = usedSpan(coreRows, coreSize.width, clearance);
+    const compositeMinY = alignedStart(
+      envelope.minY,
+      totalWidth,
+      coreHeightMm,
+      "center",
+    );
+    const compositeMaxY = compositeMinY + coreHeightMm;
+    const largerSideRows = Math.ceil(sideRows / 2);
+    const smallerSideRows = Math.floor(sideRows / 2);
+    if (largerSideRows === smallerSideRows) continue;
+
+    const maximumSideColumns = Math.min(
+      maxCountAlong(totalLength, sideSize.length, clearance),
+      input.constraints.maxBands,
+    );
+    for (
+      let sideColumns = 1;
+      sideColumns <= maximumSideColumns;
+      sideColumns += 1
+    ) {
+      if (!collector.checkCancellation()) return;
+      const sideLengthMm = usedSpan(sideColumns, sideSize.length, clearance);
+      const coreAvailableLengthMm =
+        totalLength - 2 * sideLengthMm - 2 * clearance;
+      const maximumCoreColumns = Math.min(
+        maxCountAlong(coreAvailableLengthMm, coreSize.length, clearance),
+        input.constraints.maxBands,
+      );
+      if (maximumCoreColumns === 0) continue;
+
+      let firstCoreColumns: number;
+      let lastCoreColumns: number;
+      if (exactPackageCount === null) {
+        const maximumByPackageCount = Math.floor(
+          (maximumAllowedPackageCount - 2 * sideColumns * sideRows) / coreRows,
+        );
+        firstCoreColumns = Math.min(maximumCoreColumns, maximumByPackageCount);
+        lastCoreColumns = 1;
+        if (firstCoreColumns < lastCoreColumns) continue;
+      } else {
+        const corePackageCount = exactPackageCount - 2 * sideColumns * sideRows;
+        if (corePackageCount <= 0 || corePackageCount % coreRows !== 0) {
+          continue;
+        }
+        const coreColumns = corePackageCount / coreRows;
+        if (coreColumns < 1 || coreColumns > maximumCoreColumns) continue;
+        firstCoreColumns = coreColumns;
+        lastCoreColumns = coreColumns;
+      }
+
+      for (
+        let coreColumns = firstCoreColumns;
+        coreColumns >= lastCoreColumns;
+        coreColumns -= 1
+      ) {
+        if (!collector.checkCancellation()) return;
+        const packageCount =
+          coreColumns * coreRows + 2 * sideColumns * sideRows;
+        if (
+          packageCount < input.constraints.minimumPackageCount ||
+          packageCount > input.constraints.maximumPackageCount ||
+          packageCount > input.constraints.maxPlacements
+        ) {
+          continue;
+        }
+        if (!collector.checkCancellation()) return;
+        const coreLengthMm = usedSpan(coreColumns, coreSize.length, clearance);
+        const compactLengthMm = 2 * sideLengthMm + coreLengthMm + 2 * clearance;
+        const horizontalResidualMm = totalLength - compactLengthMm;
+        if (horizontalResidualMm < -SOLVER_GEOMETRY_EPSILON_MM) continue;
+        const horizontalGapMm = normalizeGeneratedGeometryMetric(
+          horizontalResidualMm / 4,
+          "sideCoreCornerBands.horizontalGapMm",
+        );
+        if (
+          horizontalGapMm >
+          maximumDistributedExtraGapMm(Math.min(sideLengthMm, coreLengthMm)) +
+            SOLVER_GEOMETRY_EPSILON_MM
+        ) {
+          continue;
+        }
+        const regionGapMm = clearance + horizontalGapMm;
+        const occupiedLengthMm = normalizeGeneratedGeometryMetric(
+          totalLength - 2 * horizontalGapMm,
+          "sideCoreCornerBands.occupiedLengthMm",
+        );
+        const leftMinX = envelope.minX + horizontalGapMm;
+        const coreMinX = leftMinX + sideLengthMm + regionGapMm;
+        const rightMinX = coreMinX + coreLengthMm + regionGapMm;
+        const largerSideHeightMm = usedSpan(
+          largerSideRows,
+          sideSize.width,
+          clearance,
+        );
+        const smallerSideHeightMm = usedSpan(
+          smallerSideRows,
+          sideSize.width,
+          clearance,
+        );
+        const verticalGapMm = normalizeGeneratedGeometryMetric(
+          coreHeightMm - largerSideHeightMm - smallerSideHeightMm,
+          "sideCoreCornerBands.verticalGapMm",
+        );
+        if (verticalGapMm <= clearance + SOLVER_GEOMETRY_EPSILON_MM) continue;
+        const placements = [
+          ...gridPlacements(
+            input,
+            {
+              minX: coreMinX,
+              minY: compositeMinY,
+              maxX: coreMinX + coreLengthMm,
+              maxY: compositeMaxY,
+            },
+            coreRotation,
+            coreColumns,
+            coreRows,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: leftMinX,
+              minY: compositeMinY,
+              maxX: leftMinX + sideLengthMm,
+              maxY: compositeMinY + largerSideHeightMm,
+            },
+            sideRotation,
+            sideColumns,
+            largerSideRows,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: leftMinX,
+              minY: compositeMaxY - smallerSideHeightMm,
+              maxX: leftMinX + sideLengthMm,
+              maxY: compositeMaxY,
+            },
+            sideRotation,
+            sideColumns,
+            smallerSideRows,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: rightMinX,
+              minY: compositeMinY,
+              maxX: rightMinX + sideLengthMm,
+              maxY: compositeMinY + smallerSideHeightMm,
+            },
+            sideRotation,
+            sideColumns,
+            smallerSideRows,
+            "start",
+            "start",
+          ),
+          ...gridPlacements(
+            input,
+            {
+              minX: rightMinX,
+              minY: compositeMaxY - largerSideHeightMm,
+              maxX: rightMinX + sideLengthMm,
+              maxY: compositeMaxY,
+            },
+            sideRotation,
+            sideColumns,
+            largerSideRows,
+            "start",
+            "start",
+          ),
+        ];
+        if (
+          !collector.add(placements, {
+            family: "block",
+            variant: "side-core-corner-bands",
+            parameters: {
+              topology: "side-core-corner-bands-v1",
+              blockCount: 5,
+              coreRotation,
+              sideRotation,
+              coreColumns,
+              coreRows,
+              sideColumns,
+              leftLowerRows: largerSideRows,
+              leftUpperRows: smallerSideRows,
+              rightLowerRows: smallerSideRows,
+              rightUpperRows: largerSideRows,
+              horizontalGapMm,
+              verticalGapMm,
+              occupiedLengthMm,
+              occupiedWidthMm: normalizeGeneratedGeometryMetric(
+                coreHeightMm,
+                "sideCoreCornerBands.occupiedWidthMm",
+              ),
+              envelopeCrossResidualMm: normalizeGeneratedGeometryMetric(
+                totalWidth - coreHeightMm,
+                "sideCoreCornerBands.envelopeCrossResidualMm",
+              ),
+            },
+          })
+        ) {
+          return;
+        }
+      }
+    }
+  }
+}
+
+const DENSE_EDGE_NOTCH_MAX_SEARCH_WORK = 100_000;
+const DENSE_EDGE_NOTCH_MAX_RETAINED_PLACEMENTS = 10_000;
+
+function generateDenseEdgeNotches(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  rotations: readonly Rotation[],
+): void {
+  const envelope = input.generationBoundsMm;
+  const totalLength = rectangleBoundsLength(envelope);
+  const totalWidth = rectangleBoundsWidth(envelope);
+  const clearance = input.package.clearanceMm;
+  const exactPackageCount = exactRequestedPackageCount(input);
+  let consumedSearchWork = 0;
+  let materializedPlacementCount = 0;
+  let searchLimitReached = false;
+  let materializationLimitReached = false;
+  const consumeSearchWork = (): boolean => {
+    if (!collector.canContinue()) return false;
+    if (consumedSearchWork >= DENSE_EDGE_NOTCH_MAX_SEARCH_WORK) {
+      searchLimitReached = true;
+      return false;
+    }
+    if (!collector.checkCancellation()) return false;
+    consumedSearchWork += 1;
+    return true;
+  };
+
+  const orderedRotations = [...rotations].sort((left, right) => {
+    const leftSize = rectangleSizeForRotation(input.package.dimensionsMm, left);
+    const rightSize = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      right,
+    );
+    const leftCount =
+      Math.min(
+        maxCountAlong(totalLength, leftSize.length, clearance),
+        input.constraints.maxBands,
+      ) *
+      Math.min(
+        maxCountAlong(totalWidth, leftSize.width, clearance),
+        input.constraints.maxBands,
+      );
+    const rightCount =
+      Math.min(
+        maxCountAlong(totalLength, rightSize.length, clearance),
+        input.constraints.maxBands,
+      ) *
+      Math.min(
+        maxCountAlong(totalWidth, rightSize.width, clearance),
+        input.constraints.maxBands,
+      );
+    return rightCount - leftCount || left - right;
+  });
+
+  search: for (const rotation of orderedRotations) {
+    const size = rectangleSizeForRotation(input.package.dimensionsMm, rotation);
+    const columns = Math.min(
+      maxCountAlong(totalLength, size.length, clearance),
+      input.constraints.maxBands,
+    );
+    const rows = Math.min(
+      maxCountAlong(totalWidth, size.width, clearance),
+      input.constraints.maxBands,
+    );
+    const packageCount = columns * rows - 2;
+    if (
+      columns < 3 ||
+      rows < 2 ||
+      (exactPackageCount !== null && packageCount !== exactPackageCount) ||
+      packageCount < input.constraints.minimumPackageCount ||
+      packageCount > input.constraints.maximumPackageCount ||
+      packageCount > input.constraints.maxPlacements
+    ) {
+      continue;
+    }
+
+    const occupiedLengthMm = normalizeGeneratedGeometryMetric(
+      usedSpan(columns, size.length, clearance),
+      "denseEdgeNotch.occupiedLengthMm",
+    );
+    const occupiedWidthMm = normalizeGeneratedGeometryMetric(
+      usedSpan(rows, size.width, clearance),
+      "denseEdgeNotch.occupiedWidthMm",
+    );
+    const minimumX = alignedStart(
+      envelope.minX,
+      totalLength,
+      occupiedLengthMm,
+      "center",
+    );
+    const minimumY = alignedStart(
+      envelope.minY,
+      totalWidth,
+      occupiedWidthMm,
+      "center",
+    );
+    const addPlan = (
+      twoPackageNotchRow: number | null,
+      firstSingleNotchRow: number | null,
+      secondSingleNotchRow: number | null,
+    ): boolean => {
+      if (!consumeSearchWork()) return false;
+      if (
+        materializedPlacementCount + packageCount >
+        DENSE_EDGE_NOTCH_MAX_RETAINED_PLACEMENTS
+      ) {
+        materializationLimitReached = true;
+        return false;
+      }
+      const rowDeficits = Array.from({ length: rows }, (_, row) =>
+        row === twoPackageNotchRow
+          ? 2
+          : row === firstSingleNotchRow || row === secondSingleNotchRow
+            ? 1
+            : 0,
+      );
+      const placements = rowDeficits.flatMap((deficit, row) => {
+        const rowColumns = columns - deficit;
+        const y = normalizeGeneratedCoordinateMm(
+          minimumY + size.width / 2 + row * (size.width + clearance),
+          `denseEdgeNotch.y[${row}]`,
+        );
+        return Array.from({ length: rowColumns }, (_, column) => ({
+          positionMm: {
+            x: normalizeGeneratedCoordinateMm(
+              minimumX + size.length / 2 + column * (size.length + clearance),
+              `denseEdgeNotch.x[${row}][${column}]`,
+            ),
+            y,
+          },
+          rotation,
+        }));
+      });
+      if (
+        !collector.add(placements, {
+          family: "block",
+          variant: "dense-edge-notch",
+          parameters: {
+            topology: "dense-edge-notch-v1",
+            rotation,
+            columns,
+            rows,
+            missingPackageCount: 2,
+            rowDeficits: rowDeficits.join(","),
+            missingSide: "end",
+            occupiedLengthMm,
+            occupiedWidthMm,
+          },
+        })
+      ) {
+        return false;
+      }
+      materializedPlacementCount += packageCount;
+      return true;
+    };
+
+    let stopCurrentRotation = false;
+    for (let row = 0; row < rows; row += 1) {
+      if (addPlan(row, null, null)) continue;
+      if (
+        materializationLimitReached &&
+        collector.canContinue() &&
+        !searchLimitReached
+      ) {
+        stopCurrentRotation = true;
+        break;
+      }
+      break search;
+    }
+    if (stopCurrentRotation) continue;
+    if (rows > 2) {
+      pairSearch: for (let firstRow = 0; firstRow < rows; firstRow += 1) {
+        for (let secondRow = firstRow + 1; secondRow < rows; secondRow += 1) {
+          if (addPlan(null, firstRow, secondRow)) continue;
+          if (
+            materializationLimitReached &&
+            collector.canContinue() &&
+            !searchLimitReached
+          ) {
+            stopCurrentRotation = true;
+            break pairSearch;
+          }
+          break search;
+        }
+      }
+    }
+    if (stopCurrentRotation) continue;
+  }
+
+  if (searchLimitReached && collector.canContinue()) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "dense-edge-notch-search-limit-reached",
+      message: `block dense edge-notch generation stopped after the deterministic hard search budget of ${DENSE_EDGE_NOTCH_MAX_SEARCH_WORK} work units.`,
+      generator: "block",
+      count: consumedSearchWork,
+    });
+  }
+  if (materializationLimitReached && collector.canContinue()) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "dense-edge-notch-materialization-limit-reached",
+      message: `block dense edge-notch generation materialized at most ${DENSE_EDGE_NOTCH_MAX_RETAINED_PLACEMENTS} total placements.`,
+      generator: "block",
+      count: materializedPlacementCount,
+    });
+  }
+}
+
 function generateBlocks(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
 ): GeneratorOutput {
   const collector = new DraftCollector("block", input, hooks);
+  if (!collector.checkCancellation()) return collector.output();
+  const notchRotations: Rotation[] = [];
+  for (const rotation of input.constraints.allowedRotations) {
+    const size = rectangleSizeForRotation(input.package.dimensionsMm, rotation);
+    if (
+      notchRotations.some((existingRotation) => {
+        const existingSize = rectangleSizeForRotation(
+          input.package.dimensionsMm,
+          existingRotation,
+        );
+        return (
+          Math.abs(existingSize.length - size.length) <=
+            SOLVER_GEOMETRY_EPSILON_MM &&
+          Math.abs(existingSize.width - size.width) <=
+            SOLVER_GEOMETRY_EPSILON_MM
+        );
+      })
+    ) {
+      continue;
+    }
+    notchRotations.push(rotation);
+  }
   const representatives = footprintRepresentatives(
     input.constraints.allowedRotations,
   );
   if (!representatives) {
+    generateDenseEdgeNotches(input, collector, notchRotations);
+    if (!collector.canContinue()) return collector.output();
     collector.diagnostics.push({
       severity: "info",
       phase: "generation",
@@ -5130,17 +6255,18 @@ function generateBlocks(
         clearance,
       );
       const secondRows = maxCountAlong(totalWidth, secondSize.width, clearance);
-      const candidateSelectionGroupKey = shouldAddCompactRectangle
-        ? [
-            "block-vertical-split-v1",
-            firstRotation,
-            secondRotation,
-            firstColumns,
-            secondColumns,
-            firstRows,
-            secondRows,
-          ].join(":")
-        : null;
+      const candidateSelectionGroupKey =
+        exactPackageCount !== null
+          ? [
+              "block-vertical-split-v1",
+              firstRotation,
+              secondRotation,
+              firstColumns,
+              secondColumns,
+              firstRows,
+              secondRows,
+            ].join(":")
+          : null;
       const compactRectanglePackageCount =
         firstColumns * firstRows + secondColumns * secondRows;
       const canMaterializeCompactRectangle =
@@ -5231,7 +6357,16 @@ function generateBlocks(
               },
             },
             candidateSelectionGroupKey
-              ? [{ groupKey: candidateSelectionGroupKey, priority: 1 }]
+              ? [
+                  {
+                    groupKey: candidateSelectionGroupKey,
+                    priority: shouldAddCompactRectangle
+                      ? 1
+                      : alignment === "start"
+                        ? 0
+                        : 1,
+                  },
+                ]
               : undefined,
           );
         }
@@ -5273,17 +6408,18 @@ function generateBlocks(
         secondSize.width,
         clearance,
       );
-      const candidateSelectionGroupKey = shouldAddCompactRectangle
-        ? [
-            "block-horizontal-split-v1",
-            firstRotation,
-            secondRotation,
-            firstColumns,
-            secondColumns,
-            firstRows,
-            secondRows,
-          ].join(":")
-        : null;
+      const candidateSelectionGroupKey =
+        exactPackageCount !== null
+          ? [
+              "block-horizontal-split-v1",
+              firstRotation,
+              secondRotation,
+              firstColumns,
+              secondColumns,
+              firstRows,
+              secondRows,
+            ].join(":")
+          : null;
       const compactRectanglePackageCount =
         firstRows * firstColumns + secondRows * secondColumns;
       const canMaterializeCompactRectangle =
@@ -5374,13 +6510,29 @@ function generateBlocks(
               },
             },
             candidateSelectionGroupKey
-              ? [{ groupKey: candidateSelectionGroupKey, priority: 1 }]
+              ? [
+                  {
+                    groupKey: candidateSelectionGroupKey,
+                    priority: shouldAddCompactRectangle
+                      ? 1
+                      : alignment === "start"
+                        ? 0
+                        : 1,
+                  },
+                ]
               : undefined,
           );
         }
       }
     }
   }
+  generateThreeBlockSplits(input, collector, orientationOrders);
+  if (!collector.canContinue()) return collector.output();
+  generateFourBlockCFrames(input, collector, orientationOrders);
+  if (!collector.canContinue()) return collector.output();
+  generateSideCoreCornerBands(input, collector, orientationOrders);
+  if (!collector.canContinue()) return collector.output();
+  generateDenseEdgeNotches(input, collector, notchRotations);
   return collector.output();
 }
 
@@ -5617,8 +6769,9 @@ export function generateSymmetryCandidateDrafts(
             symmetry,
             sourceGeometryKey,
             parameters: {
-              sourceFamilies: draft.provenance
-                .map(({ family }) => family)
+              sourceFamilies: [
+                ...new Set(draft.provenance.map(({ family }) => family)),
+              ]
                 .sort()
                 .join(","),
               frame: "generationBoundsMm",

@@ -1883,7 +1883,7 @@ describe("deterministic solve orchestration", () => {
   });
 });
 
-describe("observed AP5006 geometry", () => {
+describe("observed MultiPack geometry", () => {
   it("generates the observed 55-package balanced capped strip", () => {
     const values = observedAp5006.input.values;
     const envelopeMm = createCenteredEffectivePalletEnvelope(
@@ -1909,17 +1909,15 @@ describe("observed AP5006 geometry", () => {
           rotation: 90 as const,
         })),
       ),
-      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap(
-        (x) =>
-          [402, 559, 716].map((y) => ({
-            positionMm: { x, y },
-            rotation: 90 as const,
-          })),
+      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap((x) =>
+        [402, 559, 716].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
       ),
     ];
-    const expectedGeometryKey = canonicalPlacementGeometryKey(
-      expectedPlacements,
-    );
+    const expectedGeometryKey =
+      canonicalPlacementGeometryKey(expectedPlacements);
     const result = solveLayer({
       package: {
         shape: values.package.shape,
@@ -1942,7 +1940,12 @@ describe("observed AP5006 geometry", () => {
     );
 
     expect(maximum).toBe(55);
-    expect(maximumCandidates).toHaveLength(5);
+    expect(maximumCandidates).toHaveLength(7);
+    expect(
+      maximumCandidates.filter(({ provenance }) =>
+        provenance.some(({ variant }) => variant === "balanced-capped-block"),
+      ),
+    ).toHaveLength(2);
     expect(observedCandidate).toBeDefined();
     expect(observedCandidate?.metrics).toEqual(
       expect.objectContaining({
@@ -1968,5 +1971,424 @@ describe("observed AP5006 geometry", () => {
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );
+  }, 15_000);
+
+  it("keeps the observed 53-package four-block layout after finalization", () => {
+    const envelopeMm = createCenteredEffectivePalletEnvelope(
+      { length: 1200, width: 800 },
+      { length: -12, width: -20 },
+    );
+    const expectedPlacements = [
+      ...[60, 168, 276, 384, 492, 600, 708, 816, 924, 1032, 1140].flatMap((x) =>
+        [556, 712].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[84, 240, 960, 1116].flatMap((x) =>
+        [64, 184, 304, 424].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[384, 492, 600, 708, 816].flatMap((x) =>
+        [88, 244, 400].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+    ];
+    const input: LayerSolverInput = {
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm,
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 200,
+      },
+    };
+    const result = solveLayer(input, {
+      generatorOrder: [
+        "nested-side",
+        "row",
+        "block",
+        "justified-grid",
+        "pinwheel",
+        "edge-ring",
+        "mixed-orientation",
+      ],
+      progressBatchSize: 1,
+    });
+    const reordered = solveLayer(input, {
+      generatorOrder: [
+        "mixed-orientation",
+        "edge-ring",
+        "pinwheel",
+        "justified-grid",
+        "block",
+        "row",
+        "nested-side",
+      ],
+      progressBatchSize: 97,
+    });
+    const candidate = result.candidates.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "balanced-capped-block" &&
+          parameters?.topology === "balanced-capped-block-v1" &&
+          parameters.capColumns === 2 &&
+          parameters.capRows === 4 &&
+          parameters.coreColumns === 5 &&
+          parameters.coreRows === 3,
+      ),
+    );
+
+    expect(reordered).toEqual(result);
+    expect(result.status).toBe("completed");
+    expect(candidate).toBeDefined();
+    expect(candidate?.metrics).toEqual(
+      expect.objectContaining({
+        packageCount: 53,
+        boundingBlockLengthMm: 1188,
+        boundingBlockWidthMm: 780,
+      }),
+    );
+    expect(canonicalPlacementGeometryKey(candidate?.placements ?? [])).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      candidate?.provenance.find(
+        ({ variant }) => variant === "balanced-capped-block",
+      )?.parameters,
+    ).toEqual(
+      expect.objectContaining({
+        blockCount: 4,
+        capCrossResidualMm: 36,
+        coreInlineResidualMm: 24,
+        coreCrossResidualMm: 0,
+      }),
+    );
+    expect(candidate?.validation.valid).toBe(true);
+  }, 15_000);
+
+  it("keeps the observed two- and three-block split inventory", () => {
+    const result = solveLayer({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        provisionalPackagesPerCycle: 2,
+        maxCandidatesPerGenerator: 500,
+      },
+    });
+    const threeBlockCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "three-block-split-v1",
+      ),
+    );
+    const distributedThreeBlockCandidates = result.candidates.filter(
+      ({ provenance }) =>
+        provenance.some(
+          ({ parameters }) =>
+            parameters?.topology === "three-block-split-distributed-v1",
+        ),
+    );
+    const cFrameCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "four-block-c-frame-v1",
+      ),
+    );
+    const sideCoreCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) =>
+          parameters?.topology === "side-core-corner-bands-v1",
+      ),
+    );
+    const cappedBlockCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "balanced-capped-block-v1",
+      ),
+    );
+    const notchCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+      ),
+    );
+    const mixedOnlyCandidates = result.candidates.filter(({ provenance }) => {
+      const baseFamilies = new Set(
+        provenance
+          .filter(
+            ({ family, variant }) =>
+              family !== "symmetry" && variant !== "occupied-bounds-center-v1",
+          )
+          .map(({ family }) => family),
+      );
+      return (
+        baseFamilies.has("mixed-orientation") &&
+        [...baseFamilies].every((family) => family === "mixed-orientation")
+      );
+    });
+    const genericTwoBlockCandidates = result.candidates.filter(
+      ({ provenance }) =>
+        provenance.some(
+          ({ family, variant }) =>
+            family === "block" && variant.startsWith("vertical-split-"),
+        ),
+    );
+    const splitSignatures = threeBlockCandidates
+      .map(({ provenance }) => {
+        const parameters = provenance.find(
+          ({ parameters }) => parameters?.topology === "three-block-split-v1",
+        )?.parameters;
+        return [
+          parameters?.outerRotation,
+          parameters?.leftOuterColumns,
+          parameters?.middleColumns,
+          parameters?.rightOuterColumns,
+        ].join(":");
+      })
+      .sort();
+    const topologyHistogram = result.candidates.reduce<Record<string, number>>(
+      (histogram, candidate) => {
+        const topologies = new Set(
+          candidate.provenance.flatMap(({ parameters }) =>
+            typeof parameters?.topology === "string"
+              ? [parameters.topology]
+              : [],
+          ),
+        );
+        let category = "other";
+        if (topologies.has("dense-edge-notch-v1")) category = "notch";
+        else if (topologies.has("balanced-capped-block-v1")) {
+          category = "cappedBlock";
+        } else if (topologies.has("four-block-c-frame-v1")) {
+          category = "cFrame";
+        } else if (topologies.has("side-core-corner-bands-v1")) {
+          category = "sideCore";
+        } else if (topologies.has("three-block-split-distributed-v1")) {
+          category = "distributedThree";
+        } else if (topologies.has("three-block-split-v1")) {
+          category = "compactThree";
+        } else if (
+          candidate.provenance.some(
+            ({ family, variant }) =>
+              family === "block" && variant === "vertical-split-start",
+          )
+        ) {
+          category = "twoBlock";
+        } else if (
+          candidate.provenance.some(
+            ({ family, variant }) =>
+              family === "mixed-orientation" &&
+              variant !== "occupied-bounds-center-v1",
+          )
+        ) {
+          category = "genericMixed";
+        }
+        histogram[category] = (histogram[category] ?? 0) + 1;
+        return histogram;
+      },
+      {},
+    );
+
+    expect(result.status).toBe("completed");
+    expect(result.candidates).toHaveLength(25);
+    expect(topologyHistogram).toEqual({
+      twoBlock: 1,
+      compactThree: 4,
+      distributedThree: 2,
+      sideCore: 1,
+      cFrame: 1,
+      cappedBlock: 1,
+      notch: 9,
+      genericMixed: 6,
+    });
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: "five-block-mosaic-search-limit-reached",
+          generator: "pinwheel",
+          count: 100_000,
+        }),
+        expect.objectContaining({
+          code: "five-block-offset-bridge-search-limit-reached",
+          generator: "pinwheel",
+          count: 100_000,
+        }),
+      ]),
+    );
+    expect(mixedOnlyCandidates).toHaveLength(6);
+    expect(genericTwoBlockCandidates).toHaveLength(1);
+    expect(
+      genericTwoBlockCandidates[0]?.provenance.some(
+        ({ variant }) => variant === "vertical-split-start",
+      ),
+    ).toBe(true);
+    expect(genericTwoBlockCandidates[0]?.metrics).toEqual(
+      expect.objectContaining({
+        provisionalCycleCount: 29,
+        boundingBlockLengthMm: 1164,
+        boundingBlockWidthMm: 780,
+      }),
+    );
+    expect(cappedBlockCandidates).toHaveLength(1);
+    expect(cappedBlockCandidates[0]?.metrics).toEqual(
+      expect.objectContaining({
+        provisionalCycleCount: 29,
+        boundingBlockLengthMm: 1188,
+        boundingBlockWidthMm: 780,
+      }),
+    );
+    expect(notchCandidates).toHaveLength(9);
+    expect(
+      notchCandidates
+        .map(({ metrics }) => metrics.provisionalCycleCount)
+        .sort((left, right) => left - right),
+    ).toEqual([31, 31, 32, 32, 32, 32, 32, 33, 33]);
+    expect(threeBlockCandidates).toHaveLength(4);
+    expect(splitSignatures).toEqual([
+      "0:1:5:3",
+      "0:2:5:2",
+      "90:1:4:4",
+      "90:2:4:3",
+    ]);
+    expect(
+      threeBlockCandidates
+        .map(({ metrics }) => metrics.provisionalCycleCount)
+        .sort((left, right) => left - right),
+    ).toEqual([29, 29, 29, 36]);
+    expect(distributedThreeBlockCandidates).toHaveLength(2);
+    expect(sideCoreCandidates).toHaveLength(1);
+    expect(cFrameCandidates).toHaveLength(1);
+    expect(cFrameCandidates[0]?.metrics).toEqual(
+      expect.objectContaining({
+        packageCount: 53,
+        provisionalCycleCount: 43,
+        boundingBlockLengthMm: 1188,
+        boundingBlockWidthMm: 780,
+      }),
+    );
+    expect(cFrameCandidates[0]?.validation.valid).toBe(true);
+    expect(sideCoreCandidates[0]?.metrics).toEqual(
+      expect.objectContaining({
+        packageCount: 53,
+        provisionalCycleCount: 29,
+        boundingBlockLengthMm: 1176,
+        boundingBlockWidthMm: 780,
+      }),
+    );
+    expect(sideCoreCandidates[0]?.validation.valid).toBe(true);
+    expect(
+      sideCoreCandidates[0]?.provenance.some(
+        ({ symmetry }) => symmetry === "mirror-x",
+      ),
+    ).toBe(true);
+    expect(
+      distributedThreeBlockCandidates.every(
+        ({ metrics, validation }) =>
+          metrics.packageCount === 53 &&
+          metrics.provisionalCycleCount === 29 &&
+          metrics.boundingBlockLengthMm === 1188 &&
+          metrics.boundingBlockWidthMm === 780 &&
+          validation.valid,
+      ),
+    ).toBe(true);
+    expect(
+      threeBlockCandidates.every(
+        ({ metrics, validation }) =>
+          metrics.packageCount === 53 &&
+          metrics.boundingBlockLengthMm === 1164 &&
+          metrics.boundingBlockWidthMm === 780 &&
+          validation.valid,
+      ),
+    ).toBe(true);
+  }, 15_000);
+
+  it("keeps nine observed dense edge-notch symmetry classes", () => {
+    const result = solveLayer({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        provisionalPackagesPerCycle: 2,
+        maxCandidatesPerGenerator: 500,
+      },
+    });
+    const notchCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+      ),
+    );
+
+    expect(result.status).toBe("completed");
+    expect(notchCandidates).toHaveLength(9);
+    expect(
+      new Set(
+        notchCandidates.map(({ placements }) =>
+          canonicalPlacementGeometryKey(placements),
+        ),
+      ),
+    ).toHaveLength(9);
+    const notchOrbitSignatures = new Set(
+      notchCandidates.map(({ provenance }) =>
+        JSON.stringify(
+          [
+            ...new Set(
+              provenance.flatMap(({ parameters }) =>
+                parameters?.topology === "dense-edge-notch-v1" &&
+                typeof parameters.rowDeficits === "string"
+                  ? [parameters.rowDeficits]
+                  : [],
+              ),
+            ),
+          ].sort(),
+        ),
+      ),
+    );
+    expect(notchOrbitSignatures).toEqual(
+      new Set([
+        JSON.stringify(["0,0,2,0,0"]),
+        JSON.stringify(["0,0,0,0,2", "2,0,0,0,0"]),
+        JSON.stringify(["0,0,1,1,0", "0,1,1,0,0"]),
+        JSON.stringify(["1,0,0,0,1"]),
+        JSON.stringify(["0,0,0,1,1", "1,1,0,0,0"]),
+        JSON.stringify(["0,0,1,0,1", "1,0,1,0,0"]),
+        JSON.stringify(["0,1,0,0,1", "1,0,0,1,0"]),
+        JSON.stringify(["0,0,0,2,0", "0,2,0,0,0"]),
+        JSON.stringify(["0,1,0,1,0"]),
+      ]),
+    );
+    expect(
+      notchCandidates.every(({ provenance }) => {
+        const parameters = provenance.find(
+          ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+        )?.parameters;
+        return parameters !== undefined && !("blockCount" in parameters);
+      }),
+    ).toBe(true);
+    expect(
+      notchCandidates.every(({ metrics, validation }) =>
+        Boolean(
+          metrics.packageCount === 53 &&
+            metrics.boundingBlockLengthMm === 1188 &&
+            metrics.boundingBlockWidthMm === 780 &&
+            validation.valid,
+        ),
+      ),
+    ).toBe(true);
   }, 15_000);
 });

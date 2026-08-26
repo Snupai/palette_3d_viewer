@@ -409,6 +409,58 @@ describe("justified split-grid generator", () => {
     ).toBe(true);
   });
 
+  it("rejects enclosed same-orientation holes while preserving edge notches", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        provisionalPackagesPerCycle: 2,
+        maxCandidatesPerGenerator: 1_500,
+      },
+    });
+    const fullGrid = [88, 244, 400, 556, 712].flatMap((y, row) =>
+      [60, 168, 276, 384, 492, 600, 708, 816, 924, 1032, 1140].map(
+        (x, column) => ({
+          column,
+          row,
+          placement: { positionMm: { x, y }, rotation: 90 as const },
+        }),
+      ),
+    );
+    const geometryWithout = (missing: ReadonlySet<string>) =>
+      canonicalPlacementGeometryKey(
+        fullGrid
+          .filter(({ column, row }) => !missing.has(`${column}:${row}`))
+          .map(({ placement }) => placement),
+      );
+    const forbiddenGeometryKeys = [
+      new Set(["1:2", "10:2"]),
+      new Set(["1:2", "1:3"]),
+      new Set(["2:2", "2:3"]),
+    ].map(geometryWithout);
+    const edgeNotchGeometryKey = geometryWithout(new Set(["10:2", "10:3"]));
+
+    const output = generateCandidateFamily(input, "pinwheel");
+    const generatedGeometryKeys = new Set(
+      output.drafts.map(({ placements }) =>
+        canonicalPlacementGeometryKey(placements),
+      ),
+    );
+
+    expect(
+      forbiddenGeometryKeys.every(
+        (geometryKey) => !generatedGeometryKeys.has(geometryKey),
+      ),
+    ).toBe(true);
+    expect(generatedGeometryKeys.has(edgeNotchGeometryKey)).toBe(true);
+  }, 15_000);
+
   it("generates a nested side region with top and bottom bands around a dense core", () => {
     const input = normalized({
       package: {
@@ -476,12 +528,11 @@ describe("justified split-grid generator", () => {
           rotation: 90 as const,
         })),
       ),
-      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap(
-        (x) =>
-          [402, 559, 716].map((y) => ({
-            positionMm: { x, y },
-            rotation: 90 as const,
-          })),
+      ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap((x) =>
+        [402, 559, 716].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
       ),
     ];
 
@@ -519,14 +570,25 @@ describe("justified split-grid generator", () => {
     expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
       true,
     );
-    expect(provenanceParameters(candidate)).toEqual(
-      expect.objectContaining({
-        coreInlineResidualMm: 4,
-        coreCrossResidualMm: 4,
-        occupiedLengthMm: 1166,
-        occupiedWidthMm: 789,
-      }),
-    );
+    expect(provenanceParameters(candidate)).toEqual({
+      topology: "balanced-capped-strip-v1",
+      splitAxis: "y",
+      mainSide: "end",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 11,
+      mainRows: 3,
+      capColumns: 1,
+      capRows: 3,
+      coreRotation: 90,
+      coreColumns: 8,
+      coreRows: 2,
+      spacingPolicy: "continuous-space-between",
+      coreInlineResidualMm: 4,
+      coreCrossResidualMm: 4,
+      occupiedLengthMm: 1166,
+      occupiedWidthMm: 789,
+    });
     const centeredProvenance = candidate.provenance.find(
       ({ variant }) => variant === "occupied-bounds-center-v1",
     );
@@ -535,7 +597,85 @@ describe("justified split-grid generator", () => {
     );
   });
 
-  it("derives balanced capped strips from other package dimensions", () => {
+  it("generates the observed 53-package balanced capped block", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: { maxCandidatesPerGenerator: 2_000 },
+    });
+    const expectedPlacements = [
+      ...[60, 168, 276, 384, 492, 600, 708, 816, 924, 1032, 1140].flatMap((x) =>
+        [556, 712].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[84, 240, 960, 1116].flatMap((x) =>
+        [64, 184, 304, 424].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[384, 492, 600, 708, 816].flatMap((x) =>
+        [88, 244, 400].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+    ];
+
+    const first = generateCandidateFamily(input, "nested-side");
+    const second = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(first.drafts, {
+      topology: "balanced-capped-block-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 11,
+      mainRows: 2,
+      capColumns: 2,
+      capRows: 4,
+      coreColumns: 5,
+      coreRows: 3,
+    });
+
+    expect(second).toEqual(first);
+    expect(expectedPlacements).toHaveLength(53);
+    expect(candidate.placements).toHaveLength(53);
+    expect(canonicalPlacementGeometryKey(candidate.placements)).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      candidate.placements.filter(({ rotation }) => rotation === 0),
+    ).toHaveLength(16);
+    expect(
+      candidate.placements.filter(({ rotation }) => rotation === 90),
+    ).toHaveLength(37);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 6, minY: 10, maxX: 1194, maxY: 790 });
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        blockCount: 4,
+        capCrossResidualMm: 36,
+        coreInlineResidualMm: 24,
+        coreCrossResidualMm: 0,
+        occupiedLengthMm: 1188,
+        occupiedWidthMm: 780,
+      }),
+    );
+  });
+
+  it("derives balanced capped regions from other package dimensions", () => {
     const input = normalized({
       package: {
         shape: "cuboid",
@@ -554,6 +694,17 @@ describe("justified split-grid generator", () => {
       mainRows: 2,
       capRows: 3,
       coreColumns: 4,
+      coreRows: 2,
+    });
+    const blockCandidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-block-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 7,
+      mainRows: 2,
+      capColumns: 2,
+      capRows: 3,
+      coreColumns: 1,
       coreRows: 2,
     });
 
@@ -575,6 +726,176 @@ describe("justified split-grid generator", () => {
     expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
       true,
     );
+    expect(blockCandidate.placements).toHaveLength(28);
+    expect(
+      boundingRectangleForPlacements(
+        blockCandidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 0, minY: 0, maxX: 595, maxY: 495 });
+    expect(provenanceParameters(blockCandidate)).toEqual(
+      expect.objectContaining({
+        blockCount: 4,
+        capCrossResidualMm: 0,
+        coreInlineResidualMm: 30,
+        coreCrossResidualMm: 15,
+        occupiedLengthMm: 595,
+        occupiedWidthMm: 495,
+      }),
+    );
+    expect(
+      validateCandidatePlacements(input, blockCandidate.placements).valid,
+    ).toBe(true);
+  });
+
+  it("derives multi-column cap gaps from non-zero clearance", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 120, width: 85 },
+        clearanceMm: 3,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 613, maxY: 507 },
+      constraints: { maxCandidatesPerGenerator: 2_000 },
+    });
+    const expectedPlacements = [
+      ...[42.5, 130.5, 218.5, 306.5, 394.5, 482.5, 570.5].flatMap((x) =>
+        [324, 447].map((y) => ({
+          positionMm: { x, y },
+          rotation: 90 as const,
+        })),
+      ),
+      ...[60, 183, 430, 553].flatMap((x) =>
+        [42.5, 130.5, 218.5].map((y) => ({
+          positionMm: { x, y },
+          rotation: 0 as const,
+        })),
+      ),
+      ...[60, 201].map((y) => ({
+        positionMm: { x: 306.5, y },
+        rotation: 90 as const,
+      })),
+    ];
+    const output = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-block-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 7,
+      mainRows: 2,
+      capColumns: 2,
+      capRows: 3,
+      coreColumns: 1,
+      coreRows: 2,
+    });
+
+    expect(expectedPlacements).toHaveLength(28);
+    expect(canonicalPlacementGeometryKey(candidate.placements)).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        blockCount: 4,
+        capCrossResidualMm: 0,
+        coreInlineResidualMm: 36,
+        coreCrossResidualMm: 18,
+        occupiedLengthMm: 613,
+        occupiedWidthMm: 507,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("falls back from infeasible maximal rows during non-exact generation", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 80, width: 40 },
+        clearanceMm: 5,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 600, maxY: 500 },
+      constraints: { maxCandidatesPerGenerator: 2_000 },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "balanced-capped-block-v1",
+      mainRotation: 90,
+      capRotation: 0,
+      mainColumns: 13,
+      mainRows: 1,
+      capColumns: 2,
+      capRows: 8,
+      coreColumns: 5,
+      coreRows: 4,
+    });
+
+    expect(candidate.placements).toHaveLength(65);
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 10, minY: 30, maxX: 590, maxY: 470 });
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        blockCount: 4,
+        capCrossResidualMm: 0,
+        coreInlineResidualMm: 20,
+        coreCrossResidualMm: 20,
+        occupiedLengthMm: 580,
+        occupiedWidthMm: 440,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("keeps exact capped geometries when the count range is widened", () => {
+    const packageInput = {
+      shape: "cuboid" as const,
+      dimensionsMm: { length: 30, width: 18 },
+      clearanceMm: 0,
+    };
+    const exactInput = normalized({
+      package: packageInput,
+      envelopeMm: { minX: 0, minY: 0, maxX: 175, maxY: 125 },
+      constraints: {
+        minimumPackageCount: 31,
+        maximumPackageCount: 31,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const rangeInput = normalized({
+      package: packageInput,
+      envelopeMm: exactInput.envelopeMm,
+      constraints: {
+        minimumPackageCount: 30,
+        maximumPackageCount: 31,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const exactCandidate = matchingDraft(
+      generateCandidateFamily(exactInput, "nested-side").drafts,
+      {
+        topology: "balanced-capped-block-v1",
+        mainColumns: 8,
+        coreColumns: 1,
+      },
+    );
+    const rangeGeometryKeys = new Set(
+      generateCandidateFamily(rangeInput, "nested-side").drafts.map(
+        ({ placements }) => canonicalPlacementGeometryKey(placements),
+      ),
+    );
+
+    expect(
+      rangeGeometryKeys.has(
+        canonicalPlacementGeometryKey(exactCandidate.placements),
+      ),
+    ).toBe(true);
   });
 
   it("derives non-maximal capped-strip regions for an exact count", () => {
@@ -660,7 +981,7 @@ describe("justified split-grid generator", () => {
     );
   });
 
-  it("bounds exact capped-strip placement materialization", () => {
+  it("bounds exact capped-region placement materialization", () => {
     const input = normalized({
       package: {
         shape: "cuboid",
@@ -678,16 +999,21 @@ describe("justified split-grid generator", () => {
       },
     });
     const output = generateCandidateFamily(input, "nested-side");
-    const cappedStrips = output.drafts.filter(({ provenance }) =>
+    const cappedRegions = output.drafts.filter(({ provenance }) =>
+      provenance.some(
+        ({ variant }) =>
+          variant === "balanced-capped-strip" ||
+          variant === "balanced-capped-block",
+      ),
+    );
+    const cappedStrips = cappedRegions.filter(({ provenance }) =>
       provenance.some(({ variant }) => variant === "balanced-capped-strip"),
     );
 
+    expect(cappedRegions).toHaveLength(20);
     expect(cappedStrips).toHaveLength(20);
     expect(
-      cappedStrips.reduce(
-        (sum, { placements }) => sum + placements.length,
-        0,
-      ),
+      cappedRegions.reduce((sum, { placements }) => sum + placements.length, 0),
     ).toBe(10_000);
     expect(output.diagnostics).toContainEqual(
       expect.objectContaining({
@@ -696,6 +1022,111 @@ describe("justified split-grid generator", () => {
         count: 10_000,
       }),
     );
+  });
+
+  it("applies the placement budget across strips and multi-column blocks", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 60, maxY: 40 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 100,
+        maximumPackageCount: 100,
+        maxPlacements: 10_000,
+        maxBands: 16,
+        maxCandidatesPerGenerator: 100,
+      },
+    });
+    const output = generateCandidateFamily(input, "nested-side");
+    const cappedStrips = output.drafts.filter(({ provenance }) =>
+      provenance.some(({ variant }) => variant === "balanced-capped-strip"),
+    );
+    const cappedBlocks = output.drafts.filter(({ provenance }) =>
+      provenance.some(({ variant }) => variant === "balanced-capped-block"),
+    );
+    const blockCapColumnCounts = cappedBlocks.reduce<Record<number, number>>(
+      (counts, draft) => {
+        const capColumns = provenanceParameters(draft).capColumns;
+        if (typeof capColumns === "number") {
+          counts[capColumns] = (counts[capColumns] ?? 0) + 1;
+        }
+        return counts;
+      },
+      {},
+    );
+
+    expect(output.cancelled).toBe(false);
+    expect(output.drafts).toHaveLength(100);
+    expect(cappedStrips).toHaveLength(50);
+    expect(cappedBlocks).toHaveLength(50);
+    expect(blockCapColumnCounts).toEqual({ 2: 44, 3: 6 });
+    expect(
+      output.drafts.reduce((sum, { placements }) => sum + placements.length, 0),
+    ).toBe(10_000);
+    expect(
+      cappedBlocks.every(
+        (draft) =>
+          provenanceParameters(draft).topology === "balanced-capped-block-v1" &&
+          provenanceParameters(draft).blockCount === 4,
+      ),
+    ).toBe(true);
+    expect(output.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "balanced-capped-strip-materialization-limit-reached",
+        generator: "nested-side",
+        count: 10_000,
+      }),
+    );
+    expect(output.diagnostics).not.toContainEqual(
+      expect.objectContaining({
+        code: "balanced-capped-strip-search-limit-reached",
+      }),
+    );
+    expect(output.diagnostics).not.toContainEqual(
+      expect.objectContaining({ code: "generation-limit-reached" }),
+    );
+  });
+
+  it("cancels after entering the multi-column block search", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 30, width: 22 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 150, maxY: 112 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 25,
+        maximumPackageCount: 25,
+        maxPlacements: 25,
+        maxBands: 5,
+        maxCandidatesPerGenerator: 2,
+      },
+    });
+    let cancellationPolls = 0;
+    const output = generateCandidateFamily(input, "nested-side", {
+      shouldCancel: () => {
+        cancellationPolls += 1;
+        return cancellationPolls >= 18;
+      },
+    });
+
+    expect(output.cancelled).toBe(true);
+    expect(output.drafts).toEqual([]);
+    expect(output.exclusions).toEqual([]);
+    expect(cancellationPolls).toBe(18);
+    expect(output.diagnostics).toEqual([
+      expect.objectContaining({
+        code: "exact-count-source-rejected",
+        generator: "nested-side",
+        count: 4,
+      }),
+    ]);
   });
 
   it("hard-bounds exact capped-strip search work", () => {
@@ -993,6 +1424,748 @@ describe("justified split-grid generator", () => {
     expect(packageCountsByBand).toEqual([5, 8, 9]);
   });
 
+  it("generates the observed 53-package three-block split family", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const first = generateCandidateFamily(input, "block");
+    const second = generateCandidateFamily(input, "block");
+    const symmetricLengthwiseCaps = matchingDraft(first.drafts, {
+      topology: "three-block-split-v1",
+      outerRotation: 0,
+      middleRotation: 90,
+      leftOuterColumns: 2,
+      middleColumns: 5,
+      rightOuterColumns: 2,
+    });
+    const asymmetricLengthwiseCaps = matchingDraft(first.drafts, {
+      topology: "three-block-split-v1",
+      outerRotation: 0,
+      middleRotation: 90,
+      leftOuterColumns: 1,
+      middleColumns: 5,
+      rightOuterColumns: 3,
+    });
+    const twoCrosswiseLeftCaps = matchingDraft(first.drafts, {
+      topology: "three-block-split-v1",
+      outerRotation: 90,
+      middleRotation: 0,
+      leftOuterColumns: 2,
+      middleColumns: 4,
+      rightOuterColumns: 3,
+    });
+    const oneCrosswiseLeftCap = matchingDraft(first.drafts, {
+      topology: "three-block-split-v1",
+      outerRotation: 90,
+      middleRotation: 0,
+      leftOuterColumns: 1,
+      middleColumns: 4,
+      rightOuterColumns: 4,
+    });
+    const distributedTwoCrosswiseLeftCaps = matchingDraft(first.drafts, {
+      topology: "three-block-split-distributed-v1",
+      outerRotation: 90,
+      middleRotation: 0,
+      leftOuterColumns: 2,
+      middleColumns: 4,
+      rightOuterColumns: 3,
+    });
+    const distributedOneCrosswiseLeftCap = matchingDraft(first.drafts, {
+      topology: "three-block-split-distributed-v1",
+      outerRotation: 90,
+      middleRotation: 0,
+      leftOuterColumns: 1,
+      middleColumns: 4,
+      rightOuterColumns: 4,
+    });
+    const lengthwiseY = [64, 172, 280, 388, 496, 604, 712];
+    const crosswiseY = [88, 244, 400, 556, 712];
+    const placements = (
+      rotation: 0 | 90,
+      xCenters: readonly number[],
+      yCenters: readonly number[],
+    ) =>
+      yCenters.flatMap((y) =>
+        xCenters.map((x) => ({ positionMm: { x, y }, rotation })),
+      );
+
+    expect(second).toEqual(first);
+    expect(
+      canonicalPlacementGeometryKey(symmetricLengthwiseCaps.placements),
+    ).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(0, [96, 252, 948, 1104], lengthwiseY),
+        ...placements(90, [384, 492, 600, 708, 816], crosswiseY),
+      ]),
+    );
+    expect(
+      canonicalPlacementGeometryKey(asymmetricLengthwiseCaps.placements),
+    ).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(0, [96, 792, 948, 1104], lengthwiseY),
+        ...placements(90, [228, 336, 444, 552, 660], crosswiseY),
+      ]),
+    );
+    expect(canonicalPlacementGeometryKey(twoCrosswiseLeftCaps.placements)).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(90, [72, 180, 912, 1020, 1128], crosswiseY),
+        ...placements(0, [312, 468, 624, 780], lengthwiseY),
+      ]),
+    );
+    expect(canonicalPlacementGeometryKey(oneCrosswiseLeftCap.placements)).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(90, [72, 804, 912, 1020, 1128], crosswiseY),
+        ...placements(0, [204, 360, 516, 672], lengthwiseY),
+      ]),
+    );
+    expect(
+      canonicalPlacementGeometryKey(distributedTwoCrosswiseLeftCaps.placements),
+    ).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(90, [60, 168, 924, 1032, 1140], crosswiseY),
+        ...placements(0, [312, 468, 624, 780], lengthwiseY),
+      ]),
+    );
+    expect(
+      canonicalPlacementGeometryKey(distributedOneCrosswiseLeftCap.placements),
+    ).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(90, [60, 816, 924, 1032, 1140], crosswiseY),
+        ...placements(0, [204, 360, 516, 672], lengthwiseY),
+      ]),
+    );
+    for (const draft of [
+      symmetricLengthwiseCaps,
+      asymmetricLengthwiseCaps,
+      twoCrosswiseLeftCaps,
+      oneCrosswiseLeftCap,
+    ]) {
+      expect(draft.placements).toHaveLength(53);
+      expect(
+        boundingRectangleForPlacements(
+          draft.placements,
+          input.package.dimensionsMm,
+        ),
+      ).toEqual({ minX: 18, minY: 10, maxX: 1182, maxY: 790 });
+      expect(provenanceParameters(draft)).toEqual(
+        expect.objectContaining({
+          topology: "three-block-split-v1",
+          blockCount: 3,
+          occupiedLengthMm: 1164,
+          occupiedWidthMm: 780,
+        }),
+      );
+      expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
+        true,
+      );
+    }
+    for (const draft of [
+      distributedTwoCrosswiseLeftCaps,
+      distributedOneCrosswiseLeftCap,
+    ]) {
+      expect(draft.placements).toHaveLength(53);
+      expect(
+        boundingRectangleForPlacements(
+          draft.placements,
+          input.package.dimensionsMm,
+        ),
+      ).toEqual({ minX: 6, minY: 10, maxX: 1194, maxY: 790 });
+      expect(provenanceParameters(draft)).toEqual(
+        expect.objectContaining({
+          topology: "three-block-split-distributed-v1",
+          blockCount: 3,
+          regionGapResidualMm: 24,
+          occupiedLengthMm: 1188,
+          occupiedWidthMm: 780,
+        }),
+      );
+      expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
+        true,
+      );
+    }
+  });
+
+  it("generates the observed 53-package side-core corner bands", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "side-core-corner-bands-v1",
+      coreRotation: 90,
+      sideRotation: 0,
+      coreColumns: 5,
+      coreRows: 5,
+      sideColumns: 2,
+      leftLowerRows: 4,
+      leftUpperRows: 3,
+      rightLowerRows: 3,
+      rightUpperRows: 4,
+    });
+    const placements = (
+      rotation: 0 | 90,
+      xCenters: readonly number[],
+      yCenters: readonly number[],
+    ) =>
+      yCenters.flatMap((y) =>
+        xCenters.map((x) => ({ positionMm: { x, y }, rotation })),
+      );
+    const expectedPlacements = [
+      ...placements(90, [384, 492, 600, 708, 816], [88, 244, 400, 556, 712]),
+      ...placements(0, [90, 246], [64, 172, 280, 388, 520, 628, 736]),
+      ...placements(0, [954, 1110], [64, 172, 280, 412, 520, 628, 736]),
+    ];
+
+    expect(expectedPlacements).toHaveLength(53);
+    expect(canonicalPlacementGeometryKey(candidate.placements)).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 12, minY: 10, maxX: 1188, maxY: 790 });
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        topology: "side-core-corner-bands-v1",
+        blockCount: 5,
+        horizontalGapMm: 6,
+        verticalGapMm: 24,
+        occupiedLengthMm: 1176,
+        occupiedWidthMm: 780,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("generates the observed 53-package four-block C-frame", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+    const candidate = matchingDraft(output.drafts, {
+      topology: "four-block-c-frame-v1",
+      frameRotation: 90,
+      coreRotation: 0,
+      frameColumns: 11,
+      stemColumns: 5,
+      stemRows: 3,
+      coreColumns: 4,
+      coreRows: 4,
+    });
+    const placements = (
+      rotation: 0 | 90,
+      xCenters: readonly number[],
+      yCenters: readonly number[],
+    ) =>
+      yCenters.flatMap((y) =>
+        xCenters.map((x) => ({ positionMm: { x, y }, rotation })),
+      );
+    const expectedPlacements = [
+      ...placements(
+        90,
+        [60, 168, 276, 384, 492, 600, 708, 816, 924, 1032, 1140],
+        [88, 712],
+      ),
+      ...placements(90, [60, 168, 276, 384, 492], [244, 400, 556]),
+      ...placements(0, [624, 788, 952, 1116], [220, 328, 436, 544]),
+    ];
+
+    expect(expectedPlacements).toHaveLength(53);
+    expect(canonicalPlacementGeometryKey(candidate.placements)).toBe(
+      canonicalPlacementGeometryKey(expectedPlacements),
+    );
+    expect(
+      boundingRectangleForPlacements(
+        candidate.placements,
+        input.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 6, minY: 10, maxX: 1194, maxY: 790 });
+    expect(provenanceParameters(candidate)).toEqual(
+      expect.objectContaining({
+        topology: "four-block-c-frame-v1",
+        blockCount: 4,
+        coreInlineResidualMm: 24,
+        coreCrossResidualMm: 36,
+        occupiedLengthMm: 1188,
+        occupiedWidthMm: 780,
+      }),
+    );
+    expect(validateCandidatePlacements(input, candidate.placements).valid).toBe(
+      true,
+    );
+  });
+
+  it("centers C-frame and side-core composites inside residual envelopes", () => {
+    const basePackage = {
+      shape: "cuboid" as const,
+      dimensionsMm: { length: 156, width: 108 },
+      clearanceMm: 0,
+    };
+    const cFrameInput = normalized({
+      package: basePackage,
+      envelopeMm: { minX: 6, minY: 10, maxX: 1195, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const sideCoreInput = normalized({
+      package: basePackage,
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 791 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const cFrame = matchingDraft(
+      generateCandidateFamily(cFrameInput, "block").drafts,
+      {
+        topology: "four-block-c-frame-v1",
+        frameRotation: 90,
+        coreRotation: 0,
+        stemColumns: 5,
+        coreColumns: 4,
+      },
+    );
+    const sideCore = matchingDraft(
+      generateCandidateFamily(sideCoreInput, "block").drafts,
+      {
+        topology: "side-core-corner-bands-v1",
+        coreRotation: 90,
+        sideRotation: 0,
+        coreColumns: 5,
+        sideColumns: 2,
+      },
+    );
+
+    expect(
+      boundingRectangleForPlacements(
+        cFrame.placements,
+        cFrameInput.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 6.5, minY: 10, maxX: 1194.5, maxY: 790 });
+    expect(provenanceParameters(cFrame)).toEqual(
+      expect.objectContaining({
+        envelopeInlineResidualMm: 1,
+        occupiedLengthMm: 1188,
+      }),
+    );
+    expect(
+      boundingRectangleForPlacements(
+        sideCore.placements,
+        sideCoreInput.package.dimensionsMm,
+      ),
+    ).toEqual({ minX: 12, minY: 10.5, maxX: 1188, maxY: 790.5 });
+    expect(provenanceParameters(sideCore)).toEqual(
+      expect.objectContaining({
+        envelopeCrossResidualMm: 1,
+        occupiedWidthMm: 780,
+      }),
+    );
+    expect(
+      validateCandidatePlacements(cFrameInput, cFrame.placements).valid,
+    ).toBe(true);
+    expect(
+      validateCandidatePlacements(sideCoreInput, sideCore.placements).valid,
+    ).toBe(true);
+
+    const collapsedInput = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 30, width: 18 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 102, maxY: 90 },
+      constraints: {
+        minimumPackageCount: 16,
+        maximumPackageCount: 16,
+        maxCandidatesPerGenerator: 100,
+      },
+    });
+    expect(
+      generateCandidateFamily(collapsedInput, "block").drafts.filter(
+        ({ provenance }) =>
+          provenance.some(
+            ({ parameters }) =>
+              parameters?.topology === "side-core-corner-bands-v1",
+          ),
+      ),
+    ).toEqual([]);
+  });
+
+  it("keeps exact block geometries when the package-count range is widened", () => {
+    const packageInput = {
+      shape: "cuboid" as const,
+      dimensionsMm: { length: 156, width: 108 },
+      clearanceMm: 0,
+    };
+    const exactInput = normalized({
+      package: packageInput,
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const rangeInput = normalized({
+      package: packageInput,
+      envelopeMm: exactInput.envelopeMm,
+      constraints: {
+        minimumPackageCount: 52,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const exactDrafts = generateCandidateFamily(exactInput, "block").drafts;
+    const rangeDrafts = generateCandidateFamily(rangeInput, "block").drafts;
+    const topologies = [
+      "three-block-split-v1",
+      "three-block-split-distributed-v1",
+      "four-block-c-frame-v1",
+      "side-core-corner-bands-v1",
+      "dense-edge-notch-v1",
+    ];
+
+    for (const topology of topologies) {
+      const exactGeometryKeys = exactDrafts
+        .filter(({ provenance }) =>
+          provenance.some(
+            ({ parameters }) => parameters?.topology === topology,
+          ),
+        )
+        .map(({ placements }) => canonicalPlacementGeometryKey(placements));
+      const rangeGeometryKeys = new Set(
+        rangeDrafts
+          .filter(({ provenance }) =>
+            provenance.some(
+              ({ parameters }) => parameters?.topology === topology,
+            ),
+          )
+          .map(({ placements }) => canonicalPlacementGeometryKey(placements)),
+      );
+      expect(exactGeometryKeys.length).toBeGreaterThan(0);
+      expect(
+        exactGeometryKeys.every((geometryKey) =>
+          rangeGeometryKeys.has(geometryKey),
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("generates the observed nine dense edge-notch geometry classes", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 2_000,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+    const notchDrafts = output.drafts.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+      ),
+    );
+    const deficitSignatures = notchDrafts
+      .map((draft) => String(provenanceParameters(draft).rowDeficits))
+      .sort();
+
+    expect(notchDrafts).toHaveLength(15);
+    expect(new Set(deficitSignatures)).toHaveLength(15);
+    expect(
+      notchDrafts.every((draft) => {
+        const parameters = provenanceParameters(draft);
+        const deficits = String(parameters.rowDeficits).split(",").map(Number);
+        return (
+          draft.placements.length === 53 &&
+          deficits.length === 5 &&
+          deficits.reduce((sum, deficit) => sum + deficit, 0) === 2 &&
+          !("blockCount" in parameters) &&
+          validateCandidatePlacements(input, draft.placements).valid
+        );
+      }),
+    ).toBe(true);
+    expect(
+      notchDrafts.every((draft) => {
+        const deficits = String(provenanceParameters(draft).rowDeficits)
+          .split(",")
+          .map(Number);
+        const rowCounts = [
+          ...draft.placements.reduce((counts, placement) => {
+            counts.set(
+              placement.positionMm.y,
+              (counts.get(placement.positionMm.y) ?? 0) + 1,
+            );
+            return counts;
+          }, new Map<number, number>()),
+        ]
+          .sort(([leftY], [rightY]) => leftY - rightY)
+          .map(([, count]) => count);
+        return (
+          draft.placements.every(({ rotation }) => rotation === 90) &&
+          JSON.stringify(rowCounts) ===
+            JSON.stringify(deficits.map((deficit) => 11 - deficit))
+        );
+      }),
+    ).toBe(true);
+    expect(
+      notchDrafts.every(
+        (draft) =>
+          JSON.stringify(
+            boundingRectangleForPlacements(
+              draft.placements,
+              input.package.dimensionsMm,
+            ),
+          ) === JSON.stringify({ minX: 6, minY: 10, maxX: 1194, maxY: 790 }),
+      ),
+    ).toBe(true);
+  });
+
+  it("generates edge notches with one allowed footprint orientation", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        allowedRotations: [90],
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        maxCandidatesPerGenerator: 100,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+
+    expect(
+      output.drafts.filter(({ provenance }) =>
+        provenance.some(
+          ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+        ),
+      ),
+    ).toHaveLength(15);
+  });
+
+  it("does not mislabel a two-row rectangle as an edge notch", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 30, width: 17 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 85, maxY: 68 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 8,
+        maximumPackageCount: 8,
+        maxCandidatesPerGenerator: 100,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+    const notchDrafts = output.drafts.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+      ),
+    );
+
+    expect(notchDrafts).toHaveLength(2);
+    expect(
+      notchDrafts
+        .map((draft) => provenanceParameters(draft).rowDeficits)
+        .sort(),
+    ).toEqual(["0,2", "2,0"]);
+    expect(
+      notchDrafts.every(
+        ({ placements }) =>
+          boundingRectangleForPlacements(placements, input.package.dimensionsMm)
+            ?.maxX === 85,
+      ),
+    ).toBe(true);
+  });
+
+  it("bounds and cancels dense edge-notch materialization before allocation", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 3, maxY: 500 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 748,
+        maximumPackageCount: 748,
+        maxPlacements: 748,
+        maxBands: 250,
+        maxCandidatesPerGenerator: 100,
+      },
+    });
+    const output = generateCandidateFamily(input, "block");
+    const notchDrafts = output.drafts.filter(({ provenance }) =>
+      provenance.some(
+        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+      ),
+    );
+
+    expect(notchDrafts).toHaveLength(13);
+    expect(
+      notchDrafts.reduce((sum, { placements }) => sum + placements.length, 0),
+    ).toBe(9_724);
+    expect(output.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "dense-edge-notch-materialization-limit-reached",
+        generator: "block",
+        count: 9_724,
+      }),
+    );
+
+    const oversizedInput = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 101, maxY: 202 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 10_199,
+        maximumPackageCount: 10_199,
+        maxPlacements: 10_199,
+        maxBands: 101,
+        maxCandidatesPerGenerator: 10,
+      },
+    });
+    const oversized = generateCandidateFamily(oversizedInput, "block");
+    expect(
+      oversized.drafts.filter(({ provenance }) =>
+        provenance.some(
+          ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+        ),
+      ),
+    ).toEqual([]);
+    expect(oversized.diagnostics).toContainEqual(
+      expect.objectContaining({
+        code: "dense-edge-notch-materialization-limit-reached",
+        generator: "block",
+        count: 0,
+      }),
+    );
+
+    const exactMaximumInput = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 6, maxY: 25 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 73,
+        maximumPackageCount: 73,
+        maxPlacements: 73,
+        maxBands: 25,
+        maxCandidatesPerGenerator: 500,
+      },
+    });
+    const rangedMaximumInput = normalized({
+      ...exactMaximumInput,
+      physicalPalletBoundsMm:
+        exactMaximumInput.physicalPalletBoundsMm ?? undefined,
+      constraints: {
+        ...exactMaximumInput.constraints,
+        minimumPackageCount: 70,
+        maximumPackageCount: 73,
+        maxPlacements: 73,
+      },
+    });
+    const exactMaximumGeometryKeys = generateCandidateFamily(
+      exactMaximumInput,
+      "block",
+    )
+      .drafts.filter(({ provenance }) =>
+        provenance.some(
+          ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+        ),
+      )
+      .map(({ placements }) => canonicalPlacementGeometryKey(placements));
+    const rangedMaximumGeometryKeys = new Set(
+      generateCandidateFamily(rangedMaximumInput, "block")
+        .drafts.filter(({ provenance }) =>
+          provenance.some(
+            ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+          ),
+        )
+        .map(({ placements }) => canonicalPlacementGeometryKey(placements)),
+    );
+    expect(exactMaximumGeometryKeys).toHaveLength(136);
+    expect(
+      exactMaximumGeometryKeys.every((geometryKey) =>
+        rangedMaximumGeometryKeys.has(geometryKey),
+      ),
+    ).toBe(true);
+
+    let cancellationPolls = 0;
+    const cancelled = generateCandidateFamily(input, "block", {
+      shouldCancel: () => {
+        cancellationPolls += 1;
+        return true;
+      },
+    });
+    expect(cancelled.cancelled).toBe(true);
+    expect(
+      cancelled.drafts.filter(({ provenance }) =>
+        provenance.some(
+          ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
+        ),
+      ),
+    ).toEqual([]);
+    expect(cancellationPolls).toBe(1);
+  });
+
   it("keeps aligned block splits alongside compact rectangles when any shape is allowed", () => {
     const input = normalized({
       package: {
@@ -1101,6 +2274,36 @@ describe("justified split-grid generator", () => {
 
     expect(output.cancelled).toBe(true);
     expect(output.drafts).toEqual([]);
+  });
+
+  it("polls cancellation before impossible high-band block searches", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 1, width: 2 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 10_000, maxY: 10_000 },
+      constraints: {
+        allowedRotations: [0, 90],
+        minimumPackageCount: 1,
+        maximumPackageCount: 2,
+        maxPlacements: 2,
+        maxBands: 10_000,
+        maxCandidatesPerGenerator: 1,
+      },
+    });
+    let cancellationPolls = 0;
+    const output = generateCandidateFamily(input, "block", {
+      shouldCancel: () => {
+        cancellationPolls += 1;
+        return true;
+      },
+    });
+
+    expect(output.cancelled).toBe(true);
+    expect(output.drafts).toEqual([]);
+    expect(cancellationPolls).toBe(1);
   });
 
   it("merges translation-only alignments before consuming the family limit", () => {

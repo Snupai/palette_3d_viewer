@@ -18,25 +18,99 @@ Repositories und wird von keinem Corpus-Lauf benötigt.
 
 ## „Blöcke“-Semantik
 
-**Status: Open**
+**Status: teilweise Observed; allgemeine Zählregel bleibt Open**
 
 ### Evidenz
 
 - Die beobachtete Lösungstabelle besitzt laut Roadmap eine Spalte „Blöcke“.
-- Im Repository liegt weder eine vollständige Kandidatentabelle noch eine
-  ausführbare MultiPack-Regel oder ein kontrolliertes Vergleichspaar vor.
+- Am 25.08.2026 wurde „Block“ aus der MultiPack-Bedienpraxis als ein
+  ununterbrochener Paketbereich beschrieben, in dem alle Pakete gleich angeordnet
+  sind.
+- Das gleichzeitig bereitgestellte 53er-Muster mit 156 × 108 mm großen Paketen
+  zerfällt passend dazu in vier einheitliche Rechteckbereiche: `11 × 2` oben und
+  unten `2 × 4 | 5 × 3 | 2 × 4`.
+- Im Repository liegt weiterhin weder eine vollständige Kandidatentabelle noch
+  eine ausführbare MultiPack-Zählregel oder eine kontrollierte Serie von
+  Vergleichspaaren vor.
 
 ### Belastbare Aussage
 
-Der Wert darf derzeit nicht als Anzahl zusammenhängender Rechteckbereiche,
-Reihen, Orientierungskomponenten, Greifgruppen oder Stabilitätsblöcke
-implementiert werden. Jede dieser Deutungen wäre eine unbestätigte Hypothese.
+Für generatorbekannte Topologien darf die Anzahl ihrer ununterbrochenen,
+einheitlich orientierten Rechteckbereiche als Konstruktionsmetadatum festgehalten
+werden. Das neue symmetrische Capped-Block-Muster besitzt danach vier Blöcke.
+
+`CandidateMetrics.multiPackBlocks` bleibt dennoch `null`: Noch ungeklärt ist, wie
+MultiPack beliebige Geometrien maximal zerlegt, insbesondere bei verteilten
+Zwischenräumen, gleich orientierten angrenzenden Bereichen und unterbrochenen
+Reihen. Der Wert darf daher noch nicht allgemein aus Placements inferiert oder im
+Ranking verwendet werden.
 
 ### Nächster Nachweis
 
 Mehrere geometrisch kontrollierte Kandidaten mit jeweils nur einer Änderung
 (Reihe teilen, Orientierung wechseln, Zwischenraum einfügen, Greifgruppe ändern)
-und dem dazu angezeigten „Blöcke“-Wert erfassen.
+und dem dazu angezeigten „Blöcke“-Wert erfassen, um die maximale Zerlegung und
+Grenzfälle der Zählregel zu bestimmen.
+
+## AP5009: beobachtetes 53er-Kandidateninventar
+
+**Status: Geometrien teilweise Observed; gerichtete Spiegelvarianten und
+blocklokale Greifplanung bleiben Open**
+
+### Eingabe und neue Evidenz
+
+Am 26.08.2026 wurden MultiPack-Screenshots der Lösungen 15 sowie 17–36 für
+folgende Eingabe bereitgestellt:
+
+- Projekt `AP5009`, Produkt `699-00224`;
+- Paket `156 × 108 × 53 mm`, Abstand `0 mm`;
+- effektiver Generierungsrahmen `1188 × 780 mm`;
+- exakt 53 Pakete je Lage und Mehrfachgreifen aktiviert.
+
+Die Tabelle und Draufsichten belegen mehrere wiederkehrende, aus den Abmessungen
+ableitbare Konstruktionsfamilien. Der Solver implementiert daraus aktuell 19
+physisch verschiedene, evidenzabgeleitete Symmetrieklassen:
+
+1. fünf kompakte Vollhöhen-Splits aus zwei oder drei Blöcken (`1164 × 780`);
+2. zwei Drei-Block-Splits mit verteilten 12-mm-Blockfugen (`1188 × 780`);
+3. ein fünfblöckiges Seitenkern-/Eckbandmuster (`1176 × 780`);
+4. ein vierblöckiger C-Rahmen (`1188 × 780`);
+5. das symmetrische Capped-Block-Muster (`1188 × 780`);
+6. neun dichte `11 × 5`-Raster mit zwei gerichteten Randkerben
+   (`1188 × 780`).
+
+Der begrenzte Ziel-Lauf enthält damit 25 finale physische Klassen: die 19 oben
+aufgeführten beobachteten Klassen plus sechs weiterhin sichtbare, generische
+Mixed-Strip-Geometrien. Diese sechs werden nicht als MultiPack-Parität gewertet.
+
+Die beiden zuvor synthetisch erzeugten Klassen werden eingeschränkt:
+
+- Bei exakten Zwei-Block-Splits werden `center/end`-Ausrichtungen gegenüber der
+  kompakten `start`-Konstruktion als topologisch dominiert ausgeschlossen.
+  Geometrisch eigenständige generische Mixed-Strips bleiben dagegen sichtbar und
+  werden nicht als beobachtete AP5009-Klassen gezählt.
+- Gleichorientierte Fünf-Block-Mosaike mit vollständig eingeschlossenen Lücken
+  werden nicht mehr als Palettenmuster angeboten; offene Randkerben bleiben
+  zulässig.
+
+### Noch nicht als Parität behauptet
+
+- MultiPack zeigt gerichtete Spiegelvarianten separat, während der Solver
+  horizontale/vertikale Spiegelung und 180°-Drehung weiterhin zu einer physischen
+  Symmetrieklasse zusammenführt. Deshalb sind die 19 Klassen nicht mit 19
+  MultiPack-Zeilennummern gleichzusetzen.
+- Für die C-Rahmen-, Vollhöhen- und Seitenkernfamilien stimmen die beobachteten
+  Blockmaße und provisorischen Zyklen. Bei den Randkerben hängt die beobachtete
+  Zykluszahl zusätzlich von der blocklokalen Greifachse und Paarungsphase ab;
+  diese Information ist aus der reinen Placement-Geometrie noch nicht eindeutig
+  ableitbar.
+- Die Screenshots sind Evidenz, aber keine committed Kundenfixture. Exakte
+  Candidate-IDs oder Rangnummern sind daher kein Paritätsvertrag.
+- Die 19er-Zahl beschreibt die gezielt implementierten beobachteten Klassen,
+  keine erschöpfende Enumeration aller generischen Solverfamilien. Die
+  experimentellen Corner-Chain-/Offset-Bridge-Suchen erreichen beim Ziel-Input
+  weiterhin ihre dokumentierten Arbeitsbudgets; diese Trunkierung wird als
+  Diagnose ausgegeben und ist nicht Teil der beobachteten Inventarbehauptung.
 
 ## Unbekannte oder nur teilweise verstandene `.rob`-Felder
 
