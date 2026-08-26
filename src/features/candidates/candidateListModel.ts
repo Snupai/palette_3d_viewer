@@ -388,7 +388,8 @@ export function selectDistinctCandidateLayouts(
   }
 
   const cachedByPackageSize =
-    candidateLayoutSelectionCache.get(candidates) ?? new Map();
+    candidateLayoutSelectionCache.get(candidates) ??
+    new Map<string, SolverCandidate[]>();
   cachedByPackageSize.set(packageSizeKey, representatives);
   candidateLayoutSelectionCache.set(candidates, cachedByPackageSize);
   return representatives;
