@@ -240,6 +240,8 @@ export function solveLayer(
           currentFamily,
         ),
       shouldCancel: () => progress.cancelled(),
+      includeExperimentalIncompleteBlocks:
+        options.includeExperimentalIncompleteBlocks === true,
     });
     drafts.push(...output.drafts);
     diagnostics.push(...output.diagnostics);

@@ -67,50 +67,42 @@ folgende Eingabe bereitgestellt:
 - effektiver Generierungsrahmen `1188 × 780 mm`;
 - exakt 53 Pakete je Lage und Mehrfachgreifen aktiviert.
 
-Die Tabelle und Draufsichten belegen mehrere wiederkehrende, aus den Abmessungen
-ableitbare Konstruktionsfamilien. Der Solver implementiert daraus aktuell 19
-physisch verschiedene, evidenzabgeleitete Symmetrieklassen:
+Die Screenshots lieferten zunächst 19 physische Symmetrieklassen. Die spätere
+Stabilitätsbewertung vom 26.08.2026 schränkt die produktive Auswahl jedoch auf
+**sieben saubere Blockmuster** ein:
 
-1. fünf kompakte Vollhöhen-Splits aus zwei oder drei Blöcken (`1164 × 780`);
-2. zwei Drei-Block-Splits mit verteilten 12-mm-Blockfugen (`1188 × 780`);
-3. ein fünfblöckiges Seitenkern-/Eckbandmuster (`1176 × 780`);
-4. ein vierblöckiger C-Rahmen (`1188 × 780`);
-5. das symmetrische Capped-Block-Muster (`1188 × 780`);
-6. neun dichte `11 × 5`-Raster mit zwei gerichteten Randkerben
-   (`1188 × 780`).
+1. ein kompakter Zwei-Block-Split (`1164 × 780`) und vier bündige
+   Drei-Block-Splits (`1188 × 780`); der Höhenrest liegt gleichmäßig zwischen den
+   Paketzeilen, der Längenrest vollständig innerhalb des Mittelblocks;
+2. ein vierblöckiger C-Rahmen (`1188 × 780`), dessen Kern sowohl horizontal als
+   auch vertikal bündig verteilt ist;
+3. das symmetrische Capped-Block-Muster (`1188 × 780`), bei dem die 24 mm
+   Kernrestmaß innerhalb der fünf Kernspalten statt als zwei äußere Fugen liegen.
 
-Der begrenzte Ziel-Lauf enthält damit 25 finale physische Klassen: die 19 oben
-aufgeführten beobachteten Klassen plus sechs weiterhin sichtbare, generische
-Mixed-Strip-Geometrien. Diese sechs werden nicht als MultiPack-Parität gewertet.
+Für exakte produktive Läufe gelten damit folgende Regeln:
 
-Die beiden zuvor synthetisch erzeugten Klassen werden eingeschränkt:
-
-- Bei exakten Zwei-Block-Splits werden `center/end`-Ausrichtungen gegenüber der
+- `center/end`-Ausrichtungen eines Zwei-Block-Splits werden gegenüber der
   kompakten `start`-Konstruktion als topologisch dominiert ausgeschlossen.
-  Geometrisch eigenständige generische Mixed-Strips bleiben dagegen sichtbar und
-  werden nicht als beobachtete AP5009-Klassen gezählt.
-- Gleichorientierte Fünf-Block-Mosaike mit vollständig eingeschlossenen Lücken
-  werden nicht mehr als Palettenmuster angeboten; offene Randkerben bleiben
-  zulässig.
+- Alternierende beziehungsweise versetzte Mixed-Strips werden nicht angeboten;
+  nur gruppierte, bündige Blockreihen bleiben produktiv.
+- Gleichorientierte Fünf-Block-Mosaike mit fehlenden Rasterzellen werden
+  verworfen.
+- Drei-Block-Muster mit zusätzlichen Zwischenblockfugen,
+  Seitenkern-/Eckbandmuster mit einer einzelnen großen Innenfuge und
+  Edge-Notch-Raster sind nur noch über den expliziten internen
+  `includeExperimentalIncompleteBlocks`-Hook für Forschungstests erreichbar.
 
 ### Noch nicht als Parität behauptet
 
 - MultiPack zeigt gerichtete Spiegelvarianten separat, während der Solver
   horizontale/vertikale Spiegelung und 180°-Drehung weiterhin zu einer physischen
-  Symmetrieklasse zusammenführt. Deshalb sind die 19 Klassen nicht mit 19
-  MultiPack-Zeilennummern gleichzusetzen.
-- Für die C-Rahmen-, Vollhöhen- und Seitenkernfamilien stimmen die beobachteten
-  Blockmaße und provisorischen Zyklen. Bei den Randkerben hängt die beobachtete
-  Zykluszahl zusätzlich von der blocklokalen Greifachse und Paarungsphase ab;
-  diese Information ist aus der reinen Placement-Geometrie noch nicht eindeutig
-  ableitbar.
+  Symmetrieklasse zusammenführt.
 - Die Screenshots sind Evidenz, aber keine committed Kundenfixture. Exakte
   Candidate-IDs oder Rangnummern sind daher kein Paritätsvertrag.
-- Die 19er-Zahl beschreibt die gezielt implementierten beobachteten Klassen,
-  keine erschöpfende Enumeration aller generischen Solverfamilien. Die
-  experimentellen Corner-Chain-/Offset-Bridge-Suchen erreichen beim Ziel-Input
-  weiterhin ihre dokumentierten Arbeitsbudgets; diese Trunkierung wird als
-  Diagnose ausgegeben und ist nicht Teil der beobachteten Inventarbehauptung.
+- Die sieben produktiven Klassen sind eine stabilitätsorientierte Auswahl, keine
+  erschöpfende Enumeration aller generischen Solverfamilien. Experimentelle
+  Corner-Chain-/Offset-Bridge-Suchen dürfen weiterhin ihre dokumentierten
+  Arbeitsbudgets erreichen und dies diagnostizieren.
 
 ## Unbekannte oder nur teilweise verstandene `.rob`-Felder
 

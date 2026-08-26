@@ -183,6 +183,7 @@ describe("justified split-grid generator", () => {
     let cancellationPolls = 0;
 
     const output = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
       shouldCancel: () => {
         cancellationPolls += 1;
         return cancellationPolls >= 5_000;
@@ -219,7 +220,9 @@ describe("justified split-grid generator", () => {
       },
     });
 
-    const output = generateCandidateFamily(input, "pinwheel");
+    const output = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const offsetBridgeLimit = output.diagnostics.find(
       ({ code }) => code === "five-block-offset-bridge-search-limit-reached",
     );
@@ -278,8 +281,12 @@ describe("justified split-grid generator", () => {
       })),
     ];
 
-    const first = generateCandidateFamily(input, "pinwheel");
-    const second = generateCandidateFamily(input, "pinwheel");
+    const first = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
+    });
+    const second = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const candidate = first.drafts.find(({ provenance }) =>
       provenance.some(
         ({ variant, parameters }) =>
@@ -372,7 +379,9 @@ describe("justified split-grid generator", () => {
       })),
     ];
 
-    const output = generateCandidateFamily(input, "pinwheel");
+    const output = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const candidate = output.drafts.find(({ provenance }) =>
       provenance.some(
         ({ variant, parameters }) =>
@@ -409,7 +418,31 @@ describe("justified split-grid generator", () => {
     ).toBe(true);
   });
 
-  it("rejects enclosed same-orientation holes while preserving edge notches", () => {
+  it("rejects same-orientation five-block mosaics from production", () => {
+    const input = normalized({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
+      constraints: {
+        minimumPackageCount: 53,
+        maximumPackageCount: 53,
+        provisionalPackagesPerCycle: 2,
+        maxCandidatesPerGenerator: 1_500,
+      },
+    });
+    const output = generateCandidateFamily(input, "pinwheel");
+    const sameOrientationDrafts = output.drafts.filter(
+      ({ placements }) =>
+        new Set(placements.map(({ rotation }) => rotation % 180)).size === 1,
+    );
+
+    expect(sameOrientationDrafts).toEqual([]);
+  }, 15_000);
+
+  it("keeps experimental edge notches but rejects enclosed holes", () => {
     const input = normalized({
       package: {
         shape: "cuboid",
@@ -439,14 +472,9 @@ describe("justified split-grid generator", () => {
           .filter(({ column, row }) => !missing.has(`${column}:${row}`))
           .map(({ placement }) => placement),
       );
-    const forbiddenGeometryKeys = [
-      new Set(["1:2", "10:2"]),
-      new Set(["1:2", "1:3"]),
-      new Set(["2:2", "2:3"]),
-    ].map(geometryWithout);
-    const edgeNotchGeometryKey = geometryWithout(new Set(["10:2", "10:3"]));
-
-    const output = generateCandidateFamily(input, "pinwheel");
+    const output = generateCandidateFamily(input, "pinwheel", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const generatedGeometryKeys = new Set(
       output.drafts.map(({ placements }) =>
         canonicalPlacementGeometryKey(placements),
@@ -454,11 +482,17 @@ describe("justified split-grid generator", () => {
     );
 
     expect(
-      forbiddenGeometryKeys.every(
-        (geometryKey) => !generatedGeometryKeys.has(geometryKey),
+      [
+        new Set(["1:2", "10:2"]),
+        new Set(["1:2", "1:3"]),
+        new Set(["2:2", "2:3"]),
+      ].every(
+        (missing) => !generatedGeometryKeys.has(geometryWithout(missing)),
       ),
     ).toBe(true);
-    expect(generatedGeometryKeys.has(edgeNotchGeometryKey)).toBe(true);
+    expect(
+      generatedGeometryKeys.has(geometryWithout(new Set(["10:2", "10:3"]))),
+    ).toBe(true);
   }, 15_000);
 
   it("generates a nested side region with top and bottom bands around a dense core", () => {
@@ -620,7 +654,7 @@ describe("justified split-grid generator", () => {
           rotation: 0 as const,
         })),
       ),
-      ...[384, 492, 600, 708, 816].flatMap((x) =>
+      ...[372, 486, 600, 714, 828].flatMap((x) =>
         [88, 244, 400].map((y) => ({
           positionMm: { x, y },
           rotation: 90 as const,
@@ -1063,7 +1097,7 @@ describe("justified split-grid generator", () => {
     expect(output.drafts).toHaveLength(100);
     expect(cappedStrips).toHaveLength(50);
     expect(cappedBlocks).toHaveLength(50);
-    expect(blockCapColumnCounts).toEqual({ 2: 44, 3: 6 });
+    expect(blockCapColumnCounts).toEqual({ 2: 50 });
     expect(
       output.drafts.reduce((sum, { placements }) => sum + placements.length, 0),
     ).toBe(10_000);
@@ -1440,6 +1474,14 @@ describe("justified split-grid generator", () => {
     });
     const first = generateCandidateFamily(input, "block");
     const second = generateCandidateFamily(input, "block");
+    const twoBlock = first.drafts.find(({ provenance }) =>
+      provenance.some(
+        ({ variant, parameters }) =>
+          variant === "vertical-split-start" &&
+          parameters?.firstRotation === 0 &&
+          parameters.firstColumns === 4,
+      ),
+    );
     const symmetricLengthwiseCaps = matchingDraft(first.drafts, {
       topology: "three-block-split-v1",
       outerRotation: 0,
@@ -1472,23 +1514,7 @@ describe("justified split-grid generator", () => {
       middleColumns: 4,
       rightOuterColumns: 4,
     });
-    const distributedTwoCrosswiseLeftCaps = matchingDraft(first.drafts, {
-      topology: "three-block-split-distributed-v1",
-      outerRotation: 90,
-      middleRotation: 0,
-      leftOuterColumns: 2,
-      middleColumns: 4,
-      rightOuterColumns: 3,
-    });
-    const distributedOneCrosswiseLeftCap = matchingDraft(first.drafts, {
-      topology: "three-block-split-distributed-v1",
-      outerRotation: 90,
-      middleRotation: 0,
-      leftOuterColumns: 1,
-      middleColumns: 4,
-      rightOuterColumns: 4,
-    });
-    const lengthwiseY = [64, 172, 280, 388, 496, 604, 712];
+    const lengthwiseY = [64, 176, 288, 400, 512, 624, 736];
     const crosswiseY = [88, 244, 400, 556, 712];
     const placements = (
       rotation: 0 | 90,
@@ -1500,48 +1526,39 @@ describe("justified split-grid generator", () => {
       );
 
     expect(second).toEqual(first);
+    expect(twoBlock).toBeDefined();
+    expect(canonicalPlacementGeometryKey(twoBlock?.placements ?? [])).toBe(
+      canonicalPlacementGeometryKey([
+        ...placements(0, [96, 252, 408, 564], lengthwiseY),
+        ...placements(90, [696, 804, 912, 1020, 1128], crosswiseY),
+      ]),
+    );
     expect(
       canonicalPlacementGeometryKey(symmetricLengthwiseCaps.placements),
     ).toBe(
       canonicalPlacementGeometryKey([
-        ...placements(0, [96, 252, 948, 1104], lengthwiseY),
-        ...placements(90, [384, 492, 600, 708, 816], crosswiseY),
+        ...placements(0, [84, 240, 960, 1116], lengthwiseY),
+        ...placements(90, [372, 486, 600, 714, 828], crosswiseY),
       ]),
     );
     expect(
       canonicalPlacementGeometryKey(asymmetricLengthwiseCaps.placements),
     ).toBe(
       canonicalPlacementGeometryKey([
-        ...placements(0, [96, 792, 948, 1104], lengthwiseY),
-        ...placements(90, [228, 336, 444, 552, 660], crosswiseY),
+        ...placements(0, [84, 804, 960, 1116], lengthwiseY),
+        ...placements(90, [216, 330, 444, 558, 672], crosswiseY),
       ]),
     );
     expect(canonicalPlacementGeometryKey(twoCrosswiseLeftCaps.placements)).toBe(
       canonicalPlacementGeometryKey([
-        ...placements(90, [72, 180, 912, 1020, 1128], crosswiseY),
-        ...placements(0, [312, 468, 624, 780], lengthwiseY),
+        ...placements(90, [60, 168, 924, 1032, 1140], crosswiseY),
+        ...placements(0, [300, 464, 628, 792], lengthwiseY),
       ]),
     );
     expect(canonicalPlacementGeometryKey(oneCrosswiseLeftCap.placements)).toBe(
       canonicalPlacementGeometryKey([
-        ...placements(90, [72, 804, 912, 1020, 1128], crosswiseY),
-        ...placements(0, [204, 360, 516, 672], lengthwiseY),
-      ]),
-    );
-    expect(
-      canonicalPlacementGeometryKey(distributedTwoCrosswiseLeftCaps.placements),
-    ).toBe(
-      canonicalPlacementGeometryKey([
-        ...placements(90, [60, 168, 924, 1032, 1140], crosswiseY),
-        ...placements(0, [312, 468, 624, 780], lengthwiseY),
-      ]),
-    );
-    expect(
-      canonicalPlacementGeometryKey(distributedOneCrosswiseLeftCap.placements),
-    ).toBe(
-      canonicalPlacementGeometryKey([
         ...placements(90, [60, 816, 924, 1032, 1140], crosswiseY),
-        ...placements(0, [204, 360, 516, 672], lengthwiseY),
+        ...placements(0, [192, 356, 520, 684], lengthwiseY),
       ]),
     );
     for (const draft of [
@@ -1556,35 +1573,13 @@ describe("justified split-grid generator", () => {
           draft.placements,
           input.package.dimensionsMm,
         ),
-      ).toEqual({ minX: 18, minY: 10, maxX: 1182, maxY: 790 });
+      ).toEqual({ minX: 6, minY: 10, maxX: 1194, maxY: 790 });
       expect(provenanceParameters(draft)).toEqual(
         expect.objectContaining({
           topology: "three-block-split-v1",
           blockCount: 3,
-          occupiedLengthMm: 1164,
-          occupiedWidthMm: 780,
-        }),
-      );
-      expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
-        true,
-      );
-    }
-    for (const draft of [
-      distributedTwoCrosswiseLeftCaps,
-      distributedOneCrosswiseLeftCap,
-    ]) {
-      expect(draft.placements).toHaveLength(53);
-      expect(
-        boundingRectangleForPlacements(
-          draft.placements,
-          input.package.dimensionsMm,
-        ),
-      ).toEqual({ minX: 6, minY: 10, maxX: 1194, maxY: 790 });
-      expect(provenanceParameters(draft)).toEqual(
-        expect.objectContaining({
-          topology: "three-block-split-distributed-v1",
-          blockCount: 3,
-          regionGapResidualMm: 24,
+          spacingPolicy: "clean-block-v1",
+          middleInlineResidualMm: 24,
           occupiedLengthMm: 1188,
           occupiedWidthMm: 780,
         }),
@@ -1609,7 +1604,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 2_000,
       },
     });
-    const output = generateCandidateFamily(input, "block");
+    const output = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const candidate = matchingDraft(output.drafts, {
       topology: "side-core-corner-bands-v1",
       coreRotation: 90,
@@ -1701,7 +1698,7 @@ describe("justified split-grid generator", () => {
         [88, 712],
       ),
       ...placements(90, [60, 168, 276, 384, 492], [244, 400, 556]),
-      ...placements(0, [624, 788, 952, 1116], [220, 328, 436, 544]),
+      ...placements(0, [624, 788, 952, 1116], [220, 340, 460, 580]),
     ];
 
     expect(expectedPlacements).toHaveLength(53);
@@ -1764,7 +1761,9 @@ describe("justified split-grid generator", () => {
       },
     );
     const sideCore = matchingDraft(
-      generateCandidateFamily(sideCoreInput, "block").drafts,
+      generateCandidateFamily(sideCoreInput, "block", {
+        includeExperimentalIncompleteBlocks: true,
+      }).drafts,
       {
         topology: "side-core-corner-bands-v1",
         coreRotation: 90,
@@ -1819,73 +1818,54 @@ describe("justified split-grid generator", () => {
       },
     });
     expect(
-      generateCandidateFamily(collapsedInput, "block").drafts.filter(
-        ({ provenance }) =>
-          provenance.some(
-            ({ parameters }) =>
-              parameters?.topology === "side-core-corner-bands-v1",
-          ),
+      generateCandidateFamily(collapsedInput, "block", {
+        includeExperimentalIncompleteBlocks: true,
+      }).drafts.filter(({ provenance }) =>
+        provenance.some(
+          ({ parameters }) =>
+            parameters?.topology === "side-core-corner-bands-v1",
+        ),
       ),
     ).toEqual([]);
   });
 
-  it("keeps exact block geometries when the package-count range is widened", () => {
-    const packageInput = {
-      shape: "cuboid" as const,
-      dimensionsMm: { length: 156, width: 108 },
-      clearanceMm: 0,
-    };
-    const exactInput = normalized({
-      package: packageInput,
-      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
-      constraints: {
-        minimumPackageCount: 53,
-        maximumPackageCount: 53,
-        maxCandidatesPerGenerator: 2_000,
-      },
-    });
+  it("preserves the legacy block inventory for package-count ranges", () => {
     const rangeInput = normalized({
-      package: packageInput,
-      envelopeMm: exactInput.envelopeMm,
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 156, width: 108 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 6, minY: 10, maxX: 1194, maxY: 790 },
       constraints: {
         minimumPackageCount: 52,
         maximumPackageCount: 53,
         maxCandidatesPerGenerator: 2_000,
       },
     });
-    const exactDrafts = generateCandidateFamily(exactInput, "block").drafts;
-    const rangeDrafts = generateCandidateFamily(rangeInput, "block").drafts;
-    const topologies = [
-      "three-block-split-v1",
-      "three-block-split-distributed-v1",
-      "four-block-c-frame-v1",
-      "side-core-corner-bands-v1",
-      "dense-edge-notch-v1",
-    ];
+    const defaultDrafts = generateCandidateFamily(rangeInput, "block").drafts;
+    const researchDrafts = generateCandidateFamily(rangeInput, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    }).drafts;
+    const expectedCounts = new Map([
+      ["three-block-split-v1", 21],
+      ["three-block-split-distributed-v1", 5],
+      ["side-core-corner-bands-v1", 2],
+      ["dense-edge-notch-v1", 15],
+    ]);
 
-    for (const topology of topologies) {
-      const exactGeometryKeys = exactDrafts
-        .filter(({ provenance }) =>
-          provenance.some(
-            ({ parameters }) => parameters?.topology === topology,
-          ),
-        )
-        .map(({ placements }) => canonicalPlacementGeometryKey(placements));
-      const rangeGeometryKeys = new Set(
-        rangeDrafts
+    for (const [topology, expectedCount] of expectedCounts) {
+      const geometryKeys = (drafts: readonly GeneratedCandidateDraft[]) =>
+        drafts
           .filter(({ provenance }) =>
             provenance.some(
               ({ parameters }) => parameters?.topology === topology,
             ),
           )
-          .map(({ placements }) => canonicalPlacementGeometryKey(placements)),
-      );
-      expect(exactGeometryKeys.length).toBeGreaterThan(0);
-      expect(
-        exactGeometryKeys.every((geometryKey) =>
-          rangeGeometryKeys.has(geometryKey),
-        ),
-      ).toBe(true);
+          .map(({ placements }) => canonicalPlacementGeometryKey(placements))
+          .sort();
+      expect(geometryKeys(defaultDrafts)).toHaveLength(expectedCount);
+      expect(geometryKeys(researchDrafts)).toEqual(geometryKeys(defaultDrafts));
     }
   });
 
@@ -1903,7 +1883,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 2_000,
       },
     });
-    const output = generateCandidateFamily(input, "block");
+    const output = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const notchDrafts = output.drafts.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
@@ -1979,7 +1961,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 100,
       },
     });
-    const output = generateCandidateFamily(input, "block");
+    const output = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
 
     expect(
       output.drafts.filter(({ provenance }) =>
@@ -2005,7 +1989,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 100,
       },
     });
-    const output = generateCandidateFamily(input, "block");
+    const output = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const notchDrafts = output.drafts.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
@@ -2044,7 +2030,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 100,
       },
     });
-    const output = generateCandidateFamily(input, "block");
+    const output = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     const notchDrafts = output.drafts.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
@@ -2079,7 +2067,9 @@ describe("justified split-grid generator", () => {
         maxCandidatesPerGenerator: 10,
       },
     });
-    const oversized = generateCandidateFamily(oversizedInput, "block");
+    const oversized = generateCandidateFamily(oversizedInput, "block", {
+      includeExperimentalIncompleteBlocks: true,
+    });
     expect(
       oversized.drafts.filter(({ provenance }) =>
         provenance.some(
@@ -2125,6 +2115,7 @@ describe("justified split-grid generator", () => {
     const exactMaximumGeometryKeys = generateCandidateFamily(
       exactMaximumInput,
       "block",
+      { includeExperimentalIncompleteBlocks: true },
     )
       .drafts.filter(({ provenance }) =>
         provenance.some(
@@ -2133,7 +2124,9 @@ describe("justified split-grid generator", () => {
       )
       .map(({ placements }) => canonicalPlacementGeometryKey(placements));
     const rangedMaximumGeometryKeys = new Set(
-      generateCandidateFamily(rangedMaximumInput, "block")
+      generateCandidateFamily(rangedMaximumInput, "block", {
+        includeExperimentalIncompleteBlocks: true,
+      })
         .drafts.filter(({ provenance }) =>
           provenance.some(
             ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
@@ -2150,6 +2143,7 @@ describe("justified split-grid generator", () => {
 
     let cancellationPolls = 0;
     const cancelled = generateCandidateFamily(input, "block", {
+      includeExperimentalIncompleteBlocks: true,
       shouldCancel: () => {
         cancellationPolls += 1;
         return true;

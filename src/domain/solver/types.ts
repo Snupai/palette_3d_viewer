@@ -271,6 +271,7 @@ export type SolverResult = {
 export type SolverOptions = {
   generatorOrder?: readonly BaseGeneratorFamily[];
   includeSymmetryVariants?: boolean;
+  includeExperimentalIncompleteBlocks?: boolean;
   progressBatchSize?: number;
   onProgress?: (progress: SolverProgress) => void;
   shouldCancel?: () => boolean;

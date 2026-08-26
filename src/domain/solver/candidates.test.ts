@@ -131,7 +131,7 @@ describe("candidate topology preferences", () => {
     );
   });
 
-  it("retains equal-scoring staggered mixed layouts", () => {
+  it("suppresses staggered mixed layouts in exact production runs", () => {
     const result = solveLayer(
       {
         package: {
@@ -162,7 +162,7 @@ describe("candidate topology preferences", () => {
               family === "mixed-orientation" && variant.includes("alternate-"),
           ),
       ),
-    ).toBe(true);
+    ).toBe(false);
   });
 
   it("does not apply exact split dominance to package-count ranges", () => {

@@ -62,6 +62,7 @@ type JustifiedSpacingPolicy = (typeof JUSTIFIED_SPACING_POLICIES)[number];
 export type GeneratorHooks = {
   checkpoint?: (family: GeneratorFamily, generatedCount: number) => boolean;
   shouldCancel?: () => boolean;
+  includeExperimentalIncompleteBlocks?: boolean;
 };
 
 export type GeneratorOutput = {
@@ -2032,6 +2033,12 @@ function generateMixedOrientation(
   const compactRectangleIsExclusive =
     shouldAddCompactRectangle &&
     input.constraints.requiredShape === "rectangular-block";
+  const cleanBlockPatternsOnly =
+    exactPackageCount !== null &&
+    input.constraints.rectangularBlockFootprintPolicy ===
+      "fill-generation-bounds" &&
+    hooks.includeExperimentalIncompleteBlocks !== true;
+  if (cleanBlockPatternsOnly) return collector.output();
 
   for (const axis of ["horizontal", "vertical"] as const) {
     const inlineAvailable =
@@ -2331,6 +2338,85 @@ function justifiedLineCenters(
       ? roundHalfTowardZero(center)
       : center;
   });
+}
+
+function cleanBlockGridPlacements(
+  input: NormalizedLayerSolverInput,
+  bounds: RectangleBoundsMm,
+  rotation: Rotation,
+  columnCount: number,
+  rowCount: number,
+  distributeX: boolean,
+  distributeY: boolean,
+): GeneratedPlacement[] {
+  if (columnCount <= 0 || rowCount <= 0) return [];
+  if (columnCount * rowCount > input.constraints.maxPlacements) return [];
+  const footprint = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    rotation,
+  );
+  const clearance = input.package.clearanceMm;
+  const xCenters = distributeX
+    ? justifiedLineCenters(
+        bounds.minX,
+        bounds.maxX,
+        footprint.length,
+        clearance,
+        columnCount,
+        "continuous-space-between",
+      )
+    : compactLineCenters(
+        bounds.minX,
+        bounds.maxX,
+        footprint.length,
+        clearance,
+        columnCount,
+        "cleanBlock.x",
+      );
+  const yCenters = distributeY
+    ? justifiedLineCenters(
+        bounds.minY,
+        bounds.maxY,
+        footprint.width,
+        clearance,
+        rowCount,
+        "continuous-space-between",
+      )
+    : compactLineCenters(
+        bounds.minY,
+        bounds.maxY,
+        footprint.width,
+        clearance,
+        rowCount,
+        "cleanBlock.y",
+      );
+  if (xCenters.length !== columnCount || yCenters.length !== rowCount)
+    return [];
+  if (
+    !lineCentersRespectGapPolicy(
+      xCenters,
+      footprint.length,
+      clearance,
+      distributeX,
+    ) ||
+    !lineCentersRespectGapPolicy(
+      yCenters,
+      footprint.width,
+      clearance,
+      distributeY,
+    )
+  ) {
+    return [];
+  }
+  return yCenters.flatMap((y) =>
+    xCenters.map((x) => ({
+      positionMm: {
+        x: normalizeGeneratedCoordinateMm(x, "cleanBlock.x"),
+        y: normalizeGeneratedCoordinateMm(y, "cleanBlock.y"),
+      },
+      rotation,
+    })),
+  );
 }
 
 function generateJustifiedGrids(
@@ -3656,7 +3742,7 @@ function materializeFiveBlockOffsetBridge(
   return materializePinwheelRegions(regions);
 }
 
-const SINGLE_ORIENTATION_VOID_MAX_LATTICE_CELLS = 100_000;
+const EXPERIMENTAL_VOID_MAX_LATTICE_CELLS = 100_000;
 
 function singleOrientationDenseGridHasEnclosedVoid(
   input: NormalizedLayerSolverInput,
@@ -3677,20 +3763,20 @@ function singleOrientationDenseGridHasEnclosedVoid(
   const stepY = footprint.width + input.package.clearanceMm;
   let minimumX = Number.POSITIVE_INFINITY;
   let minimumY = Number.POSITIVE_INFINITY;
-  let scannedPlacements = 0;
+  let scanned = 0;
   for (const { positionMm } of placements) {
-    if (scannedPlacements % 1_024 === 0 && !checkCancellation()) return true;
+    if (scanned % 1_024 === 0 && !checkCancellation()) return true;
     minimumX = Math.min(minimumX, positionMm.x);
     minimumY = Math.min(minimumY, positionMm.y);
-    scannedPlacements += 1;
+    scanned += 1;
   }
 
   const indexedPlacements: Array<readonly [number, number]> = [];
   let maximumColumn = 0;
   let maximumRow = 0;
-  scannedPlacements = 0;
+  scanned = 0;
   for (const { positionMm } of placements) {
-    if (scannedPlacements % 1_024 === 0 && !checkCancellation()) return true;
+    if (scanned % 1_024 === 0 && !checkCancellation()) return true;
     const column = Math.round((positionMm.x - minimumX) / stepX);
     const row = Math.round((positionMm.y - minimumY) / stepY);
     if (
@@ -3704,27 +3790,25 @@ function singleOrientationDenseGridHasEnclosedVoid(
     indexedPlacements.push([column, row]);
     maximumColumn = Math.max(maximumColumn, column);
     maximumRow = Math.max(maximumRow, row);
-    scannedPlacements += 1;
+    scanned += 1;
   }
 
   const columnCount = maximumColumn + 1;
   const rowCount = maximumRow + 1;
-  const latticeCellCount = columnCount * rowCount;
-  if (latticeCellCount > SINGLE_ORIENTATION_VOID_MAX_LATTICE_CELLS) {
+  if (columnCount * rowCount > EXPERIMENTAL_VOID_MAX_LATTICE_CELLS) {
     return true;
   }
   const key = (column: number, row: number) => row * columnCount + column;
-  const occupiedCells = new Set<number>(
+  const occupiedCells = new Set(
     indexedPlacements.map(([column, row]) => key(column, row)),
   );
   const missingCells = new Set<number>();
   const queue: number[] = [];
-  let scannedLatticeCells = 0;
+  let scannedCells = 0;
   for (let row = 0; row < rowCount; row += 1) {
     for (let column = 0; column < columnCount; column += 1) {
-      if (scannedLatticeCells % 1_024 === 0 && !checkCancellation())
-        return true;
-      scannedLatticeCells += 1;
+      if (scannedCells % 1_024 === 0 && !checkCancellation()) return true;
+      scannedCells += 1;
       const cellKey = key(column, row);
       if (occupiedCells.has(cellKey)) continue;
       missingCells.add(cellKey);
@@ -3799,8 +3883,9 @@ function generateExactFiveBlockMosaics(
       singleOrientationDenseGridHasEnclosedVoid(input, placements, () =>
         collector.checkCancellation(),
       )
-    )
+    ) {
       continue;
+    }
     if (
       !collector.add(placements, {
         family: "pinwheel",
@@ -3845,8 +3930,9 @@ function generateExactFiveBlockMosaics(
       singleOrientationDenseGridHasEnclosedVoid(input, placements, () =>
         collector.checkCancellation(),
       )
-    )
+    ) {
       continue;
+    }
     if (
       !collector.add(placements, {
         family: "pinwheel",
@@ -4398,13 +4484,15 @@ function generatePinwheels(
 
   const exactPackageCount = exactRequestedPackageCount(input);
   if (exactPackageCount === null) return collector.output();
-  generateExactFiveBlockMosaics(
-    input,
-    collector,
-    representatives,
-    exactPackageCount,
-  );
-  if (!collector.checkCancellation()) return collector.output();
+  if (hooks.includeExperimentalIncompleteBlocks === true) {
+    generateExactFiveBlockMosaics(
+      input,
+      collector,
+      representatives,
+      exactPackageCount,
+    );
+    if (!collector.checkCancellation()) return collector.output();
+  }
   for (const widthPair of widthPairs) {
     for (const crossBottomLengthwiseTopPair of heightPairs) {
       for (const lengthwiseBottomCrosswiseTopPair of heightPairs) {
@@ -4553,12 +4641,13 @@ function balancedCappedStripDescriptorIsFeasible(
     input.package.dimensionsMm,
     descriptor.capRotation,
   );
-  const regionCenters = distributedSequenceCenters(
+  const coreColumnCenters = justifiedLineCenters(
     0,
-    descriptor.occupiedLengthMm,
-    [descriptor.capLengthMm, descriptor.coreLengthMm, descriptor.capLengthMm],
+    descriptor.coreCorridorLengthMm,
+    mainSize.length,
     clearance,
-    "balancedCappedStrip.feasibility.regions",
+    descriptor.coreColumns,
+    "continuous-space-between",
   );
   const capRowCenters = justifiedLineCenters(
     0,
@@ -4576,8 +4665,28 @@ function balancedCappedStripDescriptorIsFeasible(
     descriptor.coreRows,
     "continuous-space-between",
   );
+  const inlineSpacingIsFeasible =
+    descriptor.capColumns === 1
+      ? distributedSequenceCenters(
+          0,
+          descriptor.occupiedLengthMm,
+          [
+            descriptor.capLengthMm,
+            descriptor.coreLengthMm,
+            descriptor.capLengthMm,
+          ],
+          clearance,
+          "balancedCappedStrip.feasibility.regions",
+        ).length === 3
+      : coreColumnCenters.length === descriptor.coreColumns &&
+        lineCentersRespectGapPolicy(
+          coreColumnCenters,
+          mainSize.length,
+          clearance,
+          true,
+        );
   return (
-    regionCenters.length === 3 &&
+    inlineSpacingIsFeasible &&
     capRowCenters.length === descriptor.capRows &&
     coreRowCenters.length === descriptor.coreRows &&
     lineCentersRespectGapPolicy(
@@ -4596,6 +4705,10 @@ function materializeBalancedCappedStrip(
 ): GeneratedPlacement[] {
   const envelope = input.generationBoundsMm;
   const clearance = input.package.clearanceMm;
+  const mainSize = rectangleSizeForRotation(
+    input.package.dimensionsMm,
+    descriptor.mainRotation,
+  );
   const compositeMinX = alignedStart(
     envelope.minX,
     rectangleBoundsLength(envelope),
@@ -4608,24 +4721,122 @@ function materializeBalancedCappedStrip(
     descriptor.occupiedWidthMm,
     "center",
   );
-  const regionCenters = distributedSequenceCenters(
-    compositeMinX,
-    compositeMinX + descriptor.occupiedLengthMm,
-    [descriptor.capLengthMm, descriptor.coreLengthMm, descriptor.capLengthMm],
+  if (descriptor.capColumns === 1) {
+    const regionCenters = distributedSequenceCenters(
+      compositeMinX,
+      compositeMinX + descriptor.occupiedLengthMm,
+      [descriptor.capLengthMm, descriptor.coreLengthMm, descriptor.capLengthMm],
+      clearance,
+      "balancedCappedStrip.regions",
+    );
+    if (regionCenters.length !== 3) return [];
+    const stripMinY = compositeMinY;
+    const stripMaxY = stripMinY + descriptor.stripHeightMm;
+    const mainMinY = stripMaxY + clearance;
+    const blockBounds = (
+      centerX: number,
+      length: number,
+    ): RectangleBoundsMm => ({
+      minX: centerX - length / 2,
+      minY: stripMinY,
+      maxX: centerX + length / 2,
+      maxY: stripMaxY,
+    });
+    const plans = [
+      pinwheelRegionPlan(
+        input,
+        {
+          minX: compositeMinX,
+          minY: mainMinY,
+          maxX: compositeMinX + descriptor.occupiedLengthMm,
+          maxY: mainMinY + descriptor.mainHeightMm,
+        },
+        descriptor.mainRotation,
+        descriptor.mainColumns,
+        descriptor.mainRows,
+        null,
+        "balancedCappedStrip.main",
+      ),
+      pinwheelRegionPlan(
+        input,
+        blockBounds(regionCenters[0]!, descriptor.capLengthMm),
+        descriptor.capRotation,
+        descriptor.capColumns,
+        descriptor.capRows,
+        "continuous-space-between",
+        "balancedCappedStrip.leftCap",
+      ),
+      pinwheelRegionPlan(
+        input,
+        blockBounds(regionCenters[1]!, descriptor.coreLengthMm),
+        descriptor.mainRotation,
+        descriptor.coreColumns,
+        descriptor.coreRows,
+        "continuous-space-between",
+        "balancedCappedStrip.core",
+      ),
+      pinwheelRegionPlan(
+        input,
+        blockBounds(regionCenters[2]!, descriptor.capLengthMm),
+        descriptor.capRotation,
+        descriptor.capColumns,
+        descriptor.capRows,
+        "continuous-space-between",
+        "balancedCappedStrip.rightCap",
+      ),
+    ];
+    if (plans.some((plan) => plan === null)) return [];
+    const regions = plans as PinwheelRegionPlan[];
+    return pinwheelRegionPlansOverlap(regions, clearance)
+      ? []
+      : materializePinwheelRegions(regions);
+  }
+  const leftCapMinX = compositeMinX;
+  const coreMinX = leftCapMinX + descriptor.capLengthMm + clearance;
+  const coreMaxX = coreMinX + descriptor.coreCorridorLengthMm;
+  const rightCapMinX = coreMaxX + clearance;
+  const coreXCenters = justifiedLineCenters(
+    coreMinX,
+    coreMaxX,
+    mainSize.length,
     clearance,
-    "balancedCappedStrip.regions",
+    descriptor.coreColumns,
+    "continuous-space-between",
   );
-  if (regionCenters.length !== 3) return [];
+  if (coreXCenters.length !== descriptor.coreColumns) return [];
 
   const stripMinY = compositeMinY;
   const stripMaxY = stripMinY + descriptor.stripHeightMm;
   const mainMinY = stripMaxY + clearance;
-  const blockBounds = (centerX: number, length: number): RectangleBoundsMm => ({
-    minX: centerX - length / 2,
+  const blockBounds = (
+    minimumX: number,
+    length: number,
+  ): RectangleBoundsMm => ({
+    minX: minimumX,
     minY: stripMinY,
-    maxX: centerX + length / 2,
+    maxX: minimumX + length,
     maxY: stripMaxY,
   });
+  const coreYCenters = justifiedLineCenters(
+    stripMinY,
+    stripMaxY,
+    mainSize.width,
+    clearance,
+    descriptor.coreRows,
+    "continuous-space-between",
+  );
+  if (coreYCenters.length !== descriptor.coreRows) return [];
+  const corePlan: PinwheelRegionPlan = {
+    rotation: descriptor.mainRotation,
+    xCenters: coreXCenters,
+    yCenters: coreYCenters,
+    occupiedBounds: {
+      minX: coreXCenters[0]! - mainSize.length / 2,
+      minY: coreYCenters[0]! - mainSize.width / 2,
+      maxX: coreXCenters[coreXCenters.length - 1]! + mainSize.length / 2,
+      maxY: coreYCenters[coreYCenters.length - 1]! + mainSize.width / 2,
+    },
+  };
   const plannedRegions = [
     pinwheelRegionPlan(
       input,
@@ -4643,25 +4854,17 @@ function materializeBalancedCappedStrip(
     ),
     pinwheelRegionPlan(
       input,
-      blockBounds(regionCenters[0]!, descriptor.capLengthMm),
+      blockBounds(leftCapMinX, descriptor.capLengthMm),
       descriptor.capRotation,
       descriptor.capColumns,
       descriptor.capRows,
       "continuous-space-between",
       "balancedCappedStrip.leftCap",
     ),
+    corePlan,
     pinwheelRegionPlan(
       input,
-      blockBounds(regionCenters[1]!, descriptor.coreLengthMm),
-      descriptor.mainRotation,
-      descriptor.coreColumns,
-      descriptor.coreRows,
-      "continuous-space-between",
-      "balancedCappedStrip.core",
-    ),
-    pinwheelRegionPlan(
-      input,
-      blockBounds(regionCenters[2]!, descriptor.capLengthMm),
+      blockBounds(rightCapMinX, descriptor.capLengthMm),
       descriptor.capRotation,
       descriptor.capColumns,
       descriptor.capRows,
@@ -5168,6 +5371,8 @@ function generateThreeBlockSplits(
   input: NormalizedLayerSolverInput,
   collector: DraftCollector,
   orientationOrders: readonly (readonly [Rotation, Rotation])[],
+  useProductionCleanSpacing: boolean,
+  includeIncompleteBlockVariants: boolean,
 ): void {
   const envelope = input.generationBoundsMm;
   const totalLength = rectangleBoundsLength(envelope);
@@ -5322,54 +5527,114 @@ function generateThreeBlockSplits(
             leftMinX: number,
             distributedMiddleMinX: number,
             distributedRightMinX: number,
-          ) => [
-            ...gridPlacements(
-              input,
-              {
-                minX: leftMinX,
-                minY: envelope.minY,
-                maxX: leftMinX + leftLengthMm,
-                maxY: envelope.maxY,
-              },
-              outerRotation,
-              leftOuterColumns,
-              outerRows,
-              "start",
-              "start",
-            ),
-            ...gridPlacements(
-              input,
-              {
-                minX: distributedMiddleMinX,
-                minY: envelope.minY,
-                maxX: distributedMiddleMinX + middleLengthMm,
-                maxY: envelope.maxY,
-              },
-              middleRotation,
-              middleColumns,
-              middleRows,
-              "start",
-              "start",
-            ),
-            ...gridPlacements(
-              input,
-              {
-                minX: distributedRightMinX,
-                minY: envelope.minY,
-                maxX: distributedRightMinX + rightLengthMm,
-                maxY: envelope.maxY,
-              },
-              outerRotation,
-              rightOuterColumns,
-              outerRows,
-              "start",
-              "start",
-            ),
-          ];
-          const placements = materializeRegions(
-            compositeMinX,
-            middleMinX,
-            rightMinX,
+            middleRegionLengthMm = middleLengthMm,
+            distributeMiddleX = false,
+          ): GeneratedPlacement[] => {
+            const leftBounds = {
+              minX: leftMinX,
+              minY: envelope.minY,
+              maxX: leftMinX + leftLengthMm,
+              maxY: envelope.maxY,
+            };
+            const middleBounds = {
+              minX: distributedMiddleMinX,
+              minY: envelope.minY,
+              maxX: distributedMiddleMinX + middleRegionLengthMm,
+              maxY: envelope.maxY,
+            };
+            const rightBounds = {
+              minX: distributedRightMinX,
+              minY: envelope.minY,
+              maxX: distributedRightMinX + rightLengthMm,
+              maxY: envelope.maxY,
+            };
+            return useProductionCleanSpacing
+              ? [
+                  ...cleanBlockGridPlacements(
+                    input,
+                    leftBounds,
+                    outerRotation,
+                    leftOuterColumns,
+                    outerRows,
+                    false,
+                    true,
+                  ),
+                  ...cleanBlockGridPlacements(
+                    input,
+                    middleBounds,
+                    middleRotation,
+                    middleColumns,
+                    middleRows,
+                    distributeMiddleX,
+                    true,
+                  ),
+                  ...cleanBlockGridPlacements(
+                    input,
+                    rightBounds,
+                    outerRotation,
+                    rightOuterColumns,
+                    outerRows,
+                    false,
+                    true,
+                  ),
+                ]
+              : [
+                  ...gridPlacements(
+                    input,
+                    leftBounds,
+                    outerRotation,
+                    leftOuterColumns,
+                    outerRows,
+                    "start",
+                    "start",
+                  ),
+                  ...gridPlacements(
+                    input,
+                    middleBounds,
+                    middleRotation,
+                    middleColumns,
+                    middleRows,
+                    "start",
+                    "start",
+                  ),
+                  ...gridPlacements(
+                    input,
+                    rightBounds,
+                    outerRotation,
+                    rightOuterColumns,
+                    outerRows,
+                    "start",
+                    "start",
+                  ),
+                ];
+          };
+          const cleanMiddleRegionLengthMm = normalizeGeneratedGeometryMetric(
+            totalLength - leftLengthMm - rightLengthMm - 2 * clearance,
+            "threeBlockSplit.cleanMiddleRegionLengthMm",
+          );
+          const cleanMiddleMinX = envelope.minX + leftLengthMm + clearance;
+          const cleanRightMinX = envelope.maxX - rightLengthMm;
+          const placements = useProductionCleanSpacing
+            ? materializeRegions(
+                envelope.minX,
+                cleanMiddleMinX,
+                cleanRightMinX,
+                cleanMiddleRegionLengthMm,
+                true,
+              )
+            : materializeRegions(compositeMinX, middleMinX, rightMinX);
+          if (placements.length !== packageCount) continue;
+          const finalOccupiedLengthMm = useProductionCleanSpacing
+            ? normalizeGeneratedGeometryMetric(
+                totalLength,
+                "threeBlockSplit.cleanOccupiedLengthMm",
+              )
+            : occupiedLengthMm;
+          const middleInlineResidualMm = normalizeGeneratedGeometryMetric(
+            (useProductionCleanSpacing
+              ? cleanMiddleRegionLengthMm
+              : middleLengthMm) - middleLengthMm,
+            "threeBlockSplit.middleInlineResidualMm",
           );
           if (
             !collector.add(placements, {
@@ -5386,7 +5651,11 @@ function generateThreeBlockSplits(
                 rightOuterColumns,
                 outerRows,
                 middleRows,
-                occupiedLengthMm,
+                spacingPolicy: useProductionCleanSpacing
+                  ? "clean-block-v1"
+                  : "compact",
+                middleInlineResidualMm,
+                occupiedLengthMm: finalOccupiedLengthMm,
                 occupiedWidthMm,
               },
             })
@@ -5395,6 +5664,7 @@ function generateThreeBlockSplits(
           }
 
           if (
+            includeIncompleteBlockVariants &&
             outerRows < middleRows &&
             occupiedLengthMm < totalLength - SOLVER_GEOMETRY_EPSILON_MM
           ) {
@@ -5454,6 +5724,7 @@ function generateFourBlockCFrames(
   input: NormalizedLayerSolverInput,
   collector: DraftCollector,
   orientationOrders: readonly (readonly [Rotation, Rotation])[],
+  useProductionCleanSpacing: boolean,
 ): void {
   const envelope = input.generationBoundsMm;
   const totalLength = rectangleBoundsLength(envelope);
@@ -5567,20 +5838,35 @@ function generateFourBlockCFrames(
           coreColumns,
           "continuous-space-between",
         );
-        const coreYCenters = compactLineCenters(
-          middleMinY,
-          middleMaxY,
-          coreSize.width,
-          clearance,
-          coreRows,
-          "fourBlockCFrame.coreY",
-        );
+        const coreYCenters = useProductionCleanSpacing
+          ? justifiedLineCenters(
+              middleMinY,
+              middleMaxY,
+              coreSize.width,
+              clearance,
+              coreRows,
+              "continuous-space-between",
+            )
+          : compactLineCenters(
+              middleMinY,
+              middleMaxY,
+              coreSize.width,
+              clearance,
+              coreRows,
+              "fourBlockCFrame.coreY",
+            );
         if (
           coreXCenters.length !== coreColumns ||
           coreYCenters.length !== coreRows ||
           !lineCentersRespectGapPolicy(
             coreXCenters,
             coreSize.length,
+            clearance,
+            true,
+          ) ||
+          !lineCentersRespectGapPolicy(
+            coreYCenters,
+            coreSize.width,
             clearance,
             true,
           )
@@ -6185,8 +6471,13 @@ function generateBlocks(
     input.constraints.allowedRotations,
   );
   if (!representatives) {
-    generateDenseEdgeNotches(input, collector, notchRotations);
-    if (!collector.canContinue()) return collector.output();
+    if (
+      hooks.includeExperimentalIncompleteBlocks === true ||
+      exactRequestedPackageCount(input) === null
+    ) {
+      generateDenseEdgeNotches(input, collector, notchRotations);
+      if (!collector.canContinue()) return collector.output();
+    }
     collector.diagnostics.push({
       severity: "info",
       phase: "generation",
@@ -6324,27 +6615,55 @@ function generateBlocks(
       if (!compactRectangleMatchesExactCount || !compactRectangleIsExclusive) {
         for (const alignment of ALIGNMENTS) {
           if (!collector.canContinue()) return collector.output();
+          const useCleanBlockSpacing =
+            exactPackageCount !== null &&
+            input.constraints.rectangularBlockFootprintPolicy ===
+              "fill-generation-bounds" &&
+            hooks.includeExperimentalIncompleteBlocks !== true &&
+            alignment === "start";
+          const splitPlacements = useCleanBlockSpacing
+            ? [
+                ...cleanBlockGridPlacements(
+                  input,
+                  firstBounds,
+                  firstRotation,
+                  firstColumns,
+                  firstRows,
+                  false,
+                  true,
+                ),
+                ...cleanBlockGridPlacements(
+                  input,
+                  secondBounds,
+                  secondRotation,
+                  secondColumns,
+                  secondRows,
+                  false,
+                  true,
+                ),
+              ]
+            : [
+                ...gridPlacements(
+                  input,
+                  firstBounds,
+                  firstRotation,
+                  firstColumns,
+                  firstRows,
+                  "start",
+                  alignment,
+                ),
+                ...gridPlacements(
+                  input,
+                  secondBounds,
+                  secondRotation,
+                  secondColumns,
+                  secondRows,
+                  alignment,
+                  alignment,
+                ),
+              ];
           collector.add(
-            [
-              ...gridPlacements(
-                input,
-                firstBounds,
-                firstRotation,
-                firstColumns,
-                firstRows,
-                "start",
-                alignment,
-              ),
-              ...gridPlacements(
-                input,
-                secondBounds,
-                secondRotation,
-                secondColumns,
-                secondRows,
-                alignment,
-                alignment,
-              ),
-            ],
+            splitPlacements,
             {
               family: "block",
               variant: `vertical-split-${alignment}`,
@@ -6477,27 +6796,55 @@ function generateBlocks(
       if (!compactRectangleMatchesExactCount || !compactRectangleIsExclusive) {
         for (const alignment of ALIGNMENTS) {
           if (!collector.canContinue()) return collector.output();
+          const useCleanBlockSpacing =
+            exactPackageCount !== null &&
+            input.constraints.rectangularBlockFootprintPolicy ===
+              "fill-generation-bounds" &&
+            hooks.includeExperimentalIncompleteBlocks !== true &&
+            alignment === "start";
+          const splitPlacements = useCleanBlockSpacing
+            ? [
+                ...cleanBlockGridPlacements(
+                  input,
+                  firstBounds,
+                  firstRotation,
+                  firstColumns,
+                  firstRows,
+                  true,
+                  false,
+                ),
+                ...cleanBlockGridPlacements(
+                  input,
+                  secondBounds,
+                  secondRotation,
+                  secondColumns,
+                  secondRows,
+                  true,
+                  false,
+                ),
+              ]
+            : [
+                ...gridPlacements(
+                  input,
+                  firstBounds,
+                  firstRotation,
+                  firstColumns,
+                  firstRows,
+                  alignment,
+                  "start",
+                ),
+                ...gridPlacements(
+                  input,
+                  secondBounds,
+                  secondRotation,
+                  secondColumns,
+                  secondRows,
+                  alignment,
+                  alignment,
+                ),
+              ];
           collector.add(
-            [
-              ...gridPlacements(
-                input,
-                firstBounds,
-                firstRotation,
-                firstColumns,
-                firstRows,
-                alignment,
-                "start",
-              ),
-              ...gridPlacements(
-                input,
-                secondBounds,
-                secondRotation,
-                secondColumns,
-                secondRows,
-                alignment,
-                alignment,
-              ),
-            ],
+            splitPlacements,
             {
               family: "block",
               variant: `horizontal-split-${alignment}`,
@@ -6526,13 +6873,32 @@ function generateBlocks(
       }
     }
   }
-  generateThreeBlockSplits(input, collector, orientationOrders);
+  const includeExperimentalIncompleteBlocks =
+    hooks.includeExperimentalIncompleteBlocks === true;
+  const useProductionCleanSpacing =
+    exactPackageCount !== null && !includeExperimentalIncompleteBlocks;
+  const includeIncompleteBlockVariants =
+    exactPackageCount === null || includeExperimentalIncompleteBlocks;
+  generateThreeBlockSplits(
+    input,
+    collector,
+    orientationOrders,
+    useProductionCleanSpacing,
+    includeIncompleteBlockVariants,
+  );
   if (!collector.canContinue()) return collector.output();
-  generateFourBlockCFrames(input, collector, orientationOrders);
+  generateFourBlockCFrames(
+    input,
+    collector,
+    orientationOrders,
+    useProductionCleanSpacing,
+  );
   if (!collector.canContinue()) return collector.output();
-  generateSideCoreCornerBands(input, collector, orientationOrders);
-  if (!collector.canContinue()) return collector.output();
-  generateDenseEdgeNotches(input, collector, notchRotations);
+  if (includeIncompleteBlockVariants) {
+    generateSideCoreCornerBands(input, collector, orientationOrders);
+    if (!collector.canContinue()) return collector.output();
+    generateDenseEdgeNotches(input, collector, notchRotations);
+  }
   return collector.output();
 }
 

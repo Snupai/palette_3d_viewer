@@ -359,7 +359,9 @@ describe("solver input and candidate validation", () => {
       },
     };
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const exactGridCandidates = result.candidates.filter(({ provenance }) =>
       provenance.some(
         ({ family, variant }) =>
@@ -564,7 +566,9 @@ describe("solver input and candidate validation", () => {
     ];
     const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const candidate = result.candidates.find(
       ({ placements }) =>
         canonicalPlacementGeometryKey(placements) === expectedGeometry,
@@ -767,7 +771,10 @@ describe("solver input and candidate validation", () => {
     ];
     const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+      includeExperimentalIncompleteBlocks: true,
+    });
     const candidate = result.candidates.find(
       ({ placements }) =>
         canonicalPlacementGeometryKey(placements) === expectedGeometry,
@@ -830,7 +837,10 @@ describe("solver input and candidate validation", () => {
     ];
     const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+      includeExperimentalIncompleteBlocks: true,
+    });
     const candidate = result.candidates.find(
       ({ placements }) =>
         canonicalPlacementGeometryKey(placements) === expectedGeometry,
@@ -886,7 +896,9 @@ describe("solver input and candidate validation", () => {
     ];
     const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const candidate = result.candidates.find(
       ({ placements }) =>
         canonicalPlacementGeometryKey(placements) === expectedGeometry,
@@ -988,7 +1000,9 @@ describe("solver input and candidate validation", () => {
     ];
     const expectedGeometry = canonicalPlacementGeometryKey(expectedPlacements);
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const candidate = result.candidates.find(
       ({ placements }) =>
         canonicalPlacementGeometryKey(placements) === expectedGeometry,
@@ -1054,7 +1068,9 @@ describe("solver input and candidate validation", () => {
       },
     };
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const candidate = result.candidates.find(({ placements }) => {
       const crosswiseY = placements
         .filter(({ rotation }) => rotation === 90)
@@ -1126,7 +1142,9 @@ describe("solver input and candidate validation", () => {
       },
     };
 
-    const result = solveLayer(input, { includeSymmetryVariants: false });
+    const result = solveLayer(input, {
+      includeSymmetryVariants: false,
+    });
     const candidate = result.candidates[0]!;
     const occupied = boundingRectangleForPlacements(
       candidate.placements,
@@ -1185,7 +1203,9 @@ describe("solver input and candidate validation", () => {
           maxCandidatesPerGenerator: 25,
         },
       };
-      const result = solveLayer(input, { includeSymmetryVariants: false });
+      const result = solveLayer(input, {
+        includeSymmetryVariants: false,
+      });
 
       expect(result.status).toBe("completed");
       for (const candidate of result.candidates) {
@@ -1991,7 +2011,7 @@ describe("observed MultiPack geometry", () => {
           rotation: 0 as const,
         })),
       ),
-      ...[384, 492, 600, 708, 816].flatMap((x) =>
+      ...[372, 486, 600, 714, 828].flatMap((x) =>
         [88, 244, 400].map((y) => ({
           positionMm: { x, y },
           rotation: 90 as const,
@@ -2075,7 +2095,7 @@ describe("observed MultiPack geometry", () => {
     expect(candidate?.validation.valid).toBe(true);
   }, 15_000);
 
-  it("keeps the observed two- and three-block split inventory", () => {
+  it("keeps the clean production block inventory", () => {
     const result = solveLayer({
       package: {
         shape: "cuboid",
@@ -2201,32 +2221,31 @@ describe("observed MultiPack geometry", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(result.candidates).toHaveLength(25);
+    expect(result.candidates).toHaveLength(7);
     expect(topologyHistogram).toEqual({
       twoBlock: 1,
       compactThree: 4,
-      distributedThree: 2,
-      sideCore: 1,
       cFrame: 1,
       cappedBlock: 1,
-      notch: 9,
-      genericMixed: 6,
     });
-    expect(result.diagnostics).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          code: "five-block-mosaic-search-limit-reached",
-          generator: "pinwheel",
-          count: 100_000,
-        }),
-        expect.objectContaining({
-          code: "five-block-offset-bridge-search-limit-reached",
-          generator: "pinwheel",
-          count: 100_000,
-        }),
-      ]),
-    );
-    expect(mixedOnlyCandidates).toHaveLength(6);
+    expect(
+      result.candidates
+        .map(({ metrics }) => metrics.provisionalCycleCount)
+        .sort((left, right) => left - right),
+    ).toEqual([29, 29, 29, 36, 43, 43, 43]);
+    expect(
+      result.candidates
+        .map(({ metrics }) => metrics.boundingBlockLengthMm)
+        .sort((left, right) => left - right),
+    ).toEqual([1164, 1188, 1188, 1188, 1188, 1188, 1188]);
+    expect(
+      result.diagnostics.some(
+        ({ code }) =>
+          code === "five-block-mosaic-search-limit-reached" ||
+          code === "five-block-offset-bridge-search-limit-reached",
+      ),
+    ).toBe(false);
+    expect(mixedOnlyCandidates).toEqual([]);
     expect(genericTwoBlockCandidates).toHaveLength(1);
     expect(
       genericTwoBlockCandidates[0]?.provenance.some(
@@ -2248,12 +2267,9 @@ describe("observed MultiPack geometry", () => {
         boundingBlockWidthMm: 780,
       }),
     );
-    expect(notchCandidates).toHaveLength(9);
-    expect(
-      notchCandidates
-        .map(({ metrics }) => metrics.provisionalCycleCount)
-        .sort((left, right) => left - right),
-    ).toEqual([31, 31, 32, 32, 32, 32, 32, 33, 33]);
+    expect(notchCandidates).toEqual([]);
+    expect(distributedThreeBlockCandidates).toEqual([]);
+    expect(sideCoreCandidates).toEqual([]);
     expect(threeBlockCandidates).toHaveLength(4);
     expect(splitSignatures).toEqual([
       "0:1:5:3",
@@ -2265,9 +2281,7 @@ describe("observed MultiPack geometry", () => {
       threeBlockCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
-    ).toEqual([29, 29, 29, 36]);
-    expect(distributedThreeBlockCandidates).toHaveLength(2);
-    expect(sideCoreCandidates).toHaveLength(1);
+    ).toEqual([29, 36, 43, 43]);
     expect(cFrameCandidates).toHaveLength(1);
     expect(cFrameCandidates[0]?.metrics).toEqual(
       expect.objectContaining({
@@ -2278,42 +2292,18 @@ describe("observed MultiPack geometry", () => {
       }),
     );
     expect(cFrameCandidates[0]?.validation.valid).toBe(true);
-    expect(sideCoreCandidates[0]?.metrics).toEqual(
-      expect.objectContaining({
-        packageCount: 53,
-        provisionalCycleCount: 29,
-        boundingBlockLengthMm: 1176,
-        boundingBlockWidthMm: 780,
-      }),
-    );
-    expect(sideCoreCandidates[0]?.validation.valid).toBe(true);
-    expect(
-      sideCoreCandidates[0]?.provenance.some(
-        ({ symmetry }) => symmetry === "mirror-x",
-      ),
-    ).toBe(true);
-    expect(
-      distributedThreeBlockCandidates.every(
-        ({ metrics, validation }) =>
-          metrics.packageCount === 53 &&
-          metrics.provisionalCycleCount === 29 &&
-          metrics.boundingBlockLengthMm === 1188 &&
-          metrics.boundingBlockWidthMm === 780 &&
-          validation.valid,
-      ),
-    ).toBe(true);
     expect(
       threeBlockCandidates.every(
         ({ metrics, validation }) =>
           metrics.packageCount === 53 &&
-          metrics.boundingBlockLengthMm === 1164 &&
+          metrics.boundingBlockLengthMm === 1188 &&
           metrics.boundingBlockWidthMm === 780 &&
           validation.valid,
       ),
     ).toBe(true);
   }, 15_000);
 
-  it("keeps nine observed dense edge-notch symmetry classes", () => {
+  it("keeps incomplete edge-notch layouts out of production", () => {
     const result = solveLayer({
       package: {
         shape: "cuboid",
@@ -2328,67 +2318,14 @@ describe("observed MultiPack geometry", () => {
         maxCandidatesPerGenerator: 500,
       },
     });
-    const notchCandidates = result.candidates.filter(({ provenance }) =>
-      provenance.some(
-        ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
-      ),
-    );
 
     expect(result.status).toBe("completed");
-    expect(notchCandidates).toHaveLength(9);
     expect(
-      new Set(
-        notchCandidates.map(({ placements }) =>
-          canonicalPlacementGeometryKey(placements),
-        ),
-      ),
-    ).toHaveLength(9);
-    const notchOrbitSignatures = new Set(
-      notchCandidates.map(({ provenance }) =>
-        JSON.stringify(
-          [
-            ...new Set(
-              provenance.flatMap(({ parameters }) =>
-                parameters?.topology === "dense-edge-notch-v1" &&
-                typeof parameters.rowDeficits === "string"
-                  ? [parameters.rowDeficits]
-                  : [],
-              ),
-            ),
-          ].sort(),
-        ),
-      ),
-    );
-    expect(notchOrbitSignatures).toEqual(
-      new Set([
-        JSON.stringify(["0,0,2,0,0"]),
-        JSON.stringify(["0,0,0,0,2", "2,0,0,0,0"]),
-        JSON.stringify(["0,0,1,1,0", "0,1,1,0,0"]),
-        JSON.stringify(["1,0,0,0,1"]),
-        JSON.stringify(["0,0,0,1,1", "1,1,0,0,0"]),
-        JSON.stringify(["0,0,1,0,1", "1,0,1,0,0"]),
-        JSON.stringify(["0,1,0,0,1", "1,0,0,1,0"]),
-        JSON.stringify(["0,0,0,2,0", "0,2,0,0,0"]),
-        JSON.stringify(["0,1,0,1,0"]),
-      ]),
-    );
-    expect(
-      notchCandidates.every(({ provenance }) => {
-        const parameters = provenance.find(
+      result.candidates.filter(({ provenance }) =>
+        provenance.some(
           ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
-        )?.parameters;
-        return parameters !== undefined && !("blockCount" in parameters);
-      }),
-    ).toBe(true);
-    expect(
-      notchCandidates.every(({ metrics, validation }) =>
-        Boolean(
-          metrics.packageCount === 53 &&
-            metrics.boundingBlockLengthMm === 1188 &&
-            metrics.boundingBlockWidthMm === 780 &&
-            validation.valid,
         ),
       ),
-    ).toBe(true);
+    ).toEqual([]);
   }, 15_000);
 });

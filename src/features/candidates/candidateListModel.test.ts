@@ -268,7 +268,11 @@ describe("candidate list model", () => {
           rectangularBlockFootprintPolicy: "compact-centered",
         },
       },
-      { includeSymmetryVariants: true, progressBatchSize: 25 },
+      {
+        includeSymmetryVariants: true,
+        includeExperimentalIncompleteBlocks: true,
+        progressBatchSize: 25,
+      },
     );
 
     const packageSize = { length: 100, width: 100 };
