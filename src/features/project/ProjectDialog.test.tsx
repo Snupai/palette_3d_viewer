@@ -37,7 +37,7 @@ describe("ProjectDialog", () => {
       "",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
 
     expect(
       await screen.findByText(
@@ -76,7 +76,9 @@ describe("ProjectDialog", () => {
     fireEvent.change(screen.getByLabelText("Maximum gross (kg)"), {
       target: { value: "10" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     expect(
       await screen.findByText(
@@ -128,7 +130,7 @@ describe("ProjectDialog", () => {
       target: { value: "150" },
     });
     fireEvent.click(screen.getByLabelText("Allow multipick"));
-    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(savedProject).not.toBeNull();
@@ -151,9 +153,9 @@ describe("ProjectDialog", () => {
         onSave={onEditSave}
       />,
     );
-    expect(
-      screen.getByLabelText<HTMLInputElement>("Line number").value,
-    ).toBe("AP-5006");
+    expect(screen.getByLabelText<HTMLInputElement>("Line number").value).toBe(
+      "AP-5006",
+    );
     expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
       "157",
     );
@@ -181,17 +183,19 @@ describe("ProjectDialog", () => {
     });
   });
 
-  it("submits an exact package count only for Create & generate", async () => {
+  it("submits an exact package count only for Save and generate patterns", async () => {
     const onSave = vi.fn();
     const onClose = vi.fn();
     render(
       <ProjectDialog open project={null} onClose={onClose} onSave={onSave} />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
     expect(
       await screen.findByText(
-        "Enter the exact packages per layer, or choose Create only.",
+        "Enter the exact packages per layer, or choose Save project.",
       ),
     ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
@@ -201,7 +205,7 @@ describe("ProjectDialog", () => {
     });
     fireEvent.submit(
       screen
-        .getByRole("button", { name: "Create & generate" })
+        .getByRole("button", { name: "Save and generate patterns" })
         .closest("form")!,
     );
     expect(
@@ -221,7 +225,9 @@ describe("ProjectDialog", () => {
     fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
       target: { value: "4" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onSave.mock.calls[0]?.[0]).toMatchObject({

@@ -133,7 +133,7 @@ export function ProjectDialog({
           exactPackageCount: "Enter a positive whole number.",
         });
         setFailure(
-          "Enter the exact packages per layer, or choose Create only.",
+          "Enter the exact packages per layer, or choose Save project.",
         );
         return;
       }
@@ -181,10 +181,13 @@ export function ProjectDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-busy={saving}
-        className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-auto border border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
       >
-        <form onSubmit={(event) => void submit(event)}>
-          <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={(event) => void submit(event)}
+        >
+          <header className="flex shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--surface)] px-5 py-4">
             <h2
               id={titleId}
               className="text-base font-semibold text-[var(--ink)]"
@@ -201,422 +204,436 @@ export function ProjectDialog({
             </button>
           </header>
 
-          <div className="grid gap-5 p-5">
-            {failure ? (
-              <div
-                role="alert"
-                className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]"
-              >
-                {failure}
-              </div>
-            ) : null}
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
+            <div className="grid gap-5 p-5">
+              {failure ? (
+                <div
+                  role="alert"
+                  className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]"
+                >
+                  {failure}
+                </div>
+              ) : null}
 
-            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
-                Line and product
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Product number"
-                  error={errorFor(fieldErrors, "productNumber")}
-                >
-                  <input
-                    ref={firstInputRef}
-                    value={values.productNumber}
-                    onChange={(event) =>
-                      set("productNumber", event.target.value)
-                    }
-                    className={inputClass}
-                    placeholder="1329-00004"
-                  />
-                </Field>
-                <Field
-                  label="Line number"
-                  error={errorFor(fieldErrors, "projectNumber")}
-                >
-                  <input
-                    value={values.projectNumber}
-                    onChange={(event) =>
-                      set("projectNumber", event.target.value)
-                    }
-                    className={inputClass}
-                    placeholder="AP-5006"
-                  />
-                </Field>
-              </div>
-            </fieldset>
-
-            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
-                Cuboid package
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-                <Field
-                  label="Length (mm)"
-                  error={errorFor(fieldErrors, "package.dimensionsMm.length")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.packageLengthMm}
-                    onChange={(event) =>
-                      set("packageLengthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Width (mm)"
-                  error={errorFor(fieldErrors, "package.dimensionsMm.width")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.packageWidthMm}
-                    onChange={(event) =>
-                      set("packageWidthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Height (mm)"
-                  error={errorFor(fieldErrors, "package.dimensionsMm.height")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.packageHeightMm}
-                    onChange={(event) =>
-                      set("packageHeightMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                {project === null ? (
+              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+                  Line and product
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2">
                   <Field
-                    label="Packages per layer"
-                    error={errorFor(fieldErrors, "exactPackageCount")}
+                    label="Product number"
+                    error={errorFor(fieldErrors, "productNumber")}
+                  >
+                    <input
+                      ref={firstInputRef}
+                      value={values.productNumber}
+                      onChange={(event) =>
+                        set("productNumber", event.target.value)
+                      }
+                      className={inputClass}
+                      placeholder="1329-00004"
+                    />
+                  </Field>
+                  <Field
+                    label="Line number"
+                    error={errorFor(fieldErrors, "projectNumber")}
+                  >
+                    <input
+                      value={values.projectNumber}
+                      onChange={(event) =>
+                        set("projectNumber", event.target.value)
+                      }
+                      className={inputClass}
+                      placeholder="AP-5006"
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+
+              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+                  Cuboid package
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                  <Field
+                    label="Length (mm)"
+                    error={errorFor(fieldErrors, "package.dimensionsMm.length")}
                   >
                     <input
                       type="number"
-                      min="1"
-                      step="1"
-                      value={exactPackageCount}
+                      min="0"
+                      step="any"
+                      value={values.packageLengthMm}
+                      onChange={(event) =>
+                        set("packageLengthMm", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field
+                    label="Width (mm)"
+                    error={errorFor(fieldErrors, "package.dimensionsMm.width")}
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={values.packageWidthMm}
+                      onChange={(event) =>
+                        set("packageWidthMm", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Field>
+                  <Field
+                    label="Height (mm)"
+                    error={errorFor(fieldErrors, "package.dimensionsMm.height")}
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={values.packageHeightMm}
+                      onChange={(event) =>
+                        set("packageHeightMm", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Field>
+                  {project === null ? (
+                    <Field
+                      label="Packages per layer"
+                      error={errorFor(fieldErrors, "exactPackageCount")}
+                    >
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={exactPackageCount}
+                        onChange={(event) => {
+                          setExactPackageCount(event.target.value);
+                          setFieldErrors({});
+                        }}
+                        className={inputClass}
+                        placeholder="Required to generate"
+                      />
+                    </Field>
+                  ) : null}
+                  <Field
+                    label="Clearance (mm)"
+                    error={errorFor(fieldErrors, "package.clearanceMm")}
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={values.packageClearanceMm}
+                      onChange={(event) =>
+                        set("packageClearanceMm", event.target.value)
+                      }
+                      className={inputClass}
+                    />
+                  </Field>
+                </div>
+              </fieldset>
+
+              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
+                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+                  Pallet and load envelope
+                </legend>
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field label="Pallet template">
+                    <select
+                      value={values.palletKind}
                       onChange={(event) => {
-                        setExactPackageCount(event.target.value);
+                        const kind = event.target
+                          .value as ProjectFormValues["palletKind"];
+                        if (kind === "custom") {
+                          setValues((current) => ({
+                            ...current,
+                            palletKind: "custom",
+                            palletId: current.palletId.startsWith("pallet-")
+                              ? ""
+                              : current.palletId,
+                            palletName: current.palletName || "Custom pallet",
+                          }));
+                        } else {
+                          setValues((current) =>
+                            palletTemplateFormValues(kind, current),
+                          );
+                        }
                         setFieldErrors({});
                       }}
                       className={inputClass}
-                      placeholder="Required to generate"
+                    >
+                      <option value="euro">EURO pallet</option>
+                      <option value="industrial">Industrial pallet</option>
+                      <option value="custom">Custom pallet</option>
+                    </select>
+                  </Field>
+                  <Field
+                    label="Pallet name"
+                    error={errorFor(fieldErrors, "pallet.name")}
+                  >
+                    <input
+                      value={values.palletName}
+                      onChange={(event) =>
+                        set("palletName", event.target.value)
+                      }
+                      className={inputClass}
                     />
                   </Field>
-                ) : null}
-                <Field
-                  label="Weight (kg)"
-                  error={errorFor(fieldErrors, "package.weightKg")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.packageWeightKg}
-                    onChange={(event) =>
-                      set("packageWeightKg", event.target.value)
-                    }
-                    className={inputClass}
-                    placeholder="Unknown"
-                  />
-                </Field>
-                <Field
-                  label="Clearance (mm)"
-                  error={errorFor(fieldErrors, "package.clearanceMm")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.packageClearanceMm}
-                    onChange={(event) =>
-                      set("packageClearanceMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
-                  <PackageLabelFacePicker
-                    packageLengthMm={Number(values.packageLengthMm)}
-                    packageWidthMm={Number(values.packageWidthMm)}
-                    inletOrientation={values.inletOrientation}
-                    selectedPackageSide={values.labelSideAtPickup || null}
-                    disabled={saving}
-                    onInletOrientationChange={(inletOrientation) =>
-                      set("inletOrientation", inletOrientation)
-                    }
-                    onPackageSideChange={(side) =>
-                      set("labelSideAtPickup", side ?? "")
-                    }
-                  />
-                  {errorFor(fieldErrors, "package.inletOrientation") ? (
-                    <span className="text-[var(--danger)]">
-                      {errorFor(fieldErrors, "package.inletOrientation")}
-                    </span>
-                  ) : null}
-                </div>
-                <label className="flex items-center gap-2 self-end border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink)]">
-                  <input
-                    type="checkbox"
-                    checked={values.multiPickAllowed}
-                    onChange={(event) =>
-                      set("multiPickAllowed", event.target.checked)
-                    }
-                    className="h-4 w-4 accent-[var(--brand)]"
-                  />
-                  Allow multipick
-                </label>
-              </div>
-            </fieldset>
-
-            <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-              <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
-                Pallet and load envelope
-              </legend>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Field label="Pallet template">
-                  <select
-                    value={values.palletKind}
-                    onChange={(event) => {
-                      const kind = event.target
-                        .value as ProjectFormValues["palletKind"];
-                      if (kind === "custom") {
-                        setValues((current) => ({
-                          ...current,
-                          palletKind: "custom",
-                          palletId: current.palletId.startsWith("pallet-")
-                            ? ""
-                            : current.palletId,
-                          palletName: current.palletName || "Custom pallet",
-                        }));
-                      } else {
-                        setValues((current) =>
-                          palletTemplateFormValues(kind, current),
-                        );
-                      }
-                      setFieldErrors({});
-                    }}
-                    className={inputClass}
+                  <Field
+                    label="Pallet ID"
+                    error={errorFor(fieldErrors, "pallet.id")}
                   >
-                    <option value="euro">EURO pallet</option>
-                    <option value="industrial">Industrial pallet</option>
-                    <option value="custom">Custom pallet</option>
-                  </select>
-                </Field>
-                <Field
-                  label="Pallet name"
-                  error={errorFor(fieldErrors, "pallet.name")}
-                >
-                  <input
-                    value={values.palletName}
-                    onChange={(event) => set("palletName", event.target.value)}
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Pallet ID"
-                  error={errorFor(fieldErrors, "pallet.id")}
-                >
-                  <input
-                    value={values.palletId}
-                    onChange={(event) => set("palletId", event.target.value)}
-                    disabled={values.palletKind !== "custom"}
-                    className={`${inputClass} disabled:cursor-not-allowed disabled:text-[var(--muted)]`}
-                    placeholder="Generated when saved"
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-3">
-                <Field
-                  label="Pallet length (mm)"
-                  error={errorFor(fieldErrors, "pallet.dimensionsMm.length")}
-                >
-                  <input
-                    type="number"
-                    step="any"
-                    value={values.palletLengthMm}
-                    onChange={(event) =>
-                      set("palletLengthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Pallet width (mm)"
-                  error={errorFor(fieldErrors, "pallet.dimensionsMm.width")}
-                >
-                  <input
-                    type="number"
-                    step="any"
-                    value={values.palletWidthMm}
-                    onChange={(event) =>
-                      set("palletWidthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Pallet height (mm)"
-                  error={errorFor(fieldErrors, "pallet.dimensionsMm.height")}
-                >
-                  <input
-                    type="number"
-                    step="any"
-                    value={values.palletHeightMm}
-                    onChange={(event) =>
-                      set("palletHeightMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-              </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Field
-                  label="Overhang / underhang length per side (mm)"
-                  error={errorFor(
-                    fieldErrors,
-                    "pallet.allowedOverhangMm.length",
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="any"
-                    value={values.overhangLengthMm}
-                    onChange={(event) =>
-                      set("overhangLengthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Overhang / underhang width per side (mm)"
-                  error={errorFor(
-                    fieldErrors,
-                    "pallet.allowedOverhangMm.width",
-                  )}
-                >
-                  <input
-                    type="number"
-                    step="any"
-                    value={values.overhangWidthMm}
-                    onChange={(event) =>
-                      set("overhangWidthMm", event.target.value)
-                    }
-                    className={inputClass}
-                  />
-                </Field>
-                <Field
-                  label="Pallet tare (kg)"
-                  error={errorFor(fieldErrors, "pallet.tareKg")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.tareKg}
-                    onChange={(event) => set("tareKg", event.target.value)}
-                    className={inputClass}
-                    placeholder="Unknown"
-                  />
-                </Field>
-                <Field
-                  label="Maximum gross (kg)"
-                  error={errorFor(fieldErrors, "pallet.maxGrossKg")}
-                >
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={values.maxGrossKg}
-                    onChange={(event) => set("maxGrossKg", event.target.value)}
-                    className={inputClass}
-                    placeholder="Unknown"
-                  />
-                </Field>
-              </div>
-              <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
-                <input
-                  type="checkbox"
-                  checked={values.hasStorageEnvelope}
-                  onChange={(event) =>
-                    set("hasStorageEnvelope", event.target.checked)
-                  }
-                  className="h-4 w-4 accent-[var(--brand)]"
-                />
-                Limit the load with a storage envelope
-              </label>
-              {values.hasStorageEnvelope ? (
+                    <input
+                      value={values.palletId}
+                      onChange={(event) => set("palletId", event.target.value)}
+                      disabled={values.palletKind !== "custom"}
+                      className={`${inputClass} disabled:cursor-not-allowed disabled:text-[var(--muted)]`}
+                      placeholder="Generated when saved"
+                    />
+                  </Field>
+                </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field
-                    label="Envelope length (mm)"
-                    error={errorFor(
-                      fieldErrors,
-                      "pallet.storageEnvelopeMm.length",
-                    )}
+                    label="Pallet length (mm)"
+                    error={errorFor(fieldErrors, "pallet.dimensionsMm.length")}
                   >
                     <input
                       type="number"
                       step="any"
-                      value={values.storageLengthMm}
+                      value={values.palletLengthMm}
                       onChange={(event) =>
-                        set("storageLengthMm", event.target.value)
+                        set("palletLengthMm", event.target.value)
                       }
                       className={inputClass}
                     />
                   </Field>
                   <Field
-                    label="Envelope width (mm)"
-                    error={errorFor(
-                      fieldErrors,
-                      "pallet.storageEnvelopeMm.width",
-                    )}
+                    label="Pallet width (mm)"
+                    error={errorFor(fieldErrors, "pallet.dimensionsMm.width")}
                   >
                     <input
                       type="number"
                       step="any"
-                      value={values.storageWidthMm}
+                      value={values.palletWidthMm}
                       onChange={(event) =>
-                        set("storageWidthMm", event.target.value)
+                        set("palletWidthMm", event.target.value)
                       }
                       className={inputClass}
                     />
                   </Field>
                   <Field
-                    label="Envelope height (mm)"
-                    error={errorFor(
-                      fieldErrors,
-                      "pallet.storageEnvelopeMm.height",
-                    )}
+                    label="Pallet height (mm)"
+                    error={errorFor(fieldErrors, "pallet.dimensionsMm.height")}
                   >
                     <input
                       type="number"
                       step="any"
-                      value={values.storageHeightMm}
+                      value={values.palletHeightMm}
                       onChange={(event) =>
-                        set("storageHeightMm", event.target.value)
+                        set("palletHeightMm", event.target.value)
                       }
                       className={inputClass}
                     />
                   </Field>
                 </div>
-              ) : null}
-            </fieldset>
+              </fieldset>
+
+              <details className="border border-[var(--line)] p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">
+                  Advanced settings
+                </summary>
+                <div className="mt-3 grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    <Field
+                      label="Weight (kg)"
+                      error={errorFor(fieldErrors, "package.weightKg")}
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={values.packageWeightKg}
+                        onChange={(event) =>
+                          set("packageWeightKg", event.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="Unknown"
+                      />
+                    </Field>
+                    <Field
+                      label="Overhang / underhang length per side (mm)"
+                      error={errorFor(
+                        fieldErrors,
+                        "pallet.allowedOverhangMm.length",
+                      )}
+                    >
+                      <input
+                        type="number"
+                        step="any"
+                        value={values.overhangLengthMm}
+                        onChange={(event) =>
+                          set("overhangLengthMm", event.target.value)
+                        }
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field
+                      label="Overhang / underhang width per side (mm)"
+                      error={errorFor(
+                        fieldErrors,
+                        "pallet.allowedOverhangMm.width",
+                      )}
+                    >
+                      <input
+                        type="number"
+                        step="any"
+                        value={values.overhangWidthMm}
+                        onChange={(event) =>
+                          set("overhangWidthMm", event.target.value)
+                        }
+                        className={inputClass}
+                      />
+                    </Field>
+                    <Field
+                      label="Pallet tare (kg)"
+                      error={errorFor(fieldErrors, "pallet.tareKg")}
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={values.tareKg}
+                        onChange={(event) => set("tareKg", event.target.value)}
+                        className={inputClass}
+                        placeholder="Unknown"
+                      />
+                    </Field>
+                    <Field
+                      label="Maximum gross (kg)"
+                      error={errorFor(fieldErrors, "pallet.maxGrossKg")}
+                    >
+                      <input
+                        type="number"
+                        min="0"
+                        step="any"
+                        value={values.maxGrossKg}
+                        onChange={(event) =>
+                          set("maxGrossKg", event.target.value)
+                        }
+                        className={inputClass}
+                        placeholder="Unknown"
+                      />
+                    </Field>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
+                    <input
+                      type="checkbox"
+                      checked={values.hasStorageEnvelope}
+                      onChange={(event) =>
+                        set("hasStorageEnvelope", event.target.checked)
+                      }
+                      className="h-4 w-4 accent-[var(--brand)]"
+                    />
+                    Limit the load with a storage envelope
+                  </label>
+                  {values.hasStorageEnvelope ? (
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      <Field
+                        label="Envelope length (mm)"
+                        error={errorFor(
+                          fieldErrors,
+                          "pallet.storageEnvelopeMm.length",
+                        )}
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          value={values.storageLengthMm}
+                          onChange={(event) =>
+                            set("storageLengthMm", event.target.value)
+                          }
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field
+                        label="Envelope width (mm)"
+                        error={errorFor(
+                          fieldErrors,
+                          "pallet.storageEnvelopeMm.width",
+                        )}
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          value={values.storageWidthMm}
+                          onChange={(event) =>
+                            set("storageWidthMm", event.target.value)
+                          }
+                          className={inputClass}
+                        />
+                      </Field>
+                      <Field
+                        label="Envelope height (mm)"
+                        error={errorFor(
+                          fieldErrors,
+                          "pallet.storageEnvelopeMm.height",
+                        )}
+                      >
+                        <input
+                          type="number"
+                          step="any"
+                          value={values.storageHeightMm}
+                          onChange={(event) =>
+                            set("storageHeightMm", event.target.value)
+                          }
+                          className={inputClass}
+                        />
+                      </Field>
+                    </div>
+                  ) : null}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
+                      <PackageLabelFacePicker
+                        packageLengthMm={Number(values.packageLengthMm)}
+                        packageWidthMm={Number(values.packageWidthMm)}
+                        inletOrientation={values.inletOrientation}
+                        selectedPackageSide={values.labelSideAtPickup || null}
+                        disabled={saving}
+                        onInletOrientationChange={(inletOrientation) =>
+                          set("inletOrientation", inletOrientation)
+                        }
+                        onPackageSideChange={(side) =>
+                          set("labelSideAtPickup", side ?? "")
+                        }
+                      />
+                      {errorFor(fieldErrors, "package.inletOrientation") ? (
+                        <span className="text-[var(--danger)]">
+                          {errorFor(fieldErrors, "package.inletOrientation")}
+                        </span>
+                      ) : null}
+                    </div>
+                    <label className="flex items-center gap-2 self-end border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink)]">
+                      <input
+                        type="checkbox"
+                        checked={values.multiPickAllowed}
+                        onChange={(event) =>
+                          set("multiPickAllowed", event.target.checked)
+                        }
+                        className="h-4 w-4 accent-[var(--brand)]"
+                      />
+                      Allow multipick
+                    </label>
+                  </div>
+                </div>
+              </details>
+            </div>
           </div>
 
-          <footer className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
+          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-4">
             <button
               type="button"
               onClick={onClose}
@@ -633,7 +650,7 @@ export function ProjectDialog({
                 disabled={saving}
                 className="ui-btn px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
               >
-                Create only
+                Save project
               </button>
             ) : null}
             <button
@@ -647,7 +664,7 @@ export function ProjectDialog({
                 ? "Saving…"
                 : project
                   ? "Save project"
-                  : "Create & generate"}
+                  : "Save and generate patterns"}
             </button>
           </footer>
         </form>

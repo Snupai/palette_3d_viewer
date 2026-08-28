@@ -324,7 +324,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
       timeout: 5_000,
@@ -406,7 +408,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
       timeout: 5_000,
@@ -441,7 +445,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     );
   });
 
-  it("creates without solving when Create only is chosen", async () => {
+  it("creates without solving when Save project is chosen", async () => {
     const repository = emptyRepository();
 
     render(<PlannerProjectWorkspace repository={repository} />);
@@ -455,7 +459,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       target: { value: "MANUAL-ONLY" },
     });
     fillNewProjectPackageDimensions();
-    fireEvent.click(screen.getByRole("button", { name: "Create only" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
 
     expect(
       await screen.findByRole(
@@ -651,7 +655,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "6" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
       timeout: 5_000,
@@ -659,11 +665,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       constraints: { minimumPackageCount: 6, maximumPackageCount: 6 },
     });
-    const generatedOptions = await screen.findAllByRole(
-      "option",
-      undefined,
-      { timeout: 5_000 },
-    );
+    const generatedOptions = await screen.findAllByRole("option", undefined, {
+      timeout: 5_000,
+    });
     expect(generatedOptions).toHaveLength(20);
     const selectedSuggestion = screen.getByRole("option", { selected: true });
     expect(selectedSuggestion.textContent).toContain("#1");
@@ -764,7 +768,9 @@ describe("PlannerProjectWorkspace generator integration", () => {
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "6" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Save and generate patterns" }),
+    );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
       timeout: 5_000,
