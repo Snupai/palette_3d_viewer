@@ -163,8 +163,8 @@ export function ReportWorkspace({
           Pallet planning report
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
-          Project {report.project.projectNumber || report.project.id} · Product{" "}
-          {report.project.productNumber || "not set"}
+          Product {report.project.productNumber || "not set"} · Line{" "}
+          {report.project.projectNumber || "not set"}
         </p>
         <p className="mt-1 text-xs text-zinc-500">
           Project schema {report.project.schemaVersion} · Last updated{" "}
@@ -175,14 +175,14 @@ export function ReportWorkspace({
 
       <section className="report-section">
         <h2 className="text-sm font-semibold text-zinc-100">
-          Project and product data
+          Line and product data
         </h2>
         <div className="mt-2 overflow-hidden border border-zinc-800">
           <table className="report-table w-full border-collapse text-left text-xs">
             <tbody>
               {[
                 ["Project ID", report.project.id],
-                ["Project number", report.project.projectNumber || "Not set"],
+                ["Line number", report.project.projectNumber || "Not set"],
                 ["Product number", report.project.productNumber || "Not set"],
                 ["Package shape", report.product.shape],
                 [

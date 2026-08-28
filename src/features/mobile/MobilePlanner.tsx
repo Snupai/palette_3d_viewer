@@ -28,6 +28,7 @@ import {
   type MobilePlanStep,
   type ParsedMobilePlan,
 } from "~/features/mobile/mobilePlannerModel";
+import { exportProjectRobDownload } from "~/features/robotics/robotWorkspaceModel";
 import { solverCandidateToPatternPreview } from "~/lib/previewAdapters";
 import {
   createProjectRepository,
@@ -66,6 +67,7 @@ const PALLET_CHOICES: {
 
 type RunStatus = "idle" | "running" | "completed" | "failed";
 type SaveStatus = "idle" | "saving" | "saved" | "failed";
+type ExportStatus = "idle" | "failed";
 type Screen = "library" | "detail" | MobilePlanStep;
 type LibraryStatus = "loading" | "ready" | "failed";
 
@@ -75,6 +77,18 @@ function hasErrors(errors: MobilePlanFieldErrors): boolean {
 
 function errorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error ? `${fallback} ${cause.message}` : fallback;
+}
+
+function downloadText(filename: string, text: string): void {
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
 function MobilePatternThumbnail({
@@ -213,6 +227,8 @@ export function MobilePlanner() {
   );
   const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [exportStatus, setExportStatus] = useState<ExportStatus>("idle");
+  const [exportError, setExportError] = useState<string | null>(null);
   const [savedCandidateRank, setSavedCandidateRank] = useState<number | null>(
     null,
   );
@@ -257,6 +273,8 @@ export function MobilePlanner() {
 
   const openDetail = (entry: Project) => {
     setDetailProject(entry);
+    setExportStatus("idle");
+    setExportError(null);
     setScreen("detail");
   };
 
@@ -406,8 +424,11 @@ export function MobilePlanner() {
       );
       repositoryRef.current ??= createProjectRepository();
       await repositoryRef.current.saveProject(persisted);
+      setProject(persisted);
       setSavedCandidateRank(candidate.rank);
       setSaveStatus("saved");
+      setExportStatus("idle");
+      setExportError(null);
     } catch (cause) {
       console.error("Saving the plan failed", cause);
       setSaveStatus("failed");
@@ -434,7 +455,24 @@ export function MobilePlanner() {
     setSaveStatus("idle");
     setSaveError(null);
     setSavedCandidateRank(null);
+    setExportStatus("idle");
+    setExportError(null);
     setScreen("package");
+  };
+
+  const exportRob = (source: Project) => {
+    setExportStatus("idle");
+    setExportError(null);
+    const result = exportProjectRobDownload(source);
+    if (!result.ok || !result.text) {
+      setExportStatus("failed");
+      setExportError(
+        result.diagnostics.map(({ message }) => message).join(" ") ||
+          "The .rob file could not be exported.",
+      );
+      return;
+    }
+    downloadText(result.fileName, result.text);
   };
 
   const summary = useMemo(
@@ -574,6 +612,11 @@ export function MobilePlanner() {
                   ? `${detailSummary.packagesPerLayer}/layer · ${detailSummary.layerCount} layers · ${detailSummary.totalPackages} packages`
                   : "No pattern saved yet"}
               </p>
+              {detailProject.projectNumber.trim() ? (
+                <p className="font-mono text-[11px] text-[var(--muted)]">
+                  Line {detailProject.projectNumber}
+                </p>
+              ) : null}
             </header>
             {detailPreview ? (
               <MobilePatternThumbnail
@@ -586,19 +629,39 @@ export function MobilePlanner() {
                 workspace to generate one.
               </p>
             )}
+            {exportStatus === "failed" && exportError ? (
+              <div
+                role="alert"
+                className="border border-[var(--danger)] px-3 py-2 text-xs text-[var(--danger)]"
+              >
+                {exportError}
+              </div>
+            ) : null}
           </section>
         ) : null}
 
         {screen === "package" ? (
           <Panel step="package">
             <label className="grid gap-1 text-[11px] font-medium text-[var(--muted)]">
-              Project number (optional)
+              Product number (optional)
               <input
                 type="text"
-                value={draft.planName}
+                value={draft.productNumber}
+                placeholder="1329-00004"
+                onChange={(event) =>
+                  updateDraft({ productNumber: event.target.value })
+                }
+                className="ui-input min-h-[44px] text-base"
+              />
+            </label>
+            <label className="grid gap-1 text-[11px] font-medium text-[var(--muted)]">
+              Line number (optional)
+              <input
+                type="text"
+                value={draft.lineNumber}
                 placeholder="AP-5006"
                 onChange={(event) =>
-                  updateDraft({ planName: event.target.value })
+                  updateDraft({ lineNumber: event.target.value })
                 }
                 className="ui-input min-h-[44px] text-base"
               />
@@ -802,10 +865,27 @@ export function MobilePlanner() {
                     /layer · {summary?.layerCount} layers ·{" "}
                     {summary?.totalPackages} packages
                   </p>
+                  {exportStatus === "failed" && exportError ? (
+                    <div
+                      role="alert"
+                      className="border border-[var(--danger)] px-3 py-2 text-xs text-[var(--danger)]"
+                    >
+                      {exportError}
+                    </div>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (project) exportRob(project);
+                    }}
+                    className="ui-btn-primary h-11 text-sm"
+                  >
+                    Export .rob
+                  </button>
                   <button
                     type="button"
                     onClick={startOver}
-                    className="ui-btn-primary h-11 text-sm"
+                    className="ui-btn h-11 text-sm"
                   >
                     Create another plan
                   </button>
@@ -939,6 +1019,18 @@ export function MobilePlanner() {
               className="ui-btn-primary h-11 flex-1 text-sm"
             >
               {saveStatus === "saving" ? "Saving…" : "Save plan"}
+            </button>
+          ) : null}
+          {screen === "detail" ? (
+            <button
+              type="button"
+              onClick={() => {
+                if (detailProject) exportRob(detailProject);
+              }}
+              disabled={!detailPreview}
+              className="ui-btn-primary h-11 flex-1 text-sm"
+            >
+              Export .rob
             </button>
           ) : null}
         </footer>

@@ -354,8 +354,8 @@ export function PlanningCaseWorkbench({
             {loadingProject
               ? "Reopening project…"
               : project
-                ? project.projectNumber ||
-                  project.productNumber ||
+                ? project.productNumber ||
+                  project.projectNumber ||
                   "Untitled project"
                 : "No project selected"}
           </h1>

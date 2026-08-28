@@ -138,7 +138,7 @@ const productionToolTitles: Record<ProductionTool, string> = {
 };
 
 function projectLabel(project: Project): string {
-  return project.projectNumber || project.productNumber || "Untitled project";
+  return project.productNumber || project.projectNumber || "Untitled project";
 }
 
 /**
@@ -510,10 +510,10 @@ export function PlannerProjectWorkspace({
       return;
     }
     const projectNumber = window.prompt(
-      "Project number for the new copy",
+      "Line number for the new copy",
       selectedProject.projectNumber
         ? `${selectedProject.projectNumber} copy`
-        : "New project",
+        : "New line",
     );
     if (projectNumber === null) return;
     const productNumber = window.prompt(

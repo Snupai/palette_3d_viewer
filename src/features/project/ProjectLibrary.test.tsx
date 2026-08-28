@@ -50,7 +50,7 @@ describe("ProjectLibrary management controls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Filter project number"), {
+    fireEvent.change(screen.getByLabelText("Filter line number"), {
       target: { value: "P-1" },
     });
     fireEvent.change(screen.getByLabelText("Filter product number"), {

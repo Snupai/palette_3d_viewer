@@ -1,6 +1,7 @@
 import { resolveMultipackEquipmentProfile } from "~/domain/project/equipmentProfiles";
 import type { Project } from "~/domain/project/projectSchema";
 import {
+  exportProjectRob,
   materializeRobotCycles,
   preflightProjectRobExport,
   stationPointToPallet,
@@ -82,7 +83,7 @@ export function createInitialRobotWorkspaceSettings(
 
 export function createInitialRobotExportSettings(): RobotExportWorkspaceSettings {
   return {
-    quantization: "reject-decimals",
+    quantization: "round-half-away-from-zero",
     mappingAcknowledged: false,
     mappingId: "internal-station-mapping-v1",
     xSign: 1,
@@ -481,6 +482,50 @@ export function projectRobExportGate(
     enabled: preflight.ok,
     options,
     preflight,
+  };
+}
+
+export function robDownloadFileName(
+  project: Project,
+  fallback = "pallet",
+): string {
+  const raw = project.productNumber.trim() || project.projectNumber.trim();
+  const stem = raw.replace(/[^a-zA-Z0-9._-]+/g, "-") || fallback;
+  return stem.toLowerCase().endsWith(".rob") ? stem : `${stem}.rob`;
+}
+
+export type ProjectRobDownload = {
+  ok: boolean;
+  fileName: string;
+  text: string | null;
+  diagnostics: readonly RobotDiagnostic[];
+};
+
+/** One-click project-derived .rob using default mapping and integer rounding. */
+export function exportProjectRobDownload(project: Project): ProjectRobDownload {
+  const fileName = robDownloadFileName(project);
+  const materialization = materializeRobotWorkspace(
+    project,
+    createInitialRobotWorkspaceSettings(project),
+  );
+  const gate = projectRobExportGate(
+    materialization,
+    createInitialRobotExportSettings(),
+  );
+  if (!gate.enabled) {
+    return {
+      ok: false,
+      fileName,
+      text: null,
+      diagnostics: gate.preflight.diagnostics,
+    };
+  }
+  const result = exportProjectRob(materialization, gate.options);
+  return {
+    ok: result.ok,
+    fileName,
+    text: result.text,
+    diagnostics: result.diagnostics,
   };
 }
 

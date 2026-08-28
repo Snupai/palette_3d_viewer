@@ -40,7 +40,7 @@ const controlClass = "ui-input text-xs";
 const buttonClass = "ui-btn text-xs";
 
 function projectTitle(project: Project): string {
-  return project.projectNumber || project.productNumber || "Untitled project";
+  return project.productNumber || project.projectNumber || "Untitled project";
 }
 
 export function ProjectLibrary({
@@ -98,11 +98,11 @@ export function ProjectLibrary({
           onChange={(event) => onSearchChange(event.target.value)}
           className={controlClass}
           aria-label="Search projects"
-          placeholder="ID, project, product, file…"
+          placeholder="ID, line, product, file…"
         />
         <div className="grid grid-cols-2 gap-2">
           <label className="grid gap-1 text-[11px] text-[var(--muted)]">
-            Project filter
+            Line filter
             <input
               type="search"
               value={projectNumberFilter}
@@ -110,8 +110,8 @@ export function ProjectLibrary({
                 onProjectNumberFilterChange(event.target.value)
               }
               className={controlClass}
-              aria-label="Filter project number"
-              placeholder="Project no."
+              aria-label="Filter line number"
+              placeholder="Line no."
             />
           </label>
           <label className="grid gap-1 text-[11px] text-[var(--muted)]">
@@ -143,8 +143,8 @@ export function ProjectLibrary({
           >
             <option value="updatedAt:desc">Recently updated</option>
             <option value="updatedAt:asc">Oldest update</option>
-            <option value="projectNumber:asc">Project number A–Z</option>
-            <option value="projectNumber:desc">Project number Z–A</option>
+            <option value="projectNumber:asc">Line number A–Z</option>
+            <option value="projectNumber:desc">Line number Z–A</option>
             <option value="productNumber:asc">Product number A–Z</option>
             <option value="productNumber:desc">Product number Z–A</option>
             <option value="createdAt:desc">Recently created</option>
@@ -177,7 +177,7 @@ export function ProjectLibrary({
                     {projectTitle(project)}
                   </span>
                   <span className="truncate text-xs text-[var(--muted)]">
-                    {project.productNumber || "No product number"}
+                    {project.projectNumber || "No line number"}
                   </span>
                   <span className="text-[11px] text-[var(--muted)]">
                     {new Date(project.updatedAt).toLocaleString()}

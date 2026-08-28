@@ -11,9 +11,11 @@ import {
   createInitialRobotExportSettings,
   createInitialRobotWorkspaceSettings,
   createRobotReadiness,
+  exportProjectRobDownload,
   materializationOptionsFromWorkspace,
   materializeRobotWorkspace,
   projectRobExportGate,
+  robDownloadFileName,
   robotPoseToViewerPose,
   validateRobotWorkspaceSettings,
   workspacePickReferenceComplete,
@@ -656,5 +658,105 @@ describe("robotics readiness", () => {
           "A calculated motion intersects the modeled feed conveyor or an entered obstacle, or an obstacle is invalid.",
       }),
     );
+  });
+});
+
+describe("project-derived .rob download", () => {
+  it("names the file after the product number, not the line number", () => {
+    const project = createProject(
+      {
+        id: "named-download",
+        projectNumber: "AP-5006",
+        productNumber: "1329-00004",
+      },
+      { createId: (kind) => `${kind}-unused`, now: () => 1 },
+    );
+    expect(robDownloadFileName(project)).toBe("1329-00004.rob");
+  });
+
+  it("rounds decimal millimetres instead of rejecting them", () => {
+    const project = createProject(
+      {
+        id: "decimal-download",
+        projectNumber: "AP-5006",
+        productNumber: "1329-00004",
+        package: {
+          dimensionsMm: { length: 100.5, width: 50.25, height: 40.5 },
+          multiPickAllowed: true,
+          palletizingDirection: "x-positive-y-positive",
+        },
+        pallet: {
+          id: "pallet-1",
+          name: "Pallet",
+          kind: "custom",
+          dimensionsMm: { length: 1_200.4, width: 800.6, height: 144.5 },
+          storageEnvelopeMm: null,
+          allowedOverhangMm: { length: 0, width: 0 },
+          tareKg: null,
+          maxGrossKg: null,
+          subPalletPattern: "none",
+        },
+        grippers: [gripper],
+        palletStations: [station],
+        selectedGripperId: gripper.id,
+        selectedPalletStationId: station.id,
+        solutions: [
+          {
+            id: "solution-1",
+            name: "Solution",
+            origin: "calculated",
+            patterns: [
+              {
+                id: "pattern-1",
+                name: "Pattern",
+                grips: [],
+                placements: [
+                  {
+                    id: "placement-1",
+                    sequence: 0,
+                    positionMm: { x: 100.5, y: 50.25 },
+                    rotation: 0,
+                    gripId: null,
+                    labelSide: null,
+                  },
+                ],
+              },
+            ],
+            stack: {
+              interlayerThicknessMm: 3,
+              layers: [
+                {
+                  id: "layer-1",
+                  patternId: "pattern-1",
+                  interlayerBefore: 0,
+                },
+              ],
+              trailingInterlayer: 0,
+            },
+            robotCycles: [],
+          },
+        ],
+        activeSolutionId: "solution-1",
+      },
+      { createId: (kind) => `${kind}-unused`, now: () => 1 },
+    );
+
+    expect(createInitialRobotExportSettings().quantization).toBe(
+      "round-half-away-from-zero",
+    );
+    const downloaded = exportProjectRobDownload(project);
+    expect(downloaded.ok).toBe(true);
+    expect(downloaded.fileName).toBe("1329-00004.rob");
+    expect(downloaded.text).not.toBeNull();
+    expect(parseRobText(downloaded.text!).package).toEqual({
+      width: 101,
+      length: 50,
+      height: 41,
+    });
+    expect(parseRobText(downloaded.text!).pallet).toEqual({
+      width: 1200,
+      length: 801,
+      height: 145,
+    });
   });
 });

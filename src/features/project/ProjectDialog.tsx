@@ -213,34 +213,34 @@ export function ProjectDialog({
 
             <fieldset className="grid gap-3 border border-[var(--line)] p-4">
               <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
-                Project and product
+                Line and product
               </legend>
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field
-                  label="Project number"
-                  error={errorFor(fieldErrors, "projectNumber")}
-                >
-                  <input
-                    ref={firstInputRef}
-                    value={values.projectNumber}
-                    onChange={(event) =>
-                      set("projectNumber", event.target.value)
-                    }
-                    className={inputClass}
-                    placeholder="AP-5006"
-                  />
-                </Field>
                 <Field
                   label="Product number"
                   error={errorFor(fieldErrors, "productNumber")}
                 >
                   <input
+                    ref={firstInputRef}
                     value={values.productNumber}
                     onChange={(event) =>
                       set("productNumber", event.target.value)
                     }
                     className={inputClass}
                     placeholder="1329-00004"
+                  />
+                </Field>
+                <Field
+                  label="Line number"
+                  error={errorFor(fieldErrors, "projectNumber")}
+                >
+                  <input
+                    value={values.projectNumber}
+                    onChange={(event) =>
+                      set("projectNumber", event.target.value)
+                    }
+                    className={inputClass}
+                    placeholder="AP-5006"
                   />
                 </Field>
               </div>

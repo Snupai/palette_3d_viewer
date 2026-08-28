@@ -28,7 +28,8 @@ export type MobilePlanPalletKind = "euro" | "industrial" | "custom";
 
 /** All numeric fields stay strings until parsing, mirroring projectForm.ts. */
 export type MobilePlanDraft = {
-  planName: string;
+  lineNumber: string;
+  productNumber: string;
   packageLengthMm: string;
   packageWidthMm: string;
   packageHeightMm: string;
@@ -73,7 +74,8 @@ export const MOBILE_PLAN_DEFAULT_LAYER_COUNT = 10;
 
 export function createMobilePlanDraft(): MobilePlanDraft {
   return {
-    planName: "",
+    lineNumber: "",
+    productNumber: "",
     packageLengthMm: "400",
     packageWidthMm: "300",
     packageHeightMm: "200",
@@ -88,7 +90,8 @@ export function createMobilePlanDraft(): MobilePlanDraft {
 }
 
 export type ParsedMobilePlan = {
-  planName: string;
+  lineNumber: string;
+  productNumber: string;
   packageDimensionsMm: { length: number; width: number; height: number };
   packageWeightKg: number | null;
   palletKind: MobilePlanPalletKind;
@@ -180,7 +183,8 @@ export function parseMobilePlanDraft(draft: MobilePlanDraft): {
 
   return {
     plan: {
-      planName: draft.planName.trim(),
+      lineNumber: draft.lineNumber.trim(),
+      productNumber: draft.productNumber.trim(),
       packageDimensionsMm: {
         length: packageLengthMm!,
         width: packageWidthMm!,
@@ -220,7 +224,8 @@ export function buildMobilePlanProject(
   return createProject(
     {
       ...(options.id ? { id: options.id } : {}),
-      projectNumber: plan.planName,
+      projectNumber: plan.lineNumber,
+      productNumber: plan.productNumber,
       package: {
         dimensionsMm: plan.packageDimensionsMm,
         weightKg: plan.packageWeightKg,
@@ -349,7 +354,10 @@ export function summarizeSavedProject(project: Project): SavedPlanSummary {
   const layerCount = solution?.stack.layers.length ?? 0;
   const { length, width, height } = project.package.dimensionsMm;
   return {
-    title: project.projectNumber.trim() || "Untitled project",
+    title:
+      project.productNumber.trim() ||
+      project.projectNumber.trim() ||
+      "Untitled project",
     packageLabel: `${length} × ${width} × ${height} mm`,
     palletLabel: project.pallet?.name ?? "No pallet",
     packagesPerLayer,

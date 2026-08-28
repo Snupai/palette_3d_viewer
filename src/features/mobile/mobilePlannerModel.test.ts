@@ -37,7 +37,8 @@ function validDraft(overrides: Partial<MobilePlanDraft> = {}): MobilePlanDraft {
 describe("mobilePlannerModel draft", () => {
   it("starts from the desktop defaults on a EURO pallet", () => {
     expect(createMobilePlanDraft()).toEqual({
-      planName: "",
+      lineNumber: "",
+      productNumber: "",
       packageLengthMm: "400",
       packageWidthMm: "300",
       packageHeightMm: "200",
@@ -107,7 +108,8 @@ describe("parseMobilePlanDraft", () => {
   it("parses a valid custom-pallet draft into exact numbers", () => {
     const { plan, errors } = parseMobilePlanDraft(
       validDraft({
-        planName: "  AP-5006 ",
+        lineNumber: "  AP-5006 ",
+        productNumber: " 1329-00004 ",
         packageWeightKg: "8.5",
         palletKind: "custom",
         palletLengthMm: "1000",
@@ -119,7 +121,8 @@ describe("parseMobilePlanDraft", () => {
     );
     expect(errors).toEqual({});
     expect(plan).toEqual({
-      planName: "AP-5006",
+      lineNumber: "AP-5006",
+      productNumber: "1329-00004",
       packageDimensionsMm: { length: 400, width: 300, height: 200 },
       packageWeightKg: 8.5,
       palletKind: "custom",
@@ -147,7 +150,7 @@ describe("stepFieldErrors", () => {
 
 describe("buildMobilePlanProject", () => {
   it("creates a solve-ready project on the EURO template", () => {
-    const { plan } = parseMobilePlanDraft(validDraft({ planName: "AP-5006" }));
+    const { plan } = parseMobilePlanDraft(validDraft({ lineNumber: "AP-5006" }));
     const project = buildMobilePlanProject(
       plan!,
       {
@@ -158,6 +161,7 @@ describe("buildMobilePlanProject", () => {
 
     expect(project.id).toBe("project-mobile-1");
     expect(project.projectNumber).toBe("AP-5006");
+    expect(project.productNumber).toBe("");
     expect(project.source).toEqual({ kind: "new" });
     expect(project.package.dimensionsMm).toEqual({
       length: 400,
@@ -176,6 +180,18 @@ describe("buildMobilePlanProject", () => {
     expect(project.solutions).toHaveLength(1);
     expect(project.activeSolutionId).toBe(project.solutions[0]!.id);
     expect(project.createdAt).toBe(1_700_000_000_000);
+  });
+
+  it("stores the product number for .rob naming", () => {
+    const { plan } = parseMobilePlanDraft(
+      validDraft({
+        lineNumber: "AP-5006",
+        productNumber: "1329-00004",
+      }),
+    );
+    const project = buildMobilePlanProject(plan!, {}, deterministicDeps());
+    expect(project.projectNumber).toBe("AP-5006");
+    expect(project.productNumber).toBe("1329-00004");
   });
 
   it("creates a custom pallet with zero overhang", () => {
@@ -287,7 +303,8 @@ describe("summarizeMobilePlan", () => {
 function persistedProject() {
   const { plan } = parseMobilePlanDraft(
     validDraft({
-      planName: "AP-5006",
+      lineNumber: "AP-5006",
+      productNumber: "1329-00004",
       packagesPerLayer: "8",
       layerCount: "5",
     }),
@@ -304,7 +321,7 @@ function persistedProject() {
 describe("summarizeSavedProject", () => {
   it("summarizes a persisted plan with exact totals", () => {
     expect(summarizeSavedProject(persistedProject())).toEqual({
-      title: "AP-5006",
+      title: "1329-00004",
       packageLabel: "400 × 300 × 200 mm",
       palletLabel: "EURO pallet",
       packagesPerLayer: 8,

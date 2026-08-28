@@ -44,6 +44,7 @@ import {
   createInitialRobotExportSettings,
   createRobotReadiness,
   projectRobExportGate,
+  robDownloadFileName,
   workspaceUsesDerivedPickReference,
   type RobotExportWorkspaceSettings,
   type RobotReadinessStatus,
@@ -719,7 +720,7 @@ export function RoboticsWorkspace({
       return;
     }
     downloadText(
-      `${safeFilename(project.projectNumber || project.productNumber, "project")}.generated.rob`,
+      robDownloadFileName(project),
       result.text,
       "text/plain;charset=utf-8",
     );
@@ -1389,13 +1390,13 @@ export function RoboticsWorkspace({
                     }
                     className={inputClass}
                   >
-                    <option value="reject-decimals">Reject decimals</option>
                     <option value="round-half-away-from-zero">
-                      Round half away from zero
+                      Round to nearest integer
                     </option>
                     <option value="truncate-toward-zero">
                       Truncate toward zero
                     </option>
+                    <option value="reject-decimals">Reject decimals</option>
                   </select>
                 </label>
                 <label className="grid gap-1 text-xs text-zinc-400">

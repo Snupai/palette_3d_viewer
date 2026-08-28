@@ -112,7 +112,7 @@ describe("ProjectDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Project number"), {
+    fireEvent.change(screen.getByLabelText("Line number"), {
       target: { value: "AP-5006" },
     });
     fireEvent.change(screen.getByLabelText("Product number"), {
@@ -152,7 +152,7 @@ describe("ProjectDialog", () => {
       />,
     );
     expect(
-      screen.getByLabelText<HTMLInputElement>("Project number").value,
+      screen.getByLabelText<HTMLInputElement>("Line number").value,
     ).toBe("AP-5006");
     expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
       "157",

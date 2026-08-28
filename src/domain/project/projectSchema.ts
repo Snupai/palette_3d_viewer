@@ -511,6 +511,7 @@ export const projectV2Schema = z
   .object({
     schemaVersion: z.literal(PROJECT_SCHEMA_VERSION),
     id: projectIdSchema,
+    /** Production line identifier (UI label: Line number). */
     projectNumber: z.string().trim().max(200),
     productNumber: z.string().trim().max(200),
     createdAt: nonNegativeNumber,
@@ -791,6 +792,7 @@ export const projectSchema = z
   .object({
     schemaVersion: z.literal(CURRENT_PROJECT_SCHEMA_VERSION),
     id: projectIdSchema,
+    /** Production line identifier (UI label: Line number). */
     projectNumber: z.string().trim().max(200),
     productNumber: z.string().trim().max(200),
     createdAt: nonNegativeNumber,

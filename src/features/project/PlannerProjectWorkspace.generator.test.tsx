@@ -258,7 +258,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     );
     fireEvent.click(createButtons[0]!);
 
-    fireEvent.change(screen.getByLabelText("Project number"), {
+    fireEvent.change(screen.getByLabelText("Line number"), {
       target: { value: "AUTO-GENERATE" },
     });
     fillNewProjectPackageDimensions();
@@ -340,7 +340,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Project number"), {
+    fireEvent.change(screen.getByLabelText("Line number"), {
       target: { value: "VISUAL-DEDUPE" },
     });
     fillNewProjectPackageDimensions();
@@ -392,7 +392,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Project number"), {
+    fireEvent.change(screen.getByLabelText("Line number"), {
       target: { value: "MANUAL-ONLY" },
     });
     fillNewProjectPackageDimensions();
