@@ -171,48 +171,6 @@ export function PlanningCaseWorkbench({
     case "inputs":
       context = (
         <div className="grid gap-3">
-          <section className="border border-[var(--line)] p-3">
-            <h3 className="text-[13px] font-semibold text-[var(--ink)]">
-              {importedRob ? "Imported plan" : "Current project"}
-            </h3>
-            {project && packageDimensions ? (
-              <dl className="mt-2">
-                {sourceName ? (
-                  <MetricRow label="File" value={sourceName} />
-                ) : null}
-                <MetricRow
-                  label="Package L × W × H"
-                  value={`${packageDimensions.length} × ${packageDimensions.width} × ${packageDimensions.height} mm`}
-                />
-                <MetricRow
-                  label="Clearance"
-                  value={`${project.package.clearanceMm} mm`}
-                />
-                <MetricRow
-                  label="Inlet"
-                  value={project.package.inletOrientation}
-                />
-                <MetricRow
-                  label="Multipick policy"
-                  value={
-                    project.package.multiPickAllowed ? "allowed" : "disabled"
-                  }
-                />
-                <MetricRow
-                  label="Pallet L × W × H"
-                  value={
-                    palletDimensions
-                      ? `${palletDimensions.length} × ${palletDimensions.width} × ${palletDimensions.height} mm`
-                      : "Unknown"
-                  }
-                />
-              </dl>
-            ) : (
-              <p className="mt-2 text-[13px] leading-5 text-[var(--muted)]">
-                Open a .rob file or create a project to start.
-              </p>
-            )}
-          </section>
           <input
             ref={robInputRef}
             type="file"
@@ -220,32 +178,117 @@ export function PlanningCaseWorkbench({
             onChange={importRob}
             className="hidden"
           />
-          {importedRob ? null : (
-            <button
-              type="button"
-              onClick={() => robInputRef.current?.click()}
-              className="ui-btn-primary"
-            >
-              Open .rob
-            </button>
+          {project ? (
+            <>
+              <section className="border border-[var(--line)] p-3">
+                <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+                  {importedRob ? "Imported plan" : "Current project"}
+                </h3>
+                {packageDimensions ? (
+                  <dl className="mt-2">
+                    {sourceName ? (
+                      <MetricRow label="File" value={sourceName} />
+                    ) : null}
+                    <MetricRow
+                      label="Package L × W × H"
+                      value={`${packageDimensions.length} × ${packageDimensions.width} × ${packageDimensions.height} mm`}
+                    />
+                    <MetricRow
+                      label="Clearance"
+                      value={`${project.package.clearanceMm} mm`}
+                    />
+                    <MetricRow
+                      label="Inlet"
+                      value={project.package.inletOrientation}
+                    />
+                    <MetricRow
+                      label="Multipick policy"
+                      value={
+                        project.package.multiPickAllowed
+                          ? "allowed"
+                          : "disabled"
+                      }
+                    />
+                    <MetricRow
+                      label="Pallet L × W × H"
+                      value={
+                        palletDimensions
+                          ? `${palletDimensions.length} × ${palletDimensions.width} × ${palletDimensions.height} mm`
+                          : "Unknown"
+                      }
+                    />
+                  </dl>
+                ) : null}
+              </section>
+              {importedRob ? null : (
+                <button
+                  type="button"
+                  onClick={() => robInputRef.current?.click()}
+                  className="ui-btn-primary"
+                >
+                  Open .rob
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={onEditProject}
+                className={importedRob ? "ui-btn-primary" : "ui-btn"}
+              >
+                Edit project
+              </button>
+              <button type="button" onClick={onOpenProjects} className="ui-btn">
+                Open project drawer
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenTool("legacy-rob")}
+                className="ui-btn"
+              >
+                Legacy .rob workspace
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-[13px] leading-5 text-[var(--muted)]">
+                Start a new pallet plan or open an existing .rob plan.
+              </p>
+              <button
+                type="button"
+                onClick={onCreateProject}
+                className="ui-btn-primary"
+              >
+                Create pallet plan
+              </button>
+              <button
+                type="button"
+                onClick={() => robInputRef.current?.click()}
+                className="ui-btn"
+              >
+                Open .rob file
+              </button>
+              <details className="border-t border-[var(--line)] pt-2">
+                <summary className="cursor-pointer text-[11px] font-semibold text-[var(--muted)]">
+                  More
+                </summary>
+                <div className="mt-2 grid gap-2">
+                  <button
+                    type="button"
+                    onClick={onOpenProjects}
+                    className="ui-btn"
+                  >
+                    Open project drawer
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenTool("legacy-rob")}
+                    className="ui-btn"
+                  >
+                    Legacy .rob workspace
+                  </button>
+                </div>
+              </details>
+            </>
           )}
-          <button
-            type="button"
-            onClick={project ? onEditProject : onCreateProject}
-            className={importedRob ? "ui-btn-primary" : "ui-btn"}
-          >
-            {project ? "Edit project" : "Create project"}
-          </button>
-          <button type="button" onClick={onOpenProjects} className="ui-btn">
-            Open project drawer
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenTool("legacy-rob")}
-            className="ui-btn"
-          >
-            Legacy .rob workspace
-          </button>
         </div>
       );
       break;
@@ -369,7 +412,11 @@ export function PlanningCaseWorkbench({
           {hasUnsavedChanges ? (
             <span className="shrink-0 text-[var(--brand)]">Unsaved</span>
           ) : (
-            <span className="shrink-0 text-[var(--muted)]">Stored</span>
+            <span className="shrink-0 text-[var(--muted)]">
+              {project
+                ? `Saved locally · ${new Date(project.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                : "Saved locally"}
+            </span>
           )}
           {sourceName ? (
             <span className="truncate text-[var(--measure)]" title={sourceName}>
@@ -378,38 +425,38 @@ export function PlanningCaseWorkbench({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          <button
-            type="button"
-            onClick={() => onOpenTool("editor")}
-            disabled={!project}
-            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-          >
-            Editor
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenTool("robotics")}
-            disabled={!project}
-            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-          >
-            Robotics
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenTool("simulation")}
-            disabled={!project}
-            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-          >
-            Simulation
-          </button>
-          <button
-            type="button"
-            onClick={() => onOpenTool("report")}
-            disabled={!project}
-            className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-          >
-            Report
-          </button>
+          {project ? (
+            <>
+              <button
+                type="button"
+                onClick={() => onOpenTool("editor")}
+                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+              >
+                Editor
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenTool("robotics")}
+                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+              >
+                Robotics
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenTool("simulation")}
+                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+              >
+                Simulation
+              </button>
+              <button
+                type="button"
+                onClick={() => onOpenTool("report")}
+                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
+              >
+                Report
+              </button>
+            </>
+          ) : null}
         </div>
       </header>
 
@@ -429,7 +476,7 @@ export function PlanningCaseWorkbench({
             <div className="scrollbar-thin min-h-0 overflow-auto p-3">
               {context}
             </div>
-            {previousStage || nextStage ? (
+            {project && (previousStage || nextStage) ? (
               <div
                 className={`grid gap-2 border-t border-[var(--line)] p-2 ${
                   previousStage && nextStage ? "grid-cols-2" : ""
@@ -458,34 +505,47 @@ export function PlanningCaseWorkbench({
             ) : null}
           </aside>
 
-          <MeasuredPlanField
-            reference={null}
-            current={currentPreview}
-            comparison={comparison}
-            mode="overlay"
-            currentLabel={
-              selectedCandidate
-                ? `Candidate ${selectedCandidate.rank}`
-                : importedRob
-                  ? "Imported plan"
-                  : "Current plan"
-            }
-          />
+          {project ? (
+            <>
+              <MeasuredPlanField
+                reference={null}
+                current={currentPreview}
+                comparison={comparison}
+                mode="overlay"
+                currentLabel={
+                  selectedCandidate
+                    ? `Candidate ${selectedCandidate.rank}`
+                    : importedRob
+                      ? "Imported plan"
+                      : "Current plan"
+                }
+              />
 
-          <ValidationLedger rows={ledgerRows} />
+              <ValidationLedger rows={ledgerRows} />
+            </>
+          ) : (
+            <section className="col-span-2 grid min-h-0 place-items-center border border-[var(--line)] bg-[var(--surface)]">
+              <p className="max-w-sm text-center text-[13px] leading-5 text-[var(--muted)]">
+                Create a pallet plan or open a .rob file to see the plan field,
+                layer strips, and inspection ledger.
+              </p>
+            </section>
+          )}
         </div>
       </div>
 
-      <div className="px-2 pb-2">
-        <LayerStrips
-          reference={null}
-          current={currentPalletData}
-          referenceLayerIndex={0}
-          currentLayerIndex={currentLayerIndex}
-          onReferenceLayerChange={() => undefined}
-          onCurrentLayerChange={onCurrentLayerChange}
-        />
-      </div>
+      {project ? (
+        <div className="px-2 pb-2">
+          <LayerStrips
+            reference={null}
+            current={currentPalletData}
+            referenceLayerIndex={0}
+            currentLayerIndex={currentLayerIndex}
+            onReferenceLayerChange={() => undefined}
+            onCurrentLayerChange={onCurrentLayerChange}
+          />
+        </div>
+      ) : null}
 
       <footer className="app-chrome flex min-h-8 items-center gap-3 border-t border-[var(--line)] bg-[var(--surface)] px-3 font-mono text-[11px]">
         {error ? (

@@ -312,7 +312,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create project" },
+      { name: "Create pallet plan" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -397,7 +397,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create project" },
+      { name: "Create pallet plan" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -451,7 +451,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create project" },
+      { name: "Create pallet plan" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -644,7 +644,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create project" },
+      { name: "Create pallet plan" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
@@ -757,7 +757,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     render(<PlannerProjectWorkspace repository={repository} />);
     const createButtons = await screen.findAllByRole(
       "button",
-      { name: "Create project" },
+      { name: "Create pallet plan" },
       { timeout: 5_000 },
     );
     fireEvent.click(createButtons[0]!);
