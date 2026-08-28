@@ -4,6 +4,7 @@ import { solveLayer } from "~/domain/solver";
 import {
   candidateLayoutKey,
   candidateLayoutsMatch,
+  candidateRankReason,
   selectDistinctCandidateLayouts,
 } from "~/features/candidates/candidateListModel";
 
@@ -300,5 +301,75 @@ describe("candidate list model", () => {
         .map(({ rank }) => rank);
       expect(representative.rank).toBe(Math.min(...peerRanks));
     }
+  });
+});
+
+describe("candidateRankReason", () => {
+  const placement = {
+    sequence: 0,
+    positionMm: { x: 0, y: 0 },
+    rotation: 0 as const,
+    labelSide: null,
+    gripId: "grip-1",
+  };
+
+  it("returns null without a following candidate", () => {
+    expect(candidateRankReason(candidate(1, [placement]), null)).toBeNull();
+  });
+
+  it("names the first differing score component in ranker order", () => {
+    const six = candidate(1, [placement, placement, placement]);
+    const five = candidate(2, [placement, placement]);
+    expect(candidateRankReason(six, five)).toBe(
+      "More packages per layer (3 vs 2)",
+    );
+  });
+
+  it("compares utilization when the package count ties", () => {
+    const best = candidate(1, [placement, placement]);
+    const worse = candidate(2, [placement, placement]);
+    worse.score = { ...worse.score, utilizationMillionths: 150_000 };
+    expect(candidateRankReason(best, worse)).toBe(
+      "Higher area utilization (20.0% vs 15.0%)",
+    );
+  });
+
+  it("compares cycle counts when utilization ties", () => {
+    const best = candidate(1, [placement, placement], 3);
+    const worse = candidate(2, [placement, placement], 4);
+    expect(candidateRankReason(best, worse)).toBe(
+      "Fewer robot cycles (3 vs 4)",
+    );
+  });
+
+  it("compares the bounding block when cycles tie", () => {
+    const best = candidate(1, [placement, placement]);
+    const worse = candidate(2, [placement, placement]);
+    worse.score = { ...worse.score, boundingBlockAreaMm2: 12_000 };
+    worse.metrics = {
+      ...worse.metrics,
+      boundingBlockLengthMm: 120,
+      boundingBlockAreaMm2: 12_000,
+    };
+    expect(candidateRankReason(best, worse)).toBe(
+      "Smaller bounding block (100 × 100 mm vs 120 × 100 mm)",
+    );
+  });
+
+  it("compares the perimeter when the bounding block area ties", () => {
+    const best = candidate(1, [placement, placement]);
+    const worse = candidate(2, [placement, placement]);
+    worse.score = { ...worse.score, boundingBlockPerimeterMm: 440 };
+    expect(candidateRankReason(best, worse)).toBe(
+      "Tighter bounding block perimeter (400 mm vs 440 mm)",
+    );
+  });
+
+  it("labels full ties as an equivalent score with a deterministic tie-break", () => {
+    const best = candidate(1, [placement, placement]);
+    const tied = candidate(2, [placement, placement]);
+    expect(candidateRankReason(best, tied)).toBe(
+      "Equivalent score — ranked ahead by the deterministic identity tie-break",
+    );
   });
 });

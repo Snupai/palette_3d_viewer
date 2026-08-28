@@ -3,6 +3,7 @@
 import { useRef, type KeyboardEvent, type ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
+import { candidateRankReason } from "~/features/candidates/candidateListModel";
 import {
   type ValidationLedgerRow,
   type ValidationStatus,
@@ -40,6 +41,16 @@ export function PlanningCandidateIndex({
   const positionByCandidateId = new Map(
     candidates.map(({ id }, index) => [id, index + 1]),
   );
+  const selectedPosition = selectedCandidateId
+    ? (positionByCandidateId.get(selectedCandidateId) ?? null)
+    : null;
+  const followingCandidate =
+    selectedPosition !== null && selectedPosition < candidates.length
+      ? candidates[selectedPosition]
+      : null;
+  const selectedRankReason = selectedCandidate
+    ? candidateRankReason(selectedCandidate, followingCandidate ?? null)
+    : null;
 
   const selectAt = (index: number) => {
     const candidate = rows[index];
@@ -81,14 +92,31 @@ export function PlanningCandidateIndex({
 
   return (
     <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)]">
-      <header className="flex items-center justify-between border-b border-[var(--line)] px-2.5 py-2">
-        <h3 className="text-[13px] font-semibold text-[var(--ink)]">
-          Candidate layouts
-        </h3>
-        <span className="font-mono text-[11px] text-[var(--muted)]">
-          {rows.length}/{candidates.length}
-        </span>
-      </header>
+      <div>
+        <header className="flex items-center justify-between border-b border-[var(--line)] px-2.5 py-2">
+          <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+            Candidate layouts
+          </h3>
+          <span className="font-mono text-[11px] text-[var(--muted)]">
+            {rows.length}/{candidates.length}
+          </span>
+        </header>
+        {selectedCandidate && selectedRankReason ? (
+          <p
+            aria-live="polite"
+            className="border-b border-[var(--line)] px-2.5 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
+          >
+            <span className="font-semibold text-[var(--ink)]">
+              #{selectedCandidate.rank}
+              {followingCandidate
+                ? ` ahead of #${followingCandidate.rank}`
+                : ""}
+              :
+            </span>{" "}
+            {selectedRankReason}
+          </p>
+        ) : null}
+      </div>
       <div
         role="listbox"
         aria-label="Generated pattern layouts"
@@ -99,6 +127,8 @@ export function PlanningCandidateIndex({
             <tr className="border-b border-[var(--line)]">
               <th className="px-2 py-1.5 font-medium">Rank</th>
               <th className="px-2 py-1.5 font-medium">Pkgs</th>
+              <th className="px-2 py-1.5 text-right font-medium">Util</th>
+              <th className="px-2 py-1.5 text-right font-medium">Cycles</th>
               <th className="px-2 py-1.5 font-medium">Geometry</th>
               <th className="px-2 py-1.5 text-right font-medium">Bounds mm</th>
             </tr>
@@ -129,6 +159,12 @@ export function PlanningCandidateIndex({
                   <td className="px-2 py-1.5 font-mono">#{candidate.rank}</td>
                   <td className="px-2 py-1.5 font-mono">
                     {candidate.metrics.packageCount}
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono">
+                    {candidate.metrics.utilizationPercent.toFixed(1)}%
+                  </td>
+                  <td className="px-2 py-1.5 text-right font-mono">
+                    {candidate.metrics.provisionalCycleCount}
                   </td>
                   <td className="px-2 py-1.5">
                     {candidate.validation.valid ? "Geometry OK" : "Rejected"}

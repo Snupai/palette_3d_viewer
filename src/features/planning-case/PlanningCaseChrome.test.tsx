@@ -52,9 +52,11 @@ const candidates = [candidate(1), candidate(2), candidate(3)];
 function CandidateIndexHarness({
   initialSelectedCandidateId = candidates[0]!.id,
   maximumRows,
+  items = candidates,
 }: {
   initialSelectedCandidateId?: string;
   maximumRows?: number;
+  items?: readonly SolverCandidate[];
 } = {}) {
   const [selectedCandidateId, setSelectedCandidateId] = useState<string | null>(
     initialSelectedCandidateId,
@@ -63,7 +65,7 @@ function CandidateIndexHarness({
     <>
       <output data-testid="selected-candidate">{selectedCandidateId}</output>
       <PlanningCandidateIndex
-        candidates={candidates}
+        candidates={items}
         selectedCandidateId={selectedCandidateId}
         onSelect={setSelectedCandidateId}
         maximumRows={maximumRows}
@@ -144,6 +146,33 @@ describe("planning case chrome", () => {
 
     expect(selected.textContent).toBe("candidate-3");
     expect(document.activeElement).toBe(options[1]);
+  });
+
+  it("explains the selected rank from real score components and labels ties honestly", () => {
+    const tiedCycles: readonly SolverCandidate[] = [
+      candidate(1),
+      {
+        ...candidate(2),
+        score: { ...candidate(1).score, provisionalCycleCount: 4 },
+      },
+    ];
+    render(<CandidateIndexHarness items={tiedCycles} />);
+
+    expect(screen.getByText(/#1 ahead of #2:/)).toBeTruthy();
+    expect(screen.getByText("Fewer robot cycles (1 vs 4)")).toBeTruthy();
+
+    cleanup();
+    const tied: readonly SolverCandidate[] = [
+      candidate(1),
+      { ...candidate(2), score: { ...candidate(1).score } },
+    ];
+    render(<CandidateIndexHarness items={tied} />);
+
+    expect(
+      screen.getByText(
+        "Equivalent score — ranked ahead by the deterministic identity tie-break",
+      ),
+    ).toBeTruthy();
   });
 
   it("renders claim-specific statuses, evidence classes, and expandable detail", () => {

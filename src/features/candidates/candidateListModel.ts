@@ -394,3 +394,33 @@ export function selectDistinctCandidateLayouts(
   candidateLayoutSelectionCache.set(candidates, cachedByPackageSize);
   return representatives;
 }
+
+/**
+ * Explains why a candidate ranks above the next one using exactly the score
+ * components the deterministic ranker compares, in the same order. Returns
+ * null when there is no following candidate to compare against.
+ */
+export function candidateRankReason(
+  candidate: SolverCandidate,
+  following: SolverCandidate | null,
+): string | null {
+  if (!following) return null;
+  const current = candidate.score;
+  const next = following.score;
+  if (current.packageCount !== next.packageCount) {
+    return `More packages per layer (${current.packageCount} vs ${next.packageCount})`;
+  }
+  if (current.utilizationMillionths !== next.utilizationMillionths) {
+    return `Higher area utilization (${(current.utilizationMillionths / 10_000).toFixed(1)}% vs ${(next.utilizationMillionths / 10_000).toFixed(1)}%)`;
+  }
+  if (current.provisionalCycleCount !== next.provisionalCycleCount) {
+    return `Fewer robot cycles (${current.provisionalCycleCount} vs ${next.provisionalCycleCount})`;
+  }
+  if (current.boundingBlockAreaMm2 !== next.boundingBlockAreaMm2) {
+    return `Smaller bounding block (${candidate.metrics.boundingBlockLengthMm} × ${candidate.metrics.boundingBlockWidthMm} mm vs ${following.metrics.boundingBlockLengthMm} × ${following.metrics.boundingBlockWidthMm} mm)`;
+  }
+  if (current.boundingBlockPerimeterMm !== next.boundingBlockPerimeterMm) {
+    return `Tighter bounding block perimeter (${current.boundingBlockPerimeterMm} mm vs ${next.boundingBlockPerimeterMm} mm)`;
+  }
+  return "Equivalent score — ranked ahead by the deterministic identity tie-break";
+}

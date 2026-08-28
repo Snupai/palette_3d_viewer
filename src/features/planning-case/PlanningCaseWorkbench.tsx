@@ -295,21 +295,31 @@ export function PlanningCaseWorkbench({
     case "generate":
       context = project ? (
         <div className="grid min-h-0 gap-3">
-          <SolverControls
-            project={project}
-            launchRequest={generatorLaunchRequest}
-            onLaunchRequestConsumed={onGeneratorLaunchRequestConsumed}
-            onApplyPackageInputs={onApplyGeneratorPackageInputs}
-            onResult={(result, input) =>
-              onSolverResult(project.id, result, input)
-            }
-            onReset={onResetSolver}
-          />
           <PlanningCandidateIndex
             candidates={candidates}
             selectedCandidateId={selectedCandidateId}
             onSelect={onCandidateChange}
           />
+          <details
+            className="border border-[var(--line)]"
+            open={candidates.length === 0}
+          >
+            <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-[var(--muted)]">
+              {candidates.length === 0
+                ? "Layer solver"
+                : "Adjust inputs & re-run"}
+            </summary>
+            <SolverControls
+              project={project}
+              launchRequest={generatorLaunchRequest}
+              onLaunchRequestConsumed={onGeneratorLaunchRequestConsumed}
+              onApplyPackageInputs={onApplyGeneratorPackageInputs}
+              onResult={(result, input) =>
+                onSolverResult(project.id, result, input)
+              }
+              onReset={onResetSolver}
+            />
+          </details>
           {solverResult?.diagnostics.length ? (
             <button
               type="button"
