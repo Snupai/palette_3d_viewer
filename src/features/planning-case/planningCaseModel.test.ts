@@ -6,6 +6,7 @@ import {
   clampPlanningStage,
   comparePatternPreviews,
   planningStageForProject,
+  productionToolGate,
   workflowStages,
   ROB_REFERENCE_TOLERANCE_MM,
 } from "~/features/planning-case/planningCaseModel";
@@ -259,5 +260,78 @@ describe("planning workflow stages", () => {
     expect(planningStageForProject(stacked)).toBe("stack");
     expect(planningStageForProject(imported)).toBe("inputs");
     expect(planningStageForProject(null)).toBe("inputs");
+  });
+});
+
+describe("productionToolGate", () => {
+  const freshProject = () =>
+    createProject(
+      {},
+      { now: () => 1, createId: (kind) => `${kind}-gate` },
+    );
+
+  const projectWithStack = () => {
+    const project = freshProject();
+    const solution = project.solutions[0]!;
+    return {
+      ...project,
+      solutions: [
+        {
+          ...solution,
+          stack: {
+            ...solution.stack,
+            layers: [
+              { id: "layer-1", patternId: "pattern-1", interlayerBefore: 0 },
+            ],
+          },
+        },
+      ],
+    };
+  };
+
+  it("points every tool at the project inputs when no project is selected", () => {
+    const gate = productionToolGate("editor", null, 0);
+    expect(gate).toEqual({
+      ready: false,
+      missing: "No project is selected.",
+      actionLabel: "Go to project inputs",
+      action: { kind: "stage", stage: "inputs" },
+    });
+  });
+
+  it("blocks the editor and robotics until a stack exists and names the way back", () => {
+    const project = freshProject();
+    for (const tool of ["editor", "robotics"]) {
+      expect(productionToolGate(tool, project, 0)).toMatchObject({
+        ready: false,
+        actionLabel: "Build the stack",
+        action: { kind: "stage", stage: "stack" },
+      });
+    }
+    expect(productionToolGate("simulation", project, 0)).toMatchObject({
+      ready: false,
+      actionLabel: "Open Robotics preflight",
+      action: { kind: "tool", tool: "robotics" },
+    });
+    expect(productionToolGate("report", project, 0)).toEqual({ ready: true });
+  });
+
+  it("opens the editor, robotics, and simulation once their prerequisites exist", () => {
+    const project = projectWithStack();
+    expect(productionToolGate("editor", project, 0)).toEqual({
+      ready: true,
+    });
+    expect(productionToolGate("robotics", project, 0)).toEqual({
+      ready: true,
+    });
+    expect(productionToolGate("simulation", project, 0)).toMatchObject({
+      ready: false,
+    });
+    expect(productionToolGate("simulation", project, 3)).toEqual({
+      ready: true,
+    });
+    expect(productionToolGate("candidate-browser", project, 0)).toEqual({
+      ready: true,
+    });
   });
 });

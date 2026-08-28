@@ -34,6 +34,43 @@ function plannerProject(id: string, projectNumber: string, now: number) {
         multiPickAllowed: true,
       },
       pallet: "euro",
+      solutions: [
+        {
+          id: `solution-${id}`,
+          name: "Calculated solution",
+          origin: "calculated",
+          patterns: [
+            {
+              id: `pattern-${id}`,
+              name: "Pattern 1",
+              grips: [],
+              placements: [
+                {
+                  id: `placement-${id}`,
+                  sequence: 0,
+                  positionMm: { x: 300, y: 200 },
+                  rotation: 0,
+                  gripId: null,
+                  labelSide: null,
+                },
+              ],
+            },
+          ],
+          stack: {
+            interlayerThicknessMm: 3,
+            layers: [
+              {
+                id: `layer-${id}`,
+                patternId: `pattern-${id}`,
+                interlayerBefore: 0,
+              },
+            ],
+            trailingInterlayer: 0,
+          },
+          robotCycles: [],
+        },
+      ],
+      activeSolutionId: `solution-${id}`,
     },
     { now: () => now, createId: (kind) => `${kind}-${id}` },
   );
@@ -116,16 +153,16 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "M5-ROBOT-B" },
+        { name: "M5-ROBOT-B-BOX" },
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
     expect(
       screen.getByText("Robot readiness").closest("summary")?.textContent,
-    ).toContain("BLOCKED");
+    ).toContain("OBSERVED");
     expect(
       screen.getByText("Robot readiness").closest("summary")?.textContent,
-    ).toContain("Complete the plan");
+    ).toContain("observed Multipack equipment profile");
     fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
@@ -167,7 +204,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(
       await screen.findByRole(
         "heading",
-        { name: "M5-ROBOT-A" },
+        { name: "M5-ROBOT-A-BOX" },
         { timeout: 5_000 },
       ),
     ).toBeTruthy();

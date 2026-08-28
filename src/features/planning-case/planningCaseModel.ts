@@ -53,6 +53,81 @@ export function planningStageForProject(
   return "inputs";
 }
 
+export type ProductionToolGateAction =
+  | { kind: "stage"; stage: PlanningStage }
+  | { kind: "tool"; tool: string };
+
+export type ProductionToolGate =
+  | { ready: true }
+  | {
+      ready: false;
+      missing: string;
+      actionLabel: string;
+      action: ProductionToolGateAction;
+    };
+
+function stackLayerCount(project: Project): number {
+  const solution =
+    project.solutions.find((entry) => entry.id === project.activeSolutionId) ??
+    project.solutions[0];
+  return solution?.stack.layers.length ?? 0;
+}
+
+/**
+ * The single prerequisite map for the engineering tools. Header buttons,
+ * tooltips, drawer empty states, and tests all derive from this function;
+ * overlays must not re-implement their own gating.
+ */
+export function productionToolGate(
+  tool: string,
+  project: Project | null,
+  robotCycleCount: number,
+): ProductionToolGate {
+  const noProjectGate: ProductionToolGate = {
+    ready: false,
+    missing: "No project is selected.",
+    actionLabel: "Go to project inputs",
+    action: { kind: "stage", stage: "inputs" },
+  };
+  switch (tool) {
+    case "editor":
+      if (!project) return noProjectGate;
+      return stackLayerCount(project) > 0
+        ? { ready: true }
+        : {
+            ready: false,
+            missing:
+              "The pattern editor needs a materialized stack with at least one layer.",
+            actionLabel: "Build the stack",
+            action: { kind: "stage", stage: "stack" },
+          };
+    case "robotics":
+      if (!project) return noProjectGate;
+      return stackLayerCount(project) > 0
+        ? { ready: true }
+        : {
+            ready: false,
+            missing:
+              "Robotics calculates pickup cycles from the materialized stack; the project has no stack layers yet.",
+            actionLabel: "Build the stack",
+            action: { kind: "stage", stage: "stack" },
+          };
+    case "simulation":
+      if (!project) return noProjectGate;
+      return robotCycleCount > 0
+        ? { ready: true }
+        : {
+            ready: false,
+            missing:
+              "Simulation needs at least one calculated robot cycle from Robotics.",
+            actionLabel: "Open Robotics preflight",
+            action: { kind: "tool", tool: "robotics" },
+          };
+    default:
+      return { ready: true };
+  }
+}
+
 export type PatternComparisonStatus =
   | "unavailable"
   | "count-mismatch"

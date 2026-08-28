@@ -24,6 +24,7 @@ import {
 } from "~/features/planning-case/PlanningCaseWorkbench";
 import {
   clampPlanningStage,
+  productionToolGate,
   planningStageForProject,
   type PlanningStage,
   type ValidationLedgerRow,
@@ -810,6 +811,10 @@ export function PlannerProjectWorkspace({
       : null;
     return preview && preview.layer_count > 0 ? preview : null;
   }, [robotMaterialization]);
+  const robotCycleCount = robotMaterialization?.cycles.length ?? 0;
+  const activeToolGate = activeTool
+    ? productionToolGate(activeTool, workspaceProject, robotCycleCount)
+    : null;
   const savedCurrentPalletData = useMemo(() => {
     if (!workspaceProject) return null;
     try {
@@ -1058,6 +1063,7 @@ export function PlannerProjectWorkspace({
         currentLayerIndex={resolvedCurrentLayerIndex}
         onCurrentLayerChange={setCurrentLayerIndex}
         hasUnsavedChanges={hasUnsavedChanges}
+        robotCycleCount={robotCycleCount}
       />
 
       <CaseDrawer
@@ -1111,86 +1117,122 @@ export function PlannerProjectWorkspace({
         title={activeTool ? productionToolTitles[activeTool] : "Workspace"}
         onClose={closeProductionTool}
       >
-        {activeTool === "candidate-browser" && solverResult && solverInput ? (
-          <CandidateBrowser
-            candidates={candidateLayouts}
-            solverInput={solverInput}
-            physicalPalletBoundsMm={physicalPalletBoundsMm}
-            selectedCandidateId={selectedCandidateId}
-            onSelectionChange={changeCandidate}
-            generatedCandidateCount={solverResult.statistics.candidateCount}
-            diagnostics={solverResult.diagnostics}
-            exclusions={solverResult.exclusions}
-          />
-        ) : null}
+        {activeToolGate && !activeToolGate.ready ? (
+          <div className="grid justify-items-start gap-3 p-4">
+            <p className="text-[13px] leading-5 text-[var(--ink)]">
+              {activeToolGate.missing}
+            </p>
+            <button
+              type="button"
+              className="ui-btn-primary"
+              onClick={() => {
+                if (activeToolGate.ready) return;
+                if (activeToolGate.action.kind === "tool") {
+                  setActiveTool(activeToolGate.action.tool as ProductionTool);
+                  return;
+                }
+                setActiveTool(null);
+                setActiveStage(
+                  clampPlanningStage(
+                    activeToolGate.action.stage,
+                    Boolean(importedRob),
+                  ),
+                );
+              }}
+            >
+              {activeToolGate.actionLabel}
+            </button>
+          </div>
+        ) : (
+          <>
+            {activeTool === "candidate-browser" &&
+            solverResult &&
+            solverInput ? (
+              <CandidateBrowser
+                candidates={candidateLayouts}
+                solverInput={solverInput}
+                physicalPalletBoundsMm={physicalPalletBoundsMm}
+                selectedCandidateId={selectedCandidateId}
+                onSelectionChange={changeCandidate}
+                generatedCandidateCount={solverResult.statistics.candidateCount}
+                diagnostics={solverResult.diagnostics}
+                exclusions={solverResult.exclusions}
+              />
+            ) : null}
 
-        {activeTool === "candidate-3d" ? (
-          <Candidate3DWorkspace
-            data={candidatePreviewData}
-            cameraResetKey={selectedCandidateId}
-          />
-        ) : null}
+            {activeTool === "candidate-3d" ? (
+              <Candidate3DWorkspace
+                data={candidatePreviewData}
+                cameraResetKey={selectedCandidateId}
+              />
+            ) : null}
 
-        {activeTool === "stack" &&
-        workspaceProject &&
-        solverResult &&
-        solverInput &&
-        solverResult.candidates.length > 0 ? (
-          <StackWorkspace
-            project={workspaceProject}
-            candidates={solverResult.candidates}
-            solverInput={solverInput}
-            onSave={saveStack}
-            onDirtyChange={setStackDirty}
-          />
-        ) : null}
+            {activeTool === "stack" &&
+            workspaceProject &&
+            solverResult &&
+            solverInput &&
+            solverResult.candidates.length > 0 ? (
+              <StackWorkspace
+                project={workspaceProject}
+                candidates={solverResult.candidates}
+                solverInput={solverInput}
+                onSave={saveStack}
+                onDirtyChange={setStackDirty}
+              />
+            ) : null}
 
-        {activeTool === "editor" && selectedProject && robotMaterialization ? (
-          <ProjectEditorWorkspace
-            project={selectedProject}
-            materialization={robotMaterialization}
-            onDraftChange={setEditorDraftProject}
-            onDirtyChange={setEditorDirty}
-            onSaveProject={saveProject}
-          />
-        ) : null}
+            {activeTool === "editor" &&
+            selectedProject &&
+            robotMaterialization ? (
+              <ProjectEditorWorkspace
+                project={selectedProject}
+                materialization={robotMaterialization}
+                onDraftChange={setEditorDraftProject}
+                onDirtyChange={setEditorDirty}
+                onSaveProject={saveProject}
+              />
+            ) : null}
 
-        {activeTool === "robotics" &&
-        workspaceProject &&
-        robotMaterialization &&
-        resolvedRobotSettings ? (
-          <RoboticsWorkspace
-            project={workspaceProject}
-            repository={repository}
-            materialization={robotMaterialization}
-            settings={resolvedRobotSettings}
-            onSettingsChange={setRobotSettings}
-            onSaveProject={saveProject}
-            onPreviewMotion={() => setActiveTool("simulation")}
-          />
-        ) : null}
+            {activeTool === "robotics" &&
+            workspaceProject &&
+            robotMaterialization &&
+            resolvedRobotSettings ? (
+              <RoboticsWorkspace
+                project={workspaceProject}
+                repository={repository}
+                materialization={robotMaterialization}
+                settings={resolvedRobotSettings}
+                onSettingsChange={setRobotSettings}
+                onSaveProject={saveProject}
+                onPreviewMotion={() => setActiveTool("simulation")}
+              />
+            ) : null}
 
-        {activeTool === "simulation" &&
-        workspaceProject &&
-        robotMaterialization ? (
-          <SimulationWorkspace
-            project={workspaceProject}
-            materialization={robotMaterialization}
-            previewData={robotPreviewData}
-          />
-        ) : null}
+            {activeTool === "simulation" &&
+            workspaceProject &&
+            robotMaterialization ? (
+              <SimulationWorkspace
+                project={workspaceProject}
+                materialization={robotMaterialization}
+                previewData={robotPreviewData}
+              />
+            ) : null}
 
-        {activeTool === "report" && workspaceProject && robotMaterialization ? (
-          <ReportWorkspace
-            project={workspaceProject}
-            materialization={robotMaterialization}
-            previewData={robotPreviewData}
-          />
-        ) : null}
+            {activeTool === "report" &&
+            workspaceProject &&
+            robotMaterialization ? (
+              <ReportWorkspace
+                project={workspaceProject}
+                materialization={robotMaterialization}
+                previewData={robotPreviewData}
+              />
+            ) : null}
 
-        {activeTool === "legacy-rob" ? (
-          <LegacyPlanWorkspace onUnsavedChange={setLegacyDirty} />
-        ) : null}
+            {activeTool === "legacy-rob" ? (
+              <LegacyPlanWorkspace onUnsavedChange={setLegacyDirty} />
+            ) : null}
+          </>
+        )}
       </CaseDrawer>
 
       <ProjectDialog

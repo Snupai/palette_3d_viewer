@@ -924,14 +924,18 @@ export function RoboticsWorkspace({
           </div>
           <span
             className={
-              materialization.valid
-                ? "text-xs text-emerald-300"
-                : "text-xs text-red-300"
+              !materialization.valid
+                ? "text-xs text-red-300"
+                : readiness.every((item) => item.status === "complete")
+                  ? "text-xs text-emerald-300"
+                  : "text-xs text-amber-200"
             }
           >
-            {materialization.valid
-              ? "Cycle data checks passed"
-              : "Cycle data has blocking issues"}
+            {!materialization.valid
+              ? "Cycle data has blocking issues"
+              : readiness.every((item) => item.status === "complete")
+                ? "Cycle data checks passed"
+                : "Available project data parsed"}
           </span>
         </header>
         <ul className="grid gap-px bg-zinc-800 md:grid-cols-2">

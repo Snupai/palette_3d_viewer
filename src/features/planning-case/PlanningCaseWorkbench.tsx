@@ -22,6 +22,7 @@ import {
 import { MeasuredPlanField } from "~/features/planning-case/MeasuredPlanField";
 import {
   clampPlanningStage,
+  productionToolGate,
   workflowStages,
   type PatternComparison,
   type PlanningStage,
@@ -104,6 +105,7 @@ export type PlanningCaseWorkbenchProps = {
   currentLayerIndex: number;
   onCurrentLayerChange: (index: number) => void;
   hasUnsavedChanges: boolean;
+  robotCycleCount?: number;
 };
 
 export function PlanningCaseWorkbench({
@@ -136,6 +138,7 @@ export function PlanningCaseWorkbench({
   currentLayerIndex,
   onCurrentLayerChange,
   hasUnsavedChanges,
+  robotCycleCount = 0,
 }: PlanningCaseWorkbenchProps) {
   const robInputRef = useRef<HTMLInputElement>(null);
   const importedRob = isImportedRob(project);
@@ -151,6 +154,7 @@ export function PlanningCaseWorkbench({
   const palletDimensions = project?.pallet?.dimensionsMm;
   const generatedCandidateCount = solverResult?.statistics.candidateCount ?? 0;
   const candidateLayoutCount = candidates.length;
+  const roboticsGate = productionToolGate("robotics", project, robotCycleCount);
   const sourceName =
     project?.source.kind === "rob-import" ? project.source.fileName : null;
 
@@ -381,7 +385,8 @@ export function PlanningCaseWorkbench({
           </button>
           <button
             type="button"
-            disabled={!currentPalletData}
+            disabled={!currentPalletData || !roboticsGate.ready}
+            title={roboticsGate.ready ? undefined : roboticsGate.missing}
             onClick={() => onOpenTool("robotics")}
             className="ui-btn"
           >
@@ -435,38 +440,30 @@ export function PlanningCaseWorkbench({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {project ? (
-            <>
-              <button
-                type="button"
-                onClick={() => onOpenTool("editor")}
-                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-              >
-                Editor
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenTool("robotics")}
-                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-              >
-                Robotics
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenTool("simulation")}
-                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-              >
-                Simulation
-              </button>
-              <button
-                type="button"
-                onClick={() => onOpenTool("report")}
-                className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap"
-              >
-                Report
-              </button>
-            </>
-          ) : null}
+          {project
+            ? (
+                [
+                  ["editor", "Editor"],
+                  ["robotics", "Robotics"],
+                  ["simulation", "Simulation"],
+                  ["report", "Report"],
+                ] as const
+              ).map(([tool, label]) => {
+                const gate = productionToolGate(tool, project, robotCycleCount);
+                return (
+                  <button
+                    key={tool}
+                    type="button"
+                    onClick={() => onOpenTool(tool)}
+                    disabled={!gate.ready}
+                    title={gate.ready ? undefined : gate.missing}
+                    className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {label}
+                  </button>
+                );
+              })
+            : null}
         </div>
       </header>
 
