@@ -49,14 +49,14 @@ describe("PackageLabelFacePicker", () => {
         .getByRole("button", {
           name: "Select label on displayed top edge",
         })
-        .className,
+        .querySelector("span")?.className,
     ).toContain("bg-[var(--brand)]");
     expect(
       screen
         .getByRole("button", {
           name: "Select label on displayed bottom edge",
         })
-        .className,
+        .querySelector("span")?.className,
     ).not.toContain("bg-[var(--brand)]");
     expect(
       screen
@@ -161,6 +161,25 @@ describe("PackageLabelFacePicker", () => {
     for (const button of screen.getAllByRole("button")) {
       expect(button).toHaveProperty("disabled", true);
     }
+  });
+
+  it("exposes 44 px edge hit targets with visible Top/Right/Bottom/Left labels", () => {
+    render(<ControlledPicker />);
+
+    const topButton = screen.getByRole("button", {
+      name: "Select label on displayed top edge",
+    });
+    expect(topButton.className).toContain("h-11");
+    expect(topButton.className).toContain("cursor-pointer");
+    const rightButton = screen.getByRole("button", {
+      name: "Select label on displayed right edge",
+    });
+    expect(rightButton.className).toContain("w-11");
+
+    expect(screen.getByText("Top")).toBeTruthy();
+    expect(screen.getByText("Right")).toBeTruthy();
+    expect(screen.getByText("Bottom")).toBeTruthy();
+    expect(screen.getByText("Left")).toBeTruthy();
   });
 
   it("keeps orientation and face position distinguishable for square packages", () => {

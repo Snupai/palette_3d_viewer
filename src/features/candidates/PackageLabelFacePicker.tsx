@@ -42,10 +42,40 @@ const packageSideByDisplayedEdge: Record<
 };
 
 const edgePositionClass: Record<Side, string> = {
-  top: "inset-x-0 top-0 h-3 -translate-y-1/2",
-  right: "inset-y-0 right-0 w-3 translate-x-1/2",
-  bottom: "inset-x-0 bottom-0 h-3 translate-y-1/2",
-  left: "inset-y-0 left-0 w-3 -translate-x-1/2",
+  top: "inset-x-0 top-0 h-11 -translate-y-1/2",
+  right: "inset-y-0 right-0 w-11 translate-x-1/2",
+  bottom: "inset-x-0 bottom-0 h-11 translate-y-1/2",
+  left: "inset-y-0 left-0 w-11 -translate-x-1/2",
+};
+
+const edgeBarPositionClass: Record<Side, string> = {
+  top: "inset-x-0 top-1/2 -translate-y-1/2",
+  right: "inset-y-0 left-1/2 -translate-x-1/2",
+  bottom: "inset-x-0 top-1/2 -translate-y-1/2",
+  left: "inset-y-0 left-1/2 -translate-x-1/2",
+};
+
+const edgeBarSizeClass = (edge: Side, selected: boolean): string =>
+  edge === "top" || edge === "bottom"
+    ? selected
+      ? "h-[6px]"
+      : "h-[3px]"
+    : selected
+      ? "w-[6px]"
+      : "w-[3px]";
+
+const edgeLabelPositionClass: Record<Side, string> = {
+  top: "-top-5 left-1/2 -translate-x-1/2",
+  right: "top-1/2 -right-9 -translate-y-1/2",
+  bottom: "-bottom-5 left-1/2 -translate-x-1/2",
+  left: "top-1/2 -left-9 -translate-y-1/2",
+};
+
+const edgeLabelText: Record<Side, string> = {
+  top: "Top",
+  right: "Right",
+  bottom: "Bottom",
+  left: "Left",
 };
 
 const selectedEdgeInset: Record<Side, string> = {
@@ -186,20 +216,36 @@ export function PackageLabelFacePicker({
                 packageSideByDisplayedEdge[inletOrientation][displayedEdge];
               const selected = selectedPackageSide === packageSide;
               return (
-                <button
-                  key={displayedEdge}
-                  type="button"
-                  disabled={disabled}
-                  aria-label={`Select label on displayed ${displayedEdge} edge`}
-                  aria-pressed={selected}
-                  title={`Physical package face: ${physicalSideLabel[packageSide]}`}
-                  onClick={() => onPackageSideChange(packageSide)}
-                  className={`${edgePositionClass[displayedEdge]} absolute z-10 outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed ${
-                    selected
-                      ? "bg-[var(--brand)]"
-                      : "bg-[var(--line)] hover:bg-[var(--brand-hover)]"
-                  }`}
-                />
+                <span key={displayedEdge} className="contents">
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute z-10 font-mono text-[9px] ${edgeLabelPositionClass[displayedEdge]} ${
+                      selected
+                        ? "font-bold text-[var(--ink)]"
+                        : "text-[var(--muted)]"
+                    }`}
+                  >
+                    {edgeLabelText[displayedEdge]}
+                  </span>
+                  <button
+                    type="button"
+                    disabled={disabled}
+                    aria-label={`Select label on displayed ${displayedEdge} edge`}
+                    aria-pressed={selected}
+                    title={`Physical package face: ${physicalSideLabel[packageSide]}`}
+                    onClick={() => onPackageSideChange(packageSide)}
+                    className={`${edgePositionClass[displayedEdge]} group absolute z-10 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] disabled:cursor-not-allowed`}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`absolute ${edgeBarPositionClass[displayedEdge]} ${edgeBarSizeClass(displayedEdge, selected)} ${
+                        selected
+                          ? "bg-[var(--brand)]"
+                          : "bg-[var(--line)] group-hover:bg-[var(--brand-hover)]"
+                      }`}
+                    />
+                  </button>
+                </span>
               );
             })}
           </div>
