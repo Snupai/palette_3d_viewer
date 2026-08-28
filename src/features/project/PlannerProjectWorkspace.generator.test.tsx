@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -9,6 +10,10 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import type { SolverCandidate, SolverResult } from "~/domain/solver";
+import type {
+  StackWorkspaceState,
+  materializeStackWorkspace,
+} from "~/features/stack/stackWorkspaceModel";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
@@ -31,17 +36,51 @@ vi.mock("~/workers/solverClient", () => ({
 vi.mock("~/components/RobViewer", () => ({
   RobViewer: () => <div data-testid="rob-viewer" />,
 }));
-vi.mock("~/features/stack/StackWorkspace", () => ({
-  StackWorkspace: ({
-    candidates,
-  }: {
-    candidates: readonly SolverCandidate[];
-  }) => (
-    <output data-testid="stack-candidate-ids">
-      {candidates.map(({ id }) => id).join("|")}
-    </output>
-  ),
-}));
+vi.mock("~/features/stack/StackWorkspace", async () => {
+  const model = await import("~/features/stack/stackWorkspaceModel");
+  return {
+    StackWorkspace: ({
+      candidates,
+      onSave,
+      project,
+      solverInput,
+    }: {
+      candidates: readonly SolverCandidate[];
+      onSave: (
+        state: StackWorkspaceState,
+        materialized: ReturnType<typeof materializeStackWorkspace>,
+      ) => Promise<void>;
+      project: Parameters<typeof materializeStackWorkspace>[0];
+      solverInput: Parameters<typeof materializeStackWorkspace>[2];
+    }) => (
+      <>
+        <output data-testid="stack-candidate-ids">
+          {candidates.map(({ id }) => id).join("|")}
+        </output>
+        <button
+          type="button"
+          onClick={() => {
+            const state = model.rebuildStackSequence({
+              ...model.createInitialStackWorkspaceState(candidates),
+              requestedLayerCount: 10,
+            });
+            void onSave(
+              state,
+              model.materializeStackWorkspace(
+                project,
+                candidates,
+                solverInput,
+                state,
+              ),
+            );
+          }}
+        >
+          Save stack draft
+        </button>
+      </>
+    ),
+  };
+});
 
 const solverResult: SolverResult = {
   status: "completed",
@@ -188,6 +227,26 @@ function emptyRepository() {
     now: () => 10,
     createId: (kind) => `${kind}-repository`,
   });
+}
+
+function candidateListResult(count: number): SolverResult {
+  return {
+    ...solverResult,
+    candidates: Array.from({ length: count }, (_, index) =>
+      candidateVariant(index + 1, `candidate-${index + 1}`, 0, index),
+    ),
+    statistics: {
+      ...solverResult.statistics,
+      generatedDraftCount: count,
+      validDraftCount: count,
+      candidateCount: count,
+    },
+  };
+}
+
+function stackMetricValue(label: string): string | null {
+  const term = screen.getByText(label);
+  return term.parentElement?.querySelector("dd")?.textContent ?? null;
 }
 
 async function repositoryWithProject() {
@@ -568,5 +627,175 @@ describe("PlannerProjectWorkspace generator integration", () => {
     });
     expect(await screen.findByText("Geometry OK")).toBeTruthy();
     expect(screen.getByText("200 × 100")).toBeTruthy();
+  });
+
+  it("preserves generated candidates when continuing to the stack stage", async () => {
+    const repository = emptyRepository();
+    clientMocks.run.mockReturnValueOnce({
+      runId: "workspace-continue-run",
+      cancel: clientMocks.cancel,
+      result: Promise.resolve(candidateListResult(20)),
+    });
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    const createButtons = await screen.findAllByRole(
+      "button",
+      { name: "Create project" },
+      { timeout: 5_000 },
+    );
+    fireEvent.click(createButtons[0]!);
+    fireEvent.change(screen.getByLabelText("Line number"), {
+      target: { value: "CONTINUE-KEEPS-CANDIDATES" },
+    });
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "6" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
+      timeout: 5_000,
+    });
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: { minimumPackageCount: 6, maximumPackageCount: 6 },
+    });
+    const generatedOptions = await screen.findAllByRole(
+      "option",
+      undefined,
+      { timeout: 5_000 },
+    );
+    expect(generatedOptions).toHaveLength(20);
+    const selectedSuggestion = screen.getByRole("option", { selected: true });
+    expect(selectedSuggestion.textContent).toContain("#1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(
+      screen.getByRole("heading", { name: "Compose the pallet sequence" }),
+    ).toBeTruthy();
+    expect(stackMetricValue("Generated candidates")).toBe("20");
+    expect(stackMetricValue("Selectable layouts")).toBe("20");
+    const openStackComposer = screen.getByRole("button", {
+      name: "Open stack composer",
+    });
+    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getAllByRole("option")).toHaveLength(20);
+    expect(screen.getByRole("option", { selected: true })).toBeTruthy();
+  });
+
+  it("keeps solver candidates when the pre-solve project save lands while the run is in flight", async () => {
+    const { repository } = await repositoryWithProject();
+    let resolveRun!: (result: SolverResult) => void;
+    clientMocks.run.mockReturnValue({
+      runId: "workspace-in-flight-save-run",
+      cancel: clientMocks.cancel,
+      result: new Promise<SolverResult>((resolve) => {
+        resolveRun = resolve;
+      }),
+    });
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "M5-GENERATOR" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    fireEvent.change(screen.getByLabelText("Package length"), {
+      target: { value: "100" },
+    });
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+
+    // The changed package dimensions force a project save before the worker
+    // starts; wait until that save and the React effect flush after it have
+    // both landed, then let the worker finish (production ordering).
+    await waitFor(async () => {
+      const saved = await repository.getProject("generator-project");
+      expect(saved.project?.package.dimensionsMm.length).toBe(100);
+    });
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    resolveRun(solverResult);
+
+    expect(
+      await screen.findAllByRole("option", undefined, { timeout: 5_000 }),
+    ).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(stackMetricValue("Generated candidates")).toBe("1");
+    expect(stackMetricValue("Selectable layouts")).toBe("1");
+    const openStackComposer = screen.getByRole("button", {
+      name: "Open stack composer",
+    });
+    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("shows the saved stack totals on the stack stage after the stack is persisted", async () => {
+    const repository = emptyRepository();
+    clientMocks.run.mockReturnValueOnce({
+      runId: "workspace-stack-save-run",
+      cancel: clientMocks.cancel,
+      result: Promise.resolve(candidateListResult(20)),
+    });
+
+    render(<PlannerProjectWorkspace repository={repository} />);
+    const createButtons = await screen.findAllByRole(
+      "button",
+      { name: "Create project" },
+      { timeout: 5_000 },
+    );
+    fireEvent.click(createButtons[0]!);
+    fireEvent.change(screen.getByLabelText("Line number"), {
+      target: { value: "STACK-TOTALS" },
+    });
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "6" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Create & generate" }));
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
+      timeout: 5_000,
+    });
+    expect(
+      await screen.findAllByRole("option", undefined, { timeout: 5_000 }),
+    ).toHaveLength(20);
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open stack composer" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Save stack draft" }),
+    );
+
+    await waitFor(() => {
+      expect(stackMetricValue("Visible layers")).toBe("10");
+      // The fixture candidates carry 4 packages per layer.
+      expect(stackMetricValue("Visible packages")).toBe("40");
+    });
+    expect(stackMetricValue("Generated candidates")).toBe("20");
+    expect(stackMetricValue("Selectable layouts")).toBe("20");
+    const openStackComposer = screen.getByRole("button", {
+      name: "Open stack composer",
+    });
+    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
+
+    const saved = await repository.getProject(
+      (await repository.listProjects()).projects[0]!.id,
+    );
+    expect(saved.project?.solutions[0]?.stack.layers).toHaveLength(10);
+    expect(saved.project?.solutions[0]?.origin).toBe("calculated");
   });
 });

@@ -1005,6 +1005,10 @@ export function PlannerProjectWorkspace({
     setSelectedProject(saved);
     setEditorDraftProject(null);
     setEditorDirty(false);
+    // The materialized stack replaces the candidate draft as the current
+    // geometry; the generated candidates stay available for a new draft.
+    setSelectedCandidateId(null);
+    setCurrentLayerIndex(0);
     setStatusMessage(
       `Stack saved: ${materialized.metrics.packages.totalPackageCount} packages across ${materialized.packageLayers.length} layers.`,
     );
