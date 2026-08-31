@@ -150,7 +150,9 @@ describe("stepFieldErrors", () => {
 
 describe("buildMobilePlanProject", () => {
   it("creates a solve-ready project on the EURO template", () => {
-    const { plan } = parseMobilePlanDraft(validDraft({ lineNumber: "AP-5006" }));
+    const { plan } = parseMobilePlanDraft(
+      validDraft({ lineNumber: "AP-5006" }),
+    );
     const project = buildMobilePlanProject(
       plan!,
       {
@@ -330,17 +332,28 @@ describe("summarizeSavedProject", () => {
     });
   });
 
-  it("falls back to an untitled plan without a pattern", () => {
+  it("falls back to a descriptive plan name without a pattern", () => {
     const { plan } = parseMobilePlanDraft(validDraft());
     const project = buildMobilePlanProject(plan!, {}, deterministicDeps());
     expect(summarizeSavedProject(project)).toEqual({
-      title: "Untitled project",
+      title: "EURO pallet 400×300×200",
       packageLabel: "400 × 300 × 200 mm",
       palletLabel: "EURO pallet",
       packagesPerLayer: null,
       layerCount: 0,
       totalPackages: null,
     });
+  });
+
+  it("includes the layer count in the fallback name when a pattern exists", () => {
+    const project = {
+      ...persistedProject(),
+      productNumber: "",
+      projectNumber: "",
+    };
+    expect(summarizeSavedProject(project).title).toBe(
+      "EURO pallet 400×300×200 · 8/layer",
+    );
   });
 });
 

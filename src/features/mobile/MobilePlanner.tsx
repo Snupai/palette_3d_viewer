@@ -10,7 +10,10 @@ import {
   type SolverCandidate,
   type SolverProgress,
 } from "~/domain/solver";
-import { selectDistinctCandidateLayouts } from "~/features/candidates/candidateListModel";
+import {
+  candidateRankReason,
+  selectDistinctCandidateLayouts,
+} from "~/features/candidates/candidateListModel";
 import {
   buildMobilePlanProject,
   createMobilePlanDraft,
@@ -486,6 +489,20 @@ export function MobilePlanner() {
     candidates && selectedCandidate
       ? candidates.findIndex(({ id }) => id === selectedCandidate.id)
       : -1;
+  const candidateCarouselRef = useRef<HTMLDivElement>(null);
+  const selectCandidateAt = (index: number) => {
+    const next = candidates?.[index];
+    if (!next) return;
+    setSelectedCandidateId(next.id);
+    const card = candidateCarouselRef.current?.children[index];
+    if (card instanceof HTMLElement) {
+      card.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+  };
 
   const stepIndex = (MOBILE_PLAN_STEPS as readonly string[]).indexOf(screen);
   const detailSummary = detailProject
@@ -568,28 +585,43 @@ export function MobilePlanner() {
             {libraryStatus === "ready" && projects
               ? projects.map((entry) => {
                   const item = summarizeSavedProject(entry);
+                  const preview = savedProjectPatternPreview(entry);
                   return (
                     <button
                       key={entry.id}
                       type="button"
                       onClick={() => openDetail(entry)}
-                      className="grid w-full gap-1 border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-left"
+                      className="flex w-full items-center gap-3 border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5 text-left"
                     >
-                      <span className="flex items-baseline justify-between gap-2">
-                        <span className="truncate text-[13px] font-semibold text-[var(--ink)]">
-                          {item.title}
+                      {preview ? (
+                        <MobilePatternThumbnail
+                          preview={preview}
+                          className="h-16 w-20 shrink-0"
+                        />
+                      ) : null}
+                      <span className="grid min-w-0 flex-1 gap-1">
+                        <span className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[13px] font-semibold text-[var(--ink)]">
+                            {item.title}
+                          </span>
+                          <span className="shrink-0 font-mono text-[10px] text-[var(--muted)]">
+                            {new Date(entry.updatedAt).toLocaleDateString()}
+                          </span>
                         </span>
-                        <span className="shrink-0 font-mono text-[10px] text-[var(--muted)]">
-                          {new Date(entry.updatedAt).toLocaleDateString()}
+                        <span className="font-mono text-[11px] text-[var(--muted)]">
+                          {item.packageLabel} · {item.palletLabel}
+                        </span>
+                        <span className="font-mono text-[11px] text-[var(--muted)]">
+                          {item.packagesPerLayer !== null
+                            ? `${item.packagesPerLayer}/layer · ${item.layerCount} layers · ${item.totalPackages} packages`
+                            : "No pattern yet"}
                         </span>
                       </span>
-                      <span className="font-mono text-[11px] text-[var(--muted)]">
-                        {item.packageLabel} · {item.palletLabel}
-                      </span>
-                      <span className="font-mono text-[11px] text-[var(--muted)]">
-                        {item.packagesPerLayer !== null
-                          ? `${item.packagesPerLayer}/layer · ${item.layerCount} layers · ${item.totalPackages} packages`
-                          : "No pattern yet"}
+                      <span
+                        aria-hidden="true"
+                        className="shrink-0 text-lg text-[var(--muted)]"
+                      >
+                        ›
                       </span>
                     </button>
                   );
@@ -884,10 +916,12 @@ export function MobilePlanner() {
                   </button>
                   <button
                     type="button"
-                    onClick={startOver}
+                    onClick={() => {
+                      if (project) openDetail(project);
+                    }}
                     className="ui-btn h-11 text-sm"
                   >
-                    Create another plan
+                    Open plan
                   </button>
                   <button
                     type="button"
@@ -895,6 +929,13 @@ export function MobilePlanner() {
                     className="ui-btn h-11 text-sm"
                   >
                     Project library
+                  </button>
+                  <button
+                    type="button"
+                    onClick={startOver}
+                    className="ui-btn h-11 text-sm"
+                  >
+                    Create another plan
                   </button>
                   <Link
                     href="/?layout=desktop"
@@ -904,7 +945,7 @@ export function MobilePlanner() {
                     }}
                     className="ui-btn flex h-11 items-center justify-center text-sm"
                   >
-                    Open desktop workspace
+                    Advanced workspace · desktop recommended
                   </Link>
                 </section>
               ) : (
@@ -919,9 +960,47 @@ export function MobilePlanner() {
                       {selectedIndex + 1}/{candidates.length}
                     </span>
                   </div>
-                  <div className="flex snap-x gap-3 overflow-x-auto pb-1">
-                    {candidates.map((candidate) => {
+                  <p aria-live="polite" className="sr-only">
+                    {selectedCandidate
+                      ? `Layout ${selectedIndex + 1} of ${candidates.length} selected. ${
+                          candidateRankReason(
+                            selectedCandidate,
+                            candidates[selectedIndex + 1] ?? null,
+                          ) ?? ""
+                        }`
+                      : ""}
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      disabled={selectedIndex <= 0}
+                      onClick={() => selectCandidateAt(selectedIndex - 1)}
+                      className="ui-btn h-11 text-sm"
+                    >
+                      ‹ Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={
+                        selectedIndex < 0 ||
+                        selectedIndex >= candidates.length - 1
+                      }
+                      onClick={() => selectCandidateAt(selectedIndex + 1)}
+                      className="ui-btn h-11 text-sm"
+                    >
+                      Next ›
+                    </button>
+                  </div>
+                  <div
+                    ref={candidateCarouselRef}
+                    className="flex snap-x gap-3 overflow-x-auto pb-1"
+                  >
+                    {candidates.map((candidate, index) => {
                       const selected = candidate.id === selectedCandidateId;
+                      const rankReason = candidateRankReason(
+                        candidate,
+                        candidates[index + 1] ?? null,
+                      );
                       return (
                         <button
                           key={candidate.id}
@@ -954,6 +1033,11 @@ export function MobilePlanner() {
                               {candidate.metrics.provisionalCycleCount} cycles
                             </span>
                           </span>
+                          {rankReason ? (
+                            <span className="mt-1 block text-[10px] leading-4 text-[var(--muted)]">
+                              {rankReason}
+                            </span>
+                          ) : null}
                         </button>
                       );
                     })}

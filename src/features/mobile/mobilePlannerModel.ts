@@ -357,7 +357,7 @@ export function summarizeSavedProject(project: Project): SavedPlanSummary {
     title:
       project.productNumber.trim() ||
       project.projectNumber.trim() ||
-      "Untitled project",
+      `${project.pallet?.name ?? "Pallet"} ${length}×${width}×${height}${packagesPerLayer === null ? "" : ` · ${packagesPerLayer}/layer`}`,
     packageLabel: `${length} × ${width} × ${height} mm`,
     palletLabel: project.pallet?.name ?? "No pallet",
     packagesPerLayer,
