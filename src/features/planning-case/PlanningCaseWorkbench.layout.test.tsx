@@ -131,4 +131,33 @@ describe("PlanningCaseWorkbench layout", () => {
     expect(robotics.title).toContain("no stack layers");
     expect(simulation.title).toContain("robot cycle");
   });
+
+  it("uses the shared product language for the primary actions and stages", () => {
+    const { unmount } = render(
+      <PlanningCaseWorkbench {...workbenchProps(null)} />,
+    );
+    expect(
+      screen.getByRole("button", { name: "Create pallet plan" }),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Open .rob file" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Project inputs" }));
+    unmount();
+
+    const project = createProject(
+      { id: "copy-project", projectNumber: "COPY" },
+      { now: () => 1, createId: (kind) => `${kind}-copy` },
+    );
+    render(
+      <PlanningCaseWorkbench
+        {...workbenchProps(project)}
+        activeStage="stack"
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Compose the pallet sequence" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Open stack composer" }),
+    ).toBeTruthy();
+  });
 });

@@ -183,7 +183,7 @@ export function ReportWorkspace({
 
       <header className="report-header border-b border-zinc-700 pb-3">
         <h1 className="text-xl font-semibold text-zinc-100">
-          Pallet planning report
+          Pallet planner report
         </h1>
         <p className="mt-1 text-sm text-zinc-400">
           Product {report.project.productNumber || "not set"} · Line{" "}

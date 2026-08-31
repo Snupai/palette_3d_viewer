@@ -79,6 +79,27 @@ header. They cover the viewport; do not leave a tools list visible beside
 them. Legacy `.rob` stays as a quiet action on Plan / Inputs. There is no
 `.mpb` inspector in the product: proprietary MultiPack files are not decoded.
 
+Tools are not steps. Each tool declares its prerequisites through
+`productionToolGate` (`src/features/planning-case/planningCaseModel.ts`):
+Editor and Robotics need a materialized stack, Simulation needs at least one
+calculated robot cycle, and Report opens for any project. A blocked tool
+names the missing prerequisite and links back to the step that resolves it;
+overlays must not re-implement their own gating.
+
+## Product language
+
+The product is the **Pallet planner** in metadata, the desktop and mobile
+chrome, and the exported report. Terms stay distinct:
+
+- **Project** — the persisted planning case (package, pallet, solutions).
+- **Plan** — what the user is building; a project contains it.
+- **Layout** — one generated layer pattern; a solver candidate.
+- **Stack** — the materialized sequence of layers with interlayers.
+- **Layer** — one physical tier of the stack.
+- **Robot cycle** — one calculated pick-and-place unit derived from the stack.
+- **`.rob` file** — the legacy robot plan format; opening one creates a
+  project.
+
 Rules:
 
 - There is no step tab strip. Back and Continue move one screen at a time.

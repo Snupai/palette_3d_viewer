@@ -24,7 +24,9 @@ Corporate chrome follows Szaidel Cosmetic GmbH (navy `#173159`, steel `#8bb0c9`,
 system light/dark). Tokens, workflow rules, and banned patterns live in
 `docs/DESIGN.md`. Do not restore skippable planning tabs, a Tools catalog, or a
 `.rob` “reference” overlay when the file is already the plan. Open a finished
-project on its last completed step, not on Inputs.
+project on its last completed step, not on Inputs. Editor, Robotics, and
+Simulation are gated by `productionToolGate` in `planningCaseModel.ts` — the
+single prerequisite map; do not duplicate gating inside tool overlays.
 
 ## Commands
 

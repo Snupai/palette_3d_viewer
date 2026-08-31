@@ -8,28 +8,28 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://rob.snupai.dev",
   ),
   title: {
-    default: "Pallet Plan Inspection Desk",
-    template: "%s | Pallet Plan Inspection Desk",
+    default: "Pallet planner",
+    template: "%s | Pallet planner",
   },
   description:
     "Generate, compare, stack, and validate pallet plans against observed .rob references.",
   openGraph: {
-    title: "Pallet Plan Inspection Desk",
+    title: "Pallet planner",
     description:
       "Generate, compare, stack, and validate pallet plans against observed .rob references.",
-    siteName: "Pallet Plan Inspection Desk",
+    siteName: "Pallet planner",
     images: [
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Pallet Plan Inspection Desk",
+        alt: "Pallet planner",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pallet Plan Inspection Desk",
+    title: "Pallet planner",
     description:
       "Generate, compare, stack, and validate pallet plans against observed .rob references.",
     images: ["/opengraph-image"],
