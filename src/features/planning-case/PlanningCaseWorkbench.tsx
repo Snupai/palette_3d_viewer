@@ -352,6 +352,35 @@ export function PlanningCaseWorkbench({
     case "stack":
       context = (
         <div className="grid gap-3">
+          {selectedCandidate ? (
+            <section className="border border-[var(--line)] p-3">
+              <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+                Selected layout
+              </h3>
+              <dl className="mt-2">
+                <MetricRow
+                  label="Candidate"
+                  value={`#${selectedCandidate.rank}`}
+                />
+                <MetricRow
+                  label="Packages per layer"
+                  value={selectedCandidate.metrics.packageCount}
+                />
+                <MetricRow
+                  label="Cycles per layer"
+                  value={selectedCandidate.metrics.provisionalCycleCount}
+                />
+                <MetricRow
+                  label="Utilization"
+                  value={`${selectedCandidate.metrics.utilizationPercent.toFixed(1)}%`}
+                />
+                <MetricRow
+                  label="Block L × W"
+                  value={`${selectedCandidate.metrics.boundingBlockLengthMm} × ${selectedCandidate.metrics.boundingBlockWidthMm} mm`}
+                />
+              </dl>
+            </section>
+          ) : null}
           <section className="border border-[var(--line)] p-3">
             <h3 className="text-[13px] font-semibold text-[var(--ink)]">
               Current sequence

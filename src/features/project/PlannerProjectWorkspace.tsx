@@ -761,6 +761,15 @@ export function PlannerProjectWorkspace({
 
   const selectedCandidate: SolverCandidate | null =
     candidateLayouts.find(({ id }) => id === selectedCandidateId) ?? null;
+  // The composer seeds pattern A with the selected candidate.
+  const stackComposerCandidates = useMemo(() => {
+    const all = solverResult?.candidates ?? [];
+    if (!selectedCandidateId) return all;
+    const selected = all.find(({ id }) => id === selectedCandidateId);
+    return selected
+      ? [selected, ...all.filter(({ id }) => id !== selectedCandidateId)]
+      : all;
+  }, [selectedCandidateId, solverResult]);
   const workspaceProject = editorDraftProject ?? selectedProject;
   const physicalPalletBoundsMm = useMemo(
     () =>
@@ -1000,6 +1009,18 @@ export function PlannerProjectWorkspace({
         "Save or discard project editor changes before replacing the active solution stack.",
       );
     }
+    const activeSolution = workspaceProject.solutions.find(
+      ({ id }) => id === workspaceProject.activeSolutionId,
+    );
+    const existingLayerCount = activeSolution?.stack.layers.length ?? 0;
+    if (
+      existingLayerCount > 0 &&
+      !window.confirm(
+        `Replace the saved stack (${existingLayerCount} layers) with the current composition (${materialized.packageLayers.length} layers)?`,
+      )
+    ) {
+      return;
+    }
     const updated = projectWithPersistedStack(
       workspaceProject,
       solverResult?.candidates ?? [],
@@ -1018,6 +1039,7 @@ export function PlannerProjectWorkspace({
       `Stack saved: ${materialized.metrics.packages.totalPackageCount} packages across ${materialized.packageLayers.length} layers.`,
     );
     await refreshProjects();
+    setActiveTool("robotics");
   };
 
   return (
@@ -1174,7 +1196,7 @@ export function PlannerProjectWorkspace({
             solverResult.candidates.length > 0 ? (
               <StackWorkspace
                 project={workspaceProject}
-                candidates={solverResult.candidates}
+                candidates={stackComposerCandidates}
                 solverInput={solverInput}
                 onSave={saveStack}
                 onDirtyChange={setStackDirty}

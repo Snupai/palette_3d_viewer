@@ -207,7 +207,7 @@ export function StackWorkspace({
           disabled={saving || !materialized.result || state.layers.length === 0}
           className="rounded-md bg-amber-400 px-3 py-2 text-xs font-semibold text-zinc-950 hover:bg-amber-300 focus:ring-2 focus:ring-amber-200 focus:outline-none disabled:cursor-not-allowed disabled:bg-zinc-700 disabled:text-zinc-500"
         >
-          {saving ? "Saving…" : "Save stack to project"}
+          {saving ? "Saving…" : "Save stack and continue to Robotics"}
         </button>
       </header>
 

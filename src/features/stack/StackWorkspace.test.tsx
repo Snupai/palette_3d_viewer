@@ -732,7 +732,9 @@ describe("StackWorkspace", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Save stack to project" }),
+      screen.getByRole("button", {
+        name: "Save stack and continue to Robotics",
+      }),
     );
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
@@ -817,7 +819,9 @@ describe("StackWorkspace", () => {
       ).toBe(label);
       fireEvent.change(transformSelect, { target: { value: transform } });
       fireEvent.click(
-        screen.getByRole("button", { name: "Save stack to project" }),
+        screen.getByRole("button", {
+          name: "Save stack and continue to Robotics",
+        }),
       );
 
       await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
@@ -860,7 +864,9 @@ describe("StackWorkspace", () => {
       target: { value: "mirror-x" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save stack to project" }),
+      screen.getByRole("button", {
+        name: "Save stack and continue to Robotics",
+      }),
     );
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
 
