@@ -115,6 +115,15 @@ Rules:
 
 ## Components
 
+Two surfaces share one language. The planner chrome (workflow, dialogs,
+library) uses the CSS variables (`--surface`, `--ink`, `--brand`, …) and
+follows the system light/dark scheme. The operator tools (Stack, Editor,
+Robotics, Simulation, Report) keep a fixed dark workspace for focus; their
+zinc/amber palette is intentional. Both surfaces share the same status
+meanings (PASS green, NEEDS INPUT / caution amber, BLOCKED / failure red,
+unknown muted), the same button hierarchy (one primary action per surface),
+and the same panel geometry (bordered sections, no rounded chrome).
+
 | Class             | Use                               |
 | ----------------- | --------------------------------- |
 | `.ui-input`       | Text / number / select fields     |
