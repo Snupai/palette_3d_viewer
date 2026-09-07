@@ -124,6 +124,11 @@ Identitätssemantik oder Reihenfolge unter dem neuen v1-Vertrag belegt.
 - Screenshots, Exporte oder `.mpb`-Dateien werden nur als Golden referenziert,
   wenn eine anonymisierte Datei tatsächlich committed und im Test nutzbar ist.
 
+Der Windows-only Workflow [MultiPack desktop oracle](MULTIPACK_ORACLE.md) erfasst
+vollständige Kandidatenreihenfolgen und synthetisch benannte Einzel-`.rob`-Exporte
+außerhalb des Repositorys. Seine hash-only Manifeste sind zunächst **Observed**;
+sie werden erst nach Anonymisierung und Aufnahme in ausführbare Fixtures zu Golden.
+
 ## Noch benötigte Evidenz
 
 1. vollständige anonymisierte AP5006-Eingabe;

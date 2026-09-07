@@ -441,7 +441,7 @@ export function ProjectEditorWorkspace({
                 type="button"
                 aria-current={mode === value ? "page" : undefined}
                 onClick={() => setMode(value)}
-                className={`relative border-r border-[var(--line)] px-3 py-1.5 text-[12px] last:border-r-0 outline-none focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
+                className={`relative border-r border-[var(--line)] px-3 py-1.5 text-[12px] outline-none last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
                   mode === value
                     ? "bg-[var(--canvas)] text-[var(--ink)]"
                     : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"

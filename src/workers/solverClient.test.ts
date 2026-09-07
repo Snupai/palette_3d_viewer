@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { solveLayer } from "~/domain/solver/solve";
+import {
+  PRODUCTION_REGION_SEARCH_BUDGET,
+  solveLayer,
+} from "~/domain/solver/solve";
 import type { LayerSolverInput, SolverProgress } from "~/domain/solver/types";
 import {
   LayerSolverClient,
@@ -34,6 +37,10 @@ const input: LayerSolverInput = {
 };
 
 const completedResult = solveLayer(input, {
+  includeSymmetryVariants: false,
+  regionTopologyBudget: PRODUCTION_REGION_SEARCH_BUDGET,
+});
+const fallbackCompletedResult = solveLayer(input, {
   includeSymmetryVariants: false,
 });
 
@@ -115,6 +122,12 @@ describe("LayerSolverClient worker protocol", () => {
       return result;
     });
 
+    expect(transport.requests[0]).toMatchObject({
+      type: "start",
+      options: {
+        regionTopologyBudget: PRODUCTION_REGION_SEARCH_BUDGET,
+      },
+    });
     transport.emit(progressMessage(run.runId, 1, 2));
     transport.emit(progressMessage(run.runId, 2, 1));
     transport.emit(progressMessage(run.runId, 2, 4));
@@ -123,6 +136,28 @@ describe("LayerSolverClient worker protocol", () => {
 
     await expect(completion).resolves.toEqual(completedResult);
     expect(events).toEqual(["progress:1:2", "progress:3:4", "complete"]);
+    client.dispose();
+  });
+
+  it("forwards an explicit bounded region-search budget", async () => {
+    const transport = new FakeSolverTransport();
+    const client = new LayerSolverClient({
+      transport,
+      createRunId: () => "budget-run",
+    });
+    const regionTopologyBudget = {
+      maxWorkUnits: 321,
+      maxFrontierStates: 45,
+      maxRetainedDrafts: 6,
+    };
+    const run = client.run(input, { regionTopologyBudget });
+
+    expect(transport.requests[0]).toMatchObject({
+      type: "start",
+      options: { regionTopologyBudget },
+    });
+    transport.emit(completeMessage(run.runId, 1));
+    await expect(run.result).resolves.toEqual(completedResult);
     client.dispose();
   });
 
@@ -266,9 +301,40 @@ describe("SynchronousSolverTransport fallback", () => {
 
     await expect(
       client.solve(input, { includeSymmetryVariants: false }),
-    ).resolves.toEqual(completedResult);
+    ).resolves.toEqual(fallbackCompletedResult);
     client.dispose();
   });
+
+  it.each([
+    { requestedWorkUnits: 1_000_000, expectedWorkUnits: 5_000 },
+    { requestedWorkUnits: 321, expectedWorkUnits: 321 },
+  ])(
+    "caps $requestedWorkUnits requested work units while preserving smaller limits",
+    async ({ requestedWorkUnits, expectedWorkUnits }) => {
+      const client = new LayerSolverClient({
+        transport: new SynchronousSolverTransport(),
+      });
+      const limits = { maxFrontierStates: 45, maxRetainedDrafts: 6 };
+      const result = await client.solve(input, {
+        includeSymmetryVariants: false,
+        regionTopologyBudget: {
+          ...limits,
+          maxWorkUnits: requestedWorkUnits,
+        },
+      });
+
+      expect(result).toEqual(
+        solveLayer(input, {
+          includeSymmetryVariants: false,
+          regionTopologyBudget: {
+            ...limits,
+            maxWorkUnits: expectedWorkUnits,
+          },
+        }),
+      );
+      client.dispose();
+    },
+  );
 });
 
 describe("ResilientSolverTransport", () => {
@@ -295,7 +361,7 @@ describe("ResilientSolverTransport", () => {
     const run = client.run(input, { includeSymmetryVariants: false });
     primary.emit(workerLoadFailure("resilient-run"));
 
-    await expect(run.result).resolves.toEqual(completedResult);
+    await expect(run.result).resolves.toEqual(fallbackCompletedResult);
     expect(primary.disposed).toBe(true);
     client.dispose();
   });
@@ -331,11 +397,11 @@ describe("ResilientSolverTransport", () => {
 
     const first = client.run(input, { includeSymmetryVariants: false });
     primary.emit(workerLoadFailure("resilient-seq-1"));
-    await expect(first.result).resolves.toEqual(completedResult);
+    await expect(first.result).resolves.toEqual(fallbackCompletedResult);
 
     await expect(
       client.solve(input, { includeSymmetryVariants: false }),
-    ).resolves.toEqual(completedResult);
+    ).resolves.toEqual(fallbackCompletedResult);
     expect(primary.requests).toHaveLength(1);
     client.dispose();
   });

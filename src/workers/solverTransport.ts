@@ -1,4 +1,7 @@
-import { solveLayer } from "~/domain/solver/solve";
+import {
+  DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET,
+  solveLayer,
+} from "~/domain/solver/solve";
 import {
   SOLVER_WORKER_PROTOCOL_VERSION,
   serializeSolverError,
@@ -148,8 +151,26 @@ export class SynchronousSolverTransport extends SubscribableSolverTransport {
         : false;
 
     try {
+      // This transport runs on the UI thread, including after a worker failure.
+      const fallbackBudget = DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET;
+      const requestedBudget =
+        request.options?.regionTopologyBudget ?? fallbackBudget;
       const result = solveLayer(request.input, {
         ...request.options,
+        regionTopologyBudget: {
+          maxWorkUnits: Math.min(
+            requestedBudget.maxWorkUnits,
+            fallbackBudget.maxWorkUnits,
+          ),
+          maxFrontierStates: Math.min(
+            requestedBudget.maxFrontierStates,
+            fallbackBudget.maxFrontierStates,
+          ),
+          maxRetainedDrafts: Math.min(
+            requestedBudget.maxRetainedDrafts,
+            fallbackBudget.maxRetainedDrafts,
+          ),
+        },
         onProgress: (progress) => {
           sequence += 1;
           this.dispatch({

@@ -23,6 +23,7 @@ import {
 } from "~/domain/solver/geometryPolicy";
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import { placementsUseMixedPackageOrientations } from "~/domain/solver/orientationPolicy";
+import { searchStaircasePatterns } from "~/domain/solver/staircase";
 import {
   assessRectangularBlockPlacements,
   maximumDistributedExtraGapMm,
@@ -2039,6 +2040,23 @@ function generateMixedOrientation(
       "fill-generation-bounds" &&
     hooks.includeExperimentalIncompleteBlocks !== true;
   if (cleanBlockPatternsOnly) return collector.output();
+
+  const staircase = searchStaircasePatterns(
+    input,
+    (placements, provenance) => collector.add(placements, provenance),
+    () => collector.checkCancellation(),
+  );
+  if (staircase.limited) {
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "staircase-work-budget-exhausted",
+      generator: "mixed-orientation",
+      count: staircase.workUsed,
+      message: "Staircase generation reached its bounded search limit.",
+    });
+  }
+  if (!collector.canContinue()) return collector.output();
 
   for (const axis of ["horizontal", "vertical"] as const) {
     const inlineAvailable =

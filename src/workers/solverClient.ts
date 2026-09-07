@@ -1,3 +1,4 @@
+import { PRODUCTION_REGION_SEARCH_BUDGET } from "~/domain/solver/solve";
 import type {
   LayerSolverInput,
   SolverProgress,
@@ -140,6 +141,8 @@ export class LayerSolverClient {
     const solverOptions: SolverWorkerOptions = {
       generatorOrder: options.generatorOrder,
       includeSymmetryVariants: options.includeSymmetryVariants,
+      regionTopologyBudget:
+        options.regionTopologyBudget ?? PRODUCTION_REGION_SEARCH_BUDGET,
       progressBatchSize: options.progressBatchSize,
     };
     try {

@@ -8,6 +8,8 @@
     "build": "next build",
     "check": "eslint . && tsc --noEmit",
     "corpus:rob": "bun run src/lib/parity/cli.node.ts",
+    "corpus:rob:oracle": "powershell.exe -Sta -NoProfile -ExecutionPolicy Bypass -File scripts/multipack-oracle/Capture-MultiPackOracle.ps1",
+    "corpus:rob:oracle:setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/multipack-oracle/New-MultiPackOracleCopy.ps1",
     "corpus:rob:sentinel": "bun run src/lib/parity/sentinelCli.node.ts",
     "dev": "next dev --turbo",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,mdx}\" --cache",

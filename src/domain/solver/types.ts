@@ -1,5 +1,6 @@
 import type { PlacementGeometry, RectangleBoundsMm } from "~/domain/geometry";
 import type { LayerSymmetry } from "~/domain/geometry/transforms";
+import type { RegionSearchBudget } from "~/domain/solver/region-topology/model";
 import type {
   CandidateIdentityGrip,
   CandidateIdentityPlacement,
@@ -272,6 +273,7 @@ export type SolverOptions = {
   generatorOrder?: readonly BaseGeneratorFamily[];
   includeSymmetryVariants?: boolean;
   includeExperimentalIncompleteBlocks?: boolean;
+  regionTopologyBudget?: RegionSearchBudget;
   progressBatchSize?: number;
   onProgress?: (progress: SolverProgress) => void;
   shouldCancel?: () => boolean;

@@ -237,3 +237,68 @@ sicher dekodierte Format-v1-Felder. Das ist ein Ziel, keine Formatevidenz.
    Palettierrichtung erzeugen.
 4. Eine anonymisierte `.mpb`-Dateiserie mit kontrollierten Einzeländerungen
    bereitstellen, bevor Parserarbeit beginnt.
+
+## Ergänzung 02.09.2026 – vollständiger 201 × 139-mm-Oracle-Capture
+
+**Status: Observed; externe hash-only Evidenz, nicht committed**
+
+Die laufende Referenz wurde als native x86-Delphi-Anwendung
+`MULTIPACK für Roboter` mit Dateiversion `2.1.315.25` und EXE-SHA-256
+`629dbab6deb9aac9a6cd254df59e0e6bd4c92dd9e45936ea9a78f701df4a67ff`
+identifiziert. Der Windows-only Capture-Runner erfasste für 201 × 139 × 231 mm,
+Abstand 0 und eine 1200 × 800-mm-EURO-Palette alle Kandidaten in der
+DevExpress-Lösungsliste. Die externe Ablage enthält ausschließlich synthetisch
+benannte Exporte und ein Manifest ohne absolute Pfade oder Rohtext.
+
+### Kandidatenmenge
+
+- vollständige Lösungsliste: exakt 87 Kandidaten;
+- alle 87 Einzel-`.rob`-Exporte parsergültig und manifest-hashgleich;
+- alle 87 Byte-Digests unterschiedlich;
+- Paketanzahl je Lage: 7 × 31, 25 × 30, 15 × 29, 15 × 28, 11 × 27,
+  8 × 26, 4 × 25 und 2 × 24;
+- Zyklen je Lage: 1 × 31, 3 × 28, 4 × 27, 2 × 26, 1 × 25, 5 × 24,
+  9 × 23, 15 × 22, 9 × 21, 9 × 20, 3 × 19, 12 × 18, 3 × 17,
+  6 × 16, 4 × 15 und 1 × 13.
+
+Die Eingabe „31 Packstücke“ beschränkt MultiPack demnach nicht auf exakte
+31er-Muster. MultiPack erzeugt und sortiert zusätzlich schwächer belegte
+Lösungen bis 24 Packstücke. Die sechs im ursprünglichen Viewport sichtbaren
+Zeilen waren nur ein Ausschnitt; die siebte 31er-Lösung lag bereits unterhalb
+des sichtbaren Bereichs.
+
+### Sieben 31er-Kandidaten
+
+| Ordinal | Zyklen | geparste Außenmaße in mm |
+| ------: | -----: | -----------------------: |
+|       1 |     22 |               1159 × 757 |
+|       2 |     27 |             1174,5 × 757 |
+|       3 |     26 |             1174,5 × 757 |
+|       4 |     31 |               1174 × 757 |
+|       5 |     24 |               1174 × 757 |
+|       6 |     23 |               1174 × 757 |
+|       7 |     23 |               1174 × 757 |
+
+Ordinal 4 ist das im Screenshot ausgewählte Muster mit 31 Zyklen. Die
+halben Millimeter bei Ordinal 2 und 3 stammen aus den geparsten
+Paketmittelpunkten; die Desktop-Tabelle zeigt gerundete Blockmaße.
+
+### Aktuelle Solver-Abdeckung
+
+Ein differentieller Lauf mit der tatsächlichen Website-Konfiguration
+(`compact-centered`, gemischte Orientierungen, exakte Quell-Paketanzahl je
+Vergleich) repräsentierte physisch nur 4 der 87 Legacy-Kandidaten: Ordinal 8,
+53, 82 und 86. Keiner der sieben 31er-Kandidaten wurde geometrisch getroffen.
+Die derzeit angezeigten drei 31er-Solver-Kandidaten besitzen deshalb trotz
+teilweise gleicher Außenmaße nicht dieselbe Paketgeometrie wie die Legacy-
+Lösungen.
+
+### Verbleibend Open
+
+- `Blöcke` ist noch nicht maschinenlesbar erfasst und bleibt unverified;
+- die vollständige Tabellenmetrik neben den `.rob`-abgeleiteten Zyklen und
+  Außenmaßen fehlt;
+- die 83 nicht repräsentierten Geometrien müssen zunächst nach Topologie
+  klassifiziert werden, bevor neue deterministische Generatorfamilien entstehen;
+- der externe Capture bleibt Observed, bis daraus kontrollierte synthetische
+  Golden-Fälle abgeleitet werden, ohne Produktionsdaten zu übernehmen.

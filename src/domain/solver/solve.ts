@@ -3,12 +3,19 @@ import {
   generateCandidateFamily,
   generateSymmetryCandidateDrafts,
 } from "~/domain/solver/generators";
+import type { RegionSearchBudget } from "~/domain/solver/region-topology/model";
+import type { TargetCountPolicy } from "~/domain/solver/region-topology/targetCounts";
+import {
+  generateRegionTopologyDrafts,
+  type RegionTopologyGenerationResult,
+} from "~/domain/solver/regionTopology";
 import {
   BASE_GENERATOR_FAMILIES,
   type BaseGeneratorFamily,
   type GeneratedCandidateDraft,
   type GeneratorFamily,
   type LayerSolverInput,
+  type NormalizedLayerSolverInput,
   type SolverDiagnostic,
   type SolverExclusion,
   type SolverOptions,
@@ -18,6 +25,97 @@ import {
   type SolverStatistics,
 } from "~/domain/solver/types";
 import { validateAndNormalizeSolverInput } from "~/domain/solver/validation";
+
+/** Conservative default for direct synchronous callers and offline tools. */
+export const DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET: RegionSearchBudget =
+  Object.freeze({
+    maxWorkUnits: 5_000,
+    maxFrontierStates: 2_000,
+    maxRetainedDrafts: 1_250,
+  });
+
+/** Extended bounded budget used by the production worker path. */
+export const PRODUCTION_REGION_SEARCH_BUDGET: RegionSearchBudget =
+  Object.freeze({
+    maxWorkUnits: 1_000_000,
+    maxFrontierStates: 10_000,
+    maxRetainedDrafts: 1_250,
+  });
+
+function regionTargetCountPolicy(
+  input: NormalizedLayerSolverInput,
+): TargetCountPolicy {
+  const { minimumPackageCount: minimum, maximumPackageCount: maximum } =
+    input.constraints;
+  return minimum === maximum
+    ? Object.freeze({ kind: "exact", count: minimum })
+    : Object.freeze({ kind: "range", minimum, maximum });
+}
+
+function regionWorkSummary(
+  work: RegionTopologyGenerationResult["work"],
+): string {
+  return `Region topology search used ${work.totalUsed} of ${work.budget.maxWorkUnits} work units, reached ${work.frontierPeak} of ${work.budget.maxFrontierStates} frontier states at peak, discovered ${work.discoveredDraftCount} drafts, retained ${work.retainedDraftCount} within the hard storage limit of ${work.budget.maxRetainedDrafts}, and ${work.storageReplacementOccurred ? "did" : "did not"} replace an earlier retained draft.`;
+}
+
+function regionTopologyDiagnostic(
+  result: RegionTopologyGenerationResult,
+): SolverDiagnostic {
+  const summary = regionWorkSummary(result.work);
+  if (result.status === "completed") {
+    const storageSaturated =
+      result.work.discoveredDraftCount > result.work.retainedDraftCount;
+    return {
+      severity: "info",
+      phase: "generation",
+      code: "region-topology-search-completed",
+      count: result.drafts.length,
+      message: storageSaturated
+        ? `${summary} Draft storage saturated, but work and frontier processing continued to completion.`
+        : `${summary} The bounded search completed without truncation.`,
+    };
+  }
+  if (result.status === "invalid") {
+    return {
+      severity: "error",
+      phase: "generation",
+      code: "region-topology-search-invalid",
+      count: 0,
+      message: `${summary} Region topology generation was rejected: ${result.reason}`,
+    };
+  }
+  if (result.reason === "cancelled") {
+    return {
+      severity: "info",
+      phase: "cancelled",
+      code: "region-topology-search-cancelled",
+      count: 0,
+      message: `${summary} Cancellation discarded all partial region drafts.`,
+    };
+  }
+
+  const limit =
+    result.reason === "work-budget-exhausted" ? "work-unit" : "frontier-state";
+  return {
+    severity: "warning",
+    phase: "generation",
+    code: `region-topology-${result.reason}`,
+    count: result.drafts.length,
+    message: `${summary} The bounded search was truncated at its ${limit} limit; ${result.drafts.length} retained draft${result.drafts.length === 1 ? " was" : "s were"} forwarded to candidate finalization.`,
+  };
+}
+
+function recordRegionDraftStatistics(
+  drafts: readonly GeneratedCandidateDraft[],
+  statistics: SolverStatistics,
+): void {
+  statistics.generatedDraftCount += drafts.length;
+  for (const draft of drafts) {
+    const family = draft.provenance[0]?.family;
+    if (family === undefined || family === "symmetry") continue;
+    statistics.generatedByFamily[family] += 1;
+  }
+}
 
 function compareStrings(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
@@ -217,6 +315,47 @@ export function solveLayer(
   );
 
   const drafts: GeneratedCandidateDraft[] = [];
+  if (
+    !progress.checkpoint(
+      "generation",
+      0,
+      null,
+      "Generating bounded region-topology candidates.",
+      undefined,
+      true,
+    )
+  ) {
+    return cancelledResult(diagnostics, exclusions, statistics);
+  }
+  const regionOutput = generateRegionTopologyDrafts(normalizedInput, {
+    targetCountPolicy: regionTargetCountPolicy(normalizedInput),
+    budget:
+      options.regionTopologyBudget ?? DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET,
+    shouldCancel: () => progress.cancelled(),
+  });
+  diagnostics.push(regionTopologyDiagnostic(regionOutput));
+  if (
+    regionOutput.status === "stopped" &&
+    regionOutput.reason === "cancelled"
+  ) {
+    return cancelledResult(diagnostics, exclusions, statistics);
+  }
+  drafts.push(...regionOutput.drafts);
+  recordRegionDraftStatistics(regionOutput.drafts, statistics);
+  if (
+    !progress.checkpoint(
+      "generation",
+      regionOutput.work.totalUsed,
+      regionOutput.work.budget.maxWorkUnits,
+      `Finished bounded region-topology generation after discovering ${regionOutput.work.discoveredDraftCount} drafts and retaining ${regionOutput.drafts.length}.`,
+      undefined,
+      true,
+    )
+  ) {
+    return cancelledResult(diagnostics, exclusions, statistics);
+  }
+
+  const legacyDrafts: GeneratedCandidateDraft[] = [];
   for (const family of normalizedGeneratorOrder(options.generatorOrder)) {
     if (
       !progress.checkpoint(
@@ -243,10 +382,11 @@ export function solveLayer(
       includeExperimentalIncompleteBlocks:
         options.includeExperimentalIncompleteBlocks === true,
     });
+    legacyDrafts.push(...output.drafts);
     drafts.push(...output.drafts);
     diagnostics.push(...output.diagnostics);
     exclusions.push(...output.exclusions);
-    statistics.generatedByFamily[family] = output.drafts.length;
+    statistics.generatedByFamily[family] += output.drafts.length;
     statistics.generatedDraftCount += output.drafts.length;
     if (output.cancelled) {
       return cancelledResult(diagnostics, exclusions, statistics);
@@ -280,7 +420,7 @@ export function solveLayer(
     }
     const symmetryOutput = generateSymmetryCandidateDrafts(
       normalizedInput,
-      drafts,
+      legacyDrafts,
       {
         checkpoint: (family, count) =>
           progress.checkpoint(

@@ -335,7 +335,10 @@ export function OrderMode({
                 ))}
               </select>
             </label>
-            <span className="pb-2 text-xs text-[var(--muted)]" aria-hidden="true">
+            <span
+              className="pb-2 text-xs text-[var(--muted)]"
+              aria-hidden="true"
+            >
               before
             </span>
             <label className="grid gap-1 text-xs text-[var(--muted)]">

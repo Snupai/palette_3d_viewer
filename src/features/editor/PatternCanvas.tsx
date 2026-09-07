@@ -311,10 +311,7 @@ export function PatternCanvas({
         Arrow keys nudge the selection; Shift plus an arrow uses the configured
         coarse step. Press R to rotate, Delete to remove, and Escape to clear.
       </p>
-      <div
-        className="mx-auto w-full"
-        style={{ maxWidth: "min(100%, 34rem)" }}
-      >
+      <div className="mx-auto w-full" style={{ maxWidth: "min(100%, 34rem)" }}>
         <svg
           ref={svgRef}
           viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
@@ -334,176 +331,76 @@ export function PatternCanvas({
           onPointerUp={finishPointer}
           onPointerCancel={() => setPointer(null)}
         >
-        <defs>
-          <marker
-            id={deltaArrowMarkerId}
-            viewBox="0 0 8 8"
-            refX={7}
-            refY={4}
-            markerWidth={4}
-            markerHeight={4}
-            orient="auto-start-reverse"
-          >
-            <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--brand)" />
-          </marker>
-        </defs>
-        <rect
-          x={envelope.minX}
-          y={envelope.minY}
-          width={width}
-          height={height}
-          fill="var(--canvas)"
-          stroke="var(--line)"
-          strokeWidth={1}
-          vectorEffect="non-scaling-stroke"
-          pointerEvents="none"
-        />
-        {project.pallet ? (
+          <defs>
+            <marker
+              id={deltaArrowMarkerId}
+              viewBox="0 0 8 8"
+              refX={7}
+              refY={4}
+              markerWidth={4}
+              markerHeight={4}
+              orient="auto-start-reverse"
+            >
+              <path d="M 0 0 L 8 4 L 0 8 z" fill="var(--brand)" />
+            </marker>
+          </defs>
           <rect
-            x={0}
-            y={canvasMaxY - project.pallet.dimensionsMm.width}
-            width={project.pallet.dimensionsMm.length}
-            height={project.pallet.dimensionsMm.width}
-            fill="none"
-            stroke="var(--ink)"
-            strokeWidth={2}
+            x={envelope.minX}
+            y={envelope.minY}
+            width={width}
+            height={height}
+            fill="var(--canvas)"
+            stroke="var(--line)"
+            strokeWidth={1}
             vectorEffect="non-scaling-stroke"
             pointerEvents="none"
           />
-        ) : null}
-        <g opacity={0.35} pointerEvents="none" aria-hidden="true">
-          {Array.from({ length: 9 }, (_, index) => {
-            const x = envelope.minX + (width * index) / 8;
-            const y = envelope.minY + (height * index) / 8;
-            return (
-              <g key={index}>
-                <line
-                  x1={x}
-                  y1={envelope.minY}
-                  x2={x}
-                  y2={envelope.maxY}
-                  stroke="var(--line)"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                />
-                <line
-                  x1={envelope.minX}
-                  y1={y}
-                  x2={envelope.maxX}
-                  y2={y}
-                  stroke="var(--line)"
-                  strokeWidth={1}
-                  vectorEffect="non-scaling-stroke"
-                />
-              </g>
-            );
-          })}
-        </g>
+          {project.pallet ? (
+            <rect
+              x={0}
+              y={canvasMaxY - project.pallet.dimensionsMm.width}
+              width={project.pallet.dimensionsMm.length}
+              height={project.pallet.dimensionsMm.width}
+              fill="none"
+              stroke="var(--ink)"
+              strokeWidth={2}
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          ) : null}
+          <g opacity={0.35} pointerEvents="none" aria-hidden="true">
+            {Array.from({ length: 9 }, (_, index) => {
+              const x = envelope.minX + (width * index) / 8;
+              const y = envelope.minY + (height * index) / 8;
+              return (
+                <g key={index}>
+                  <line
+                    x1={x}
+                    y1={envelope.minY}
+                    x2={x}
+                    y2={envelope.maxY}
+                    stroke="var(--line)"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                  <line
+                    x1={envelope.minX}
+                    y1={y}
+                    x2={envelope.maxX}
+                    y2={y}
+                    stroke="var(--line)"
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                </g>
+              );
+            })}
+          </g>
 
-        {pattern.placements.map((placement) => {
-          const isSelected = selectedPlacementIds.has(placement.id);
-          const dragged = draggingIds.has(placement.id);
-          const previewPlacement = dragged
-            ? {
-                ...placement,
-                positionMm: {
-                  x: placement.positionMm.x + dragDelta.x,
-                  y: placement.positionMm.y + dragDelta.y,
-                },
-              }
-            : placement;
-          const bounds = placementRectangleBounds(
-            previewPlacement,
-            project.package.dimensionsMm,
-          );
-          const x = bounds.minX;
-          const y = canvasMaxY - bounds.maxY;
-          const rectWidth = bounds.maxX - bounds.minX;
-          const rectHeight = bounds.maxY - bounds.minY;
-          const group = groupByPlacementId.get(placement.id);
-          const grip = placement.gripId ? gripById.get(placement.gripId) : null;
-          const path = blueLinePath(
-            grip ? parseBlueLine(grip.dx, grip.dy) : placement.labelSide,
-            x + rectWidth / 2,
-            y + rectHeight / 2,
-            rectWidth,
-            rectHeight,
-          );
-          return (
-            <g key={placement.id} data-placement-id={placement.id}>
-              <rect
-                x={x}
-                y={y}
-                width={rectWidth}
-                height={rectHeight}
-                rx={3}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isSelected}
-                aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, grip G${group.orderIndex + 1}` : ", ungrouped"}`}
-                fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
-                stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
-                strokeWidth={isSelected ? 3 : 1.5}
-                vectorEffect="non-scaling-stroke"
-                className="cursor-grab focus:outline-none focus-visible:stroke-[var(--brand)] active:cursor-grabbing"
-                onPointerDown={(event) => startPlacement(event, placement.id)}
-                onClick={(event) => clickPlacement(event, placement.id)}
-                onPointerMove={updatePointer}
-                onPointerUp={finishPointer}
-                onPointerCancel={() => setPointer(null)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" && event.key !== " ") return;
-                  event.preventDefault();
-                  onSelectionChange(new Set(selectionUnit(placement.id)));
-                }}
-              >
-                <title>
-                  {`Package ${placement.sequence + 1}; ${placement.positionMm.x}, ${placement.positionMm.y} mm; ${placement.rotation}°${group ? `; grip G${group.orderIndex + 1}` : "; ungrouped"}`}
-                </title>
-              </rect>
-              {path ? (
-                <path
-                  d={path}
-                  fill="none"
-                  stroke="var(--measure)"
-                  strokeWidth={3}
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  vectorEffect="non-scaling-stroke"
-                  pointerEvents="none"
-                />
-              ) : null}
-              {!grip ? (
-                <text
-                  x={x + rectWidth / 2}
-                  y={y + rectHeight / 2}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fill="var(--ink)"
-                  fontSize={Math.max(11, Math.min(rectWidth, rectHeight) * 0.2)}
-                  fontFamily="ui-monospace, monospace"
-                  pointerEvents="none"
-                >
-                  #{placement.sequence + 1}
-                </text>
-              ) : null}
-            </g>
-          );
-        })}
-
-        {pattern.grips.map((grip, gripIndex) => {
-          const placementIds = gripPlacementIds.get(grip.id) ?? [];
-          const placements = placementIds.flatMap((placementId) => {
-            const placement = placementById.get(placementId);
-            return placement ? [placement] : [];
-          });
-          if (placements.length === 0) return null;
-
-          const isDragging = placementIds.every((placementId) =>
-            draggingIds.has(placementId),
-          );
-          const footprints = placements.map((placement) => {
-            const previewPlacement = isDragging
+          {pattern.placements.map((placement) => {
+            const isSelected = selectedPlacementIds.has(placement.id);
+            const dragged = draggingIds.has(placement.id);
+            const previewPlacement = dragged
               ? {
                   ...placement,
                   positionMm: {
@@ -516,109 +413,214 @@ export function PatternCanvas({
               previewPlacement,
               project.package.dimensionsMm,
             );
-            return {
-              left: bounds.minX,
-              right: bounds.maxX,
-              top: canvasMaxY - bounds.maxY,
-              bottom: canvasMaxY - bounds.minY,
-            };
-          });
-          const center = {
-            x: grip.x + (isDragging ? dragDelta.x : 0),
-            y: canvasMaxY - grip.y + (isDragging ? -dragDelta.y : 0),
-          };
-          const deltaArrow = gripDeltaArrow(center, grip, footprints);
-          const firstFootprint = footprints[0]!;
-          const orderIndex = groupById.get(grip.id)?.orderIndex;
-          const executionPosition =
-            orderIndex !== undefined && orderIndex >= 0
-              ? orderIndex + 1
-              : gripIndex + 1;
-          const isSelected = placementIds.some((placementId) =>
-            selectedPlacementIds.has(placementId),
-          );
-
-          return (
-            <g key={`grip-overlay-${grip.id}`} pointerEvents="none">
-              {deltaArrow ? (
-                <g data-testid={`grip-delta-${grip.id}`} aria-hidden="true">
-                  <line
-                    x1={deltaArrow.centerX}
-                    y1={deltaArrow.centerY}
-                    x2={deltaArrow.endX}
-                    y2={deltaArrow.endY}
-                    stroke="var(--brand)"
-                    strokeWidth={isSelected ? 5 : 2.5}
+            const x = bounds.minX;
+            const y = canvasMaxY - bounds.maxY;
+            const rectWidth = bounds.maxX - bounds.minX;
+            const rectHeight = bounds.maxY - bounds.minY;
+            const group = groupByPlacementId.get(placement.id);
+            const grip = placement.gripId
+              ? gripById.get(placement.gripId)
+              : null;
+            const path = blueLinePath(
+              grip ? parseBlueLine(grip.dx, grip.dy) : placement.labelSide,
+              x + rectWidth / 2,
+              y + rectHeight / 2,
+              rectWidth,
+              rectHeight,
+            );
+            return (
+              <g key={placement.id} data-placement-id={placement.id}>
+                <rect
+                  x={x}
+                  y={y}
+                  width={rectWidth}
+                  height={rectHeight}
+                  rx={3}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, grip G${group.orderIndex + 1}` : ", ungrouped"}`}
+                  fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
+                  stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
+                  strokeWidth={isSelected ? 3 : 1.5}
+                  vectorEffect="non-scaling-stroke"
+                  className="cursor-grab focus:outline-none focus-visible:stroke-[var(--brand)] active:cursor-grabbing"
+                  onPointerDown={(event) => startPlacement(event, placement.id)}
+                  onClick={(event) => clickPlacement(event, placement.id)}
+                  onPointerMove={updatePointer}
+                  onPointerUp={finishPointer}
+                  onPointerCancel={() => setPointer(null)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    event.preventDefault();
+                    onSelectionChange(new Set(selectionUnit(placement.id)));
+                  }}
+                >
+                  <title>
+                    {`Package ${placement.sequence + 1}; ${placement.positionMm.x}, ${placement.positionMm.y} mm; ${placement.rotation}°${group ? `; grip G${group.orderIndex + 1}` : "; ungrouped"}`}
+                  </title>
+                </rect>
+                {path ? (
+                  <path
+                    d={path}
+                    fill="none"
+                    stroke="var(--measure)"
+                    strokeWidth={3}
                     strokeLinecap="round"
-                    markerEnd={`url(#${deltaArrowMarkerId})`}
+                    strokeLinejoin="round"
                     vectorEffect="non-scaling-stroke"
-                    opacity={isSelected ? 1 : 0.55}
+                    pointerEvents="none"
                   />
-                  <circle
-                    cx={deltaArrow.centerX}
-                    cy={deltaArrow.centerY}
-                    r={isSelected ? 6 : 4}
-                    fill="var(--brand)"
-                    opacity={isSelected ? 1 : 0.55}
-                    vectorEffect="non-scaling-stroke"
-                  />
-                  {isSelected ? (
-                    <text
-                      x={deltaArrow.labelX}
-                      y={deltaArrow.labelY}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fill="var(--ink)"
-                      stroke="var(--canvas)"
-                      strokeWidth={5}
-                      paintOrder="stroke"
-                      fontSize={17}
-                      fontWeight={700}
-                      fontFamily="ui-monospace, monospace"
-                    >
-                      Δx {grip.dx} / Δy {grip.dy}
-                    </text>
-                  ) : null}
-                </g>
-              ) : null}
-              <text
-                data-testid={`grip-label-${grip.id}`}
-                x={(firstFootprint.left + firstFootprint.right) / 2}
-                y={(firstFootprint.top + firstFootprint.bottom) / 2}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="var(--ink)"
-                fontSize={Math.max(
-                  11,
-                  Math.min(
-                    firstFootprint.right - firstFootprint.left,
-                    firstFootprint.bottom - firstFootprint.top,
-                  ) * 0.2,
-                )}
-                fontFamily="ui-monospace, monospace"
-              >
-                G{executionPosition}
-              </text>
-            </g>
-          );
-        })}
+                ) : null}
+                {!grip ? (
+                  <text
+                    x={x + rectWidth / 2}
+                    y={y + rectHeight / 2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fill="var(--ink)"
+                    fontSize={Math.max(
+                      11,
+                      Math.min(rectWidth, rectHeight) * 0.2,
+                    )}
+                    fontFamily="ui-monospace, monospace"
+                    pointerEvents="none"
+                  >
+                    #{placement.sequence + 1}
+                  </text>
+                ) : null}
+              </g>
+            );
+          })}
 
-        {marquee ? (
-          <rect
-            data-testid="selection-marquee"
-            x={marquee.x}
-            y={marquee.y}
-            width={marquee.width}
-            height={marquee.height}
-            fill="var(--brand)"
-            fillOpacity={0.12}
-            stroke="var(--brand)"
-            strokeWidth={1.5}
-            vectorEffect="non-scaling-stroke"
-            pointerEvents="none"
-          />
-        ) : null}
-      </svg>
+          {pattern.grips.map((grip, gripIndex) => {
+            const placementIds = gripPlacementIds.get(grip.id) ?? [];
+            const placements = placementIds.flatMap((placementId) => {
+              const placement = placementById.get(placementId);
+              return placement ? [placement] : [];
+            });
+            if (placements.length === 0) return null;
+
+            const isDragging = placementIds.every((placementId) =>
+              draggingIds.has(placementId),
+            );
+            const footprints = placements.map((placement) => {
+              const previewPlacement = isDragging
+                ? {
+                    ...placement,
+                    positionMm: {
+                      x: placement.positionMm.x + dragDelta.x,
+                      y: placement.positionMm.y + dragDelta.y,
+                    },
+                  }
+                : placement;
+              const bounds = placementRectangleBounds(
+                previewPlacement,
+                project.package.dimensionsMm,
+              );
+              return {
+                left: bounds.minX,
+                right: bounds.maxX,
+                top: canvasMaxY - bounds.maxY,
+                bottom: canvasMaxY - bounds.minY,
+              };
+            });
+            const center = {
+              x: grip.x + (isDragging ? dragDelta.x : 0),
+              y: canvasMaxY - grip.y + (isDragging ? -dragDelta.y : 0),
+            };
+            const deltaArrow = gripDeltaArrow(center, grip, footprints);
+            const firstFootprint = footprints[0]!;
+            const orderIndex = groupById.get(grip.id)?.orderIndex;
+            const executionPosition =
+              orderIndex !== undefined && orderIndex >= 0
+                ? orderIndex + 1
+                : gripIndex + 1;
+            const isSelected = placementIds.some((placementId) =>
+              selectedPlacementIds.has(placementId),
+            );
+
+            return (
+              <g key={`grip-overlay-${grip.id}`} pointerEvents="none">
+                {deltaArrow ? (
+                  <g data-testid={`grip-delta-${grip.id}`} aria-hidden="true">
+                    <line
+                      x1={deltaArrow.centerX}
+                      y1={deltaArrow.centerY}
+                      x2={deltaArrow.endX}
+                      y2={deltaArrow.endY}
+                      stroke="var(--brand)"
+                      strokeWidth={isSelected ? 5 : 2.5}
+                      strokeLinecap="round"
+                      markerEnd={`url(#${deltaArrowMarkerId})`}
+                      vectorEffect="non-scaling-stroke"
+                      opacity={isSelected ? 1 : 0.55}
+                    />
+                    <circle
+                      cx={deltaArrow.centerX}
+                      cy={deltaArrow.centerY}
+                      r={isSelected ? 6 : 4}
+                      fill="var(--brand)"
+                      opacity={isSelected ? 1 : 0.55}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                    {isSelected ? (
+                      <text
+                        x={deltaArrow.labelX}
+                        y={deltaArrow.labelY}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="var(--ink)"
+                        stroke="var(--canvas)"
+                        strokeWidth={5}
+                        paintOrder="stroke"
+                        fontSize={17}
+                        fontWeight={700}
+                        fontFamily="ui-monospace, monospace"
+                      >
+                        Δx {grip.dx} / Δy {grip.dy}
+                      </text>
+                    ) : null}
+                  </g>
+                ) : null}
+                <text
+                  data-testid={`grip-label-${grip.id}`}
+                  x={(firstFootprint.left + firstFootprint.right) / 2}
+                  y={(firstFootprint.top + firstFootprint.bottom) / 2}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="var(--ink)"
+                  fontSize={Math.max(
+                    11,
+                    Math.min(
+                      firstFootprint.right - firstFootprint.left,
+                      firstFootprint.bottom - firstFootprint.top,
+                    ) * 0.2,
+                  )}
+                  fontFamily="ui-monospace, monospace"
+                >
+                  G{executionPosition}
+                </text>
+              </g>
+            );
+          })}
+
+          {marquee ? (
+            <rect
+              data-testid="selection-marquee"
+              x={marquee.x}
+              y={marquee.y}
+              width={marquee.width}
+              height={marquee.height}
+              fill="var(--brand)"
+              fillOpacity={0.12}
+              stroke="var(--brand)"
+              strokeWidth={1.5}
+              vectorEffect="non-scaling-stroke"
+              pointerEvents="none"
+            />
+          ) : null}
+        </svg>
       </div>
       <p className="sr-only" role="status" aria-live="polite">
         {selectedPlacementIds.size} package

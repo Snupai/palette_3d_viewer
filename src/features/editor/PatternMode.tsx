@@ -278,7 +278,9 @@ export function PatternMode({
 
         <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-sm font-semibold text-[var(--ink)]">Selection</h3>
+            <h3 className="text-sm font-semibold text-[var(--ink)]">
+              Selection
+            </h3>
             <span className="font-mono text-[11px] text-[var(--muted)]">
               {selected.length}/{pattern.placements.length}
             </span>
@@ -430,7 +432,9 @@ export function PatternMode({
         </section>
 
         <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
-          <h3 className="text-sm font-semibold text-[var(--ink)]">Interlayers</h3>
+          <h3 className="text-sm font-semibold text-[var(--ink)]">
+            Interlayers
+          </h3>
           <label className="mt-3 grid gap-1 text-xs text-[var(--muted)]">
             Shared thickness (mm)
             <input

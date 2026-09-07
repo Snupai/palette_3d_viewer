@@ -264,9 +264,7 @@ export function PackageLabelFacePicker({
           <p
             aria-live="polite"
             className={`text-[11px] leading-4 ${
-              selectedPackageSide
-                ? "text-[var(--ink)]"
-                : "text-[var(--muted)]"
+              selectedPackageSide ? "text-[var(--ink)]" : "text-[var(--muted)]"
             }`}
           >
             {selectedPackageSide && selectedDisplayedEdge

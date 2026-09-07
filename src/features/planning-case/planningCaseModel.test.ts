@@ -265,10 +265,7 @@ describe("planning workflow stages", () => {
 
 describe("productionToolGate", () => {
   const freshProject = () =>
-    createProject(
-      {},
-      { now: () => 1, createId: (kind) => `${kind}-gate` },
-    );
+    createProject({}, { now: () => 1, createId: (kind) => `${kind}-gate` });
 
   const projectWithStack = () => {
     const project = freshProject();
