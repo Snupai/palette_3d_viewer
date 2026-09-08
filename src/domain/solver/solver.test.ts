@@ -1951,7 +1951,7 @@ describe("deterministic solve orchestration", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(result.candidates).toHaveLength(54);
+    expect(result.candidates).toHaveLength(64);
     expect(regionCandidates).toHaveLength(48);
     expect(
       regionCandidates.some(({ provenance }) =>
@@ -2052,6 +2052,7 @@ describe("deterministic solve orchestration", () => {
         "justified-grid": 0,
         pinwheel: 0,
         "nested-side": 0,
+        "crossed-strip": 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,
@@ -2446,7 +2447,7 @@ describe("observed MultiPack geometry", () => {
     );
 
     expect(maximum).toBe(55);
-    expect(maximumCandidates).toHaveLength(7);
+    expect(maximumCandidates).toHaveLength(20);
     expect(
       maximumCandidates.filter(({ provenance }) =>
         provenance.some(({ variant }) => variant === "balanced-capped-block"),
@@ -2596,40 +2597,49 @@ describe("observed MultiPack geometry", () => {
         maxCandidatesPerGenerator: 500,
       },
     });
-    const threeBlockCandidates = result.candidates.filter(({ provenance }) =>
+    const crossedCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(({ family }) => family === "crossed-strip"),
+    );
+    expect(result.candidates).toHaveLength(41);
+    expect(crossedCandidates).toHaveLength(34);
+    // Preserve the exact pre-existing clean-block inventory alongside the new family.
+    const legacyCandidates = result.candidates.filter(
+      (candidate) => !crossedCandidates.includes(candidate),
+    );
+    const threeBlockCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "three-block-split-v1",
       ),
     );
-    const distributedThreeBlockCandidates = result.candidates.filter(
+    const distributedThreeBlockCandidates = legacyCandidates.filter(
       ({ provenance }) =>
         provenance.some(
           ({ parameters }) =>
             parameters?.topology === "three-block-split-distributed-v1",
         ),
     );
-    const cFrameCandidates = result.candidates.filter(({ provenance }) =>
+    const cFrameCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "four-block-c-frame-v1",
       ),
     );
-    const sideCoreCandidates = result.candidates.filter(({ provenance }) =>
+    const sideCoreCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) =>
           parameters?.topology === "side-core-corner-bands-v1",
       ),
     );
-    const cappedBlockCandidates = result.candidates.filter(({ provenance }) =>
+    const cappedBlockCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "balanced-capped-block-v1",
       ),
     );
-    const notchCandidates = result.candidates.filter(({ provenance }) =>
+    const notchCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "dense-edge-notch-v1",
       ),
     );
-    const mixedOnlyCandidates = result.candidates.filter(({ provenance }) => {
+    const mixedOnlyCandidates = legacyCandidates.filter(({ provenance }) => {
       const baseFamilies = new Set(
         provenance
           .filter(
@@ -2643,7 +2653,7 @@ describe("observed MultiPack geometry", () => {
         [...baseFamilies].every((family) => family === "mixed-orientation")
       );
     });
-    const genericTwoBlockCandidates = result.candidates.filter(
+    const genericTwoBlockCandidates = legacyCandidates.filter(
       ({ provenance }) =>
         provenance.some(
           ({ family, variant }) =>
@@ -2663,7 +2673,7 @@ describe("observed MultiPack geometry", () => {
         ].join(":");
       })
       .sort();
-    const topologyHistogram = result.candidates.reduce<Record<string, number>>(
+    const topologyHistogram = legacyCandidates.reduce<Record<string, number>>(
       (histogram, candidate) => {
         const topologies = new Set(
           candidate.provenance.flatMap(({ parameters }) =>
@@ -2707,7 +2717,7 @@ describe("observed MultiPack geometry", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(result.candidates).toHaveLength(7);
+    expect(legacyCandidates).toHaveLength(7);
     expect(topologyHistogram).toEqual({
       twoBlock: 1,
       compactThree: 4,
@@ -2715,12 +2725,12 @@ describe("observed MultiPack geometry", () => {
       cappedBlock: 1,
     });
     expect(
-      result.candidates
+      legacyCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
     ).toEqual([29, 29, 29, 36, 43, 43, 43]);
     expect(
-      result.candidates
+      legacyCandidates
         .map(({ metrics }) => metrics.boundingBlockLengthMm)
         .sort((left, right) => left - right),
     ).toEqual([1164, 1188, 1188, 1188, 1188, 1188, 1188]);

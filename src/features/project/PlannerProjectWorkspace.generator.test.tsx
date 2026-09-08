@@ -181,6 +181,7 @@ const solverResult: SolverResult = {
       "justified-grid": 0,
       pinwheel: 0,
       "nested-side": 0,
+      "crossed-strip": 0,
       "edge-ring": 0,
       "mixed-orientation": 0,
       symmetry: 0,

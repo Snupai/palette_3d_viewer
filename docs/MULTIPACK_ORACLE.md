@@ -3,6 +3,9 @@
 For the latest live runs, see the [08 September 2026 report](research/2026-09-08-multipack-live-parity.md).
 The subsequent [16-carton comparison](research/2026-09-08-multipack-user-cartons.md)
 adds 1068 validated exports and separates geometry coverage from grip-policy gains.
+The [crossed-strip extension](research/2026-09-08-multipack-crossed-strips.md)
+then increases direct geometry coverage from 81 to 109 without losing existing
+direct matches, and verifies a fresh 146 × 104 mm neighbor in the desktop app.
 Rows containing zero packages are not valid candidate evidence. After restarting
 an affected isolated session, recheck the reference case before continuing.
 Equal candidate counts after a restart do not prove equal directed orientations.

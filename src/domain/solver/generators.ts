@@ -5313,6 +5313,290 @@ function generateBalancedCappedStrips(
   }
 }
 
+/** A full-width band adjoining perpendicular mixed strips, including asymmetric side splits. */
+function generateCrossedStrips(
+  input: NormalizedLayerSolverInput,
+  collector: DraftCollector,
+  representatives: readonly [Rotation, Rotation],
+): void {
+  type Plan = {
+    transpose: boolean;
+    rotation: Rotation;
+    other: Rotation;
+    columns: number;
+    rows: number;
+    a: number;
+    b: number;
+    ar: number;
+    br: number;
+    width: number;
+    bandHeight: number;
+    innerHeight: number;
+    count: number;
+  };
+  const plans: Plan[] = [];
+  const gap = input.package.clearanceMm;
+  const maximumSearchWork = 10_000;
+  const maximumMaterializedPlacements = 100_000;
+  let work = 0;
+  search: for (const transpose of [false, true]) {
+    const availableWidth = transpose
+      ? rectangleBoundsWidth(input.generationBoundsMm)
+      : rectangleBoundsLength(input.generationBoundsMm);
+    const availableHeight = transpose
+      ? rectangleBoundsLength(input.generationBoundsMm)
+      : rectangleBoundsWidth(input.generationBoundsMm);
+    for (const rotation of representatives) {
+      const other = representatives.find((r) => r !== rotation)!;
+      const footprint = rectangleSizeForRotation(
+        input.package.dimensionsMm,
+        rotation,
+      );
+      const w = transpose ? footprint.width : footprint.length;
+      const h = transpose ? footprint.length : footprint.width;
+      const columns = Math.min(
+        input.constraints.maxBands,
+        maxCountAlong(availableWidth, w, gap),
+      );
+      for (
+        let rows = 1;
+        rows <
+        Math.min(
+          input.constraints.maxBands,
+          maxCountAlong(availableHeight, h, gap),
+        );
+        rows++
+      ) {
+        if (!collector.checkCancellation()) return;
+        const bandHeight = usedSpan(rows, h, gap);
+        const remainingHeight = availableHeight - bandHeight - gap;
+        const ar = Math.min(
+          input.constraints.maxBands,
+          maxCountAlong(remainingHeight, w, gap),
+        );
+        const br = Math.min(
+          input.constraints.maxBands,
+          maxCountAlong(remainingHeight, h, gap),
+        );
+        if (!ar || !br) continue;
+        const innerHeight = Math.max(
+          usedSpan(ar, w, gap),
+          usedSpan(br, h, gap),
+        );
+        for (let b = 1; b < columns; b++) {
+          if (++work > maximumSearchWork) break search;
+          const a = Math.min(
+            input.constraints.maxBands,
+            maxCountAlong(availableWidth - usedSpan(b, w, gap) - gap, h, gap),
+          );
+          if (!a) continue;
+          const width = Math.max(
+            usedSpan(columns, w, gap),
+            usedSpan(a, h, gap) + gap + usedSpan(b, w, gap),
+          );
+          const count = columns * rows + a * ar + b * br;
+          if (
+            count > input.constraints.maxPlacements ||
+            count < input.constraints.minimumPackageCount ||
+            count > input.constraints.maximumPackageCount
+          )
+            continue;
+          plans.push({
+            transpose,
+            rotation,
+            other,
+            columns,
+            rows,
+            a,
+            b,
+            ar,
+            br,
+            width,
+            bandHeight,
+            innerHeight,
+            count,
+          });
+        }
+      }
+    }
+  }
+  if (work > maximumSearchWork)
+    collector.diagnostics.push({
+      severity: "warning",
+      phase: "generation",
+      code: "generation-limit-reached",
+      generator: "crossed-strip",
+      count: maximumSearchWork,
+      message: `Crossed-strip search stopped after ${maximumSearchWork} descriptor attempts.`,
+    });
+  let materializedPlacements = 0;
+  plans.sort(
+    (a, b) =>
+      b.count - a.count ||
+      a.width * (a.bandHeight + a.innerHeight + gap) -
+        b.width * (b.bandHeight + b.innerHeight + gap),
+  );
+  for (const p of plans) {
+    const footprint = rectangleSizeForRotation(
+      input.package.dimensionsMm,
+      p.rotation,
+    );
+    const w = p.transpose ? footprint.width : footprint.length;
+    const h = p.transpose ? footprint.length : footprint.width;
+    const line = (
+      min: number,
+      max: number,
+      span: number,
+      count: number,
+      alongPickup: boolean,
+      rotation: Rotation,
+    ) => {
+      // This region is allowed to contain a corridor wider than the clean-block
+      // spacing limit. Its maximal row counts and the outer envelope bound it.
+      if (
+        count <= 0 ||
+        usedSpan(count, span, gap) > max - min + SOLVER_GEOMETRY_EPSILON_MM
+      )
+        return [];
+      const centers = Array.from({ length: count }, (_, i) =>
+        count === 1
+          ? (min + max) / 2
+          : min + span / 2 + (i * (max - min - span)) / (count - 1),
+      );
+      if (
+        !alongPickup ||
+        gap > DEFAULT_SUCTION_GROUPING_TOLERANCE_MM ||
+        centers.length !== count
+      )
+        return centers;
+      const horizontal = rotation % 180 === 0;
+      const envelope = input.generationBoundsMm;
+      const total = p.bandHeight + gap + p.innerHeight;
+      const occupiedSpan = horizontal === !p.transpose ? p.width : total;
+      const origin = horizontal
+        ? envelope.minX + (rectangleBoundsLength(envelope) - occupiedSpan) / 2
+        : envelope.minY + (rectangleBoundsWidth(envelope) - occupiedSpan) / 2;
+      const sizes = contiguousSuctionGroupSizes(
+        count,
+        input.constraints.provisionalPackagesPerCycle,
+        rotation,
+        input.constraints.suctionRemainderPolicy,
+      );
+      let offset = 0;
+      return sizes.flatMap((size) => {
+        const center =
+          Math.floor(
+            origin +
+              (centers[offset]! + centers[offset + size - 1]!) / 2 +
+              1e-9,
+          ) - origin;
+        offset += size;
+        return Array.from(
+          { length: size },
+          (_, index) => center + (index - (size - 1) / 2) * (span + gap),
+        );
+      });
+    };
+    for (let left = 0; left <= p.a; left++) {
+      for (const bandAtEnd of [true, false]) {
+        if (!collector.checkCancellation()) return;
+        if (materializedPlacements + p.count > maximumMaterializedPlacements) {
+          collector.diagnostics.push({
+            severity: "warning",
+            phase: "generation",
+            code: "generation-limit-reached",
+            generator: "crossed-strip",
+            count: materializedPlacements,
+            message: `Crossed-strip materialization stopped at the ${maximumMaterializedPlacements}-placement work budget.`,
+          });
+          return;
+        }
+        materializedPlacements += p.count;
+        const placements: GeneratedPlacement[] = [];
+        const add = (x: number, y: number, rotation: Rotation) =>
+          placements.push({
+            positionMm: p.transpose
+              ? {
+                  x: input.generationBoundsMm.minX + y,
+                  y: input.generationBoundsMm.minY + x,
+                }
+              : {
+                  x: input.generationBoundsMm.minX + x,
+                  y: input.generationBoundsMm.minY + y,
+                },
+            rotation,
+          });
+        const bandMin = bandAtEnd ? p.innerHeight + gap : 0;
+        const innerMin = bandAtEnd ? 0 : p.bandHeight + gap;
+        const pickupAlongX = p.transpose === (p.rotation % 180 === 90);
+        for (const y of line(
+          bandMin,
+          bandMin + p.bandHeight,
+          h,
+          p.rows,
+          !pickupAlongX,
+          p.rotation,
+        ))
+          for (const x of line(
+            0,
+            p.width,
+            w,
+            p.columns,
+            pickupAlongX,
+            p.rotation,
+          ))
+            add(x, y, p.rotation);
+        const widths = [
+          ...Array<number>(left).fill(h),
+          ...Array<number>(p.b).fill(w),
+          ...Array<number>(p.a - left).fill(h),
+        ];
+        const centers = distributedSequenceCenters(
+          0,
+          p.width,
+          widths,
+          gap,
+          "crossedStrip.columns",
+        );
+        if (centers.length !== widths.length) continue;
+        widths.forEach((span, index) => {
+          const normal = index >= left && index < left + p.b;
+          const rotation = normal ? p.rotation : p.other;
+          for (const y of line(
+            innerMin,
+            innerMin + p.innerHeight,
+            normal ? h : w,
+            normal ? p.br : p.ar,
+            normal ? !pickupAlongX : pickupAlongX,
+            rotation,
+          ))
+            add(centers[index]!, y, rotation);
+        });
+        if (placements.length !== p.count) continue;
+        if (
+          !collector.add(placements, {
+            family: "crossed-strip",
+            variant: "crossed-strips",
+            parameters: {
+              transpose: p.transpose,
+              rotation: p.rotation,
+              columns: p.columns,
+              rows: p.rows,
+              sideColumns: p.a,
+              coreColumns: p.b,
+              sideRows: p.ar,
+              coreRows: p.br,
+              leftColumns: left,
+              bandAtEnd,
+            },
+          })
+        )
+          return;
+      }
+    }
+  }
+}
+
 function generateNestedSides(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
@@ -7212,6 +7496,20 @@ export function generateCandidateFamily(
   if (family === "justified-grid") return generateJustifiedGrids(input, hooks);
   if (family === "pinwheel") return generatePinwheels(input, hooks);
   if (family === "nested-side") return generateNestedSides(input, hooks);
+  if (family === "crossed-strip") {
+    const collector = new DraftCollector(family, input, hooks);
+    const representatives = footprintRepresentatives(
+      input.constraints.allowedRotations,
+    );
+    if (
+      representatives &&
+      input.constraints.allowMixedPackageOrientations &&
+      input.constraints.requiredShape === "any"
+    ) {
+      generateCrossedStrips(input, collector, representatives);
+    }
+    return collector.output();
+  }
   if (family === "edge-ring") return generateEdgeRings(input, hooks);
   return generateMixedOrientation(input, hooks);
 }

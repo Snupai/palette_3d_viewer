@@ -16,6 +16,7 @@ export const BASE_GENERATOR_FAMILIES = [
   "nested-side",
   "edge-ring",
   "mixed-orientation",
+  "crossed-strip",
 ] as const;
 
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];
