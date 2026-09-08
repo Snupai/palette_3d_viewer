@@ -79,7 +79,7 @@ describe("nearest-edge label orientation", () => {
     });
   });
 
-  it("preserves the generated exact yaw on an edge-distance tie", () => {
+  it("selects the positive world axis on an edge-distance tie", () => {
     expect(selection({ x: 100, y: 20 }, 0, "right", [0, 180])).toEqual({
       status: "selected",
       rotation: 0,
@@ -87,8 +87,54 @@ describe("nearest-edge label orientation", () => {
     });
     expect(selection({ x: 100, y: 80 }, 180, "right", [0, 180])).toEqual({
       status: "selected",
-      rotation: 180,
-      labelSide: "left",
+      rotation: 0,
+      labelSide: "right",
+    });
+  });
+
+  it.each([
+    ["bottom", 0, 180, "top", { x: 60, y: 50 }],
+    ["bottom", 90, 90, "right", { x: 100, y: 20 }],
+    ["top", 0, 0, "top", { x: 60, y: 50 }],
+    ["top", 90, 270, "right", { x: 100, y: 20 }],
+    ["left", 0, 180, "right", { x: 100, y: 20 }],
+    ["left", 90, 270, "top", { x: 60, y: 50 }],
+    ["right", 0, 0, "right", { x: 100, y: 20 }],
+    ["right", 90, 90, "top", { x: 60, y: 50 }],
+  ] as const)(
+    "canonicalizes a %s label in footprint yaw %d independently of its generated yaw",
+    (side, initialYaw, expectedYaw, labelSide, position) => {
+      const allowed = [0, 90, 180, 270] as const;
+      const expected = { status: "selected", rotation: expectedYaw, labelSide };
+      expect(selection(position, initialYaw, side, allowed)).toEqual(expected);
+      expect(
+        selection(
+          position,
+          ((initialYaw + 180) % 360) as Rotation,
+          side,
+          [...allowed].reverse(),
+        ),
+      ).toEqual(expected);
+    },
+  );
+
+  it.each([
+    [49.999, 0],
+    [50, 180],
+    [50.001, 180],
+  ] as const)("orients a bottom label at y=%s to yaw %s", (y, rotation) => {
+    expect(selection({ x: 60, y }, 0, "bottom", [0, 180])).toEqual({
+      status: "selected",
+      rotation,
+      labelSide: rotation === 0 ? "bottom" : "top",
+    });
+  });
+
+  it("keeps the only authorized yaw even when the opposite tie direction is preferred", () => {
+    expect(selection({ x: 60, y: 50 }, 0, "bottom", [0])).toEqual({
+      status: "selected",
+      rotation: 0,
+      labelSide: "bottom",
     });
   });
 

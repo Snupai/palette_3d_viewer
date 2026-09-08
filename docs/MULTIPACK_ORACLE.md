@@ -1,5 +1,17 @@
 # MultiPack desktop oracle
 
+For the latest live runs, see the [08 September 2026 report](research/2026-09-08-multipack-live-parity.md).
+The subsequent [16-carton comparison](research/2026-09-08-multipack-user-cartons.md)
+adds 1068 validated exports and separates geometry coverage from grip-policy gains.
+Rows containing zero packages are not valid candidate evidence. After restarting
+an affected isolated session, recheck the reference case before continuing.
+Equal candidate counts after a restart do not prove equal directed orientations.
+
+The export wait policy can be checked without desktop access using
+`./scripts/multipack-oracle/Test-StableExport.ps1` in PowerShell. A file that
+disappears during metadata reads restarts the stability sequence; access errors
+and export timeouts remain failures.
+
 The legacy desktop generator remains the version-specific oracle for candidate-set parity.
 The capture workflow is Windows-only and pinned to this executable:
 

@@ -647,16 +647,20 @@ export function compareGeneratedSolverResult(
     0,
     ...result.candidates.map(({ metrics }) => metrics.packageCount),
   );
-  const generationLimitReached = result.diagnostics.some(
-    ({ code }) => code === "generation-limit-reached",
-  );
+  const generationLimitCodes = new Set([
+    "generation-limit-reached",
+    "region-topology-work-budget-exhausted",
+    "region-topology-frontier-budget-exhausted",
+  ]);
   const generationLimits = result.diagnostics
-    .filter(({ code }) => code === "generation-limit-reached")
-    .map(({ phase, generator, count }) => ({
+    .filter(({ code }) => generationLimitCodes.has(code))
+    .map(({ code, phase, generator, count }) => ({
+      code,
       phase,
       generator: generator ?? null,
       count: count ?? null,
     }));
+  const generationLimitReached = generationLimits.length > 0;
   const checks: CorpusCheck[] = [
     createCorpusCheck({
       id: `${scenario.id}.scenario-basis`,

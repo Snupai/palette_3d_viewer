@@ -302,3 +302,63 @@ Lösungen.
   klassifiziert werden, bevor neue deterministische Generatorfamilien entstehen;
 - der externe Capture bleibt Observed, bis daraus kontrollierte synthetische
   Golden-Fälle abgeleitet werden, ohne Produktionsdaten zu übernehmen.
+
+## Ergänzung 07.09.2026 – erneute Desktop-Erfassung
+
+**Status: Observed; synthetische externe Captures, keine Kundenfixtures.**
+
+Die installierte EXE und eine neue beschreibbare Kopie wurden erneut mit
+Dateiversion `2.1.315.25` und dem dokumentierten SHA-256 geprüft. Der Referenzfall
+`201 × 139 × 231 mm`, EURO-Palette und Abstand 0 erzeugte erneut genau 87
+vollständig exportierte, parsergültige und hashgeprüfte Kandidaten. Die
+Paketanzahlverteilung entspricht der Erfassung vom 02.09.2026.
+
+Die historische Bezeichnung „Eingabe 31 Packstücke“ ist dabei **nicht erneut als
+Eingabeeinstellung bestätigt** worden: Der tatsächlich bediente Dialog
+„Palettenbeladung – Eingabe“ enthielt kein Stückzahlfeld. Ohne eine eingegebene
+Sollstückzahl erschienen sieben 31er-Lösungen sowie weitere Lösungen mit 24–30
+Paketen. Neue Manifeste führen `requestedPackagesPerLayer: null`. Aus diesem
+Versuch folgt weder eine exakte noch eine maximale Bedeutung eines anderen,
+möglicherweise vorhandenen Stückzahlparameters.
+
+Beim kontrollierten Versuch `199 × 200 mm` meldete MultiPack ausdrücklich
+„Packstücklänge und -breite vertauscht“. Die tatsächliche Erfassung verwendet
+deshalb `200 × 199 mm`; angeforderte und exportierte Maße dürfen hier nicht
+gleichgesetzt werden.
+
+Der aktuelle Solver besitzt zusätzliche Regionengeneratoren. Alte
+Abdeckungszahlen dürfen nicht fortgeschrieben werden. Der explizite
+`candidateEquivalence: "identity"`-Vergleichsmodus erhält gerichtete
+Kandidatenidentitäten und berücksichtigt Regionendrafts bei der
+Symmetrieerzeugung. Er ist kein behaupteter MultiPack-Algorithmus; die bisherige
+produktive Symmetriezusammenführung bleibt der Standard. Suchbudgetabbrüche
+werden nun auch für Regionensuchen im Paritätsreport als unvollständig erfasst.
+
+Die vollständige neue Matrix mit zehn Fällen und 554 Einzel-Exporten,
+getrennten freien und stückzahlgebundenen Vergleichen, Teilprüfungen der
+Greifoperationen und den verbleibenden Grenzen steht im
+[Liveparitätsbericht vom 07.09.2026](2026-09-07-multipack-live-parity.md).
+
+## Ergänzung 08.09.2026 – Neustart und Suchbudget
+
+Ein Lauf mit zehn leeren Paletten wurde ausgeschlossen. Nach Neustart der
+isolierten, erneut buildgeprüften Kopie lieferten sowohl 201 × 139 als auch
+203 × 139 mm je 87 vollständig validierte Exporte. Die Referenzgrundflächen
+stimmen an allen Listenpositionen mit dem Vortag überein, gerichtete Winkel
+und vollständige Griffdaten dagegen nicht. Die Sitzungen dürfen daher nicht
+operativ gleichgesetzt werden.
+
+Die Regionensuche verteilt ihr unverändertes Budget nun über dichte Zielzahlen
+ab der größten katalogisierten Rasterbelegung (Arbeitsmodell 9). Die bisherige
+Zehn-Fälle-Matrix und ein neuer Nachbarfall wurden dagegen geprüft. Einzelheiten,
+verworfener Vorversuch, Exportkorrektur und Aussagegrenzen stehen im
+[Fortsetzungsbericht vom 08.09.2026](2026-09-08-multipack-live-parity.md).
+
+
+## Ergänzung 08.09.2026 – Asymmetrische Pinwheels und Etiketten
+
+Freie Stückzahlsuche erzeugt nun auch asymmetrische Pinwheels, kompakte Restabstände zwischen Eckblöcken und die transponierte Achse. Die vollständige 13-Läufe-Matrix sowie verworfene Erweiterungen stehen im [aktuellen Bericht](2026-09-08-multipack-live-parity.md). Im getrennten Identitätsvergleich steigt die Referenz von 5 auf 8 direkte Grundflächentreffer; 203 × 139 bestätigt denselben Gewinn. Der Projektadapter übernimmt ein einzelnes Etikettenfeld. Die positive Achse bei Entfernungs-Gleichstand wurde auf beiden Achsen kontrolliert. Winkelgleichheit auf vorgegebenen Oracle-Grundflächen bleibt strikt von Mustererzeugung getrennt. Keine vollständige Parität; Corpus-Gates unverändert.
+
+## Ergänzung 08.09.2026 – 16 zusätzliche Kartonmaße und Greifpartitionen
+
+Alle 16 zusätzlich genannten Kartonmaße wurden in der vorhandenen isolierten Instanz von Build 2.1.315.25 geprüft: 1068 vollständig validierte Kandidaten. Die Restgruppenregel für das unveränderte MultiPack-Greiferprofil bei Einlauf längs verbessert passende Greifpartitionen von 57 auf 80 und gemeinsame operative Teiltreffer von 54 auf 64; die 81 direkten Grundflächentreffer bleiben unverändert. Automatische Dreiergriffe für kurze Kartons sind jetzt auch in Bedienung und Robotics verfügbar. Der [vollständige Fallbericht](2026-09-08-multipack-user-cartons.md) enthält Vorher/Nachher, Verteilungen, Zusatzkandidaten, Rangprüfungen, Suchbudgetgrenzen und die erfolgreiche Wiederaufnahme des letzten Captures. Gesamtsuite: 790 bestanden, zwei übersprungen. Keine vollständige Parität; Corpus-Gates unverändert.

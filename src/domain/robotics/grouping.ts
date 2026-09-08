@@ -7,7 +7,10 @@ import type {
 } from "~/domain/stack/types";
 import type { RobotDiagnostic, RobotGripGroup } from "~/domain/robotics/types";
 
+export type SuctionRemainderPolicy = "centered-singleton" | "axis-ends";
+
 export type SuctionGroupingOptions = {
+  remainderPolicy?: SuctionRemainderPolicy;
   maxPackagesPerPick?: number;
   toleranceMm?: number;
   maxPickupLengthMm?: number | null;
@@ -19,6 +22,7 @@ export type SuctionGroupingPlacement = Pick<
 >;
 
 export type SuctionPlacementPartitionOptions = {
+  remainderPolicy?: SuctionRemainderPolicy;
   packageLengthMm: number;
   maxPackagesPerPick?: number;
   toleranceMm?: number;
@@ -46,6 +50,7 @@ export function contiguousSuctionGroupSizes(
   packageCount: number,
   maxPackagesPerPick: number,
   rotation: Rotation,
+  remainderPolicy: SuctionRemainderPolicy = "centered-singleton",
 ): number[] {
   if (!Number.isInteger(packageCount) || packageCount < 0) {
     throw new Error("packageCount must be a non-negative integer.");
@@ -57,6 +62,14 @@ export function contiguousSuctionGroupSizes(
   const vertical = rotation === 90 || rotation === 270;
   const fullGroupCount = Math.floor(packageCount / groupCapacity);
   const remainder = packageCount % groupCapacity;
+  if (remainderPolicy === "axis-ends") {
+    const full = Array<number>(fullGroupCount).fill(groupCapacity);
+    return remainder === 0
+      ? full
+      : vertical
+        ? [...full, remainder]
+        : [remainder, ...full];
+  }
   const centersSingleton =
     vertical &&
     remainder === 1 &&
@@ -78,7 +91,11 @@ export function contiguousSuctionGroupSizes(
 
 function partitionContiguousSuctionRun<
   Placement extends SuctionGroupingPlacement,
->(run: readonly Placement[], maxPackagesPerPick: number): Placement[][] {
+>(
+  run: readonly Placement[],
+  maxPackagesPerPick: number,
+  remainderPolicy?: SuctionRemainderPolicy,
+): Placement[][] {
   const first = run[0];
   if (!first) return [];
   const groups: Placement[][] = [];
@@ -88,6 +105,7 @@ function partitionContiguousSuctionRun<
     run.length,
     maxPackagesPerPick,
     first.rotation,
+    remainderPolicy,
   )) {
     groups.push(run.slice(start, start + groupSize));
     start += groupSize;
@@ -167,7 +185,13 @@ export function partitionPlacementsForSuction<
       if (continues) continue;
 
       const run = row.slice(runStart, index);
-      groups.push(...partitionContiguousSuctionRun(run, maxPackagesPerPick));
+      groups.push(
+        ...partitionContiguousSuctionRun(
+          run,
+          maxPackagesPerPick,
+          options.remainderPolicy,
+        ),
+      );
       runStart = index;
     }
   }
@@ -241,6 +265,7 @@ export function groupPlacementsForSuction(
     packageLengthMm: packageSpec.dimensionsMm.length,
     maxPackagesPerPick,
     toleranceMm: options.toleranceMm,
+    remainderPolicy: options.remainderPolicy,
   }).map((placements, index) =>
     groupFromPlacements(layer, placements, index + 1),
   );

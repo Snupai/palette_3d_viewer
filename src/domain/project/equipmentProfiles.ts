@@ -1,3 +1,4 @@
+import type { SuctionRemainderPolicy } from "~/domain/robotics/grouping";
 import {
   gripperSchema,
   palletStationSchema,
@@ -245,4 +246,34 @@ export function resolveMultipackGripperPackageLimits(
   return clonePackageLimits(
     profile.packageLimitsByInletOrientation[inletOrientation],
   );
+}
+
+/** Observed in the lengthwise MultiPack oracle; other profiles retain their grouping policy. */
+export function resolveSuctionRemainderPolicy(
+  gripper: Gripper | null | undefined,
+  inlet: PackageSpec["inletOrientation"],
+): SuctionRemainderPolicy {
+  return isMultipackProfileGripper(gripper ?? null) && inlet === "lengthwise"
+    ? "axis-ends"
+    : "centered-singleton";
+}
+
+/** Default for the observed automatic pickup configuration; explicit UI limits remain authoritative. */
+export function resolveAutomaticSuctionGroupLimit(
+  packageSpec: Pick<
+    PackageSpec,
+    "dimensionsMm" | "inletOrientation" | "multiPickAllowed"
+  >,
+  selectedGripper: Gripper | null,
+): number {
+  if (!packageSpec.multiPickAllowed) return 1;
+  if (
+    !isMultipackProfileGripper(selectedGripper) ||
+    packageSpec.inletOrientation !== "lengthwise"
+  )
+    return 2;
+  const span = packageSpec.dimensionsMm.length;
+  return Number.isFinite(span) && span > 0
+    ? Math.max(1, Math.floor(selectedGripper!.maxPickupLengthMm! / span))
+    : 2;
 }

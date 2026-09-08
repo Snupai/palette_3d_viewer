@@ -35,10 +35,12 @@ import {
   type SolverExclusion,
   type SolverIssue,
   type SolverPhase,
+  type SolverOptions,
 } from "~/domain/solver/types";
 import { validateCandidatePlacements } from "~/domain/solver/validation";
 
 export type CandidateFinalizationHooks = {
+  candidateEquivalence?: SolverOptions["candidateEquivalence"];
   checkpoint?: (
     phase: Extract<
       SolverPhase,
@@ -237,6 +239,7 @@ function groupCandidatePlacements(
   const partitions = partitionPlacementsForSuction(groupable, {
     packageLengthMm: input.package.dimensionsMm.length,
     maxPackagesPerPick: input.constraints.provisionalPackagesPerCycle,
+    remainderPolicy: input.constraints.suctionRemainderPolicy,
   });
   const gripIdByPlacementSequence = new Map<number, string>();
   const rawGrips = partitions.map((members) => {
@@ -483,10 +486,6 @@ export function finalizeGeneratedCandidates(
         const geometryFingerprint = candidateGeometryFingerprint({
           placements,
         });
-        const symmetryClassKey = candidateSymmetryClassKey(
-          placements,
-          input.generationBoundsMm,
-        );
         const grouped = groupCandidatePlacements(input, placements);
         const candidate = createUnrankedCandidate(
           input,
@@ -494,6 +493,10 @@ export function finalizeGeneratedCandidates(
           validation,
           geometryFingerprint,
         );
+        const symmetryClassKey =
+          hooks.candidateEquivalence === "identity"
+            ? candidate.identityFingerprint
+            : candidateSymmetryClassKey(placements, input.generationBoundsMm);
         const draftProvenance = sortedUniqueProvenance(draft.provenance);
         const existing = aggregateBySymmetryClass.get(symmetryClassKey);
         if (existing) {
@@ -509,7 +512,9 @@ export function finalizeGeneratedCandidates(
             provenance: draftProvenance,
             issues: [],
             message:
-              "Draft is a pallet mirror or rotation of an existing base layout and was merged into its provenance.",
+              hooks.candidateEquivalence === "identity"
+                ? "Draft has the same directed placements and generated grip identity as an existing candidate and was merged into its provenance."
+                : "Draft is a pallet mirror or rotation of an existing base layout and was merged into its provenance.",
           });
         } else {
           aggregateBySymmetryClass.set(symmetryClassKey, {

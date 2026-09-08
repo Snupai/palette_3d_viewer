@@ -376,6 +376,68 @@ describe("generated solver geometry comparison", () => {
     }
   });
 
+  it.each([
+    "generation-limit-reached",
+    "region-topology-work-budget-exhausted",
+    "region-topology-frontier-budget-exhausted",
+  ])("reports incomplete generation for %s", (code) => {
+    const source = characterizeRobSource(parseRobText(SYNTHETIC_PATTERN_ROB));
+    const solverResult = result([]);
+    solverResult.diagnostics = [
+      {
+        code,
+        severity: "warning",
+        phase: "generation",
+        count: 0,
+        message: "Synthetic bounded search stopped before completion.",
+      },
+    ];
+    const comparison = compareGeneratedSolverResult(
+      source,
+      nominalScenario(source),
+      solverResult,
+    );
+    const completeness = comparison.checks.find(({ id }) =>
+      id.endsWith("generation-completeness"),
+    );
+    expect(completeness?.status).toBe("BLOCKED");
+    expect(completeness?.evidence).toEqual({
+      generationLimitReached: true,
+      generationLimits: [
+        { code, phase: "generation", generator: null, count: 0 },
+      ],
+      generatorVocabularyCompleteness: "Open",
+    });
+    expect(
+      comparison.patterns[0]!.checks.find(({ id }) =>
+        id.endsWith("accepted-geometry-match"),
+      )?.evidence.generationIncomplete,
+    ).toBe(true);
+  });
+
+  it("does not treat completed region search as a generation limit", () => {
+    const source = characterizeRobSource(parseRobText(SYNTHETIC_PATTERN_ROB));
+    const solverResult = result([]);
+    solverResult.diagnostics = [
+      {
+        code: "region-topology-search-completed",
+        severity: "info",
+        phase: "generation",
+        count: 0,
+        message: "Synthetic search completed.",
+      },
+    ];
+    const comparison = compareGeneratedSolverResult(
+      source,
+      nominalScenario(source),
+      solverResult,
+    );
+    expect(
+      comparison.checks.find(({ id }) => id.endsWith("generation-completeness"))
+        ?.status,
+    ).toBe("PASS");
+  });
+
   it("emits physical mismatch paths when generated candidates miss feasible source geometry and count", () => {
     const source = characterizeRobSource(parseRobText(SYNTHETIC_PATTERN_ROB));
     const unrelated = generatedPlacements([

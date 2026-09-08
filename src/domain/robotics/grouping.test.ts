@@ -142,3 +142,53 @@ describe("deterministic suction placement partitioning", () => {
     ]);
   });
 });
+
+describe("axis-end suction remainders", () => {
+  it.each([0, 90, 180, 270] as const)(
+    "places the remainder at the observed world-axis end for yaw %s",
+    (rotation) => {
+      const vertical = rotation === 90 || rotation === 270;
+      const boxes = Array.from({ length: 5 }, (_, i) =>
+        placement(
+          `p${i}`,
+          i,
+          vertical ? 50 : 50 + i * 100,
+          vertical ? 50 + i * 100 : 50,
+          rotation,
+        ),
+      );
+      const options = {
+        packageLengthMm: 100,
+        maxPackagesPerPick: 2,
+        remainderPolicy: "axis-ends" as const,
+      };
+      const expected = vertical
+        ? [["p0", "p1"], ["p2", "p3"], ["p4"]]
+        : [["p0"], ["p1", "p2"], ["p3", "p4"]];
+      expect(groupIds(partitionPlacementsForSuction(boxes, options))).toEqual(
+        expected,
+      );
+      expect(
+        groupIds(partitionPlacementsForSuction([...boxes].reverse(), options)),
+      ).toEqual(expected);
+    },
+  );
+  it("keeps a two-package remainder before two full three-package picks", () => {
+    const boxes = Array.from({ length: 8 }, (_, i) =>
+      placement(`p${i}`, i, 50 + i * 100, 50),
+    );
+    expect(
+      groupIds(
+        partitionPlacementsForSuction(boxes, {
+          packageLengthMm: 100,
+          maxPackagesPerPick: 3,
+          remainderPolicy: "axis-ends",
+        }),
+      ),
+    ).toEqual([
+      ["p0", "p1"],
+      ["p2", "p3", "p4"],
+      ["p5", "p6", "p7"],
+    ]);
+  });
+});

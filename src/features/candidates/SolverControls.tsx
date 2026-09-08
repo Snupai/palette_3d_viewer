@@ -1,5 +1,7 @@
 "use client";
 
+import { resolveAutomaticSuctionGroupLimit } from "~/domain/project/equipmentProfiles";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createEffectivePalletEnvelope,
@@ -61,6 +63,7 @@ type SolverDraft = {
   unrotatedPackageLabelSide: "" | Side;
   maxCandidatesPerGenerator: string;
   provisionalPackagesPerCycle: string;
+  groupLimitEdited: boolean;
 };
 
 type PreparedSolverInput = {
@@ -116,6 +119,27 @@ function solverProjectKey(project: Project): string {
   }
 }
 
+function automaticGroupLimit(project: Project, draft?: SolverDraft): string {
+  const selected =
+    project.grippers.find((g) => g.id === project.selectedGripperId) ?? null;
+  return String(
+    resolveAutomaticSuctionGroupLimit(
+      draft
+        ? {
+            dimensionsMm: {
+              length: Number(draft.packageLength),
+              width: Number(draft.packageWidth),
+              height: Number(draft.packageHeight),
+            },
+            inletOrientation: draft.inletOrientation,
+            multiPickAllowed: draft.multiPickAllowed,
+          }
+        : project.package,
+      selected,
+    ),
+  );
+}
+
 function initialDraft(project: Project): SolverDraft {
   return {
     packageLength: String(project.package.dimensionsMm.length),
@@ -130,7 +154,8 @@ function initialDraft(project: Project): SolverDraft {
     packageCount: "",
     unrotatedPackageLabelSide: configuredLabelSide(project),
     maxCandidatesPerGenerator: "500",
-    provisionalPackagesPerCycle: project.package.multiPickAllowed ? "2" : "1",
+    provisionalPackagesPerCycle: automaticGroupLimit(project),
+    groupLimitEdited: false,
   };
 }
 
@@ -401,32 +426,35 @@ export function SolverControls({
       setPendingLaunchRequest(null);
       return;
     }
-    setDraft((current) => ({
-      ...current,
-      packageLength: packageDimensionsChanged
-        ? String(project.package.dimensionsMm.length)
-        : current.packageLength,
-      packageWidth: packageDimensionsChanged
-        ? String(project.package.dimensionsMm.width)
-        : current.packageWidth,
-      packageHeight: packageDimensionsChanged
-        ? String(project.package.dimensionsMm.height)
-        : current.packageHeight,
-      inletOrientation: inletOrientationChanged
-        ? project.package.inletOrientation
-        : current.inletOrientation,
-      multiPickAllowed: multiPickAllowedChanged
-        ? project.package.multiPickAllowed
-        : current.multiPickAllowed,
-      provisionalPackagesPerCycle: multiPickAllowedChanged
-        ? project.package.multiPickAllowed
-          ? "2"
-          : "1"
-        : current.provisionalPackagesPerCycle,
-      unrotatedPackageLabelSide: labelMetadataChanged
-        ? configuredLabelSide(project)
-        : current.unrotatedPackageLabelSide,
-    }));
+    setDraft((current) => {
+      const next = {
+        ...current,
+        packageLength: packageDimensionsChanged
+          ? String(project.package.dimensionsMm.length)
+          : current.packageLength,
+        packageWidth: packageDimensionsChanged
+          ? String(project.package.dimensionsMm.width)
+          : current.packageWidth,
+        packageHeight: packageDimensionsChanged
+          ? String(project.package.dimensionsMm.height)
+          : current.packageHeight,
+        inletOrientation: inletOrientationChanged
+          ? project.package.inletOrientation
+          : current.inletOrientation,
+        multiPickAllowed: multiPickAllowedChanged
+          ? project.package.multiPickAllowed
+          : current.multiPickAllowed,
+        groupLimitEdited: multiPickAllowedChanged
+          ? false
+          : current.groupLimitEdited,
+        unrotatedPackageLabelSide: labelMetadataChanged
+          ? configuredLabelSide(project)
+          : current.unrotatedPackageLabelSide,
+      };
+      if (!next.groupLimitEdited)
+        next.provisionalPackagesPerCycle = automaticGroupLimit(project, next);
+      return next;
+    });
   }, [project]);
 
   useEffect(() => {
@@ -476,7 +504,15 @@ export function SolverControls({
     prepared.input?.constraints?.provisionalPackagesPerCycle ?? 1;
 
   const updateDraft = (update: Partial<SolverDraft>) => {
-    setDraft((current) => ({ ...current, ...update }));
+    setDraft((current) => {
+      const next = { ...current, ...update };
+      if (update.provisionalPackagesPerCycle !== undefined)
+        next.groupLimitEdited = true;
+      if (update.multiPickAllowed !== undefined) next.groupLimitEdited = false;
+      if (!next.groupLimitEdited)
+        next.provisionalPackagesPerCycle = automaticGroupLimit(project, next);
+      return next;
+    });
   };
 
   const start = async () => {
@@ -800,7 +836,6 @@ export function SolverControls({
               onChange={(event) =>
                 updateDraft({
                   multiPickAllowed: event.target.checked,
-                  provisionalPackagesPerCycle: event.target.checked ? "2" : "1",
                 })
               }
               className="h-4 w-4 accent-[var(--brand)]"

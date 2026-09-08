@@ -105,6 +105,7 @@ function input(targetCount: number): NormalizedLayerSolverInput {
       maxBands: 2,
       maxCandidatesPerGenerator: 20,
       provisionalPackagesPerCycle: 1,
+      suctionRemainderPolicy: "centered-singleton",
       allowMixedPackageOrientations: false,
       unrotatedPackageLabelSide: null,
       requiredShape: "any",
@@ -1783,6 +1784,37 @@ describe("region topology search", () => {
     }
     expect(forward.reason).toBe("work-budget-exhausted");
     expect(permuted).toEqual(forward);
+  });
+
+  it("reaches a second target tier before a higher tier consumes the remaining work", () => {
+    const template = createOrderedGuillotineCutTemplate("x", 2);
+    const run = (reverse: boolean) =>
+      searchRegionTopologies({
+        input: rangeInput(2, 4),
+        catalog: catalog(reverse ? [pair, single] : [single, pair]),
+        templates: [reverse ? permutedTemplate(template) : template],
+        targetCountsDescending: reverse ? [2, 3, 4] : [4, 3, 2],
+        ledger: createRegionWorkLedger({ ...generousBudget, maxWorkUnits: 70 }),
+        framePolicies: ["fill-generation-bounds"],
+        spacingSelections: [{ x: "compact", y: "compact" }],
+        symmetries: ["identity"],
+      });
+    const result = run(false);
+    expect(result.status).toBe("stopped");
+    expect(result.work.stopReason).toBe("work-budget-exhausted");
+    expect(result.work.totalUsed).toBe(70);
+    expect(result.drafts.map(({ placements }) => placements)).toEqual([
+      [
+        { positionMm: { x: 1, y: 0.5 }, rotation: 0 },
+        { positionMm: { x: 4, y: 0.5 }, rotation: 0 },
+      ],
+      [
+        { positionMm: { x: 1, y: 0.5 }, rotation: 0 },
+        { positionMm: { x: 3, y: 0.5 }, rotation: 0 },
+        { positionMm: { x: 5, y: 0.5 }, rotation: 0 },
+      ],
+    ]);
+    expect(run(true)).toEqual(result);
   });
 
   it("observes cancellation requested after the final retained draft", () => {

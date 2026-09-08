@@ -188,6 +188,7 @@ function distributedSuctionGroupLineCenters(
   maxPackagesPerPick: number,
   rotation: Rotation,
   label: string,
+  remainderPolicy: NormalizedLayerSolverInput["constraints"]["suctionRemainderPolicy"],
 ): number[] {
   if (clearance > DEFAULT_SUCTION_GROUPING_TOLERANCE_MM) {
     return distributedLineCenters(
@@ -212,6 +213,7 @@ function distributedSuctionGroupLineCenters(
     count,
     maxPackagesPerPick,
     rotation,
+    remainderPolicy,
   );
   const groupGapCount = groupSizes.length - 1;
   if (groupGapCount === 0) {
@@ -1646,6 +1648,7 @@ function rectangularMixedStripPlacements(
             input.constraints.provisionalPackagesPerCycle,
             rotation,
             `rectangularMixed.inline[${bandIndex}]`,
+            input.constraints.suctionRemainderPolicy,
           )
         : distributedLineCenters(
             inlineMinimum,
@@ -2667,7 +2670,7 @@ type MixedCountPair = {
   totalSpan: number;
 };
 
-function maximalMixedCountPairs(
+function mixedCountPairs(
   available: number,
   firstItem: number,
   secondItem: number,
@@ -4061,7 +4064,7 @@ function asymmetricPinwheelResidualPlans(
     minimumBottomResidual >
     maximumBottomResidual + SOLVER_GEOMETRY_EPSILON_MM
   ) {
-    return [];
+    return [null];
   }
 
   const totalGapCount = bottomGapCount + topGapCount;
@@ -4098,7 +4101,8 @@ function asymmetricPinwheelResidualPlans(
     });
   }
 
-  const plans: PinwheelResidualPlan[] = [];
+  // Keep compact corner blocks as well as distributing the residual into rows.
+  const plans: Array<PinwheelResidualPlan | null> = [null];
   for (const { bottomResidualMm, topResidualMm } of allocationsByKey.values()) {
     const bottomPolicies =
       bottomResidualMm <= SOLVER_GEOMETRY_EPSILON_MM
@@ -4183,12 +4187,10 @@ function asymmetricPinwheelPlacements(
   const crossTopHeight =
     lengthwiseBottomCrosswiseTopPair.secondSpan + lengthwiseTopExtra;
   if (
-    Math.abs(
-      crossBottomHeight + clearance + lengthwiseTopHeight - targetHeight,
-    ) > SOLVER_GEOMETRY_EPSILON_MM ||
-    Math.abs(
-      lengthwiseBottomHeight + clearance + crossTopHeight - targetHeight,
-    ) > SOLVER_GEOMETRY_EPSILON_MM
+    crossBottomHeight + clearance + lengthwiseTopHeight - targetHeight >
+      SOLVER_GEOMETRY_EPSILON_MM ||
+    lengthwiseBottomHeight + clearance + crossTopHeight - targetHeight >
+      SOLVER_GEOMETRY_EPSILON_MM
   ) {
     return [];
   }
@@ -4255,7 +4257,7 @@ function asymmetricPinwheelPlacements(
           plan(
             {
               minX: startX,
-              minY: startY + crossBottomHeight + clearance,
+              minY: endY - lengthwiseTopHeight,
               maxX: startX + lengthwiseWidth,
               maxY: endY,
             },
@@ -4269,7 +4271,7 @@ function asymmetricPinwheelPlacements(
           plan(
             {
               minX: startX + lengthwiseWidth + clearance,
-              minY: startY + lengthwiseBottomHeight + clearance,
+              minY: endY - crossTopHeight,
               maxX: endX,
               maxY: endY,
             },
@@ -4313,7 +4315,7 @@ function asymmetricPinwheelPlacements(
           plan(
             {
               minX: startX,
-              minY: startY + lengthwiseBottomHeight + clearance,
+              minY: endY - crossTopHeight,
               maxX: startX + crosswiseWidth,
               maxY: endY,
             },
@@ -4327,7 +4329,7 @@ function asymmetricPinwheelPlacements(
           plan(
             {
               minX: startX + crosswiseWidth + clearance,
-              minY: startY + crossBottomHeight + clearance,
+              minY: endY - lengthwiseTopHeight,
               maxX: endX,
               maxY: endY,
             },
@@ -4346,6 +4348,89 @@ function asymmetricPinwheelPlacements(
 }
 
 function generatePinwheels(
+  input: NormalizedLayerSolverInput,
+  hooks: GeneratorHooks,
+): GeneratorOutput {
+  const direct = generatePinwheelsAlongY(input, hooks);
+  if (
+    direct.cancelled ||
+    input.package.dimensionsMm.length === input.package.dimensionsMm.width
+  )
+    return direct;
+  const swapBounds = (b: RectangleBoundsMm): RectangleBoundsMm => ({
+    minX: b.minY,
+    minY: b.minX,
+    maxX: b.maxY,
+    maxY: b.maxX,
+  });
+  const swapRotation = (r: Rotation): Rotation => ((450 - r) % 360) as Rotation;
+  const transposed = generatePinwheelsAlongY(
+    {
+      ...input,
+      envelopeMm: swapBounds(input.envelopeMm),
+      usableEnvelopeMm: swapBounds(input.usableEnvelopeMm),
+      generationBoundsMm: swapBounds(input.generationBoundsMm),
+      physicalPalletBoundsMm:
+        input.physicalPalletBoundsMm === null
+          ? null
+          : swapBounds(input.physicalPalletBoundsMm),
+      constraints: {
+        ...input.constraints,
+        allowedRotations: input.constraints.allowedRotations.map(swapRotation),
+        unrotatedPackageLabelSide: null,
+      },
+    },
+    hooks,
+  );
+  const collector = new DraftCollector("pinwheel", input, hooks);
+  // Interleave the two axes so a family limit does not suppress an axis entirely.
+  mergeAxes: for (
+    let i = 0;
+    i < Math.max(direct.drafts.length, transposed.drafts.length);
+    i++
+  ) {
+    for (const axis of ["y", "x"] as const) {
+      const draft = (axis === "y" ? direct : transposed).drafts[i];
+      if (!draft) continue;
+      if (!collector.checkCancellation()) break mergeAxes;
+      collector.add(
+        axis === "y"
+          ? draft.placements
+          : draft.placements.map((p) => ({
+              positionMm: { x: p.positionMm.y, y: p.positionMm.x },
+              rotation: swapRotation(p.rotation),
+            })),
+        axis === "y"
+          ? draft.provenance
+          : [
+              ...draft.provenance,
+              {
+                family: "pinwheel",
+                variant: "transposed-regions",
+                parameters: { axis },
+              },
+            ],
+      );
+    }
+  }
+  const output = collector.output();
+  return {
+    ...output,
+    diagnostics: [
+      ...direct.diagnostics,
+      ...transposed.diagnostics,
+      ...output.diagnostics,
+    ],
+    exclusions: [
+      ...direct.exclusions,
+      ...transposed.exclusions,
+      ...output.exclusions,
+    ],
+    cancelled: transposed.cancelled || output.cancelled,
+  };
+}
+
+function generatePinwheelsAlongY(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
 ): GeneratorOutput {
@@ -4373,14 +4458,14 @@ function generatePinwheels(
     input.package.dimensionsMm,
     crosswiseRotation,
   );
-  const widthPairs = maximalMixedCountPairs(
+  const widthPairs = mixedCountPairs(
     rectangleBoundsLength(input.generationBoundsMm),
     lengthwiseSize.length,
     crosswiseSize.length,
     input.package.clearanceMm,
     input.constraints.maxBands,
   );
-  const heightPairs = maximalMixedCountPairs(
+  const heightPairs = mixedCountPairs(
     rectangleBoundsWidth(input.generationBoundsMm),
     lengthwiseSize.width,
     crosswiseSize.width,
@@ -4501,8 +4586,10 @@ function generatePinwheels(
   }
 
   const exactPackageCount = exactRequestedPackageCount(input);
-  if (exactPackageCount === null) return collector.output();
-  if (hooks.includeExperimentalIncompleteBlocks === true) {
+  if (
+    exactPackageCount !== null &&
+    hooks.includeExperimentalIncompleteBlocks === true
+  ) {
     generateExactFiveBlockMosaics(
       input,
       collector,
@@ -4524,7 +4611,11 @@ function generatePinwheels(
           lengthwiseBottomCrosswiseTopPair,
         );
         if (packageCount > input.constraints.maxPlacements) continue;
-        if (packageCount !== exactPackageCount) continue;
+        if (
+          packageCount < input.constraints.minimumPackageCount ||
+          packageCount > input.constraints.maximumPackageCount
+        )
+          continue;
         const residualPlans = asymmetricPinwheelResidualPlans(
           crossBottomLengthwiseTopPair,
           lengthwiseBottomCrosswiseTopPair,
@@ -4564,6 +4655,13 @@ function generatePinwheels(
                 secondCrosswiseRows:
                   lengthwiseBottomCrosswiseTopPair.secondCount,
                 secondSidePattern: "lengthwise-bottom-crosswise-top",
+                betweenRegionsResidualMm:
+                  residualPlan === null
+                    ? Math.abs(
+                        crossBottomLengthwiseTopPair.totalSpan -
+                          lengthwiseBottomCrosswiseTopPair.totalSpan,
+                      )
+                    : 0,
                 residualSide: residualPlan?.side ?? null,
                 residualRegion:
                   residualPlan === null

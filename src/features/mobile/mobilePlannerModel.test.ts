@@ -244,6 +244,7 @@ describe("createMobilePlanSolverInput", () => {
       maxY: 800,
     });
     expect(input.constraints).toEqual({
+      suctionRemainderPolicy: "axis-ends",
       minimumPackageCount: 8,
       maximumPackageCount: 8,
       maxCandidatesPerGenerator: 500,

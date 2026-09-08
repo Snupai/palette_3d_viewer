@@ -1,3 +1,4 @@
+import { resolveSuctionRemainderPolicy } from "~/domain/project/equipmentProfiles";
 import {
   createEffectivePalletEnvelope,
   symmetricSideAllowance,
@@ -54,6 +55,14 @@ export function createLayerSolverInputFromProject(
       symmetricSideAllowance(project.pallet.allowedOverhangMm),
     ),
     constraints: {
+      suctionRemainderPolicy: resolveSuctionRemainderPolicy(
+        selectedGripper,
+        project.package.inletOrientation,
+      ),
+      unrotatedPackageLabelSide:
+        project.package.labelSidesAtPickup.length === 1
+          ? project.package.labelSidesAtPickup[0]!
+          : null,
       ...constraintOverrides,
       allowedRotations,
     },

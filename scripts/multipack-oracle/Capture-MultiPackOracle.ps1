@@ -791,7 +791,17 @@ function Wait-StableExport {
       Start-Sleep -Milliseconds 100
     }
     if (Test-Path -LiteralPath $Path) {
-      $file = Get-Item -LiteralPath $Path
+      try {
+        $file = Get-Item -LiteralPath $Path -ErrorAction Stop
+      }
+      catch [System.Management.Automation.ItemNotFoundException] {
+        # The producer can replace the file between existence and metadata reads.
+        # A disappeared file breaks the stability sequence; it is not a completed export.
+        $stableLength = -1L
+        $stableObservations = 0
+        Start-Sleep -Milliseconds 100
+        continue
+      }
       if ($file.Length -gt 0 -and $file.Length -eq $stableLength) {
         $stableObservations += 1
         if ($stableObservations -ge 3) {
@@ -802,6 +812,10 @@ function Wait-StableExport {
         $stableLength = $file.Length
         $stableObservations = 0
       }
+    }
+    else {
+      $stableLength = -1L
+      $stableObservations = 0
     }
     Start-Sleep -Milliseconds 100
   }

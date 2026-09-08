@@ -27,6 +27,7 @@ function input(): NormalizedLayerSolverInput {
       maxBands: 2,
       maxCandidatesPerGenerator: 20,
       provisionalPackagesPerCycle: 1,
+      suctionRemainderPolicy: "centered-singleton",
       allowMixedPackageOrientations: false,
       unrotatedPackageLabelSide: null,
       requiredShape: "any",
@@ -99,18 +100,13 @@ describe("region topology facade", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(
-      [
-        ...new Set(
-          result.drafts.map(
-            ({ provenance }) => provenance[0]?.parameters?.framePolicy,
-          ),
+    expect([
+      ...new Set(
+        result.drafts.map(
+          ({ provenance }) => provenance[0]?.parameters?.framePolicy,
         ),
-      ],
-    ).toEqual([
-      "center-occupied-bounds",
-      "integer-center-occupied-bounds",
-    ]);
+      ),
+    ]).toEqual(["center-occupied-bounds", "integer-center-occupied-bounds"]);
   });
 
   it("restricts explicit frame policies to the compact-centered footprint policy", () => {
@@ -133,23 +129,18 @@ describe("region topology facade", () => {
           maxRegionsPerTopology: 1,
           maxPinwheelCoreDepth: 0,
         },
-        framePolicies: [
-          "center-occupied-bounds",
-          "fill-generation-bounds",
-        ],
+        framePolicies: ["center-occupied-bounds", "fill-generation-bounds"],
       }),
     );
 
     expect(result.status).toBe("completed");
-    expect(
-      [
-        ...new Set(
-          result.drafts.map(
-            ({ provenance }) => provenance[0]?.parameters?.framePolicy,
-          ),
+    expect([
+      ...new Set(
+        result.drafts.map(
+          ({ provenance }) => provenance[0]?.parameters?.framePolicy,
         ),
-      ],
-    ).toEqual(["center-occupied-bounds"]);
+      ),
+    ]).toEqual(["center-occupied-bounds"]);
   });
 
   it("defaults fill-generation-bounds footprints to only the fill frame policy", () => {
@@ -159,15 +150,13 @@ describe("region topology facade", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(
-      [
-        ...new Set(
-          result.drafts.map(
-            ({ provenance }) => provenance[0]?.parameters?.framePolicy,
-          ),
+    expect([
+      ...new Set(
+        result.drafts.map(
+          ({ provenance }) => provenance[0]?.parameters?.framePolicy,
         ),
-      ],
-    ).toEqual(["fill-generation-bounds"]);
+      ),
+    ]).toEqual(["fill-generation-bounds"]);
   });
 
   it("keeps experimental bridge-chain templates behind explicit catalog opt-in", () => {

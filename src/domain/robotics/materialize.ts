@@ -1,4 +1,8 @@
-import { resolveMultipackGripperPackageLimits } from "~/domain/project/equipmentProfiles";
+import {
+  resolveMultipackGripperPackageLimits,
+  resolveSuctionRemainderPolicy,
+  resolveAutomaticSuctionGroupLimit,
+} from "~/domain/project/equipmentProfiles";
 import { safeMigrateProject } from "~/domain/project/projectMigration";
 import type {
   PalletizingDirection,
@@ -329,9 +333,18 @@ export function materializeRobotCycles(
         ? groupsFromPatternGrips(layer)
         : {
             groups: groupPlacementsForSuction(layer, project.package, {
-              maxPackagesPerPick: options.maxPackagesPerPick,
+              maxPackagesPerPick:
+                options.maxPackagesPerPick ??
+                resolveAutomaticSuctionGroupLimit(
+                  project.package,
+                  resources.gripper ?? null,
+                ),
               toleranceMm: options.groupingToleranceMm,
               maxPickupLengthMm: resources.gripper?.maxPickupLengthMm,
+              remainderPolicy: resolveSuctionRemainderPolicy(
+                resources.gripper,
+                project.package.inletOrientation,
+              ),
             }),
             diagnostics: [] as RobotDiagnostic[],
           };

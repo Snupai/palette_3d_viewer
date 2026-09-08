@@ -9,6 +9,8 @@ import {
   isMultipackProfileGripper,
   isMultipackProfileStation,
   resolveMultipackGripperPackageLimits,
+  resolveSuctionRemainderPolicy,
+  resolveAutomaticSuctionGroupLimit,
 } from "~/domain/project/equipmentProfiles";
 import { validateSuctionCompatibility } from "~/domain/robotics/compatibility";
 
@@ -134,4 +136,56 @@ describe("built-in Multipack equipment profile", () => {
       expect.objectContaining({ code: "package-width-out-of-range" }),
     );
   });
+});
+
+it("scopes the observed remainder policy to the verified profile and inlet", () => {
+  const gripper = getMultipackEquipmentProfile().gripper;
+  expect(resolveSuctionRemainderPolicy(gripper, "lengthwise")).toBe(
+    "axis-ends",
+  );
+  expect(resolveSuctionRemainderPolicy(gripper, "crosswise")).toBe(
+    "centered-singleton",
+  );
+  expect(
+    resolveSuctionRemainderPolicy({ ...gripper, id: "custom" }, "lengthwise"),
+  ).toBe("centered-singleton");
+  expect(
+    resolveSuctionRemainderPolicy(
+      { ...gripper, maxPickupLengthMm: 500 },
+      "lengthwise",
+    ),
+  ).toBe("centered-singleton");
+  expect(resolveSuctionRemainderPolicy(null, "lengthwise")).toBe(
+    "centered-singleton",
+  );
+});
+
+it("derives the default automatic group limit from pickup length rather than a two-carton cap", () => {
+  const gripper = getMultipackEquipmentProfile().gripper;
+  const pkg = {
+    dimensionsMm: { length: 147, width: 104, height: 139 },
+    inletOrientation: "lengthwise" as const,
+    multiPickAllowed: true,
+  };
+  expect(
+    [135, 147, 148, 150, 151, 201, 250].map((length) =>
+      resolveAutomaticSuctionGroupLimit(
+        { ...pkg, dimensionsMm: { ...pkg.dimensionsMm, length } },
+        gripper,
+      ),
+    ),
+  ).toEqual([3, 3, 3, 3, 2, 2, 1]);
+  expect(
+    resolveAutomaticSuctionGroupLimit(
+      { ...pkg, multiPickAllowed: false },
+      gripper,
+    ),
+  ).toBe(1);
+  expect(
+    resolveAutomaticSuctionGroupLimit(
+      { ...pkg, inletOrientation: "crosswise" },
+      gripper,
+    ),
+  ).toBe(2);
+  expect(resolveAutomaticSuctionGroupLimit(pkg, null)).toBe(2);
 });

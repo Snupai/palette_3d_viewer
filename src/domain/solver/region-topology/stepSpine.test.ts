@@ -52,6 +52,7 @@ function input(): NormalizedLayerSolverInput {
       maxBands: 8,
       maxCandidatesPerGenerator: 100,
       provisionalPackagesPerCycle: 1,
+      suctionRemainderPolicy: "centered-singleton",
       allowMixedPackageOrientations: true,
       unrotatedPackageLabelSide: null,
       requiredShape: "any",

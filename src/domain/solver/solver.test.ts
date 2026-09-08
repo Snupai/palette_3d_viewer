@@ -11,6 +11,7 @@ import {
 } from "~/domain/geometry";
 import { createProject } from "~/domain/project/projectFactory";
 import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
+import { candidateGeometryFingerprint } from "~/domain/solver/candidateIdentity";
 import { SOLVER_GEOMETRY_EPSILON_MM } from "~/domain/solver/geometryPolicy";
 import { compareSolverCandidates } from "~/domain/solver/metrics";
 import { packageOrientationClass } from "~/domain/solver/orientationPolicy";
@@ -88,7 +89,10 @@ describe("solver input and candidate validation", () => {
     const project = createProject(
       {
         id: "solver-project",
-        package: { inletOrientation: "crosswise" },
+        package: {
+          inletOrientation: "crosswise",
+          labelSidesAtPickup: ["bottom"],
+        },
         pallet: {
           id: "underhang-pallet",
           name: "Underhang pallet",
@@ -108,7 +112,28 @@ describe("solver input and candidate validation", () => {
     );
 
     const input = createLayerSolverInputFromProject(project);
+    expect(input.constraints?.suctionRemainderPolicy).toBe(
+      "centered-singleton",
+    );
+    expect(
+      createLayerSolverInputFromProject({
+        ...project,
+        package: { ...project.package, inletOrientation: "lengthwise" },
+      }).constraints?.suctionRemainderPolicy,
+    ).toBe("axis-ends");
     expect(input.package.inletOrientation).toBe("crosswise");
+    expect(input.constraints?.unrotatedPackageLabelSide).toBe("bottom");
+    expect(
+      createLayerSolverInputFromProject(project, {
+        unrotatedPackageLabelSide: null,
+      }).constraints?.unrotatedPackageLabelSide,
+    ).toBeNull();
+    expect(
+      createLayerSolverInputFromProject({
+        ...project,
+        package: { ...project.package, labelSidesAtPickup: ["top", "bottom"] },
+      }).constraints?.unrotatedPackageLabelSide,
+    ).toBeNull();
     expect(input.physicalPalletBoundsMm).toEqual({
       minX: 0,
       minY: 0,
@@ -1404,6 +1429,30 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(forward.candidates).toHaveLength(2);
     expect(forward.geometricDuplicateCount).toBe(4);
     expect(snapshot(reversed)).toEqual(snapshot(forward));
+    const directed = finalizeGeneratedCandidates(
+      input,
+      [...drafts, baseDraft],
+      {
+        candidateEquivalence: "identity",
+      },
+    );
+    const directedReversed = finalizeGeneratedCandidates(
+      input,
+      [baseDraft, ...drafts].reverse(),
+      { candidateEquivalence: "identity" },
+    );
+    expect(directed.candidates).toHaveLength(6);
+    expect(directed.geometricDuplicateCount).toBe(1);
+    expect(snapshot(directedReversed)).toEqual(snapshot(directed));
+    expect(
+      directed.candidates
+        .map(({ geometryFingerprint }) => geometryFingerprint)
+        .sort(),
+    ).toEqual(
+      drafts
+        .map(({ placements }) => candidateGeometryFingerprint({ placements }))
+        .sort(),
+    );
     const baseCandidate = forward.candidates.find(({ provenance }) =>
       provenance.some(({ variant }) => variant === "base-layout"),
     );
@@ -1945,6 +1994,39 @@ describe("deterministic solve orchestration", () => {
     ).toHaveLength(19);
   }, 60_000);
 
+  it("includes region symmetries in identity comparisons while respecting rotations and limits", () => {
+    const result = solveLayer(syntheticRegionInput(), {
+      candidateEquivalence: "identity",
+    });
+    expect(result.candidates).toHaveLength(48);
+    expect(result.statistics.generatedByFamily.symmetry).toBe(20);
+    expect(
+      result.candidates.filter(
+        ({ provenance }) =>
+          provenance.some(({ family }) => family === "symmetry") &&
+          provenance.some(
+            ({ variant }) => variant === "region-topology-guillotine-v1",
+          ),
+      ),
+    ).toHaveLength(20);
+    expect([
+      ...new Set(
+        result.candidates.flatMap(({ placements }) =>
+          placements.map(({ rotation }) => rotation),
+        ),
+      ),
+    ]).toEqual([0]);
+    expect(result.candidates.every(({ validation }) => validation.valid)).toBe(
+      true,
+    );
+    expect(
+      result.diagnostics.filter(
+        ({ code, generator }) =>
+          code === "generation-limit-reached" && generator === "symmetry",
+      ),
+    ).toHaveLength(1);
+  });
+
   it("merges synthetic region drafts through the production candidate contracts", () => {
     const result = solveLayer(syntheticRegionInput(), {
       includeSymmetryVariants: true,
@@ -2139,75 +2221,82 @@ describe("deterministic solve orchestration", () => {
     ]);
   });
 
-  it("is independent of generator order and progress batching", () => {
-    const input: LayerSolverInput = {
-      package: {
-        shape: "cuboid",
-        dimensionsMm: { length: 180, width: 120 },
-        clearanceMm: 5,
-      },
-      envelopeMm: { minX: -10, minY: 5, maxX: 890, maxY: 605 },
-      constraints: { maxCandidatesPerGenerator: 300 },
-    };
-    const progressA: string[] = [];
-    const progressB: string[] = [];
-    const first = solveLayer(input, {
-      generatorOrder: [
-        "nested-side",
-        "row",
-        "block",
-        "justified-grid",
-        "pinwheel",
-        "edge-ring",
-        "mixed-orientation",
-      ],
-      progressBatchSize: 1,
-      onProgress: ({ phase }) => progressA.push(phase),
-    });
-    const second = solveLayer(input, {
-      generatorOrder: [
-        "mixed-orientation",
-        "edge-ring",
-        "pinwheel",
-        "justified-grid",
-        "block",
-        "row",
-        "nested-side",
-      ],
-      progressBatchSize: 97,
-      onProgress: ({ phase }) => progressB.push(phase),
-    });
-    const repeated = solveLayer(input, {
-      generatorOrder: [
-        "nested-side",
-        "row",
-        "block",
-        "justified-grid",
-        "pinwheel",
-        "edge-ring",
-        "mixed-orientation",
-      ],
-      progressBatchSize: 1,
-    });
-    const comparable = (result: typeof first) => ({
-      status: result.status,
-      candidates: result.candidates.map(
-        ({ id, geometryFingerprint, metrics, provenance }) => ({
-          id,
-          geometryFingerprint,
-          metrics,
-          provenance,
-        }),
-      ),
-      diagnostics: result.diagnostics,
-      exclusions: result.exclusions,
-      statistics: result.statistics,
-    });
+  it.each(["pallet-symmetry", "identity"] as const)(
+    "is independent of generator order and progress batching with %s",
+    (candidateEquivalence) => {
+      const input: LayerSolverInput = {
+        package: {
+          shape: "cuboid",
+          dimensionsMm: { length: 180, width: 120 },
+          clearanceMm: 5,
+        },
+        envelopeMm: { minX: -10, minY: 5, maxX: 890, maxY: 605 },
+        constraints: { maxCandidatesPerGenerator: 300 },
+      };
+      const progressA: string[] = [];
+      const progressB: string[] = [];
+      const first = solveLayer(input, {
+        candidateEquivalence,
+        generatorOrder: [
+          "nested-side",
+          "row",
+          "block",
+          "justified-grid",
+          "pinwheel",
+          "edge-ring",
+          "mixed-orientation",
+        ],
+        progressBatchSize: 1,
+        onProgress: ({ phase }) => progressA.push(phase),
+      });
+      const second = solveLayer(input, {
+        candidateEquivalence,
+        generatorOrder: [
+          "mixed-orientation",
+          "edge-ring",
+          "pinwheel",
+          "justified-grid",
+          "block",
+          "row",
+          "nested-side",
+        ],
+        progressBatchSize: 97,
+        onProgress: ({ phase }) => progressB.push(phase),
+      });
+      const repeated = solveLayer(input, {
+        candidateEquivalence,
+        generatorOrder: [
+          "nested-side",
+          "row",
+          "block",
+          "justified-grid",
+          "pinwheel",
+          "edge-ring",
+          "mixed-orientation",
+        ],
+        progressBatchSize: 1,
+      });
+      const comparable = (result: typeof first) => ({
+        status: result.status,
+        candidates: result.candidates.map(
+          ({ id, geometryFingerprint, metrics, provenance }) => ({
+            id,
+            geometryFingerprint,
+            metrics,
+            provenance,
+          }),
+        ),
+        diagnostics: result.diagnostics,
+        exclusions: result.exclusions,
+        statistics: result.statistics,
+      });
 
-    expect(comparable(second)).toEqual(comparable(first));
-    expect(comparable(repeated)).toEqual(comparable(first));
-    expect(progressA.length).toBeGreaterThan(progressB.length);
-  }, 15_000);
+      expect(comparable(second)).toEqual(comparable(first));
+      expect(comparable(repeated)).toEqual(comparable(first));
+      expect(progressA.length).toBeGreaterThan(progressB.length);
+    },
+    15_000,
+  );
 
   it("exposes generator provenance, duplicate exclusions, and unverified Blocks", () => {
     const result = solveLayer(
@@ -2725,4 +2814,53 @@ describe("observed MultiPack geometry", () => {
       ),
     ).toEqual([]);
   }, 15_000);
+});
+
+it("uses the selected MultiPack remainder policy deterministically", () => {
+  const input: LayerSolverInput = {
+    package: {
+      shape: "cuboid",
+      dimensionsMm: { length: 100, width: 50 },
+      clearanceMm: 0,
+    },
+    envelopeMm: { minX: 0, minY: 0, maxX: 500, maxY: 50 },
+    constraints: {
+      allowedRotations: [0],
+      minimumPackageCount: 5,
+      maximumPackageCount: 5,
+      provisionalPackagesPerCycle: 2,
+      suctionRemainderPolicy: "axis-ends",
+    },
+  };
+  const first = solveLayer(input, {
+    generatorOrder: BASE_GENERATOR_FAMILIES,
+    progressBatchSize: 1,
+  });
+  const second = solveLayer(input, {
+    generatorOrder: [...BASE_GENERATOR_FAMILIES].reverse(),
+    progressBatchSize: 97,
+  });
+  expect(first.candidates).toEqual(second.candidates);
+  expect(first.candidates).toHaveLength(1);
+  const candidate = first.candidates[0]!;
+  expect(candidate.grips).toHaveLength(3);
+  expect(
+    candidate.grips
+      .map((grip) =>
+        candidate.placements
+          .filter((p) => p.gripId === grip.id)
+          .map((p) => p.positionMm.x)
+          .sort((a, b) => a - b),
+      )
+      .sort((a, b) => a[0]! - b[0]!),
+  ).toEqual([[50], [150, 250], [350, 450]]);
+  expect(
+    validateAndNormalizeSolverInput({
+      ...input,
+      constraints: {
+        ...input.constraints,
+        suctionRemainderPolicy: "invalid" as never,
+      },
+    }).valid,
+  ).toBe(false);
 });

@@ -2383,7 +2383,7 @@ describe("justified split-grid generator", () => {
     ).toEqual([100, 200, 300]);
   });
 
-  it("preserves opposite provisional yaws on a nearest-edge tie", () => {
+  it("merges opposite provisional yaws toward the positive axis on a nearest-edge tie", () => {
     const input = normalized({
       package: {
         shape: "cuboid",
@@ -2409,10 +2409,12 @@ describe("justified split-grid generator", () => {
 
     const output = generateCandidateFamily(input, "row");
 
-    expect(output.drafts).toHaveLength(3);
-    expect(output.diagnostics).toContainEqual(
-      expect.objectContaining({ code: "generation-limit-reached" }),
-    );
+    expect(output.drafts).toHaveLength(2);
+    expect(
+      output.diagnostics.some(
+        ({ code }) => code === "generation-limit-reached",
+      ),
+    ).toBe(false);
   });
 
   it("merges opposite provisional yaws that resolve to the same nearer edge", () => {
@@ -2795,4 +2797,92 @@ describe("justified split-grid generator", () => {
       ),
     ).toBe(true);
   });
+});
+
+describe("compact asymmetric pinwheels", () => {
+  it.each([0, 1])(
+    "keeps the residual between corner blocks with clearance %s in a free-count search",
+    (clearanceMm) => {
+      // Independently constructed four grids, not copied from an oracle export.
+      const input = normalized({
+        package: {
+          shape: "cuboid",
+          dimensionsMm: { length: 4, width: 3 },
+          clearanceMm,
+        },
+        envelopeMm: {
+          minX: 0,
+          minY: 0,
+          maxX: clearanceMm === 0 ? 23 : 29,
+          maxY: clearanceMm === 0 ? 15 : 18,
+        },
+        constraints: {
+          allowedRotations: [0, 90],
+          maxCandidatesPerGenerator: 1000,
+        },
+      });
+      const output = generateCandidateFamily(input, "pinwheel");
+      const draft = matchingDraft(output.drafts, {
+        lengthwiseColumns: 2,
+        crosswiseColumns: 5,
+        firstLengthwiseRows: 2,
+        firstCrosswiseRows: 2,
+        secondLengthwiseRows: 3,
+        secondCrosswiseRows: 1,
+        chirality: "cross-bottom-left",
+        betweenRegionsResidualMm: 1,
+      });
+      const grid = (xs: number[], ys: number[], rotation: number) =>
+        ys.flatMap((y) => xs.map((x) => `${x},${y},${rotation}`));
+      expect(
+        draft.placements
+          .map((p) => `${p.positionMm.x},${p.positionMm.y},${p.rotation}`)
+          .sort(),
+      ).toEqual(
+        (clearanceMm === 0
+          ? [
+              ...grid([1.5, 4.5, 7.5, 10.5, 13.5], [2.5, 6.5], 90),
+              ...grid([17, 21], [2, 5, 8], 0),
+              ...grid([2, 6], [10, 13], 0),
+              ...grid([9.5, 12.5, 15.5, 18.5, 21.5], [12.5], 90),
+            ]
+          : [
+              ...grid([1.5, 5.5, 9.5, 13.5, 17.5], [2.5, 7.5], 90),
+              ...grid([22, 27], [2, 6, 10], 0),
+              ...grid([2, 7], [12, 16], 0),
+              ...grid([11.5, 15.5, 19.5, 23.5, 27.5], [15.5], 90),
+            ]
+        ).sort(),
+      );
+      const transposedInput = normalized({
+        package: input.package,
+        envelopeMm: {
+          minX: 0,
+          minY: 0,
+          maxX: input.envelopeMm.maxY,
+          maxY: input.envelopeMm.maxX,
+        },
+        constraints: {
+          allowedRotations: [0, 90],
+          maxCandidatesPerGenerator: 1000,
+        },
+      });
+      const expectedTranspose = canonicalPlacementGeometryKey(
+        draft.placements.map((p) => ({
+          positionMm: { x: p.positionMm.y, y: p.positionMm.x },
+          rotation: ((450 - p.rotation) % 360) as 0 | 90,
+        })),
+      );
+      expect(
+        generateCandidateFamily(transposedInput, "pinwheel").drafts.some(
+          (d) =>
+            canonicalPlacementGeometryKey(d.placements) === expectedTranspose,
+        ),
+      ).toBe(true);
+      expect(draft.placements).toHaveLength(25);
+      expect(validateCandidatePlacements(input, draft.placements).valid).toBe(
+        true,
+      );
+    },
+  );
 });

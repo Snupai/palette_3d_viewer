@@ -1,3 +1,4 @@
+import type { SuctionRemainderPolicy } from "~/domain/robotics/grouping";
 import type { PlacementGeometry, RectangleBoundsMm } from "~/domain/geometry";
 import type { LayerSymmetry } from "~/domain/geometry/transforms";
 import type { RegionSearchBudget } from "~/domain/solver/region-topology/model";
@@ -47,6 +48,7 @@ export type SolverInputConstraints = {
   maxBands?: number;
   maxCandidatesPerGenerator?: number;
   provisionalPackagesPerCycle?: number;
+  suctionRemainderPolicy?: SuctionRemainderPolicy;
   allowMixedPackageOrientations?: boolean;
   /** Physical side carrying the label when package yaw is 0; null disables nearest-edge yaw preference. */
   unrotatedPackageLabelSide?: Side | null;
@@ -72,6 +74,7 @@ export type NormalizedSolverConstraints = {
   maxBands: number;
   maxCandidatesPerGenerator: number;
   provisionalPackagesPerCycle: number;
+  suctionRemainderPolicy: SuctionRemainderPolicy;
   allowMixedPackageOrientations: boolean;
   unrotatedPackageLabelSide: Side | null;
   requiredShape: RequiredCandidateShape;
@@ -270,6 +273,8 @@ export type SolverResult = {
 };
 
 export type SolverOptions = {
+  /** Preserve directed placements and generated grip identities for oracle comparisons. */
+  candidateEquivalence?: "pallet-symmetry" | "identity";
   generatorOrder?: readonly BaseGeneratorFamily[];
   includeSymmetryVariants?: boolean;
   includeExperimentalIncompleteBlocks?: boolean;

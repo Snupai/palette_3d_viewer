@@ -21,6 +21,7 @@ function constraints(
     maxBands: 4,
     maxCandidatesPerGenerator: 20,
     provisionalPackagesPerCycle: 1,
+    suctionRemainderPolicy: "centered-singleton",
     allowMixedPackageOrientations: true,
     unrotatedPackageLabelSide: null,
     requiredShape: "any",

@@ -110,7 +110,9 @@ function edgeDistanceComparisonEpsilonMm(
 /**
  * Keeps the generated footprint and compares only its current yaw with the
  * opposite 180-degree yaw. The package rotates only when the opposite label
- * direction reaches its corresponding physical pallet edge more directly.
+ * direction reaches its corresponding physical pallet edge more directly, or
+ * an edge-distance tie selects the positive world axis (+X or +Y). This makes
+ * the tie independent of the yaw supplied by a generator.
  */
 export function selectNearestEdgeLabelYaw(
   positionMm: PointMm,
@@ -164,10 +166,17 @@ export function selectNearestEdgeLabelYaw(
       physicalPalletBoundsMm,
     );
 
+    const epsilonMm = edgeDistanceComparisonEpsilonMm(
+      positionMm,
+      physicalPalletBoundsMm,
+    );
+    const distancesTie =
+      Math.abs(alternativeDistanceMm - currentDistanceMm) <= epsilonMm;
+    const alternativeFacesPositiveAxis =
+      alternativeLabelSide === "right" || alternativeLabelSide === "top";
     if (
-      alternativeDistanceMm <
-      currentDistanceMm -
-        edgeDistanceComparisonEpsilonMm(positionMm, physicalPalletBoundsMm)
+      alternativeDistanceMm < currentDistanceMm - epsilonMm ||
+      (distancesTie && alternativeFacesPositiveAxis)
     ) {
       rotation = alternativeRotation;
     }

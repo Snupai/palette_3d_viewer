@@ -1,3 +1,4 @@
+import { getMultipackEquipmentProfile } from "~/domain/project/equipmentProfiles";
 import {
   cleanup,
   fireEvent,
@@ -913,5 +914,41 @@ describe("SolverControls", () => {
         name: "Apply inputs & solve",
       }).disabled,
     ).toBe(true);
+  });
+  it("updates the profile-derived group capacity while preserving an explicit limit", () => {
+    const base = project();
+    const builtin = getMultipackEquipmentProfile().gripper;
+    const configured = {
+      ...base,
+      grippers: [builtin],
+      selectedGripperId: builtin.id,
+      package: {
+        ...base.package,
+        multiPickAllowed: true,
+        dimensionsMm: { length: 147, width: 104, height: 139 },
+      },
+    };
+    render(
+      <SolverControls
+        project={configured}
+        onApplyPackageInputs={async () => configured}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    const limit = screen.getByLabelText("Automatic group limit");
+    expect(limit).toHaveProperty("value", "3");
+    fireEvent.change(screen.getByLabelText("Package length"), {
+      target: { value: "151" },
+    });
+    expect(limit).toHaveProperty("value", "2");
+    fireEvent.change(limit, { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Package length"), {
+      target: { value: "135" },
+    });
+    expect(limit).toHaveProperty("value", "1");
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+    expect(limit).toHaveProperty("value", "3");
   });
 });

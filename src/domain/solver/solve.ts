@@ -420,7 +420,7 @@ export function solveLayer(
     }
     const symmetryOutput = generateSymmetryCandidateDrafts(
       normalizedInput,
-      legacyDrafts,
+      options.candidateEquivalence === "identity" ? drafts : legacyDrafts,
       {
         checkpoint: (family, count) =>
           progress.checkpoint(
@@ -455,6 +455,7 @@ export function solveLayer(
   }
 
   const finalized = finalizeGeneratedCandidates(normalizedInput, drafts, {
+    candidateEquivalence: options.candidateEquivalence,
     checkpoint: (phase, completed, total) =>
       progress.checkpoint(
         phase,

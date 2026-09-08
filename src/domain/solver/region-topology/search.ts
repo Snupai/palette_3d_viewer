@@ -2705,10 +2705,48 @@ export function searchRegionTopologies(
     ),
   );
   const nextTemplateLaneByTarget = new Map<number, number>();
+  // Share the remaining work among targets at least as dense as a catalog grid.
+  // Lower tiers retain descending scheduling after these roots are exhausted.
+  // The quantum is fixed at search start, so progress batching cannot change it.
+  const gridCapacity = Math.max(
+    0,
+    ...catalog.orderedShapes.map((shape) => shape.packageCount),
+  );
+  const denseTargets = targetCounts.filter((count) => count >= gridCapacity);
+  const schedulingBudget = ledger.snapshot();
+  const targetWorkQuantum = Math.max(
+    1,
+    Math.floor(
+      (schedulingBudget.budget.maxWorkUnits - schedulingBudget.totalUsed) /
+        Math.max(1, denseTargets.length),
+    ),
+  );
+  let targetCursor = 0;
+  let targetWorkStart = schedulingBudget.totalUsed;
   const nextFrontierStateIndex = (): number => {
-    const activeTargetCount = Math.max(
+    let activeTargetCount = Math.max(
       ...frontier.map(({ root }) => root.targetCount),
     );
+    if (
+      denseTargets.some((count) =>
+        frontier.some(({ root }) => root.targetCount === count),
+      )
+    ) {
+      const used = ledger.snapshot().totalUsed;
+      if (used - targetWorkStart >= targetWorkQuantum) {
+        targetCursor = (targetCursor + 1) % denseTargets.length;
+        targetWorkStart = used;
+      }
+      while (
+        !frontier.some(
+          ({ root }) => root.targetCount === denseTargets[targetCursor],
+        )
+      ) {
+        targetCursor = (targetCursor + 1) % denseTargets.length;
+        targetWorkStart = used;
+      }
+      activeTargetCount = denseTargets[targetCursor]!;
+    }
     const startLane = nextTemplateLaneByTarget.get(activeTargetCount) ?? 0;
     for (let offset = 0; offset < templateLaneCount; offset += 1) {
       const lane = (startLane + offset) % templateLaneCount;

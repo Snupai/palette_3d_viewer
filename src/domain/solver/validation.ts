@@ -203,6 +203,8 @@ export function validateAndNormalizeSolverInput(
     DEFAULT_MAX_CANDIDATES_PER_GENERATOR;
   const provisionalPackagesPerCycle =
     input.constraints?.provisionalPackagesPerCycle ?? 1;
+  const suctionRemainderPolicy =
+    input.constraints?.suctionRemainderPolicy ?? "centered-singleton";
   const allowMixedPackageOrientations =
     input.constraints?.allowMixedPackageOrientations ?? true;
   const rawUnrotatedPackageLabelSide =
@@ -279,6 +281,15 @@ export function validateAndNormalizeSolverInput(
     issues.push({
       code: "invalid-input-constraint",
       message: "maxCandidatesPerGenerator must be a positive integer.",
+    });
+  }
+  if (
+    suctionRemainderPolicy !== "centered-singleton" &&
+    suctionRemainderPolicy !== "axis-ends"
+  ) {
+    issues.push({
+      code: "invalid-input-constraint",
+      message: "Unknown suction remainder policy.",
     });
   }
   if (!isPositiveInteger(provisionalPackagesPerCycle)) {
@@ -441,6 +452,7 @@ export function validateAndNormalizeSolverInput(
         maxBands,
         maxCandidatesPerGenerator,
         provisionalPackagesPerCycle,
+        suctionRemainderPolicy,
         allowMixedPackageOrientations,
         unrotatedPackageLabelSide,
         requiredShape,

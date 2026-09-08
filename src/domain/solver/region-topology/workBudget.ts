@@ -1,6 +1,6 @@
 import type { RegionSearchBudget } from "~/domain/solver/region-topology/model";
 
-export const REGION_SEARCH_WORK_MODEL_VERSION = 8 as const;
+export const REGION_SEARCH_WORK_MODEL_VERSION = 9 as const;
 
 export const REGION_WORK_KINDS = [
   "catalog-shape",
