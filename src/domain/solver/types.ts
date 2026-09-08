@@ -18,6 +18,13 @@ export const BASE_GENERATOR_FAMILIES = [
   "mixed-orientation",
   "crossed-strip",
   "stepped-block",
+  "slice-grid",
+  "paired-grid",
+  "mosaic",
+  "asymmetric-ring",
+  "nested-strip",
+  "staircase",
+  "staircase-exchange",
 ] as const;
 
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];

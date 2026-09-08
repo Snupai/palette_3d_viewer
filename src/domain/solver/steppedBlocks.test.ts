@@ -32,6 +32,32 @@ const raster = (
   ys.flatMap((y) => xs.map((x) => ({ positionMm: { x, y }, rotation })));
 
 describe("stepped block generation", () => {
+  it("reserves materialization work when topology discovery saturates its budget", () => {
+    const normalized = validateAndNormalizeSolverInput({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 158, width: 78 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1148, maxY: 790 },
+      constraints: {
+        allowedRotations: [0, 90],
+        maxCandidatesPerGenerator: 500,
+      },
+    }).normalized!;
+    const result = generateCandidateFamily(normalized, "stepped-block");
+    expect(result.drafts).toHaveLength(500);
+    const ring = result.drafts.find(
+      (d) =>
+        d.placements.length === 70 &&
+        d.provenance.some((p) => p.variant === "filled-five-grid-ring"),
+    );
+    expect(ring).toBeDefined();
+    expect(validateCandidatePlacements(normalized, ring!.placements)).toEqual({
+      valid: true,
+      issues: [],
+    });
+  });
   it("constructs all 43 centers in a seven-grid ring with a side corridor", () => {
     const normalized = input();
     const output = generateCandidateFamily(normalized, "stepped-block");
@@ -175,7 +201,7 @@ describe("stepped block generation", () => {
       limited: false,
     });
     expect(searchSteppedBlocks(normalized, emit, () => true, 1)).toEqual({
-      workUsed: 1,
+      workUsed: 0,
       limited: true,
     });
     normalized.constraints.allowedRotations = [0];

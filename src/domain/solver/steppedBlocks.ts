@@ -43,13 +43,17 @@ export function searchSteppedBlocks(
     provenance: GeneratorProvenance,
   ) => boolean,
   shouldContinue: () => boolean,
-  workLimit = 50_000,
+  workLimit = 200_000,
 ): { workUsed: number; limited: boolean } {
   let workUsed = 0;
   let limited = false;
+  // Reserve discovery time for every topology and half the total work for
+  // materialization. Previously discovery could consume the entire budget,
+  // leaving even successfully discovered plans without a single output.
+  let phaseLimit = Math.floor(workLimit / 6);
   const debit = (units = 1) => {
     if (!shouldContinue()) return false;
-    if (workUsed + units > workLimit) {
+    if (workUsed + units > phaseLimit) {
       limited = true;
       return false;
     }
@@ -227,6 +231,7 @@ export function searchSteppedBlocks(
             }
     }
   }
+  phaseLimit = Math.floor(workLimit / 3);
   five: for (const transpose of [false, true]) {
     const availableWidth = transpose
       ? bounds.maxY - bounds.minY
@@ -308,6 +313,7 @@ export function searchSteppedBlocks(
             }
     }
   }
+  phaseLimit = Math.floor(workLimit / 2);
   nine: for (const transpose of [false, true]) {
     const availableWidth = transpose
       ? bounds.maxY - bounds.minY
@@ -405,6 +411,7 @@ export function searchSteppedBlocks(
             }
     }
   }
+  phaseLimit = workLimit;
   // Dense constructions are materialized first, independently of callback batching.
   plans.sort(
     (a, b) => b.count - a.count || a.width * a.height - b.width * b.height,

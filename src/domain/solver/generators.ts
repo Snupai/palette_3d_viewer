@@ -25,6 +25,9 @@ import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import { placementsUseMixedPackageOrientations } from "~/domain/solver/orientationPolicy";
 import { searchStaircasePatterns } from "~/domain/solver/staircase";
 import { searchSteppedBlocks } from "~/domain/solver/steppedBlocks";
+import { searchSliceGrids } from "~/domain/solver/sliceGrids";
+import { searchMosaicGrids } from "~/domain/solver/mosaicGrids";
+import { searchStaircaseGrids } from "~/domain/solver/staircaseGrids";
 import {
   assessRectangularBlockPlacements,
   maximumDistributedExtraGapMm,
@@ -7493,13 +7496,36 @@ export function generateCandidateFamily(
     return { drafts: [], diagnostics: [], exclusions: [], cancelled: false };
   }
   if (family === "row") return generateRows(input, hooks);
-  if (family === "stepped-block") {
+  if (
+    family === "stepped-block" ||
+    family === "slice-grid" ||
+    family === "paired-grid" ||
+    family === "mosaic" ||
+    family === "asymmetric-ring" ||
+    family === "nested-strip" ||
+    family === "staircase" ||
+    family === "staircase-exchange"
+  ) {
     const collector = new DraftCollector(family, input, hooks);
-    const result = searchSteppedBlocks(
-      input,
-      (placements, provenance) => collector.add(placements, provenance),
-      () => collector.checkCancellation(),
-    );
+    const emit = (
+      placements: readonly GeneratedPlacement[],
+      provenance: GeneratorProvenance,
+    ) => collector.add(placements, provenance);
+    const active = () => collector.checkCancellation();
+    const result =
+      family === "staircase" || family === "staircase-exchange"
+        ? searchStaircaseGrids(input, emit, active, undefined, family)
+        : family === "stepped-block"
+          ? searchSteppedBlocks(input, emit, active)
+          : family === "slice-grid" || family === "paired-grid"
+            ? searchSliceGrids(
+                input,
+                emit,
+                active,
+                family === "paired-grid" ? 500_000 : undefined,
+                family,
+              )
+            : searchMosaicGrids(input, emit, active, undefined, family);
     if (result.limited)
       collector.diagnostics.push({
         severity: "warning",
@@ -7507,7 +7533,7 @@ export function generateCandidateFamily(
         generator: family,
         code: "generation-limit-reached",
         count: result.workUsed,
-        message: "Stepped-block generation reached its bounded work limit.",
+        message: `${family} generation reached its bounded work limit.`,
       });
     return collector.output();
   }
