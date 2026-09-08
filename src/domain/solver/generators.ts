@@ -24,6 +24,7 @@ import {
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import { placementsUseMixedPackageOrientations } from "~/domain/solver/orientationPolicy";
 import { searchStaircasePatterns } from "~/domain/solver/staircase";
+import { searchSteppedBlocks } from "~/domain/solver/steppedBlocks";
 import {
   assessRectangularBlockPlacements,
   maximumDistributedExtraGapMm,
@@ -7492,6 +7493,24 @@ export function generateCandidateFamily(
     return { drafts: [], diagnostics: [], exclusions: [], cancelled: false };
   }
   if (family === "row") return generateRows(input, hooks);
+  if (family === "stepped-block") {
+    const collector = new DraftCollector(family, input, hooks);
+    const result = searchSteppedBlocks(
+      input,
+      (placements, provenance) => collector.add(placements, provenance),
+      () => collector.checkCancellation(),
+    );
+    if (result.limited)
+      collector.diagnostics.push({
+        severity: "warning",
+        phase: "generation",
+        generator: family,
+        code: "generation-limit-reached",
+        count: result.workUsed,
+        message: "Stepped-block generation reached its bounded work limit.",
+      });
+    return collector.output();
+  }
   if (family === "block") return generateBlocks(input, hooks);
   if (family === "justified-grid") return generateJustifiedGrids(input, hooks);
   if (family === "pinwheel") return generatePinwheels(input, hooks);

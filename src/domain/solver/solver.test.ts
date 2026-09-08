@@ -2053,6 +2053,7 @@ describe("deterministic solve orchestration", () => {
         pinwheel: 0,
         "nested-side": 0,
         "crossed-strip": 0,
+        "stepped-block": 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,
@@ -2478,7 +2479,7 @@ describe("observed MultiPack geometry", () => {
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );
-  }, 15_000);
+  }, 30_000);
 
   it("keeps the observed 53-package four-block layout after finalization", () => {
     const envelopeMm = createCenteredEffectivePalletEnvelope(

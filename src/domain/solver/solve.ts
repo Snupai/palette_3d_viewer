@@ -224,6 +224,7 @@ function emptyStatistics(): SolverStatistics {
       "edge-ring": 0,
       "mixed-orientation": 0,
       "crossed-strip": 0,
+      "stepped-block": 0,
       symmetry: 0,
     },
   };
@@ -383,10 +384,10 @@ export function solveLayer(
       includeExperimentalIncompleteBlocks:
         options.includeExperimentalIncompleteBlocks === true,
     });
-    // Crossed strips enumerate both band sides and every lateral split on both
-    // axes themselves; their reflections must not consume the legacy symmetry
-    // budget and displace previously generated candidates.
-    if (family !== "crossed-strip") legacyDrafts.push(...output.drafts);
+    // These families enumerate both axes and reflections themselves. Preserve
+    // the symmetry budget for the families that rely on this later expansion.
+    if (family !== "crossed-strip" && family !== "stepped-block")
+      legacyDrafts.push(...output.drafts);
     drafts.push(...output.drafts);
     diagnostics.push(...output.diagnostics);
     exclusions.push(...output.exclusions);
@@ -426,7 +427,9 @@ export function solveLayer(
       normalizedInput,
       options.candidateEquivalence === "identity"
         ? drafts.filter(
-            (draft) => draft.provenance[0]?.family !== "crossed-strip",
+            (draft) =>
+              draft.provenance[0]?.family !== "crossed-strip" &&
+              draft.provenance[0]?.family !== "stepped-block",
           )
         : legacyDrafts,
       {
