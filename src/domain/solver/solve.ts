@@ -228,9 +228,14 @@ function emptyStatistics(): SolverStatistics {
       "slice-grid": 0,
       "paired-grid": 0,
       mosaic: 0,
+      "rounded-slice": 0,
+      "anchored-ring": 0,
+      "capped-ring": 0,
       "asymmetric-ring": 0,
+      "nested-edge": 0,
       "nested-strip": 0,
       staircase: 0,
+      "staircase-variable": 0,
       "staircase-exchange": 0,
       symmetry: 0,
     },
@@ -399,9 +404,14 @@ export function solveLayer(
       family !== "slice-grid" &&
       family !== "paired-grid" &&
       family !== "mosaic" &&
+      family !== "rounded-slice" &&
+      family !== "anchored-ring" &&
+      family !== "capped-ring" &&
       family !== "asymmetric-ring" &&
+      family !== "nested-edge" &&
       family !== "nested-strip" &&
       family !== "staircase" &&
+      family !== "staircase-variable" &&
       family !== "staircase-exchange"
     )
       legacyDrafts.push(...output.drafts);
@@ -450,9 +460,14 @@ export function solveLayer(
               draft.provenance[0]?.family !== "slice-grid" &&
               draft.provenance[0]?.family !== "paired-grid" &&
               draft.provenance[0]?.family !== "mosaic" &&
+              draft.provenance[0]?.family !== "rounded-slice" &&
+              draft.provenance[0]?.family !== "anchored-ring" &&
+              draft.provenance[0]?.family !== "capped-ring" &&
               draft.provenance[0]?.family !== "asymmetric-ring" &&
+              draft.provenance[0]?.family !== "nested-edge" &&
               draft.provenance[0]?.family !== "nested-strip" &&
               draft.provenance[0]?.family !== "staircase" &&
+              draft.provenance[0]?.family !== "staircase-variable" &&
               draft.provenance[0]?.family !== "staircase-exchange",
           )
         : legacyDrafts,

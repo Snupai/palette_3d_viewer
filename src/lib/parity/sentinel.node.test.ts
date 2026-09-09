@@ -70,7 +70,8 @@ describe("hash-only ROB corpus sentinel", () => {
     const run = await runRobCorpusSentinel({
       root: corpusRoot,
       manifestPath,
-      maxCandidatesPerGenerator: 100,
+      // Exercise report privacy with both files without a broad packing search.
+      maxCandidatesPerGenerator: 10,
       now: () => new Date("2026-08-06T00:00:00.000Z"),
     });
 
@@ -125,7 +126,7 @@ describe("hash-only ROB corpus sentinel", () => {
     const run = await runRobCorpusSentinel({
       root: corpusRoot,
       manifestPath,
-      maxCandidatesPerGenerator: 100,
+      maxCandidatesPerGenerator: 10,
     });
     const pattern = run.report.files[0]?.scenarios[0]?.patterns[0];
     if (!pattern) throw new Error("Missing synthetic pattern report.");

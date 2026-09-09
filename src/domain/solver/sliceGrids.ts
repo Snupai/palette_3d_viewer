@@ -21,7 +21,7 @@ export function searchSliceGrids(
   ) => boolean,
   shouldContinue: () => boolean,
   workLimit = 100_000,
-  family: "slice-grid" | "paired-grid" = "slice-grid",
+  family: "slice-grid" | "rounded-slice" | "paired-grid" = "slice-grid",
 ): { workUsed: number; limited: boolean } {
   const c = input.constraints;
   let workUsed = 0;
@@ -102,7 +102,7 @@ export function searchSliceGrids(
         for (let b = 1; b <= maximum(height - span(a, dy) - gap, dx); b++) {
           if (!debit()) return done(shouldContinue());
           const h = span(a, dy) + gap + span(b, dx);
-          if (family === "slice-grid") {
+          if (family !== "paired-grid") {
             for (const w of new Set([
               Math.max(span(n, dx), span(m, dy)),
               width,
@@ -281,14 +281,27 @@ export function searchSliceGrids(
         "edge-rounded",
         "floor-step",
         "continuous",
+        "floor-pick-step",
       ] as const) {
+        if (
+          family === "rounded-slice" &&
+          (p.grids.length !== 2 ||
+            (quantization !== "floor" && quantization !== "floor-pick-step"))
+        )
+          continue;
+        if (family !== "rounded-slice" && quantization === "floor-pick-step")
+          continue;
+        const mode =
+          family === "rounded-slice" && quantization === "floor"
+            ? "floor-clamped"
+            : quantization;
         if (!debit(p.count)) return done(shouldContinue());
-        const placements = materializeGridPlan(input, p, grouped, quantization);
+        const placements = materializeGridPlan(input, p, grouped, mode);
         if (
           !emit(placements, {
             family,
             variant:
-              family === "slice-grid"
+              family !== "paired-grid"
                 ? "inserted-crosswise-band"
                 : "oppositely-capped-rasters",
             parameters: {
@@ -296,7 +309,7 @@ export function searchSliceGrids(
               transpose: p.transpose,
               width: p.width,
               grouped,
-              quantization,
+              quantization: mode,
             },
           })
         )

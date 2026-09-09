@@ -155,7 +155,11 @@ describe("M4 stack golden calculations", () => {
         clearanceMm: values.package.clearanceMm,
       },
       envelopeMm: solverEnvelope,
-      constraints: { maxCandidatesPerGenerator: 200 },
+      constraints: {
+        minimumPackageCount: 55,
+        maximumPackageCount: 55,
+        maxCandidatesPerGenerator: 200,
+      },
     });
     const candidate = solved.candidates.find(
       ({ metrics }) => metrics.packageCount === 55,

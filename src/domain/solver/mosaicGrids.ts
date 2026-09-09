@@ -22,7 +22,13 @@ export function searchMosaicGrids(
   ) => boolean,
   shouldContinue: () => boolean,
   workLimit = 300_000,
-  family: "mosaic" | "asymmetric-ring" | "nested-strip" = "mosaic",
+  family:
+    | "mosaic"
+    | "capped-ring"
+    | "anchored-ring"
+    | "asymmetric-ring"
+    | "nested-strip"
+    | "nested-edge" = "mosaic",
 ) {
   let workUsed = 0,
     limited = false;
@@ -55,15 +61,15 @@ export function searchMosaicGrids(
       Math.min(c.maxBands, Math.floor((available + gap + 1e-9) / (d + gap))),
     );
   const plans: GridPlan[] =
-    family === "mosaic"
-      ? buildRingMosaics(input, () => debit())
-      : family === "asymmetric-ring"
-        ? buildAsymmetricRings(input, () => debit())
+    family === "mosaic" || family === "capped-ring"
+      ? buildRingMosaics(input, () => debit(), family === "capped-ring")
+      : family === "asymmetric-ring" || family === "anchored-ring"
+        ? buildAsymmetricRings(input, () => debit(), family === "anchored-ring")
         : [];
   const keys = new Set<string>();
   const bounds = input.generationBoundsMm;
   search: for (const transpose of [false, true]) {
-    if (family !== "nested-strip") break;
+    if (family !== "nested-strip" && family !== "nested-edge") break;
     const aw = transpose
       ? bounds.maxY - bounds.minY
       : bounds.maxX - bounds.minX;
@@ -121,6 +127,8 @@ export function searchMosaicGrids(
                     separators * gap;
                   if (span(b, sy) > insertedWidth + 1e-9) continue;
                   for (let seam = 0; seam <= rows; seam++) {
+                    if (family === "nested-edge" && seam !== 0 && seam !== rows)
+                      continue;
                     const rowSeparators = seam > 0 && seam < rows ? 2 : 1;
                     const totalHeight = height + (rowSeparators - 1) * gap;
                     if (totalHeight > ah + 1e-9) continue;
@@ -136,6 +144,11 @@ export function searchMosaicGrids(
                         "end",
                         "distributed",
                       ] as const) {
+                        if (
+                          family === "nested-edge" &&
+                          (compactParent || alignment !== "distributed")
+                        )
+                          continue;
                         const grids: Grid[] = [];
                         const parentWidth = compactParent
                           ? span(columns, dx)
@@ -303,47 +316,90 @@ export function searchMosaicGrids(
         );
       });
   }
-  for (let i = 0; i < Math.max(0, ...groups.map((g) => g.length)); i += 4)
+  const partitionBatch =
+    family === "capped-ring"
+      ? 8
+      : family === "anchored-ring"
+        ? 1
+        : family === "nested-edge"
+          ? 2
+          : 4;
+  for (
+    let i = 0;
+    i < Math.max(0, ...groups.map((g) => g.length));
+    i += partitionBatch
+  )
     for (const g of groups)
-      for (let j = i; j < i + 4; j++) if (g[j]) interleaved.push(g[j]!);
+      for (let j = i; j < i + partitionBatch; j++)
+        if (g[j]) interleaved.push(g[j]!);
   const emittedGeometry = new Set<string>();
-  for (const plan of interleaved)
-    for (const grouped of [false, true])
-      for (const quantization of [
-        "floor-clamped",
-        "edge-rounded",
-        "floor-step",
-        "continuous",
-      ] as const) {
-        if (!debit()) return done();
-        const placements = materializeGridPlan(
-          input,
-          plan,
-          grouped,
-          quantization,
-        );
-        const geometry = placements
-          .map((p) => `${p.rotation % 180}:${p.positionMm.x}:${p.positionMm.y}`)
-          .sort()
-          .join(";");
-        if (emittedGeometry.has(geometry)) continue;
-        emittedGeometry.add(geometry);
-        if (!debit(plan.count)) return done();
-        if (
-          !emit(placements, {
-            family,
-            variant: String(plan.parameters?.kind),
-            parameters: {
-              ...plan.parameters,
-              transpose: plan.transpose,
-              width: plan.width,
-              height: plan.height,
-              grouped,
-              quantization,
-            },
-          })
-        )
-          return done();
-      }
+  if (family === "anchored-ring") {
+    // Cover canonical arm partitions before spending the inventory on mirrors
+    // and compact duplicates of the same partition.
+    interleaved.sort((a, b) => {
+      const priority = (p: GridPlan) =>
+        Number(p.parameters?.reflectX) * 4 +
+        Number(p.parameters?.reflectY) * 2 +
+        Number(!p.parameters?.stretched);
+      return priority(a) - priority(b);
+    });
+  }
+  // Visit more arm/strip partitions before spending their inventory on less
+  // common rounding variants. Each first pass still includes both pickup modes.
+  const quantizationPasses =
+    family === "capped-ring"
+      ? ([
+          ["floor-clamped"],
+          ["floor-step", "edge-rounded", "continuous"],
+        ] as const)
+      : family === "anchored-ring"
+        ? ([
+            ["floor", "edge-rounded"],
+            ["floor-step", "continuous"],
+          ] as const)
+        : family === "nested-edge"
+          ? ([
+              ["floor-clamped", "floor-step"],
+              ["edge-rounded", "continuous"],
+            ] as const)
+          : ([
+              ["floor-clamped", "edge-rounded", "floor-step", "continuous"],
+            ] as const);
+  for (const quantizations of quantizationPasses)
+    for (const plan of interleaved)
+      for (const grouped of [false, true])
+        for (const quantization of quantizations) {
+          if (!debit()) return done();
+          const placements = materializeGridPlan(
+            input,
+            plan,
+            grouped,
+            quantization,
+          );
+          const geometry = placements
+            .map(
+              (p) => `${p.rotation % 180}:${p.positionMm.x}:${p.positionMm.y}`,
+            )
+            .sort()
+            .join(";");
+          if (emittedGeometry.has(geometry)) continue;
+          emittedGeometry.add(geometry);
+          if (!debit(plan.count)) return done();
+          if (
+            !emit(placements, {
+              family,
+              variant: String(plan.parameters?.kind),
+              parameters: {
+                ...plan.parameters,
+                transpose: plan.transpose,
+                width: plan.width,
+                height: plan.height,
+                grouped,
+                quantization,
+              },
+            })
+          )
+            return done();
+        }
   return done();
 }

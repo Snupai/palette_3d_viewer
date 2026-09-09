@@ -7,6 +7,7 @@ import type { NormalizedLayerSolverInput } from "~/domain/solver/types";
 export function buildAsymmetricRings(
   input: NormalizedLayerSolverInput,
   debit: () => boolean,
+  anchored = false,
 ): GridPlan[] {
   const c = input.constraints,
     gap = input.package.clearanceMm,
@@ -53,6 +54,13 @@ export function buildAsymmetricRings(
           for (const width of new Set([
             leftWidth + gap + span(columns, dx),
             aw,
+            ...(anchored
+              ? Array.from({ length: max(aw, dx) + 1 }, (_, n) => {
+                  const a = span(n, dx);
+                  const b = max(aw - a - (n ? gap : 0), dy);
+                  return a + (n && b ? gap : 0) + span(b, dy);
+                }).filter((w) => w >= leftWidth + gap + span(columns, dx))
+              : []),
           ]))
             for (const height of new Set([
               span(rows, dy) + gap + span(crossRows, dx),
@@ -66,7 +74,11 @@ export function buildAsymmetricRings(
               ))
                 for (const bottomRows of ordered(max(height - gap, dy), rows)) {
                   if (!debit()) break discovery;
-                  if (bottomColumns === columns && bottomRows === rows)
+                  if (
+                    !anchored &&
+                    bottomColumns === columns &&
+                    bottomRows === rows
+                  )
                     continue;
                   const bottomWidth = span(bottomColumns, dx),
                     bottomHeight = span(bottomRows, dy);
@@ -79,6 +91,18 @@ export function buildAsymmetricRings(
                     !rightRows ||
                     leftWidth + gap > bottomWidth + 1e-9 ||
                     topHeight + bottomHeight + gap > height + 1e-9
+                  )
+                    continue;
+                  const rightStart = anchored
+                    ? width - span(rightColumns, dy)
+                    : bottomWidth + gap;
+                  // Equal arm counts only add a new anchored partition when
+                  // moving the right arm opens additional space in the core.
+                  if (
+                    anchored &&
+                    bottomColumns === columns &&
+                    bottomRows === rows &&
+                    rightStart <= bottomWidth + gap + 1e-9
                   )
                     continue;
                   const ring: Grid[] = [
@@ -104,14 +128,14 @@ export function buildAsymmetricRings(
                       width: width - leftWidth - gap,
                     },
                     {
-                      x: bottomWidth + gap,
+                      x: rightStart,
                       y: topHeight + gap,
                       cols: rightColumns,
                       rows: rightRows,
                       dx: dy,
                       dy: dx,
                       rotation: other,
-                      width: width - bottomWidth - gap,
+                      width: width - rightStart,
                       height: height - topHeight - gap,
                     },
                     {
@@ -125,7 +149,7 @@ export function buildAsymmetricRings(
                       width: bottomWidth,
                     },
                   ];
-                  const coreWidth = bottomWidth - leftWidth - gap,
+                  const coreWidth = rightStart - leftWidth - 2 * gap,
                     coreHeight = height - topHeight - bottomHeight - 2 * gap;
                   const cores: Grid[][] = [[]];
                   for (const coreRotation of rotations as Rotation[]) {
@@ -183,7 +207,7 @@ export function buildAsymmetricRings(
                       count,
                       grids,
                       parameters: {
-                        kind: "asymmetric-ring",
+                        kind: anchored ? "anchored-ring" : "asymmetric-ring",
                         rotation,
                         columns,
                         crossColumns,
@@ -207,53 +231,64 @@ export function buildAsymmetricRings(
   seeds.sort(
     (a, b) => b.count - a.count || a.width * a.height - b.width * b.height,
   );
-  for (const seed of seeds)
-    for (const reflectX of [false, true])
-      for (const reflectY of [false, true])
-        for (const stretched of [true, false]) {
-          const grids = seed.grids.map((original, i) => {
-            const g =
-              !stretched && (i === 0 || i === 2)
-                ? {
-                    ...original,
-                    width: span(original.cols, original.dx),
-                    height: span(original.rows, original.dy),
-                  }
-                : original;
-            return {
-              ...g,
-              x: reflectX ? seed.width - g.x - g.width : g.x,
-              y: reflectY
-                ? seed.height - g.y - (g.height ?? span(g.rows, g.dy))
-                : g.y,
-            };
-          });
-          const key = JSON.stringify([
-            seed.transpose,
-            seed.width,
-            seed.height,
-            grids
-              .map((g) =>
-                JSON.stringify([
-                  g.x,
-                  g.y,
-                  g.cols,
-                  g.rows,
-                  g.rotation,
-                  g.width,
-                  g.height,
-                ]),
-              )
-              .sort(),
-          ]);
-          if (seen.has(key)) continue;
-          seen.add(key);
-          if (!debit()) return plans;
-          plans.push({
-            ...seed,
-            grids,
-            parameters: { ...seed.parameters, reflectX, reflectY, stretched },
-          });
-        }
+  const variants = [false, true].flatMap((reflectX) =>
+    [false, true].flatMap((reflectY) =>
+      [true, false].map((stretched) => ({ reflectX, reflectY, stretched })),
+    ),
+  );
+  function* expandSeeds() {
+    if (anchored) {
+      for (const variant of variants)
+        for (const seed of seeds) yield { seed, ...variant };
+    } else {
+      for (const seed of seeds)
+        for (const variant of variants) yield { seed, ...variant };
+    }
+  }
+  for (const { seed, reflectX, reflectY, stretched } of expandSeeds()) {
+    const grids = seed.grids.map((original, i) => {
+      const g =
+        !stretched && (i === 0 || i === 2)
+          ? {
+              ...original,
+              width: span(original.cols, original.dx),
+              height: span(original.rows, original.dy),
+            }
+          : original;
+      return {
+        ...g,
+        x: reflectX ? seed.width - g.x - g.width : g.x,
+        y: reflectY
+          ? seed.height - g.y - (g.height ?? span(g.rows, g.dy))
+          : g.y,
+      };
+    });
+    const key = JSON.stringify([
+      seed.transpose,
+      seed.width,
+      seed.height,
+      grids
+        .map((g) =>
+          JSON.stringify([
+            g.x,
+            g.y,
+            g.cols,
+            g.rows,
+            g.rotation,
+            g.width,
+            g.height,
+          ]),
+        )
+        .sort(),
+    ]);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (!debit()) return plans;
+    plans.push({
+      ...seed,
+      grids,
+      parameters: { ...seed.parameters, reflectX, reflectY, stretched },
+    });
+  }
   return plans;
 }

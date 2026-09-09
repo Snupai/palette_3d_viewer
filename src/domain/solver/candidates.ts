@@ -372,6 +372,7 @@ const representativeFamilyRank = new Map(
 function compareDraftsForRepresentative(
   left: GeneratedCandidateDraft,
   right: GeneratedCandidateDraft,
+  keyFor: (draft: GeneratedCandidateDraft) => string,
 ): number {
   const leftIsGeneratedSymmetry = left.provenance.some(
     ({ family }) => family === "symmetry",
@@ -391,7 +392,7 @@ function compareDraftsForRepresentative(
         : Number.MAX_SAFE_INTEGER) ||
     (leftPriority?.index ?? Number.MAX_SAFE_INTEGER) -
       (rightPriority?.index ?? Number.MAX_SAFE_INTEGER) ||
-    compareStrings(deterministicDraftKey(left), deterministicDraftKey(right))
+    compareStrings(keyFor(left), keyFor(right))
   );
 }
 
@@ -418,7 +419,20 @@ export function finalizeGeneratedCandidates(
   draftsInput: readonly GeneratedCandidateDraft[],
   hooks: CandidateFinalizationHooks = {},
 ): CandidateFinalizationResult {
-  const orderedDrafts = [...draftsInput].sort(compareDraftsForRepresentative);
+  // A comparison sort revisits drafts many times. Cache its immutable tie-breaker
+  // within this run so larger pattern inventories do not repeatedly sort boxes.
+  const draftKeys = new Map<GeneratedCandidateDraft, string>();
+  const keyFor = (draft: GeneratedCandidateDraft) => {
+    let key = draftKeys.get(draft);
+    if (key === undefined) {
+      key = deterministicDraftKey(draft);
+      draftKeys.set(draft, key);
+    }
+    return key;
+  };
+  const orderedDrafts = [...draftsInput].sort((a, b) =>
+    compareDraftsForRepresentative(a, b, keyFor),
+  );
   const diagnostics: SolverDiagnostic[] = [];
   const exclusions: SolverExclusion[] = [];
   const bestSelectionPriorityByGroup = new Map<string, number>();
@@ -453,6 +467,13 @@ export function finalizeGeneratedCandidates(
     return preferred;
   });
   const aggregateBySymmetryClass = new Map<string, CandidateAggregate>();
+  const canonicalCandidates = new Map<
+    string,
+    {
+      candidate: Omit<SolverCandidate, "rank">;
+      symmetryClassKey: string;
+    }
+  >();
   let validDraftCount = 0;
   let invalidDraftCount = 0;
   let geometricDuplicateCount = 0;
@@ -472,7 +493,11 @@ export function finalizeGeneratedCandidates(
       });
     } else {
       const placements = canonical.placements;
-      const validation = validateCandidatePlacements(input, placements);
+      const canonicalKey = stableValue(placements);
+      const cachedCandidate = canonicalCandidates.get(canonicalKey);
+      const validation =
+        cachedCandidate?.candidate.validation ??
+        validateCandidatePlacements(input, placements);
       if (!validation.valid) {
         invalidDraftCount += 1;
         exclusions.push({
@@ -483,20 +508,31 @@ export function finalizeGeneratedCandidates(
         });
       } else {
         validDraftCount += 1;
-        const geometryFingerprint = candidateGeometryFingerprint({
-          placements,
-        });
-        const grouped = groupCandidatePlacements(input, placements);
-        const candidate = createUnrankedCandidate(
-          input,
-          grouped,
-          validation,
-          geometryFingerprint,
-        );
-        const symmetryClassKey =
-          hooks.candidateEquivalence === "identity"
-            ? candidate.identityFingerprint
-            : candidateSymmetryClassKey(placements, input.generationBoundsMm);
+        let prepared = cachedCandidate;
+        if (prepared === undefined) {
+          const geometryFingerprint = candidateGeometryFingerprint({
+            placements,
+          });
+          const grouped = groupCandidatePlacements(input, placements);
+          const candidate = createUnrankedCandidate(
+            input,
+            grouped,
+            validation,
+            geometryFingerprint,
+          );
+          prepared = {
+            candidate,
+            symmetryClassKey:
+              hooks.candidateEquivalence === "identity"
+                ? candidate.identityFingerprint
+                : candidateSymmetryClassKey(
+                    placements,
+                    input.generationBoundsMm,
+                  ),
+          };
+          canonicalCandidates.set(canonicalKey, prepared);
+        }
+        const { candidate, symmetryClassKey } = prepared;
         const draftProvenance = sortedUniqueProvenance(draft.provenance);
         const existing = aggregateBySymmetryClass.get(symmetryClassKey);
         if (existing) {

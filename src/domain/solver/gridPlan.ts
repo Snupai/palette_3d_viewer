@@ -31,6 +31,8 @@ export type GridQuantization =
   | "floor-clamped"
   | "edge-rounded"
   | "floor-step"
+  | "floor-pick-step"
+  | "nearest"
   | "continuous";
 export function materializeGridPlan(
   input: NormalizedLayerSolverInput,
@@ -77,12 +79,21 @@ export function materializeGridPlan(
             (_, i) =>
               (quantization === "continuous"
                 ? center
-                : Math.floor(center + 1e-9)) +
+                : quantization === "nearest"
+                  ? Math.round(center)
+                  : Math.floor(center + 1e-9)) +
               (i - (size - 1) / 2) * item,
           );
         });
       } else if (quantization === "floor")
         values = continuous.map((v) => Math.floor(v + 1e-9));
+      else if (quantization === "nearest")
+        values = continuous.map((v) =>
+          Math.max(
+            start + item / 2,
+            Math.min(start + available - item / 2, Math.round(v)),
+          ),
+        );
       else if (quantization === "floor-clamped")
         values = continuous.map((v) =>
           Math.max(
@@ -96,7 +107,17 @@ export function materializeGridPlan(
             Math.floor(continuous[0]! + 1e-9) +
             i * Math.floor((available - item) / (count - 1) + 1e-9),
         );
-      else if (quantization === "edge-rounded") {
+      else if (quantization === "floor-pick-step" && count > 1) {
+        const units = c.provisionalPackagesPerCycle;
+        const step =
+          Math.floor(((available - item) / (count - 1)) * units + 1e-9) / units;
+        values = continuous.map((_, i) =>
+          Math.max(
+            start + item / 2,
+            Math.floor(continuous[0]! + i * step + 1e-9),
+          ),
+        );
+      } else if (quantization === "edge-rounded") {
         const shift = Math.floor(start + 1e-9) - start;
         values = continuous.map((v) =>
           Math.max(

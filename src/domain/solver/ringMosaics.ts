@@ -7,6 +7,7 @@ import type { NormalizedLayerSolverInput } from "~/domain/solver/types";
 export function buildRingMosaics(
   input: NormalizedLayerSolverInput,
   debit: () => boolean,
+  wideCap = false,
 ): GridPlan[] {
   const c = input.constraints,
     gap = input.package.clearanceMm;
@@ -22,7 +23,7 @@ export function buildRingMosaics(
     Math.max(0, Math.min(c.maxBands, Math.floor((s + gap + 1e-9) / (d + gap))));
   const bounds = input.generationBoundsMm,
     plans: GridPlan[] = [];
-  for (const transpose of [false, true])
+  discovery: for (const transpose of [false, true])
     for (const rotation of rotations as Rotation[]) {
       const other = rotations.find((r) => r! % 180 !== rotation % 180)!;
       const s = rectangleSizeForRotation(input.package.dimensionsMm, rotation);
@@ -49,7 +50,7 @@ export function buildRingMosaics(
               crossRows <= max(ah - span(rows, dy) - gap, dx);
               crossRows++
             ) {
-              if (!debit()) return plans;
+              if (!debit()) break discovery;
               const top = span(rows, dy),
                 left = span(crossRows, dx),
                 ringHeight = top + gap + left;
@@ -111,7 +112,7 @@ export function buildRingMosaics(
                 const capDx = capRotation === rotation ? dx : dy,
                   capDy = capRotation === rotation ? dy : dx;
                 for (
-                  let capRows = 0;
+                  let capRows = wideCap ? 1 : 0;
                   capRows <= max(ah - ringHeight - gap, capDy);
                   capRows++
                 ) {
@@ -119,31 +120,42 @@ export function buildRingMosaics(
                   const capHeight = span(capRows, capDy),
                     height = ringHeight + (capRows ? gap + capHeight : 0);
                   if (height + Math.min(dx, dy) + gap <= ah + 1e-9) continue;
-                  const capCols = max(ringWidth, capDx);
+                  const capWidth = wideCap
+                    ? span(max(aw, capDx), capDx)
+                    : ringWidth;
+                  if (wideCap && capWidth <= ringWidth + 1e-9) continue;
+                  const capCols = max(capWidth, capDx);
                   if (capRows && !capCols) continue;
                   for (const sideRotation of rotations as Rotation[]) {
                     const sideDx = sideRotation === rotation ? dx : dy,
                       sideDy = sideRotation === rotation ? dy : dx;
                     for (
                       let sideCols = 0;
-                      sideCols <= max(aw - ringWidth - gap, sideDx);
+                      sideCols <=
+                      (wideCap ? 0 : max(aw - ringWidth - gap, sideDx));
                       sideCols++
                     ) {
                       if (!sideCols && sideRotation !== rotation) continue;
-                      if (!debit()) return plans;
+                      if (!debit()) break discovery;
                       const sideWidth = span(sideCols, sideDx),
-                        width = ringWidth + (sideCols ? gap + sideWidth : 0);
+                        width = capWidth + (sideCols ? gap + sideWidth : 0);
                       if (width + Math.min(dx, dy) + gap <= aw + 1e-9) continue;
                       const sideRows = max(height, sideDy);
                       if (sideCols && !sideRows) continue;
                       for (const core of cores)
-                        for (const capAtEnd of capRows
+                        for (const capAtEnd of !wideCap && capRows
                           ? [false, true]
                           : [false])
-                          for (const reflectX of [false, true])
-                            for (const reflectY of [false, true])
-                              for (const ringReflectX of [false, true]) {
-                                if (!debit()) return plans;
+                          for (const reflectX of wideCap
+                            ? [false]
+                            : [false, true])
+                            for (const reflectY of wideCap
+                              ? [false]
+                              : [false, true])
+                              for (const ringReflectX of wideCap
+                                ? [false]
+                                : [false, true]) {
+                                if (!debit()) break discovery;
                                 let grids = [...ring, ...core].map((g) => ({
                                   ...g,
                                   x: ringReflectX
@@ -164,7 +176,7 @@ export function buildRingMosaics(
                                     dx: capDx,
                                     dy: capDy,
                                     rotation: capRotation,
-                                    width: ringWidth,
+                                    width: capWidth,
                                   });
                                 if (sideCols)
                                   grids.push({
@@ -205,6 +217,10 @@ export function buildRingMosaics(
                                   grids,
                                   parameters: {
                                     kind: "capped-ring-corridor",
+                                    wideCap,
+                                    ...(wideCap
+                                      ? { ringWidth, ringHeight, capHeight }
+                                      : {}),
                                     rotation,
                                     columns: cols,
                                     crossColumns: crossCols,
@@ -231,5 +247,44 @@ export function buildRingMosaics(
             }
         }
     }
-  return plans;
+  if (!wideCap) return plans;
+  // Discover both axes before spending the cap budget on reflections of early
+  // partitions. A wider cap can expose either edge of a shorter, transposed ring.
+  plans.sort(
+    (a, b) => b.count - a.count || a.width * a.height - b.width * b.height,
+  );
+  const expanded: GridPlan[] = [];
+  for (const base of plans)
+    for (const capAtEnd of [false, true])
+      for (const reflectX of [false, true])
+        for (const reflectY of [false, true])
+          for (const ringReflectX of [false, true]) {
+            if (!debit()) return expanded;
+            const p = base.parameters!;
+            const ringWidth = Number(p.ringWidth),
+              ringHeight = Number(p.ringHeight),
+              capHeight = Number(p.capHeight);
+            const grids = base.grids.map((g, i) => {
+              const cap = i === base.grids.length - 1;
+              const x = !cap && ringReflectX ? ringWidth - g.x - g.width : g.x;
+              const y = capAtEnd
+                ? cap
+                  ? ringHeight + gap
+                  : g.y - capHeight - gap
+                : g.y;
+              return {
+                ...g,
+                x: reflectX ? base.width - x - g.width : x,
+                y: reflectY
+                  ? base.height - y - (g.height ?? span(g.rows, g.dy))
+                  : y,
+              };
+            });
+            expanded.push({
+              ...base,
+              grids,
+              parameters: { ...p, capAtEnd, reflectX, reflectY, ringReflectX },
+            });
+          }
+  return expanded;
 }
