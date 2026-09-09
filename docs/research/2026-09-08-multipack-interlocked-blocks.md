@@ -26,10 +26,10 @@ Lagen jedes Exports haben dieselbe physische Grundfläche; der Vergleich der
 ersten Lage verliert somit in diesen Fällen keine weitere Lagengeometrie.
 
 | Paketlänge | Desktop-Muster | Direkte Treffer vorher → nachher | Solver-Kandidaten vorher → nachher | Maximalbelegung Desktop / vorher / nachher |
-| --- | ---: | ---: | ---: | ---: |
-| 176 mm | 100 | 3 → 8 | 1815 → 2315 | 43 / 42 / 43 |
-| 177 mm | 100 | 4 → 9 | 1687 → 2187 | 43 / 42 / 43 |
-| 178 mm | 99 | 3 → 4 | 2151 → 2651 | 42 / 42 / 42 |
+| ---------- | -------------: | -------------------------------: | ---------------------------------: | -----------------------------------------: |
+| 176 mm     |            100 |                            3 → 8 |                        1815 → 2315 |                               43 / 42 / 43 |
+| 177 mm     |            100 |                            4 → 9 |                        1687 → 2187 |                               43 / 42 / 43 |
+| 178 mm     |             99 |                            3 → 4 |                        2151 → 2651 |                               42 / 42 / 42 |
 
 Summe: **10 → 21 von 299** direkt nachgebildeten Desktop-Grundflächen.
 Kein bisheriger direkter Treffer ging verloren. Der Fall 178 mm wurde erst

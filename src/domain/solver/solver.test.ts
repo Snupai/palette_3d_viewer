@@ -1,4 +1,5 @@
-import { describe, expect, it } from "vitest";
+import { setImmediate } from "node:timers/promises";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   boundingRectangleForPlacements,
   canonicalPlacementGeometryKey,
@@ -32,6 +33,13 @@ import {
   validateCandidatePlacements,
 } from "~/domain/solver/validation";
 import observedAp5006 from "~/lib/__fixtures__/parity/ap5006-1329-00004.observed.parity.json";
+
+afterEach(async () => {
+  // Long synchronous solves can starve Vitest's onTaskUpdate RPC. Let the
+  // worker send queued updates and receive their acknowledgements between tests.
+  await setImmediate();
+  await setImmediate();
+});
 
 function basicInput(
   overrides: Partial<LayerSolverInput> = {},

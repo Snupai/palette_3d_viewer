@@ -11,11 +11,11 @@ reference layouts. All 144 previously matched layouts are retained; 62 more
 are now available. **98 reference layouts remain unmatched.**
 
 | Package footprint | Matched / reference | Remaining | Maximum packages |
-| --- | --- | --- | --- |
-| 135 × 91 | 35 / 56 | 21 | 73 |
-| 147 × 104 | 36 / 65 | 29 | 59 |
-| 158 × 78 | 92 / 112 | 20 | 70 |
-| 177 × 123 | 43 / 71 | 28 | 42 |
+| ----------------- | ------------------- | --------- | ---------------- |
+| 135 × 91          | 35 / 56             | 21        | 73               |
+| 147 × 104         | 36 / 65             | 29        | 59               |
+| 158 × 78          | 92 / 112            | 20        | 70               |
+| 177 × 123         | 43 / 71             | 28        | 42               |
 
 These are complete `solveLayer` runs with identity equivalence, the production
 region-search budget, and 500 drafts per generator. They are not sums of raw
@@ -42,11 +42,11 @@ All four cases use a 1200 × 800 mm physical pallet. Negative underhang values
 reduce the total length or width once, rather than once on each side.
 
 | Package footprint | Total underhang L / W | Generation bounds | Reference solutions |
-| --- | --- | --- | --- |
-| 135 × 91 | −17 / −34 | 1183 × 766 | 56 |
-| 147 × 104 | −24 / −29 | 1176 × 771 | 65 |
-| 158 × 78 | −52 / −10 | 1148 × 790 | 112 |
-| 177 × 123 | 0 / −23 | 1200 × 777 | 71 |
+| ----------------- | --------------------- | ----------------- | ------------------- |
+| 135 × 91          | −17 / −34             | 1183 × 766        | 56                  |
+| 147 × 104         | −24 / −29             | 1176 × 771        | 65                  |
+| 158 × 78          | −52 / −10             | 1148 × 790        | 112                 |
+| 177 × 123         | 0 / −23               | 1200 × 777        | 71                  |
 
 The separate photographed 158 × 82 mm carton remains a different case.
 Comparison uses `matchPhysicalFootprintPlacements` with the existing 0.500001 mm
