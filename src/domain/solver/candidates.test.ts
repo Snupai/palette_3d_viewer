@@ -59,6 +59,63 @@ describe("generated candidate blue lines", () => {
 });
 
 describe("candidate topology preferences", () => {
+  it.each([
+    { x: 150, rotation: 0 as const, issue: "placement-out-of-bounds" },
+    { x: 50, rotation: 90 as const, issue: "unsupported-rotation" },
+  ])(
+    "retains a valid fallback after rejecting $issue",
+    ({ x, rotation, issue }) => {
+      const { normalized } = validateAndNormalizeSolverInput({
+        package: {
+          shape: "cuboid",
+          dimensionsMm: { length: 20, width: 20 },
+          clearanceMm: 0,
+        },
+        envelopeMm: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
+        constraints: { allowedRotations: [0] },
+      });
+      if (!normalized) throw new Error("Expected valid fallback test input.");
+      const drafts: GeneratedCandidateDraft[] = [
+        {
+          placements: [{ positionMm: { x, y: 50 }, rotation }],
+          provenance: [{ family: "block", variant: "invalid-preferred" }],
+          candidateSelectionPreferences: [{ groupKey: "split", priority: 0 }],
+        },
+        {
+          placements: [{ positionMm: { x: 50, y: 50 }, rotation: 0 }],
+          provenance: [{ family: "block", variant: "valid-fallback" }],
+          candidateSelectionPreferences: [{ groupKey: "split", priority: 1 }],
+        },
+      ];
+      const result = finalizeGeneratedCandidates(normalized, drafts);
+      expect(
+        finalizeGeneratedCandidates(normalized, [...drafts].reverse()),
+      ).toEqual(result);
+      expect(result.candidates).toHaveLength(1);
+      expect(
+        result.candidates[0]?.placements.map(({ positionMm, rotation }) => ({
+          positionMm,
+          rotation,
+        })),
+      ).toEqual([{ positionMm: { x: 50, y: 50 }, rotation: 0 }]);
+      expect(result.candidates[0]?.provenance).toEqual(drafts[1]!.provenance);
+      expect(result.validDraftCount).toBe(1);
+      expect(result.invalidDraftCount).toBe(1);
+      expect(result.geometricDuplicateCount).toBe(0);
+      expect(result.exclusions).toHaveLength(1);
+      expect(result.exclusions[0]).toMatchObject({
+        reason: "candidate-invalid",
+        issues: [{ code: issue }],
+      });
+
+      const cancelled = finalizeGeneratedCandidates(normalized, drafts, {
+        checkpoint: (phase) => phase !== "candidate-validation",
+      });
+      expect(cancelled.cancelled).toBe(true);
+      expect(cancelled.candidates).toEqual([]);
+    },
+  );
+
   it("keeps the best topology deterministically and reports dominated drafts", () => {
     const rawInput: LayerSolverInput = {
       package: {

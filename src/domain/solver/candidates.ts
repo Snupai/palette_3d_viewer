@@ -435,8 +435,69 @@ export function finalizeGeneratedCandidates(
   );
   const diagnostics: SolverDiagnostic[] = [];
   const exclusions: SolverExclusion[] = [];
+  const validatedDrafts: Array<{
+    draft: GeneratedCandidateDraft;
+    placements: readonly UngroupedCandidatePlacement[];
+    validation: SolverCandidate["validation"];
+    canonicalKey: string;
+  }> = [];
+  const validationByGeometry = new Map<string, SolverCandidate["validation"]>();
+  let validDraftCount = 0;
+  let invalidDraftCount = 0;
+  let geometricDuplicateCount = 0;
+  let labelYawRejectedDraftCount = 0;
+
+  for (let index = 0; index < orderedDrafts.length; index += 1) {
+    const draft = orderedDrafts[index]!;
+    const canonical = canonicalCandidatePlacements(input, draft);
+    let issues: readonly SolverIssue[];
+    if (canonical.placements === null) {
+      labelYawRejectedDraftCount += 1;
+      issues = canonical.issues;
+    } else {
+      const placements = canonical.placements;
+      const canonicalKey = stableValue(placements);
+      const validation =
+        validationByGeometry.get(canonicalKey) ??
+        validateCandidatePlacements(input, placements);
+      validationByGeometry.set(canonicalKey, validation);
+      issues = validation.issues;
+      if (validation.valid) {
+        validDraftCount += 1;
+        validatedDrafts.push({ draft, placements, validation, canonicalKey });
+      }
+    }
+    if (issues.length > 0) {
+      invalidDraftCount += 1;
+      exclusions.push({
+        reason: "candidate-invalid",
+        provenance: sortedUniqueProvenance(draft.provenance),
+        issues,
+        message: issues.map(({ message }) => message).join(" "),
+      });
+    }
+    if (
+      hooks.checkpoint?.(
+        "candidate-validation",
+        index + 1,
+        orderedDrafts.length,
+      ) === false
+    ) {
+      return {
+        candidates: [],
+        diagnostics: sortDiagnostics(diagnostics),
+        exclusions: sortExclusions(exclusions),
+        validDraftCount,
+        invalidDraftCount,
+        geometricDuplicateCount,
+        cancelled: true,
+      };
+    }
+  }
+
+  // Invalid preferred variants must never suppress a valid fallback.
   const bestSelectionPriorityByGroup = new Map<string, number>();
-  for (const draft of orderedDrafts) {
+  for (const { draft } of validatedDrafts) {
     for (const preference of draft.candidateSelectionPreferences ?? []) {
       const current = bestSelectionPriorityByGroup.get(preference.groupKey);
       if (current === undefined || preference.priority < current) {
@@ -447,7 +508,7 @@ export function finalizeGeneratedCandidates(
       }
     }
   }
-  const drafts = orderedDrafts.filter((draft) => {
+  const drafts = validatedDrafts.filter(({ draft }) => {
     const preferences = draft.candidateSelectionPreferences ?? [];
     const preferred =
       preferences.length === 0 ||
@@ -474,101 +535,63 @@ export function finalizeGeneratedCandidates(
       symmetryClassKey: string;
     }
   >();
-  let validDraftCount = 0;
-  let invalidDraftCount = 0;
-  let geometricDuplicateCount = 0;
-  let labelYawRejectedDraftCount = 0;
-
   for (let index = 0; index < drafts.length; index += 1) {
-    const draft = drafts[index]!;
-    const canonical = canonicalCandidatePlacements(input, draft);
-    if (canonical.placements === null) {
-      invalidDraftCount += 1;
-      labelYawRejectedDraftCount += 1;
+    const { draft, placements, validation, canonicalKey } = drafts[index]!;
+    const cachedCandidate = canonicalCandidates.get(canonicalKey);
+    let prepared = cachedCandidate;
+    if (prepared === undefined) {
+      const geometryFingerprint = candidateGeometryFingerprint({
+        placements,
+      });
+      const grouped = groupCandidatePlacements(input, placements);
+      const candidate = createUnrankedCandidate(
+        input,
+        grouped,
+        validation,
+        geometryFingerprint,
+      );
+      prepared = {
+        candidate,
+        symmetryClassKey:
+          hooks.candidateEquivalence === "identity"
+            ? candidate.identityFingerprint
+            : candidateSymmetryClassKey(placements, input.generationBoundsMm),
+      };
+      canonicalCandidates.set(canonicalKey, prepared);
+    }
+    const { candidate, symmetryClassKey } = prepared;
+    const draftProvenance = sortedUniqueProvenance(draft.provenance);
+    const existing = aggregateBySymmetryClass.get(symmetryClassKey);
+    if (existing) {
+      geometricDuplicateCount += 1;
+      for (const provenance of draft.provenance) {
+        existing.provenanceByKey.set(stableValue(provenance), provenance);
+      }
       exclusions.push({
-        reason: "candidate-invalid",
-        provenance: sortedUniqueProvenance(draft.provenance),
-        issues: canonical.issues,
-        message: canonical.issues.map(({ message }) => message).join(" "),
+        reason: "geometric-duplicate",
+        geometryFingerprint: candidate.geometryFingerprint,
+        duplicateOfGeometryFingerprint:
+          existing.representative.geometryFingerprint,
+        provenance: draftProvenance,
+        issues: [],
+        message:
+          hooks.candidateEquivalence === "identity"
+            ? "Draft has the same directed placements and generated grip identity as an existing candidate and was merged into its provenance."
+            : "Draft is a pallet mirror or rotation of an existing base layout and was merged into its provenance.",
       });
     } else {
-      const placements = canonical.placements;
-      const canonicalKey = stableValue(placements);
-      const cachedCandidate = canonicalCandidates.get(canonicalKey);
-      const validation =
-        cachedCandidate?.candidate.validation ??
-        validateCandidatePlacements(input, placements);
-      if (!validation.valid) {
-        invalidDraftCount += 1;
-        exclusions.push({
-          reason: "candidate-invalid",
-          provenance: sortedUniqueProvenance(draft.provenance),
-          issues: validation.issues,
-          message: validation.issues.map(({ message }) => message).join(" "),
-        });
-      } else {
-        validDraftCount += 1;
-        let prepared = cachedCandidate;
-        if (prepared === undefined) {
-          const geometryFingerprint = candidateGeometryFingerprint({
-            placements,
-          });
-          const grouped = groupCandidatePlacements(input, placements);
-          const candidate = createUnrankedCandidate(
-            input,
-            grouped,
-            validation,
-            geometryFingerprint,
-          );
-          prepared = {
-            candidate,
-            symmetryClassKey:
-              hooks.candidateEquivalence === "identity"
-                ? candidate.identityFingerprint
-                : candidateSymmetryClassKey(
-                    placements,
-                    input.generationBoundsMm,
-                  ),
-          };
-          canonicalCandidates.set(canonicalKey, prepared);
-        }
-        const { candidate, symmetryClassKey } = prepared;
-        const draftProvenance = sortedUniqueProvenance(draft.provenance);
-        const existing = aggregateBySymmetryClass.get(symmetryClassKey);
-        if (existing) {
-          geometricDuplicateCount += 1;
-          for (const provenance of draft.provenance) {
-            existing.provenanceByKey.set(stableValue(provenance), provenance);
-          }
-          exclusions.push({
-            reason: "geometric-duplicate",
-            geometryFingerprint: candidate.geometryFingerprint,
-            duplicateOfGeometryFingerprint:
-              existing.representative.geometryFingerprint,
-            provenance: draftProvenance,
-            issues: [],
-            message:
-              hooks.candidateEquivalence === "identity"
-                ? "Draft has the same directed placements and generated grip identity as an existing candidate and was merged into its provenance."
-                : "Draft is a pallet mirror or rotation of an existing base layout and was merged into its provenance.",
-          });
-        } else {
-          aggregateBySymmetryClass.set(symmetryClassKey, {
-            representative: candidate,
-            provenanceByKey: new Map(
-              draftProvenance.map((provenance) => [
-                stableValue(provenance),
-                provenance,
-              ]),
-            ),
-          });
-        }
-      }
+      aggregateBySymmetryClass.set(symmetryClassKey, {
+        representative: candidate,
+        provenanceByKey: new Map(
+          draftProvenance.map((provenance) => [
+            stableValue(provenance),
+            provenance,
+          ]),
+        ),
+      });
     }
-
     if (
-      hooks.checkpoint?.("candidate-validation", index + 1, drafts.length) ===
-      false
+      hooks.checkpoint?.("deduplication", index + 1, drafts.length) === false
     ) {
       return {
         candidates: [],

@@ -42,6 +42,29 @@ export const PRODUCTION_REGION_SEARCH_BUDGET: RegionSearchBudget =
     maxRetainedDrafts: 1_250,
   });
 
+// These families enumerate both axes and reflections themselves. Preserve the
+// symmetry budget for families that rely on the later expansion.
+const familiesWithOwnSymmetries: ReadonlySet<GeneratorFamily> = new Set([
+  "crossed-strip",
+  "stepped-block",
+  "slice-grid",
+  "paired-grid",
+  "mosaic",
+  "rounded-slice",
+  "anchored-ring",
+  "capped-ring",
+  "asymmetric-ring",
+  "nested-edge",
+  "nested-strip",
+  "staircase",
+  "staircase-variable",
+  "staircase-exchange",
+]);
+
+function needsSymmetryExpansion(family: GeneratorFamily | undefined): boolean {
+  return family === undefined || !familiesWithOwnSymmetries.has(family);
+}
+
 function regionTargetCountPolicy(
   input: NormalizedLayerSolverInput,
 ): TargetCountPolicy {
@@ -396,25 +419,9 @@ export function solveLayer(
       includeExperimentalIncompleteBlocks:
         options.includeExperimentalIncompleteBlocks === true,
     });
-    // These families enumerate both axes and reflections themselves. Preserve
-    // the symmetry budget for the families that rely on this later expansion.
-    if (
-      family !== "crossed-strip" &&
-      family !== "stepped-block" &&
-      family !== "slice-grid" &&
-      family !== "paired-grid" &&
-      family !== "mosaic" &&
-      family !== "rounded-slice" &&
-      family !== "anchored-ring" &&
-      family !== "capped-ring" &&
-      family !== "asymmetric-ring" &&
-      family !== "nested-edge" &&
-      family !== "nested-strip" &&
-      family !== "staircase" &&
-      family !== "staircase-variable" &&
-      family !== "staircase-exchange"
-    )
+    if (needsSymmetryExpansion(family)) {
       legacyDrafts.push(...output.drafts);
+    }
     drafts.push(...output.drafts);
     diagnostics.push(...output.diagnostics);
     exclusions.push(...output.exclusions);
@@ -453,22 +460,8 @@ export function solveLayer(
     const symmetryOutput = generateSymmetryCandidateDrafts(
       normalizedInput,
       options.candidateEquivalence === "identity"
-        ? drafts.filter(
-            (draft) =>
-              draft.provenance[0]?.family !== "crossed-strip" &&
-              draft.provenance[0]?.family !== "stepped-block" &&
-              draft.provenance[0]?.family !== "slice-grid" &&
-              draft.provenance[0]?.family !== "paired-grid" &&
-              draft.provenance[0]?.family !== "mosaic" &&
-              draft.provenance[0]?.family !== "rounded-slice" &&
-              draft.provenance[0]?.family !== "anchored-ring" &&
-              draft.provenance[0]?.family !== "capped-ring" &&
-              draft.provenance[0]?.family !== "asymmetric-ring" &&
-              draft.provenance[0]?.family !== "nested-edge" &&
-              draft.provenance[0]?.family !== "nested-strip" &&
-              draft.provenance[0]?.family !== "staircase" &&
-              draft.provenance[0]?.family !== "staircase-variable" &&
-              draft.provenance[0]?.family !== "staircase-exchange",
+        ? drafts.filter((draft) =>
+            needsSymmetryExpansion(draft.provenance[0]?.family),
           )
         : legacyDrafts,
       {
