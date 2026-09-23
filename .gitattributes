@@ -1,2 +1,3 @@
 src/lib/__fixtures__/anonymized-plan-lf.rob text eol=lf
 src/lib/__fixtures__/anonymized-plan-crlf.rob text eol=crlf
+src/domain/robotics/__fixtures__/project-derived.golden.rob text eol=lf

@@ -354,7 +354,6 @@ Zehn-Fälle-Matrix und ein neuer Nachbarfall wurden dagegen geprüft. Einzelheit
 verworfener Vorversuch, Exportkorrektur und Aussagegrenzen stehen im
 [Fortsetzungsbericht vom 08.09.2026](2026-09-08-multipack-live-parity.md).
 
-
 ## Ergänzung 08.09.2026 – Asymmetrische Pinwheels und Etiketten
 
 Freie Stückzahlsuche erzeugt nun auch asymmetrische Pinwheels, kompakte Restabstände zwischen Eckblöcken und die transponierte Achse. Die vollständige 13-Läufe-Matrix sowie verworfene Erweiterungen stehen im [aktuellen Bericht](2026-09-08-multipack-live-parity.md). Im getrennten Identitätsvergleich steigt die Referenz von 5 auf 8 direkte Grundflächentreffer; 203 × 139 bestätigt denselben Gewinn. Der Projektadapter übernimmt ein einzelnes Etikettenfeld. Die positive Achse bei Entfernungs-Gleichstand wurde auf beiden Achsen kontrolliert. Winkelgleichheit auf vorgegebenen Oracle-Grundflächen bleibt strikt von Mustererzeugung getrennt. Keine vollständige Parität; Corpus-Gates unverändert.

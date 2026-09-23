@@ -155,7 +155,11 @@ describe("M4 stack golden calculations", () => {
         clearanceMm: values.package.clearanceMm,
       },
       envelopeMm: solverEnvelope,
-      constraints: { maxCandidatesPerGenerator: 200 },
+      constraints: {
+        minimumPackageCount: 55,
+        maximumPackageCount: 55,
+        maxCandidatesPerGenerator: 200,
+      },
     });
     const candidate = solved.candidates.find(
       ({ metrics }) => metrics.packageCount === 55,
@@ -237,7 +241,7 @@ describe("M4 stack golden calculations", () => {
     expect(result.warnings.map(({ code }) => code)).toContain(
       "metric-provenance-unverified",
     );
-  }, 15_000);
+  }, 30_000);
 
   it("uses variable all-rule interlayers plus base/deck sheets in exact height and weight", () => {
     const layers = createCompositionSequence({

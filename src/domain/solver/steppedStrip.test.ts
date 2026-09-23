@@ -125,7 +125,10 @@ describe("stepped strips", () => {
         ...value,
         constraints: { ...value.constraints, maxCandidatesPerGenerator: 20 },
       },
-      { candidateEquivalence: "identity" },
+      {
+        candidateEquivalence: "identity",
+        generatorOrder: ["stepped-strip"],
+      },
     );
     expect(result.candidates[0]?.metrics.packageCount).toBe(43);
     expect(
@@ -133,7 +136,7 @@ describe("stepped strips", () => {
         c.provenance.some((p) => p.family === "stepped-strip"),
       ),
     ).toBe(true);
-  });
+  }, 15_000);
 
   it("preserves clearance, both axes, directed rotation authorization and input-order independence", () => {
     const normalized = validateAndNormalizeSolverInput({

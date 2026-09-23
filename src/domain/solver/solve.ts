@@ -42,6 +42,30 @@ export const PRODUCTION_REGION_SEARCH_BUDGET: RegionSearchBudget =
     maxRetainedDrafts: 1_250,
   });
 
+// These families enumerate both axes and reflections themselves. Preserve the
+// symmetry budget for families that rely on the later expansion.
+const familiesWithOwnSymmetries: ReadonlySet<GeneratorFamily> = new Set([
+  "crossed-strip",
+  "stepped-strip",
+  "stepped-block",
+  "slice-grid",
+  "paired-grid",
+  "mosaic",
+  "rounded-slice",
+  "anchored-ring",
+  "capped-ring",
+  "asymmetric-ring",
+  "nested-edge",
+  "nested-strip",
+  "staircase",
+  "staircase-variable",
+  "staircase-exchange",
+]);
+
+function needsSymmetryExpansion(family: GeneratorFamily | undefined): boolean {
+  return family === undefined || !familiesWithOwnSymmetries.has(family);
+}
+
 function regionTargetCountPolicy(
   input: NormalizedLayerSolverInput,
 ): TargetCountPolicy {
@@ -225,6 +249,19 @@ function emptyStatistics(): SolverStatistics {
       "mixed-orientation": 0,
       "crossed-strip": 0,
       "stepped-strip": 0,
+      "stepped-block": 0,
+      "slice-grid": 0,
+      "paired-grid": 0,
+      mosaic: 0,
+      "rounded-slice": 0,
+      "anchored-ring": 0,
+      "capped-ring": 0,
+      "asymmetric-ring": 0,
+      "nested-edge": 0,
+      "nested-strip": 0,
+      staircase: 0,
+      "staircase-variable": 0,
+      "staircase-exchange": 0,
       symmetry: 0,
     },
   };
@@ -384,9 +421,7 @@ export function solveLayer(
       includeExperimentalIncompleteBlocks:
         options.includeExperimentalIncompleteBlocks === true,
     });
-    // These strip families enumerate their own reflections on both axes, keeping
-    // their variants outside the shared legacy symmetry budget.
-    if (family !== "crossed-strip" && family !== "stepped-strip") {
+    if (needsSymmetryExpansion(family)) {
       legacyDrafts.push(...output.drafts);
     }
     drafts.push(...output.drafts);
@@ -427,10 +462,8 @@ export function solveLayer(
     const symmetryOutput = generateSymmetryCandidateDrafts(
       normalizedInput,
       options.candidateEquivalence === "identity"
-        ? drafts.filter(
-            (draft) =>
-              draft.provenance[0]?.family !== "crossed-strip" &&
-              draft.provenance[0]?.family !== "stepped-strip",
+        ? drafts.filter((draft) =>
+            needsSymmetryExpansion(draft.provenance[0]?.family),
           )
         : legacyDrafts,
       {

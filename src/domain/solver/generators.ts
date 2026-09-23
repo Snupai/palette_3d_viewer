@@ -1,3 +1,4 @@
+import { searchVariableStaircase } from "~/domain/solver/variableStaircase";
 import {
   boundingRectangleForPlacements,
   canonicalPlacementGeometryKey,
@@ -25,6 +26,10 @@ import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import { placementsUseMixedPackageOrientations } from "~/domain/solver/orientationPolicy";
 import { searchStaircasePatterns } from "~/domain/solver/staircase";
 import { searchSteppedStripPatterns } from "~/domain/solver/steppedStrip";
+import { searchSteppedBlocks } from "~/domain/solver/steppedBlocks";
+import { searchSliceGrids } from "~/domain/solver/sliceGrids";
+import { searchMosaicGrids } from "~/domain/solver/mosaicGrids";
+import { searchStaircaseGrids } from "~/domain/solver/staircaseGrids";
 import {
   assessRectangularBlockPlacements,
   maximumDistributedExtraGapMm,
@@ -7528,6 +7533,56 @@ export function generateCandidateFamily(
     return { drafts: [], diagnostics: [], exclusions: [], cancelled: false };
   }
   if (family === "row") return generateRows(input, hooks);
+  if (
+    family === "stepped-block" ||
+    family === "rounded-slice" ||
+    family === "slice-grid" ||
+    family === "paired-grid" ||
+    family === "mosaic" ||
+    family === "anchored-ring" ||
+    family === "capped-ring" ||
+    family === "asymmetric-ring" ||
+    family === "nested-edge" ||
+    family === "nested-strip" ||
+    family === "staircase" ||
+    family === "staircase-variable" ||
+    family === "staircase-exchange"
+  ) {
+    const collector = new DraftCollector(family, input, hooks);
+    const emit = (
+      placements: readonly GeneratedPlacement[],
+      provenance: GeneratorProvenance,
+    ) => collector.add(placements, provenance);
+    const active = () => collector.checkCancellation();
+    const result =
+      family === "staircase-variable"
+        ? searchVariableStaircase(input, emit, active)
+        : family === "staircase" || family === "staircase-exchange"
+          ? searchStaircaseGrids(input, emit, active, undefined, family)
+          : family === "stepped-block"
+            ? searchSteppedBlocks(input, emit, active)
+            : family === "rounded-slice" ||
+                family === "slice-grid" ||
+                family === "paired-grid"
+              ? searchSliceGrids(
+                  input,
+                  emit,
+                  active,
+                  family === "paired-grid" ? 500_000 : undefined,
+                  family,
+                )
+              : searchMosaicGrids(input, emit, active, undefined, family);
+    if (result.limited)
+      collector.diagnostics.push({
+        severity: "warning",
+        phase: "generation",
+        generator: family,
+        code: "generation-limit-reached",
+        count: result.workUsed,
+        message: `${family} generation reached its bounded work limit.`,
+      });
+    return collector.output();
+  }
   if (family === "block") return generateBlocks(input, hooks);
   if (family === "justified-grid") return generateJustifiedGrids(input, hooks);
   if (family === "pinwheel") return generatePinwheels(input, hooks);
