@@ -17,6 +17,7 @@ export const BASE_GENERATOR_FAMILIES = [
   "edge-ring",
   "mixed-orientation",
   "crossed-strip",
+  "stepped-strip",
 ] as const;
 
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];
@@ -217,7 +218,8 @@ export type SolverExclusionReason =
   | "candidate-invalid"
   | "geometric-duplicate"
   | "generation-limit"
-  | "topology-dominated";
+  | "topology-dominated"
+  | "sparse-layout";
 
 export type SolverExclusion = {
   reason: SolverExclusionReason;

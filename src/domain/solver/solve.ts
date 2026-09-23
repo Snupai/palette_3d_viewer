@@ -224,6 +224,7 @@ function emptyStatistics(): SolverStatistics {
       "edge-ring": 0,
       "mixed-orientation": 0,
       "crossed-strip": 0,
+      "stepped-strip": 0,
       symmetry: 0,
     },
   };
@@ -383,10 +384,11 @@ export function solveLayer(
       includeExperimentalIncompleteBlocks:
         options.includeExperimentalIncompleteBlocks === true,
     });
-    // Crossed strips enumerate both band sides and every lateral split on both
-    // axes themselves; their reflections must not consume the legacy symmetry
-    // budget and displace previously generated candidates.
-    if (family !== "crossed-strip") legacyDrafts.push(...output.drafts);
+    // These strip families enumerate their own reflections on both axes, keeping
+    // their variants outside the shared legacy symmetry budget.
+    if (family !== "crossed-strip" && family !== "stepped-strip") {
+      legacyDrafts.push(...output.drafts);
+    }
     drafts.push(...output.drafts);
     diagnostics.push(...output.diagnostics);
     exclusions.push(...output.exclusions);
@@ -426,7 +428,9 @@ export function solveLayer(
       normalizedInput,
       options.candidateEquivalence === "identity"
         ? drafts.filter(
-            (draft) => draft.provenance[0]?.family !== "crossed-strip",
+            (draft) =>
+              draft.provenance[0]?.family !== "crossed-strip" &&
+              draft.provenance[0]?.family !== "stepped-strip",
           )
         : legacyDrafts,
       {
@@ -463,6 +467,9 @@ export function solveLayer(
   }
 
   const finalized = finalizeGeneratedCandidates(normalizedInput, drafts, {
+    filterSparseLayouts:
+      input.constraints?.minimumPackageCount === undefined &&
+      input.constraints?.maximumPackageCount === undefined,
     candidateEquivalence: options.candidateEquivalence,
     checkpoint: (phase, completed, total) =>
       progress.checkpoint(

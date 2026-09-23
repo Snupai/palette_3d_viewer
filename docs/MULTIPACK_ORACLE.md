@@ -1,6 +1,12 @@
 # MultiPack desktop oracle
 
-For the latest live runs, see the [08 September 2026 report](research/2026-09-08-multipack-live-parity.md).
+The latest solver comparison is the [23 September 2026 pattern quality report](research/2026-09-23-multipack-pattern-quality.md):
+25.4% fewer directed candidates across the 16 carton cases, preserving all 133
+of 1068 direct matches and matching maximum counts. It follows the
+[stepped-strip extension](research/2026-09-23-multipack-stepped-strips.md).
+Complete candidate-set and ordering parity remain open.
+It revalidates existing captures; for the latest live runs, see the
+[08 September 2026 report](research/2026-09-08-multipack-live-parity.md).
 The subsequent [16-carton comparison](research/2026-09-08-multipack-user-cartons.md)
 adds 1068 validated exports and separates geometry coverage from grip-policy gains.
 The [crossed-strip extension](research/2026-09-08-multipack-crossed-strips.md)

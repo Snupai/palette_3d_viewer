@@ -2053,6 +2053,7 @@ describe("deterministic solve orchestration", () => {
         pinwheel: 0,
         "nested-side": 0,
         "crossed-strip": 0,
+        "stepped-strip": 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,
@@ -2239,6 +2240,8 @@ describe("deterministic solve orchestration", () => {
       const first = solveLayer(input, {
         candidateEquivalence,
         generatorOrder: [
+          "stepped-strip",
+          "crossed-strip",
           "nested-side",
           "row",
           "block",
@@ -2260,6 +2263,8 @@ describe("deterministic solve orchestration", () => {
           "block",
           "row",
           "nested-side",
+          "crossed-strip",
+          "stepped-strip",
         ],
         progressBatchSize: 97,
         onProgress: ({ phase }) => progressB.push(phase),
@@ -2267,6 +2272,8 @@ describe("deterministic solve orchestration", () => {
       const repeated = solveLayer(input, {
         candidateEquivalence,
         generatorOrder: [
+          "stepped-strip",
+          "crossed-strip",
           "nested-side",
           "row",
           "block",
@@ -2294,6 +2301,11 @@ describe("deterministic solve orchestration", () => {
 
       expect(comparable(second)).toEqual(comparable(first));
       expect(comparable(repeated)).toEqual(comparable(first));
+      expect(
+        first.candidates.some((candidate) =>
+          candidate.provenance.some((p) => p.family === "stepped-strip"),
+        ),
+      ).toBe(true);
       expect(progressA.length).toBeGreaterThan(progressB.length);
     },
     15_000,
@@ -2600,12 +2612,19 @@ describe("observed MultiPack geometry", () => {
     const crossedCandidates = result.candidates.filter(({ provenance }) =>
       provenance.some(({ family }) => family === "crossed-strip"),
     );
-    expect(result.candidates).toHaveLength(41);
-    expect(crossedCandidates).toHaveLength(34);
-    // Preserve the exact pre-existing clean-block inventory alongside the new family.
-    const legacyCandidates = result.candidates.filter(
-      (candidate) => !crossedCandidates.includes(candidate),
+    const steppedCandidates = result.candidates.filter(({ provenance }) =>
+      provenance.some(({ family }) => family === "stepped-strip"),
     );
+    expect(result.candidates).toHaveLength(65);
+    expect(crossedCandidates).toHaveLength(58);
+    expect(steppedCandidates).toHaveLength(0);
+    // Preserve the exact pre-existing clean-block inventory alongside both strip families.
+    const legacyCandidates = result.candidates.filter(
+      (candidate) =>
+        !crossedCandidates.includes(candidate) &&
+        !steppedCandidates.includes(candidate),
+    );
+    expect(legacyCandidates).toHaveLength(7);
     const threeBlockCandidates = legacyCandidates.filter(({ provenance }) =>
       provenance.some(
         ({ parameters }) => parameters?.topology === "three-block-split-v1",

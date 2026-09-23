@@ -38,8 +38,11 @@ import {
   type SolverOptions,
 } from "~/domain/solver/types";
 import { validateCandidatePlacements } from "~/domain/solver/validation";
+import { sparseLayoutReason } from "~/domain/solver/sparseLayout";
 
 export type CandidateFinalizationHooks = {
+  /** Free-count search only; explicit count requests retain their alternatives. */
+  filterSparseLayouts?: boolean;
   candidateEquivalence?: SolverOptions["candidateEquivalence"];
   checkpoint?: (
     phase: Extract<
@@ -578,6 +581,12 @@ export function finalizeGeneratedCandidates(
       ),
   );
   const unranked: Array<Omit<SolverCandidate, "rank">> = [];
+  const bestPackageCount = aggregates.reduce(
+    (best, { representative }) =>
+      Math.max(best, representative.metrics.packageCount),
+    0,
+  );
+  let sparseLayoutCount = 0;
   const identityByCompactId = new Map<string, string>();
   const geometryByCompactId = new Map<string, string>();
 
@@ -617,12 +626,32 @@ export function finalizeGeneratedCandidates(
       representative.geometryFingerprint,
     );
 
-    unranked.push({
+    const candidate = {
       ...representative,
       provenance: [...aggregate.provenanceByKey.entries()]
         .sort(([left], [right]) => compareStrings(left, right))
         .map(([, provenance]) => provenance),
-    });
+    };
+    const sparseReason =
+      hooks.filterSparseLayouts &&
+      candidate.metrics.packageCount < bestPackageCount
+        ? sparseLayoutReason(input, candidate.placements)
+        : null;
+    if (sparseReason) {
+      sparseLayoutCount++;
+      exclusions.push({
+        reason: "sparse-layout",
+        geometryFingerprint: candidate.geometryFingerprint,
+        provenance: candidate.provenance,
+        issues: [],
+        message:
+          sparseReason === "unused-edge-strip"
+            ? "Free-count alternative leaves room for a complete additional edge strip; a denser valid candidate exists."
+            : "Free-count alternative separates its blocks by a full package-sized corridor; a denser valid candidate exists.",
+      });
+    } else {
+      unranked.push(candidate);
+    }
 
     if (hooks.checkpoint?.("metrics", index + 1, aggregates.length) === false) {
       return {
@@ -637,6 +666,15 @@ export function finalizeGeneratedCandidates(
     }
   }
 
+  if (sparseLayoutCount > 0) {
+    diagnostics.push({
+      severity: "info",
+      phase: "ranking",
+      code: "sparse-layouts-omitted",
+      count: sparseLayoutCount,
+      message: `Omitted ${sparseLayoutCount} sparse free-count alternatives with unused complete edge strips or separating corridors.`,
+    });
+  }
   unranked.sort(compareSolverCandidates);
   const candidates = unranked.map((candidate, index) => ({
     ...candidate,
