@@ -384,7 +384,14 @@ describe("PlannerProjectWorkspace generator integration", () => {
   it("deduplicates visible candidate lists while preserving raw stack variants", async () => {
     const repository = emptyRepository();
     const duplicate = candidateVariant(2, "candidate-duplicate", 180);
-    const distinct = candidateVariant(3, "candidate-distinct", 0, 300);
+    const distinct = candidateVariant(3, "candidate-distinct", 0);
+    distinct.placements = distinct.placements.map((placement) => ({
+      ...placement,
+      positionMm: {
+        ...placement.positionMm,
+        x: placement.positionMm.x + (placement.sequence >= 2 ? 300 : 0),
+      },
+    }));
     const resultWithVisualDuplicate: SolverResult = {
       ...solverResult,
       candidates: [solverResult.candidates[0]!, duplicate, distinct],
@@ -590,11 +597,11 @@ describe("PlannerProjectWorkspace generator integration", () => {
     );
     fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(
-      screen.getByLabelText("Width overhang / underhang per side"),
+      screen.getByLabelText("Width total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -629,10 +636,10 @@ describe("PlannerProjectWorkspace generator integration", () => {
         maxY: 300,
       },
       generationBoundsMm: {
-        minX: 100,
-        minY: 100,
-        maxX: 300,
-        maxY: 200,
+        minX: 50,
+        minY: 50,
+        maxX: 350,
+        maxY: 250,
       },
       constraints: {
         minimumPackageCount: 4,
@@ -683,7 +690,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     const generatedOptions = await screen.findAllByRole("option", undefined, {
       timeout: 5_000,
     });
-    expect(generatedOptions).toHaveLength(20);
+    expect(generatedOptions).toHaveLength(1);
     const selectedSuggestion = screen.getByRole("option", { selected: true });
     expect(selectedSuggestion.textContent).toContain("#1");
 
@@ -693,14 +700,14 @@ describe("PlannerProjectWorkspace generator integration", () => {
       screen.getByRole("heading", { name: "Compose the pallet sequence" }),
     ).toBeTruthy();
     expect(stackMetricValue("Generated candidates")).toBe("20");
-    expect(stackMetricValue("Selectable layouts")).toBe("20");
+    expect(stackMetricValue("Selectable layouts")).toBe("1");
     const openStackComposer = screen.getByRole("button", {
       name: "Open stack composer",
     });
     expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
 
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getAllByRole("option")).toHaveLength(20);
+    expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.getByRole("option", { selected: true })).toBeTruthy();
   });
 
@@ -792,7 +799,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
     });
     expect(
       await screen.findAllByRole("option", undefined, { timeout: 5_000 }),
-    ).toHaveLength(20);
+    ).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(
       screen.getByRole("button", { name: "Open stack composer" }),
@@ -807,7 +814,7 @@ describe("PlannerProjectWorkspace generator integration", () => {
       expect(stackMetricValue("Visible packages")).toBe("40");
     });
     expect(stackMetricValue("Generated candidates")).toBe("20");
-    expect(stackMetricValue("Selectable layouts")).toBe("20");
+    expect(stackMetricValue("Selectable layouts")).toBe("1");
     const openStackComposer = screen.getByRole("button", {
       name: "Open stack composer",
     });

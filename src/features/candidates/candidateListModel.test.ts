@@ -188,7 +188,131 @@ describe("candidate list model", () => {
         [outsideTolerance, nearbyAcrossRoundingBoundary, left],
         packageSize,
       ).map(({ id }) => id),
-    ).toEqual(["candidate-1", "candidate-4"]);
+    ).toEqual(["candidate-1"]);
+  });
+
+  it("groups translated, slightly spaced and mirrored layouts, preserving the best candidate", () => {
+    const size = { length: 204, width: 110 };
+    const best = candidate(1, [
+      {
+        sequence: 0,
+        positionMm: { x: 102, y: 55 },
+        rotation: 0,
+        labelSide: "bottom",
+        gripId: "a",
+      },
+      {
+        sequence: 1,
+        positionMm: { x: 306, y: 55 },
+        rotation: 0,
+        labelSide: "bottom",
+        gripId: "a",
+      },
+      {
+        sequence: 2,
+        positionMm: { x: 55, y: 212 },
+        rotation: 90,
+        labelSide: "left",
+        gripId: "b",
+      },
+    ]);
+    const shifted = candidate(
+      2,
+      best.placements.map((p, i) => ({
+        ...p,
+        positionMm: {
+          x: p.positionMm.x + 73 + (i === 2 ? 16 : 0),
+          y: p.positionMm.y - 27,
+        },
+      })),
+    );
+    const mirrored = candidate(
+      3,
+      shifted.placements
+        .map((p) => ({
+          ...p,
+          positionMm: { x: 1200 - p.positionMm.x, y: p.positionMm.y },
+          labelSide: p.labelSide === "left" ? "right" : p.labelSide,
+        }))
+        .reverse(),
+    );
+    const relabeled = candidate(
+      4,
+      best.placements.map((p, i) => ({
+        ...p,
+        labelSide: i === 0 ? "top" : p.labelSide,
+      })),
+    );
+    const staggered = candidate(
+      5,
+      best.placements.map((p, i) => ({
+        ...p,
+        positionMm: {
+          ...p.positionMm,
+          x: p.positionMm.x + (i === 2 ? 110 : 0),
+        },
+      })),
+    );
+    const raw = [staggered, relabeled, mirrored, shifted, best];
+    const snapshot = structuredClone(raw);
+    expect(selectDistinctCandidateLayouts(raw, size)).toEqual([
+      best,
+      relabeled,
+      staggered,
+    ]);
+    expect(selectDistinctCandidateLayouts([...raw].reverse(), size)).toEqual([
+      best,
+      relabeled,
+      staggered,
+    ]);
+    expect(candidateLayoutsMatch(best, shifted, size)).toBe(false);
+    expect(raw).toEqual(snapshot);
+  });
+
+  it("does not merge a chain of spacing variants beyond the representative tolerance", () => {
+    const size = { length: 120, width: 60 };
+    const layout = (rank: number, shift: number) =>
+      candidate(rank, [
+        {
+          sequence: 0,
+          positionMm: { x: 60, y: 30 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "a",
+        },
+        {
+          sequence: 1,
+          positionMm: { x: 180, y: 30 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "b",
+        },
+        {
+          sequence: 2,
+          positionMm: { x: 30 + shift, y: 120 },
+          rotation: 90,
+          labelSide: null,
+          gripId: "c",
+        },
+      ]);
+    const best = layout(1, 0);
+    const nearby = layout(2, 20);
+    const beyond = layout(3, 40);
+    expect(
+      selectDistinctCandidateLayouts([beyond, nearby, best], size),
+    ).toEqual([best, beyond]);
+    expect(
+      selectDistinctCandidateLayouts(
+        [best, nearby, beyond].map((c) => ({
+          ...c,
+          placements: c.placements.map((p) => ({
+            ...p,
+            positionMm: { x: p.positionMm.x / 10, y: p.positionMm.y / 10 },
+          })),
+        })),
+        { length: 12, width: 6 },
+      ).map((c) => c.id),
+    ).toEqual([best.id, beyond.id]);
   });
 
   it("keeps the best-ranked operational square-yaw variant", () => {
@@ -242,6 +366,37 @@ describe("candidate list model", () => {
     expect(distinct).toHaveLength(1);
     expect(distinct[0]?.id).toBe("candidate-1");
     expect(distinct[0]?.metrics.provisionalCycleCount).toBe(1);
+  });
+
+  it("keeps a half-package row stagger even when centering halves the coordinate difference", () => {
+    const size = { length: 100, width: 100 };
+    const grid = candidate(
+      1,
+      Array.from({ length: 4 }, (_, index) => ({
+        sequence: index,
+        positionMm: {
+          x: 50 + (index % 2) * 100,
+          y: 50 + Math.floor(index / 2) * 100,
+        },
+        rotation: 0,
+        labelSide: null,
+        gripId: `grid-${index}`,
+      })),
+    );
+    const staggered = candidate(
+      2,
+      grid.placements.map((p, index) => ({
+        ...p,
+        positionMm: {
+          ...p.positionMm,
+          x: p.positionMm.x + (index >= 2 ? 50 : 0),
+        },
+      })),
+    );
+    expect(selectDistinctCandidateLayouts([grid, staggered], size)).toEqual([
+      grid,
+      staggered,
+    ]);
   });
 
   it("reduces the observed square-package UI case from 27 candidates to 4 layouts", () => {

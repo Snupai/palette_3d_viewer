@@ -137,6 +137,52 @@ afterEach(() => {
 });
 
 describe("SolverControls", () => {
+  it("splits the total underhang to reproduce a 1162 by 738 mm frame", async () => {
+    const source = project();
+    const plan = updateProject(source, {
+      package: {
+        ...source.package,
+        dimensionsMm: { length: 204, width: 110, height: 193 },
+      },
+      pallet: {
+        ...source.pallet!,
+        dimensionsMm: {
+          ...source.pallet!.dimensionsMm,
+          length: 1200,
+          width: 800,
+        },
+      },
+    });
+    render(
+      <SolverControls
+        project={plan}
+        onApplyPackageInputs={async () => plan}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    fireEvent.change(
+      screen.getByLabelText("Length total overhang / underhang"),
+      { target: { value: "-38" } },
+    );
+    fireEvent.change(
+      screen.getByLabelText("Width total overhang / underhang"),
+      { target: { value: "-62" } },
+    );
+    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+      target: { value: "38" },
+    });
+    expect(screen.getByText("Effective frame: 1162 × 738 mm")).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Apply inputs & solve" }),
+    );
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      generationBoundsMm: { minX: 19, minY: 31, maxX: 1181, maxY: 769 },
+      constraints: { minimumPackageCount: 38, maximumPackageCount: 38 },
+    });
+  });
+
   it("applies package dimensions and signed underhang with an exact layer count", async () => {
     const sourceProject = project();
     const onApplyPackageInputs = vi.fn(
@@ -170,7 +216,7 @@ describe("SolverControls", () => {
       "120",
     );
     expect(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
     ).toHaveProperty("value", "0");
     expect(
       screen.getByRole("checkbox", {
@@ -223,11 +269,11 @@ describe("SolverControls", () => {
       target: { value: "40" },
     });
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(
-      screen.getByLabelText("Width overhang / underhang per side"),
+      screen.getByLabelText("Width total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -256,10 +302,10 @@ describe("SolverControls", () => {
       },
       envelopeMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
       generationBoundsMm: {
-        minX: 100,
-        minY: 100,
-        maxX: 300,
-        maxY: 200,
+        minX: 50,
+        minY: 50,
+        maxX: 350,
+        maxY: 250,
       },
       constraints: {
         minimumPackageCount: 3,
@@ -714,11 +760,11 @@ describe("SolverControls", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(
-      screen.getByLabelText("Width overhang / underhang per side"),
+      screen.getByLabelText("Width total overhang / underhang"),
       { target: { value: "-100" } },
     );
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -738,10 +784,10 @@ describe("SolverControls", () => {
       },
       envelopeMm: { minX: 20, minY: 10, maxX: 380, maxY: 290 },
       generationBoundsMm: {
-        minX: 100,
-        minY: 100,
-        maxX: 300,
-        maxY: 200,
+        minX: 50,
+        minY: 50,
+        maxX: 350,
+        maxY: 250,
       },
     });
   });
@@ -766,11 +812,11 @@ describe("SolverControls", () => {
     );
 
     expect(
-      screen.getByLabelText("Length overhang / underhang per side"),
-    ).toHaveProperty("value", "20");
+      screen.getByLabelText("Length total overhang / underhang"),
+    ).toHaveProperty("value", "40");
     expect(
-      screen.getByLabelText("Width overhang / underhang per side"),
-    ).toHaveProperty("value", "10");
+      screen.getByLabelText("Width total overhang / underhang"),
+    ).toHaveProperty("value", "20");
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
       target: { value: "4" },
     });
@@ -826,7 +872,7 @@ describe("SolverControls", () => {
       screen.getByText(/Zero on both axes creates a tight centered footprint/),
     ).toBeTruthy();
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "-0" } },
     );
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -863,7 +909,7 @@ describe("SolverControls", () => {
     );
 
     fireEvent.change(
-      screen.getByLabelText("Width overhang / underhang per side"),
+      screen.getByLabelText("Width total overhang / underhang"),
       { target: { value: "-0.001" } },
     );
     fireEvent.change(screen.getByLabelText("Packages per layer"), {
@@ -877,9 +923,9 @@ describe("SolverControls", () => {
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: {
         minX: 0,
-        minY: 0.001,
+        minY: 0.0005,
         maxX: 400,
-        maxY: 299.999,
+        maxY: 299.9995,
       },
       constraints: {
         rectangularBlockFootprintPolicy: "fill-generation-bounds",
@@ -910,15 +956,15 @@ describe("SolverControls", () => {
       target: { value: "3" },
     });
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "" } },
     );
     expect(screen.getByRole("alert").textContent).toContain(
-      "Length overhang / underhang per side is required.",
+      "Length total overhang / underhang is required.",
     );
 
     fireEvent.change(
-      screen.getByLabelText("Length overhang / underhang per side"),
+      screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "1" } },
     );
     expect(screen.getByRole("alert").textContent).toContain(

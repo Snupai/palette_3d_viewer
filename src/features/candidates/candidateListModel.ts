@@ -6,6 +6,11 @@ import type { SolverCandidate } from "~/domain/solver";
 
 export const CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM = 0.001;
 
+// The list groups spacing variants, while candidateLayoutsMatch retains exact
+// physical-position semantics. Stay below a half-package stagger so a shifted
+// row remains a distinct pattern rather than matching its neighbouring row.
+const LAYOUT_SPACING_TOLERANCE_RATIO = 1 / 3;
+
 type CandidateLabelSide = SolverCandidate["placements"][number]["labelSide"];
 
 type CandidateLayoutFootprint = {
@@ -18,7 +23,6 @@ type CandidateLayoutFootprint = {
 };
 
 type CandidateLayoutDescriptor = {
-  candidate: SolverCandidate;
   groups: Map<string, CandidateLayoutFootprint[]>;
   exactKey: string;
   coarseKey: string;
@@ -148,17 +152,87 @@ function describeCandidateLayout(
   packageSize: RectangleSizeMm,
 ): CandidateLayoutDescriptor {
   const groups = footprintsBySizeAndLabel(candidate, packageSize);
+  return describeFootprintGroups(
+    groups,
+    CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM,
+  );
+}
+
+function describeFootprintGroups(
+  groups: Map<string, CandidateLayoutFootprint[]>,
+  toleranceMm: number,
+): CandidateLayoutDescriptor {
   const footprints = flattenedFootprints(groups);
   return {
-    candidate,
     groups,
     exactKey: candidateLayoutExactKey(groups),
     coarseKey: candidateLayoutCoarseKey(groups),
-    spatialCell: spatialCell(
-      footprints,
-      CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM,
-    ),
+    spatialCell: spatialCell(footprints, toleranceMm),
   };
+}
+
+function centeredLayout(
+  candidate: SolverCandidate,
+  packageSize: RectangleSizeMm,
+  toleranceMm: number,
+): CandidateLayoutDescriptor {
+  const groups = footprintsBySizeAndLabel(candidate, packageSize);
+  const footprints = flattenedFootprints(groups);
+  if (footprints.length > 0) {
+    const centerX =
+      (Math.min(...footprints.map((p) => p.x - p.length / 2)) +
+        Math.max(...footprints.map((p) => p.x + p.length / 2))) /
+      2;
+    const centerY =
+      (Math.min(...footprints.map((p) => p.y - p.width / 2)) +
+        Math.max(...footprints.map((p) => p.y + p.width / 2))) /
+      2;
+    // These footprints are copies; the selected candidate keeps its exact
+    // coordinates, yaw, labels, grips, score and identity.
+    for (const footprint of footprints) {
+      footprint.x = normalizedNumber(footprint.x - centerX);
+      footprint.y = normalizedNumber(footprint.y - centerY);
+    }
+  }
+  return describeFootprintGroups(groups, toleranceMm);
+}
+
+function reflectedLayouts(
+  descriptor: CandidateLayoutDescriptor,
+  toleranceMm: number,
+): CandidateLayoutDescriptor[] {
+  // These four transforms preserve every rectangular pallet's axes. Do not
+  // exchange length and width without knowing whether the pallet is square.
+  const variants = [descriptor];
+  for (const [mirrorX, mirrorY] of [
+    [true, false],
+    [false, true],
+    [true, true],
+  ]) {
+    const groups = new Map<string, CandidateLayoutFootprint[]>();
+    for (const footprint of flattenedFootprints(descriptor.groups)) {
+      let labelSide = footprint.labelSide;
+      if (mirrorX && (labelSide === "left" || labelSide === "right")) {
+        labelSide = labelSide === "left" ? "right" : "left";
+      }
+      if (mirrorY && (labelSide === "top" || labelSide === "bottom")) {
+        labelSide = labelSide === "top" ? "bottom" : "top";
+      }
+      const reflected = {
+        ...footprint,
+        x: normalizedNumber(mirrorX ? -footprint.x : footprint.x),
+        y: normalizedNumber(mirrorY ? -footprint.y : footprint.y),
+        labelSide,
+      };
+      const key = footprintGroupKey(reflected);
+      const entries = groups.get(key) ?? [];
+      entries.push(reflected);
+      groups.set(key, entries);
+    }
+    for (const entries of groups.values()) entries.sort(compareFootprints);
+    variants.push(describeFootprintGroups(groups, toleranceMm));
+  }
+  return variants;
 }
 
 function coordinateEpsilon(left: number, right: number): number {
@@ -195,6 +269,7 @@ function footprintsMatch(
   source: readonly CandidateLayoutFootprint[],
   candidate: readonly CandidateLayoutFootprint[],
   toleranceMm: number,
+  matchedOffsets?: Array<{ x: number; y: number }>,
 ): boolean {
   if (source.length !== candidate.length) return false;
   const candidateIndicesByCell = new Map<string, number[]>();
@@ -258,21 +333,49 @@ function footprintsMatch(
     return false;
   };
 
-  return sourceOrder.every((sourceIndex) =>
+  const matched = sourceOrder.every((sourceIndex) =>
     assign(sourceIndex, Array<boolean>(candidate.length).fill(false)),
   );
+  if (matched && matchedOffsets) {
+    candidate.forEach((footprint, candidateIndex) => {
+      const sourceFootprint = source[sourceForCandidate[candidateIndex]!]!;
+      matchedOffsets.push({
+        x: footprint.x - sourceFootprint.x,
+        y: footprint.y - sourceFootprint.y,
+      });
+    });
+  }
+  return matched;
 }
 
 function descriptorsMatch(
   left: CandidateLayoutDescriptor,
   right: CandidateLayoutDescriptor,
   toleranceMm: number,
+  compareRelativeSpacing = false,
 ): boolean {
   if (left.coarseKey !== right.coarseKey) return false;
+  const offsets = compareRelativeSpacing
+    ? ([] as Array<{ x: number; y: number }>)
+    : undefined;
   for (const [key, leftGroup] of left.groups) {
     const rightGroup = right.groups.get(key);
-    if (!rightGroup || !footprintsMatch(leftGroup, rightGroup, toleranceMm)) {
+    if (
+      !rightGroup ||
+      !footprintsMatch(leftGroup, rightGroup, toleranceMm, offsets)
+    ) {
       return false;
+    }
+  }
+  // Centering splits a row's shift between both rows. Bound the relative
+  // displacement as well so half-package offsets cannot disappear that way.
+  if (offsets?.length) {
+    for (const axis of ["x", "y"] as const) {
+      const values = offsets.map((offset) => offset[axis]);
+      if (
+        !withinTolerance(Math.min(...values), Math.max(...values), toleranceMm)
+      )
+        return false;
     }
   }
   return true;
@@ -344,6 +447,11 @@ export function selectDistinctCandidateLayouts(
       left.rank - right.rank ||
       (left.id < right.id ? -1 : left.id > right.id ? 1 : 0),
   );
+  const toleranceMm = Math.max(
+    CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM,
+    Math.min(packageSize.length, packageSize.width) *
+      LAYOUT_SPACING_TOLERANCE_RATIO,
+  );
   const exactRepresentativeByKey = new Map<string, CandidateLayoutDescriptor>();
   const representativesBySpatialKey = new Map<
     string,
@@ -352,7 +460,7 @@ export function selectDistinctCandidateLayouts(
   const representatives: SolverCandidate[] = [];
 
   for (const candidate of rankedCandidates) {
-    const descriptor = describeCandidateLayout(candidate, packageSize);
+    const descriptor = centeredLayout(candidate, packageSize, toleranceMm);
     if (exactRepresentativeByKey.has(descriptor.exactKey)) continue;
 
     const nearbyRepresentatives = new Set<CandidateLayoutDescriptor>();
@@ -366,24 +474,24 @@ export function selectDistinctCandidateLayouts(
     }
     if (
       [...nearbyRepresentatives].some((representative) =>
-        descriptorsMatch(
-          representative,
-          descriptor,
-          CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM,
-        ),
+        descriptorsMatch(representative, descriptor, toleranceMm, true),
       )
     ) {
       continue;
     }
 
-    exactRepresentativeByKey.set(descriptor.exactKey, descriptor);
-    const spatialKey = spatialIndexKey(
-      descriptor.coarseKey,
-      descriptor.spatialCell,
-    );
-    const spatialPeers = representativesBySpatialKey.get(spatialKey) ?? [];
-    spatialPeers.push(descriptor);
-    representativesBySpatialKey.set(spatialKey, spatialPeers);
+    // Index only retained representatives. Approximate matches must not form
+    // a chain that gradually swallows a genuinely different arrangement.
+    for (const variant of reflectedLayouts(descriptor, toleranceMm)) {
+      exactRepresentativeByKey.set(variant.exactKey, variant);
+      const spatialKey = spatialIndexKey(
+        variant.coarseKey,
+        variant.spatialCell,
+      );
+      const spatialPeers = representativesBySpatialKey.get(spatialKey) ?? [];
+      spatialPeers.push(variant);
+      representativesBySpatialKey.set(spatialKey, spatialPeers);
+    }
     representatives.push(candidate);
   }
 

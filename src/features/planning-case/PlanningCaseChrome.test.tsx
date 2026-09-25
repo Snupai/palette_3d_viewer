@@ -175,6 +175,39 @@ describe("planning case chrome", () => {
     ).toBeTruthy();
   });
 
+  it("makes layouts beyond the first 32 selectable and resets the page for a new result", () => {
+    const items = Array.from({ length: 65 }, (_, index) =>
+      candidate(index + 1),
+    );
+    const { rerender } = render(<CandidateIndexHarness items={items} />);
+    expect(screen.getAllByRole("option")).toHaveLength(32);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show more layouts (32)" }),
+    );
+    expect(screen.getAllByRole("option")).toHaveLength(64);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Show more layouts (1)" }),
+    );
+    const last = screen.getAllByRole("option")[64]!;
+    fireEvent.click(last);
+    expect(screen.getByTestId("selected-candidate").textContent).toBe(
+      "candidate-65",
+    );
+    expect(last.getAttribute("aria-selected")).toBe("true");
+    expect(
+      screen.queryByRole("button", { name: /Show more layouts/ }),
+    ).toBeNull();
+
+    rerender(<CandidateIndexHarness items={[...items]} />);
+    expect(screen.getAllByRole("option")).toHaveLength(32);
+    expect(
+      screen.getAllByRole("option")[31]?.getAttribute("aria-selected"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Show more layouts (32)" }),
+    ).toBeTruthy();
+  });
+
   it("renders claim-specific statuses, evidence classes, and expandable detail", () => {
     const rows: ValidationLedgerRow[] = [
       {

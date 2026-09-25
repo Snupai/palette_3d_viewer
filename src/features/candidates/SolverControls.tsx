@@ -57,8 +57,8 @@ type SolverDraft = {
   packageHeight: string;
   inletOrientation: PackageInletOrientation;
   multiPickAllowed: boolean;
-  lengthAllowancePerSide: string;
-  widthAllowancePerSide: string;
+  lengthAllowanceTotal: string;
+  widthAllowanceTotal: string;
   packageCount: string;
   unrotatedPackageLabelSide: "" | Side;
   maxCandidatesPerGenerator: string;
@@ -147,10 +147,12 @@ function initialDraft(project: Project): SolverDraft {
     packageHeight: String(project.package.dimensionsMm.height),
     inletOrientation: project.package.inletOrientation,
     multiPickAllowed: project.package.multiPickAllowed,
-    lengthAllowancePerSide: String(
-      project.pallet?.allowedOverhangMm.length ?? 0,
+    lengthAllowanceTotal: String(
+      2 * (project.pallet?.allowedOverhangMm.length ?? 0),
     ),
-    widthAllowancePerSide: String(project.pallet?.allowedOverhangMm.width ?? 0),
+    widthAllowanceTotal: String(
+      2 * (project.pallet?.allowedOverhangMm.width ?? 0),
+    ),
     packageCount: "",
     unrotatedPackageLabelSide: configuredLabelSide(project),
     maxCandidatesPerGenerator: "500",
@@ -197,16 +199,16 @@ function prepareSolverInput(
       width: finitePositive(draft.packageWidth, "Package width"),
       height: finitePositive(draft.packageHeight, "Package height"),
     };
-    const lengthAllowancePerSide = finiteNumber(
-      draft.lengthAllowancePerSide,
-      "Length overhang / underhang per side",
+    const lengthAllowanceTotal = finiteNumber(
+      draft.lengthAllowanceTotal,
+      "Length total overhang / underhang",
     );
-    const widthAllowancePerSide = finiteNumber(
-      draft.widthAllowancePerSide,
-      "Width overhang / underhang per side",
+    const widthAllowanceTotal = finiteNumber(
+      draft.widthAllowanceTotal,
+      "Width total overhang / underhang",
     );
     const rectangularBlockFootprintPolicy =
-      lengthAllowancePerSide === 0 && widthAllowancePerSide === 0
+      lengthAllowanceTotal === 0 && widthAllowanceTotal === 0
         ? "compact-centered"
         : "fill-generation-bounds";
     const packageCount = positiveInteger(
@@ -251,8 +253,8 @@ function prepareSolverInput(
     const generationBoundsMm = createEffectivePalletEnvelope(
       project.pallet.dimensionsMm,
       symmetricSideAllowance({
-        length: lengthAllowancePerSide,
-        width: widthAllowancePerSide,
+        length: lengthAllowanceTotal / 2,
+        width: widthAllowanceTotal / 2,
       }),
     );
     const input: LayerSolverInput = {
@@ -740,31 +742,46 @@ export function SolverControls({
 
         <fieldset className="grid grid-cols-2 gap-2">
           <legend className="col-span-2 mb-1 text-[10px] font-semibold text-[var(--muted)]">
-            Pallet allowance per side · mm
+            Total pallet allowance · mm
           </legend>
           <DimensionInput
-            label="Length overhang / underhang per side"
-            value={draft.lengthAllowancePerSide}
+            label="Length total overhang / underhang"
+            value={draft.lengthAllowanceTotal}
             disabled={inputsDisabled}
             signed
-            onChange={(lengthAllowancePerSide) =>
-              updateDraft({ lengthAllowancePerSide })
+            onChange={(lengthAllowanceTotal) =>
+              updateDraft({ lengthAllowanceTotal })
             }
           />
           <DimensionInput
-            label="Width overhang / underhang per side"
-            value={draft.widthAllowancePerSide}
+            label="Width total overhang / underhang"
+            value={draft.widthAllowanceTotal}
             disabled={inputsDisabled}
             signed
-            onChange={(widthAllowancePerSide) =>
-              updateDraft({ widthAllowancePerSide })
+            onChange={(widthAllowanceTotal) =>
+              updateDraft({ widthAllowanceTotal })
             }
           />
+          {prepared.input?.generationBoundsMm ? (
+            <p
+              className="col-span-2 font-mono text-[11px] text-[var(--ink)]"
+              aria-live="polite"
+            >
+              Effective frame:{" "}
+              {prepared.input.generationBoundsMm.maxX -
+                prepared.input.generationBoundsMm.minX}{" "}
+              ×{" "}
+              {prepared.input.generationBoundsMm.maxY -
+                prepared.input.generationBoundsMm.minY}{" "}
+              mm
+            </p>
+          ) : null}
           <p className="col-span-2 text-[10px] leading-4 text-[var(--muted)]">
-            Zero on both axes creates a tight centered footprint. Any positive
-            or negative value defines the requested frame and may distribute
-            bounded spacing to reach it. The saved pallet policy remains
-            unchanged.
+            The total is split equally between both sides (−38 mm means −19 mm
+            per side). Zero on both axes creates a tight centered footprint. Any
+            positive or negative value defines the requested frame and may
+            distribute bounded spacing to reach it. The saved pallet policy
+            remains unchanged.
           </p>
         </fieldset>
 
@@ -938,9 +955,9 @@ export function SolverControls({
           <p className="text-[var(--muted)]">
             Ready: {draft.packageLength} × {draft.packageWidth} ×{" "}
             {draft.packageHeight} mm package · {draft.inletOrientation} infeed
-            left to right · L {draft.lengthAllowancePerSide}/W{" "}
-            {draft.widthAllowancePerSide} mm per side · {draft.packageCount}{" "}
-            packages · label{" "}
+            left to right · L {draft.lengthAllowanceTotal}/W{" "}
+            {draft.widthAllowanceTotal} mm total · {draft.packageCount} packages
+            · label{" "}
             {draft.unrotatedPackageLabelSide
               ? labelFaceDescription[draft.unrotatedPackageLabelSide]
               : "not constrained"}{" "}

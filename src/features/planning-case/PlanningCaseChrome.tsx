@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, type KeyboardEvent, type ReactNode } from "react";
+import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
 import { candidateRankReason } from "~/features/candidates/candidateListModel";
@@ -20,7 +20,15 @@ export function PlanningCandidateIndex({
   onSelect: (candidateId: string) => void;
   maximumRows?: number;
 }) {
-  const rowLimit = Math.max(0, maximumRows);
+  const [expandedList, setExpandedList] = useState<{
+    candidates: readonly SolverCandidate[];
+    rowLimit: number;
+  } | null>(null);
+  const pageSize = Math.max(0, maximumRows);
+  const rowLimit =
+    expandedList?.candidates === candidates
+      ? Math.max(pageSize, expandedList.rowLimit)
+      : pageSize;
   const topRows = candidates.slice(0, rowLimit);
   const selectedCandidate = candidates.find(
     ({ id }) => id === selectedCandidateId,
@@ -184,11 +192,29 @@ export function PlanningCandidateIndex({
           </p>
         ) : null}
         {candidates.length > rowLimit ? (
-          <p className="border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
-            {selectedOutsideTopRows
-              ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
-              : `Showing the first ${rowLimit} ranked candidates.`}
-          </p>
+          <div className="grid gap-2 border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
+            <p>
+              {selectedOutsideTopRows
+                ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
+                : `Showing the first ${rowLimit} ranked candidates.`}
+            </p>
+            <button
+              type="button"
+              className="ui-btn cursor-pointer text-xs"
+              onClick={() =>
+                setExpandedList({
+                  candidates,
+                  rowLimit: Math.min(
+                    candidates.length,
+                    rowLimit + Math.max(1, pageSize),
+                  ),
+                })
+              }
+            >
+              Show more layouts (
+              {Math.min(Math.max(1, pageSize), candidates.length - rowLimit)})
+            </button>
+          </div>
         ) : null}
       </div>
     </section>
