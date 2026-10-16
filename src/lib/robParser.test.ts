@@ -112,6 +112,43 @@ describe("parseRobText characterization", () => {
     const again = parseRobText(serializeRobText(original));
     expect(stripGripIds(again)).toEqual(stripGripIds(original));
   });
+
+  it.each([2, 3, 4])(
+    "reads four unique patterns with a declared count of %i",
+    (declaredCount) => {
+      const text = [
+        "1200 800 144",
+        "200 300 150 0",
+        String(declaredCount),
+        "6",
+        "0 0",
+        "1 0",
+        "2 0",
+        "3 1",
+        "4 0",
+        "2 0",
+        "1 0",
+        ...[100, 300, 500, 700].flatMap((x) => [
+          "1",
+          `100 50 0 ${x} 400 0 1 0 0`,
+          "",
+        ]),
+        "  ",
+      ].join("\r\n");
+      const data = parseRobText(text);
+
+      expect(Object.keys(data.uniqueLayers)).toEqual(["1", "2", "3", "4"]);
+      expect(data.layers.map((layer) => layer.boxes[0]?.placeX)).toEqual([
+        100, 300, 500, 700, 300, 100,
+      ]);
+      expect(data.layers[3]?.zwischenlage).toBe(1);
+      expect(data.total_boxes).toBe(6);
+
+      const exported = serializeRobText(data);
+      expect(exported.split("\n")[2]).toBe("4");
+      expect(stripGripIds(parseRobText(exported))).toEqual(stripGripIds(data));
+    },
+  );
 });
 
 describe("parseRobText validation", () => {

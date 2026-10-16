@@ -299,8 +299,13 @@ export function parseRobText(text: string): PalletData {
   const uniqueLayerBlockCount = Math.max(1, num_unique_layers);
   const uniqueLayers: Record<number, Grip[]> = {};
   const unique_layers: Layer[] = [];
-  for (let i = 0; i < uniqueLayerBlockCount; i++) {
-    const uniqueLayerId = i + 1;
+  // Some robot plans underreport the unique layer count in the header. Keep
+  // every coordinate block so later layer-order references remain usable.
+  let uniqueLayerId = 1;
+  while (
+    uniqueLayerId <= uniqueLayerBlockCount ||
+    lines.slice(current_line).some((line) => line.trim() !== "")
+  ) {
     const grips = parseLayerGrips(uniqueLayerId);
     uniqueLayers[uniqueLayerId] = grips;
     unique_layers.push({
@@ -314,6 +319,7 @@ export function parseRobText(text: string): PalletData {
       ),
       zwischenlage: 0,
     });
+    uniqueLayerId += 1;
   }
 
   const layers: Layer[] = [];

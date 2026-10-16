@@ -1,0 +1,237 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T08:32:27.896Z",
+  "privacy": {
+    "absolutePathsStored": false,
+    "sourceTextStored": false,
+    "fileNamesStored": false
+  },
+  "artifacts": {
+    "corpusReport": "rob-corpus-report-2026-08-06T08-32-27-896Z.json",
+    "sentinelManifest": "rob-corpus-sentinel-manifest-v1.json"
+  },
+  "run": {
+    "runtimeSeconds": 151.634,
+    "maxFileBytes": 8388608,
+    "maxCandidatesPerGenerator": 500,
+    "scenarios": [
+      "nominal-strict-v1",
+      "observed-envelope-v1"
+    ],
+    "discoveredFiles": 63,
+    "acceptedFiles": 63,
+    "rejectedEntries": 0,
+    "distinctBytePayloads": 58,
+    "families": 47
+  },
+  "parseAndRoundtrip": {
+    "fileWeighted": {
+      "parsePassed": 63,
+      "semanticRoundtripPassed": 63,
+      "total": 63
+    },
+    "payloadWeighted": {
+      "parsePassed": 58,
+      "semanticRoundtripPassed": 58,
+      "total": 58
+    }
+  },
+  "sourceGeometryProfiles": {
+    "fileWeighted": {
+      "sourcePatterns": 126,
+      "profiles": {
+        "nominal-strict": 68,
+        "nominal-rob-integer-compatible": 48,
+        "observed-strict-only": 8,
+        "observed-rob-integer-compatible-only": 2,
+        "invalid-source-geometry": 0,
+        "unavailable": 0
+      }
+    },
+    "payloadWeighted": {
+      "sourcePatterns": 116,
+      "profiles": {
+        "nominal-strict": 58,
+        "nominal-rob-integer-compatible": 48,
+        "observed-strict-only": 8,
+        "observed-rob-integer-compatible-only": 2,
+        "invalid-source-geometry": 0,
+        "unavailable": 0
+      }
+    },
+    "solverValidationToleranceMm": 0,
+    "sourceOnlyRobIntegerToleranceMm": 0.500001
+  },
+  "generatedMaximumRelativeToSource": {
+    "fileWeighted": {
+      "totalComparisons": 252,
+      "counts": {
+        "below": 50,
+        "equal": 150,
+        "above": 52
+      },
+      "byScenario": {
+        "nominal-strict-v1": {
+          "below": 20,
+          "equal": 62,
+          "above": 44
+        },
+        "observed-envelope-v1": {
+          "below": 30,
+          "equal": 88,
+          "above": 8
+        }
+      }
+    },
+    "payloadWeighted": {
+      "totalComparisons": 232,
+      "counts": {
+        "below": 50,
+        "equal": 132,
+        "above": 50
+      },
+      "byScenario": {
+        "nominal-strict-v1": {
+          "below": 20,
+          "equal": 54,
+          "above": 42
+        },
+        "observed-envelope-v1": {
+          "below": 30,
+          "equal": 78,
+          "above": 8
+        }
+      }
+    }
+  },
+  "geometryComparison": {
+    "fileWeighted": {
+      "patternComparisons": 252,
+      "exactGeometryMatches": 0,
+      "symmetryOrbitMatches": 0,
+      "acceptedExactMatches": 0,
+      "acceptedSymmetryMatches": 0,
+      "unmatchedPatterns": 252,
+      "ranks": {
+        "count": 0,
+        "minimum": null,
+        "maximum": null,
+        "values": []
+      }
+    },
+    "payloadWeighted": {
+      "patternComparisons": 232,
+      "exactGeometryMatches": 0,
+      "symmetryOrbitMatches": 0,
+      "acceptedExactMatches": 0,
+      "acceptedSymmetryMatches": 0,
+      "unmatchedPatterns": 232,
+      "ranks": {
+        "count": 0,
+        "minimum": null,
+        "maximum": null,
+        "values": []
+      }
+    }
+  },
+  "statuses": {
+    "discoveredFileCount": 63,
+    "acceptedFileCount": 63,
+    "rejectedEntryCount": 0,
+    "familyCount": 47,
+    "fileStatusCounts": {
+      "PASS": 0,
+      "FAIL": 0,
+      "OBSERVED": 0,
+      "BLOCKED": 63,
+      "SKIPPED": 0
+    },
+    "checkStatusCounts": {
+      "PASS": 591,
+      "FAIL": 0,
+      "OBSERVED": 556,
+      "BLOCKED": 554,
+      "SKIPPED": 1008
+    },
+    "scenarioStatusCounts": {
+      "PASS": 0,
+      "FAIL": 0,
+      "OBSERVED": 0,
+      "BLOCKED": 126,
+      "SKIPPED": 0
+    }
+  },
+  "failureFamilies": {
+    "hardFailFamilyCount": 0,
+    "blockedOrIncompleteFamilyCount": 5,
+    "families": [
+      {
+        "id": "solver-generation-coverage-incomplete",
+        "fileWeighted": {
+          "scenarioCount": 126,
+          "diagnostics": {
+            "generationLimitReachedDuringBaseGeneration": 50,
+            "generationLimitReachedDuringSymmetry": 126
+          }
+        },
+        "payloadWeighted": {
+          "scenarioCount": 116,
+          "diagnostics": {
+            "generationLimitReachedDuringBaseGeneration": 48,
+            "generationLimitReachedDuringSymmetry": 116
+          }
+        }
+      },
+      {
+        "id": "unmatched-geometry-under-incomplete-generation",
+        "fileWeightedCount": 252,
+        "payloadWeightedCount": 232
+      },
+      {
+        "id": "generated-maximum-below-source-under-incomplete-generation",
+        "fileWeightedCount": 50,
+        "payloadWeightedCount": 50
+      },
+      {
+        "id": "generated-robotics-parity-awaits-group-planning",
+        "fileWeightedCount": 63,
+        "payloadWeightedCount": 58
+      },
+      {
+        "id": "generated-stack-parity-awaits-composition",
+        "fileWeightedCount": 63,
+        "payloadWeightedCount": 58
+      }
+    ]
+  },
+  "duplicateFamilies": {
+    "byteIdentical": [
+      {
+        "digestPrefix": "af13f8a402043bf4",
+        "count": 2
+      },
+      {
+        "digestPrefix": "bc70c3ea8e121cd9",
+        "count": 3
+      },
+      {
+        "digestPrefix": "bda9b7b51515cf0d",
+        "count": 3
+      }
+    ],
+    "semanticallyIdentical": [
+      {
+        "digestPrefix": "2d5d961436a027c0",
+        "count": 2
+      },
+      {
+        "digestPrefix": "bbb77641654369b3",
+        "count": 3
+      },
+      {
+        "digestPrefix": "e7c32e6264d2669c",
+        "count": 3
+      }
+    ]
+  }
+}
