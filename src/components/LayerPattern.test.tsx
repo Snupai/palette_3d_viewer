@@ -135,8 +135,8 @@ describe("LayerPattern", () => {
     expect(svg.getAttribute("viewBox")).toBe("0 0 1000 700");
     expect(svg.getAttribute("data-layer-pattern-id")).toBe("physical-layer-1");
     expect(screen.getByText("G1")).toBeTruthy();
-    expect(container.querySelector("path")?.getAttribute("stroke")).toBe(
-      "#38bdf8",
+    expect(container.querySelector("path")?.getAttribute("class")).toBe(
+      "fill-none stroke-measure",
     );
 
     rerender(
@@ -177,7 +177,9 @@ describe("LayerPattern", () => {
     expect(preview.items[0]?.centerMm).toEqual({ x: -100, y: 50 });
     expect(preview.items[0]?.rotation).toBe(90);
     expect(preview.items[0]?.labelSide).toBe("left");
-    expect(item?.querySelector("path")?.getAttribute("stroke")).toBe("#38bdf8");
+    expect(item?.querySelector("path")?.getAttribute("data-label-side")).toBe(
+      "left",
+    );
     expect(preview.palletBoundsMm).toEqual({
       minX: -600,
       minY: -400,

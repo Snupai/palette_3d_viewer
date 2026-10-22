@@ -19,10 +19,28 @@ import {
   PlanningCandidateIndex,
   ValidationLedger,
 } from "~/features/planning-case/PlanningCaseChrome";
+import dynamic from "next/dynamic";
 import { MeasuredPlanField } from "~/features/planning-case/MeasuredPlanField";
+
+// WebGL viewer: client only, loaded once the plan is finished.
+const FinishedStack3D = dynamic(
+  () =>
+    import("~/features/planning-case/FinishedStack3D").then(
+      (module) => module.FinishedStack3D,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="border-line bg-viewport text-viewport-ink grid h-full min-h-[420px] place-items-center border text-xs">
+        Loading 3D view…
+      </div>
+    ),
+  },
+);
 import {
   clampPlanningStage,
   productionToolGate,
+  stackLayerCount,
   workflowStages,
   type PatternComparison,
   type PlanningStage,
@@ -54,6 +72,62 @@ function stageLabel(stage: PlanningStage, importedRob: boolean): string {
   }
 }
 
+/**
+ * Read-only progress ruler: one segment per step, filled up to the current
+ * one. Deliberately not clickable — steps are sequential (docs/DESIGN.md).
+ */
+function StageRuler({
+  stages,
+  currentIndex,
+}: {
+  stages: readonly (readonly [string, string])[];
+  currentIndex: number;
+}) {
+  return (
+    <ol
+      aria-label="Planning steps"
+      className="border-line grid border-b px-3 pt-2 pb-1.5"
+      style={{
+        gridTemplateColumns: `repeat(${stages.length}, minmax(0, 1fr))`,
+      }}
+    >
+      {stages.map(([id, label], index) => {
+        const state =
+          index < currentIndex
+            ? "done"
+            : index === currentIndex
+              ? "current"
+              : "next";
+        return (
+          <li
+            key={id}
+            aria-current={state === "current" ? "step" : undefined}
+            className="min-w-0"
+          >
+            <span
+              aria-hidden="true"
+              className={`relative block h-1.5 border-l ${
+                state === "next"
+                  ? "border-line bg-transparent"
+                  : "border-brand bg-brand"
+              } ${state === "current" ? "opacity-100" : state === "done" ? "opacity-45" : ""}`}
+            >
+              <span className="border-line absolute inset-x-0 bottom-0 border-b" />
+            </span>
+            <span
+              className={`text-micro mt-1 block truncate font-mono ${
+                state === "current" ? "text-ink font-semibold" : "text-muted"
+              }`}
+            >
+              {label}
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
 function MetricRow({
   label,
   value,
@@ -62,15 +136,17 @@ function MetricRow({
   value: string | number;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-[var(--line)] py-1.5 last:border-b-0">
-      <dt className="text-[11px] text-[var(--muted)]">{label}</dt>
-      <dd className="font-mono text-[11px] text-[var(--ink)]">{value}</dd>
+    <div className="border-line grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b py-1.5 last:border-b-0">
+      <dt className="text-micro text-muted">{label}</dt>
+      <dd className="text-micro text-ink font-mono">{value}</dd>
     </div>
   );
 }
 
 export type PlanningCaseWorkbenchProps = {
   project: Project | null;
+  /** Downloads the saved plan's .rob file (shown once a stack is saved). */
+  onDownloadRob?: () => void;
   loadingProject: boolean;
   error: string | null;
   statusMessage: string | null;
@@ -139,6 +215,7 @@ export function PlanningCaseWorkbench({
   onCurrentLayerChange,
   hasUnsavedChanges,
   robotCycleCount = 0,
+  onDownloadRob,
 }: PlanningCaseWorkbenchProps) {
   const robInputRef = useRef<HTMLInputElement>(null);
   const importedRob = isImportedRob(project);
@@ -154,7 +231,7 @@ export function PlanningCaseWorkbench({
   const palletDimensions = project?.pallet?.dimensionsMm;
   const generatedCandidateCount = solverResult?.statistics.candidateCount ?? 0;
   const candidateLayoutCount = candidates.length;
-  const roboticsGate = productionToolGate("robotics", project, robotCycleCount);
+  const stackSaved = project !== null && stackLayerCount(project) > 0;
   const sourceName =
     project?.source.kind === "rob-import" ? project.source.fileName : null;
 
@@ -184,8 +261,8 @@ export function PlanningCaseWorkbench({
           />
           {project ? (
             <>
-              <section className="border border-[var(--line)] p-3">
-                <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+              <section className="border-line border p-3">
+                <h3 className="text-body text-ink font-semibold">
                   {importedRob ? "Imported plan" : "Current project"}
                 </h3>
                 {packageDimensions ? (
@@ -253,7 +330,7 @@ export function PlanningCaseWorkbench({
             </>
           ) : (
             <>
-              <p className="text-[13px] leading-5 text-[var(--muted)]">
+              <p className="text-body text-muted leading-5">
                 Start a new pallet plan or open an existing .rob plan.
               </p>
               <button
@@ -270,8 +347,8 @@ export function PlanningCaseWorkbench({
               >
                 Open .rob file
               </button>
-              <details className="border-t border-[var(--line)] pt-2">
-                <summary className="cursor-pointer text-[11px] font-semibold text-[var(--muted)]">
+              <details className="border-line border-t pt-2">
+                <summary className="text-micro text-muted cursor-pointer font-semibold">
                   More
                 </summary>
                 <div className="mt-2 grid gap-2">
@@ -305,10 +382,10 @@ export function PlanningCaseWorkbench({
             onSelect={onCandidateChange}
           />
           <details
-            className="border border-[var(--line)]"
+            className="border-line border"
             open={candidates.length === 0}
           >
-            <summary className="cursor-pointer px-3 py-2 text-[11px] font-semibold text-[var(--muted)]">
+            <summary className="text-micro text-muted cursor-pointer px-3 py-2 font-semibold">
               {candidates.length === 0
                 ? "Layer solver"
                 : "Adjust inputs & re-run"}
@@ -336,7 +413,7 @@ export function PlanningCaseWorkbench({
         </div>
       ) : (
         <div className="grid gap-3">
-          <p className="text-[13px] leading-5 text-[var(--muted)]">
+          <p className="text-body text-muted leading-5">
             A project is required before the solver can run.
           </p>
           <button
@@ -353,8 +430,8 @@ export function PlanningCaseWorkbench({
       context = (
         <div className="grid gap-3">
           {selectedCandidate ? (
-            <section className="border border-[var(--line)] p-3">
-              <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+            <section className="border-line border p-3">
+              <h3 className="text-body text-ink font-semibold">
                 Selected layout
               </h3>
               <dl className="mt-2">
@@ -381,8 +458,8 @@ export function PlanningCaseWorkbench({
               </dl>
             </section>
           ) : null}
-          <section className="border border-[var(--line)] p-3">
-            <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+          <section className="border-line border p-3">
+            <h3 className="text-body text-ink font-semibold">
               Current sequence
             </h3>
             <dl className="mt-2">
@@ -404,22 +481,37 @@ export function PlanningCaseWorkbench({
               />
             </dl>
           </section>
+          {stackSaved ? (
+            <section
+              aria-label="Plan finished"
+              className="border-ok bg-surface grid gap-2 border border-l-4 p-3"
+            >
+              <h3 className="text-body text-ink flex items-center gap-1.5 font-semibold">
+                <span aria-hidden="true" className="text-ok">
+                  ■
+                </span>
+                Pallet plan finished
+              </h3>
+              <p className="text-micro text-muted leading-4">
+                The stack is saved. Download the .rob plan for the robot.
+              </p>
+              <button
+                type="button"
+                onClick={onDownloadRob}
+                disabled={!onDownloadRob}
+                className="ui-btn-primary"
+              >
+                Download .rob
+              </button>
+            </section>
+          ) : null}
           <button
             type="button"
             disabled={!project || !solverInput || candidateLayoutCount === 0}
             onClick={() => onOpenTool("stack")}
-            className="ui-btn-primary"
+            className={stackSaved ? "ui-btn" : "ui-btn-primary"}
           >
-            Open stack composer
-          </button>
-          <button
-            type="button"
-            disabled={!currentPalletData || !roboticsGate.ready}
-            title={roboticsGate.ready ? undefined : roboticsGate.missing}
-            onClick={() => onOpenTool("robotics")}
-            className="ui-btn"
-          >
-            Continue to robot materialization
+            {stackSaved ? "Edit stack" : "Open stack composer"}
           </button>
         </div>
       );
@@ -427,17 +519,17 @@ export function PlanningCaseWorkbench({
   }
 
   return (
-    <div className="planner-workspace-content grid min-h-0 min-w-0 flex-1 grid-cols-[minmax(0,1fr)] grid-rows-[auto_auto_minmax(0,1fr)_auto_auto] overflow-hidden bg-[var(--canvas)] text-[var(--ink)]">
-      <header className="app-chrome grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b border-[var(--line)] bg-[var(--surface)] px-2 py-1.5 md:flex md:flex-nowrap md:gap-3 md:px-3 md:py-0">
+    <div className="planner-workspace-content bg-canvas text-ink flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+      <header className="app-chrome border-line bg-surface grid min-h-11 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-b px-2 py-1.5 md:flex md:flex-nowrap md:gap-3 md:px-3 md:py-0">
         <button
           type="button"
           onClick={onOpenProjects}
-          className="ui-btn h-7 shrink-0 px-2.5 text-[12px] whitespace-nowrap"
+          className="ui-btn ui-btn-sm shrink-0 whitespace-nowrap"
         >
           Projects
         </button>
         <div className="min-w-0 md:flex-1">
-          <h1 className="truncate text-[13px] font-semibold text-[var(--ink)]">
+          <h1 className="text-body text-ink truncate font-semibold">
             {loadingProject
               ? "Reopening project…"
               : project
@@ -446,75 +538,106 @@ export function PlanningCaseWorkbench({
                   "Untitled project"
                 : "No project selected"}
           </h1>
-          <p className="truncate font-mono text-[11px] text-[var(--muted)]">
+          <p className="text-micro text-muted truncate font-mono">
             {project && packageDimensions
               ? `${project.productNumber || "NO PRODUCT"} · PKG ${packageDimensions.length}×${packageDimensions.width}×${packageDimensions.height} · ${project.pallet?.name ?? "NO PALLET"}`
               : "Open a .rob file or create a project"}
           </p>
         </div>
-        <div className="hidden min-w-0 items-center gap-2 font-mono text-[11px] md:ml-auto md:flex">
+        <div className="text-micro hidden min-w-0 items-center gap-2 font-mono md:ml-auto md:flex">
           {hasUnsavedChanges ? (
-            <span className="shrink-0 text-[var(--brand)]">Unsaved</span>
+            <span className="text-brand shrink-0">Unsaved</span>
           ) : (
-            <span className="shrink-0 text-[var(--muted)]">
+            <span className="text-muted shrink-0">
               {project
                 ? `Saved locally · ${new Date(project.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
                 : "Saved locally"}
             </span>
           )}
           {sourceName ? (
-            <span className="truncate text-[var(--measure)]" title={sourceName}>
+            <span className="text-measure truncate" title={sourceName}>
               {sourceName}
             </span>
           ) : null}
         </div>
         <div className="flex shrink-0 items-center gap-2">
-          {project
-            ? (
-                [
-                  ["editor", "Editor"],
-                  ["robotics", "Robotics"],
-                  ["simulation", "Simulation"],
-                  ["report", "Report"],
-                ] as const
-              ).map(([tool, label]) => {
-                const gate = productionToolGate(tool, project, robotCycleCount);
-                return (
-                  <button
-                    key={tool}
-                    type="button"
-                    onClick={() => onOpenTool(tool)}
-                    disabled={!gate.ready}
-                    title={gate.ready ? undefined : gate.missing}
-                    className="ui-btn h-7 px-2.5 text-[12px] whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    {label}
-                  </button>
-                );
-              })
-            : null}
+          {project ? (
+            <>
+              {/* Technical tools stay behind Advanced; normal users finish
+                  with the saved stack and its .rob download. */}
+              <details className="relative">
+                <summary className="ui-btn ui-btn-sm flex list-none items-center gap-1 whitespace-nowrap [&::-webkit-details-marker]:hidden">
+                  Advanced
+                  <span aria-hidden="true" className="text-muted">
+                    ▾
+                  </span>
+                </summary>
+                <div className="border-line bg-surface absolute right-0 z-30 mt-1 grid w-56 gap-1 border p-1.5 shadow-[0_2px_8px_rgba(0,0,0,0.1)]">
+                  <p className="text-micro text-muted px-1.5 pb-1">
+                    For technical users: robot setup, layer editing and motion
+                    preview.
+                  </p>
+                  {(
+                    [
+                      ["editor", "Editor"],
+                      ["robotics", "Robotics"],
+                      ["simulation", "Simulation"],
+                    ] as const
+                  ).map(([tool, label]) => {
+                    const gate = productionToolGate(
+                      tool,
+                      project,
+                      robotCycleCount,
+                    );
+                    return (
+                      <button
+                        key={tool}
+                        type="button"
+                        onClick={() => onOpenTool(tool)}
+                        disabled={!gate.ready}
+                        title={gate.ready ? undefined : gate.missing}
+                        className="ui-btn ui-btn-sm ui-btn-ghost justify-start text-left disabled:opacity-50"
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+              <button
+                type="button"
+                onClick={() => onOpenTool("report")}
+                className="ui-btn ui-btn-sm whitespace-nowrap"
+              >
+                Report
+              </button>
+            </>
+          ) : null}
         </div>
       </header>
 
-      <div className="scrollbar-thin min-h-0 overflow-auto">
-        <div className="planning-case-grid grid h-full min-h-0 min-w-[1040px] grid-cols-[minmax(240px,280px)_minmax(480px,1fr)_minmax(260px,300px)] grid-rows-[minmax(0,1fr)] gap-2 p-2">
-          <aside className="app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)_auto] border border-[var(--line)] bg-[var(--surface)]">
-            <header className="flex items-center justify-between gap-2 border-b border-[var(--line)] px-3 py-2">
-              <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+      <div className="scrollbar-thin min-h-0 flex-1 overflow-auto">
+        <div className="planning-case-grid grid h-full min-h-0 min-w-[1090px] grid-cols-[minmax(290px,340px)_minmax(480px,1fr)_minmax(260px,300px)] grid-rows-[minmax(0,1fr)] gap-2 p-2">
+          <aside className="app-chrome border-line bg-surface flex min-h-0 flex-col border">
+            <header className="border-line flex items-center justify-between gap-2 border-b px-3 py-2">
+              <h2 className="text-body text-ink font-semibold">
                 {stageLabel(resolvedStage, importedRob)}
               </h2>
               {stages.length > 1 ? (
-                <p className="font-mono text-[12px] text-[var(--muted)]">
+                <p className="text-muted font-mono text-xs">
                   {stageIndex + 1}/{stages.length}
                 </p>
               ) : null}
             </header>
-            <div className="scrollbar-thin min-h-0 overflow-auto p-3">
+            {stages.length > 1 ? (
+              <StageRuler stages={stages} currentIndex={stageIndex} />
+            ) : null}
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-auto p-3">
               {context}
             </div>
             {project && (previousStage || nextStage) ? (
               <div
-                className={`grid gap-2 border-t border-[var(--line)] p-2 ${
+                className={`border-line grid gap-2 border-t p-2 ${
                   previousStage && nextStage ? "grid-cols-2" : ""
                 }`}
               >
@@ -543,25 +666,32 @@ export function PlanningCaseWorkbench({
 
           {project ? (
             <>
-              <MeasuredPlanField
-                reference={null}
-                current={currentPreview}
-                comparison={comparison}
-                mode="overlay"
-                currentLabel={
-                  selectedCandidate
-                    ? `Candidate ${selectedCandidate.rank}`
-                    : importedRob
-                      ? "Imported plan"
-                      : "Current plan"
-                }
-              />
+              {resolvedStage === "stack" && stackSaved && currentPalletData ? (
+                <FinishedStack3D
+                  data={currentPalletData}
+                  resetKey={`${project.id}:${project.updatedAt}`}
+                />
+              ) : (
+                <MeasuredPlanField
+                  reference={null}
+                  current={currentPreview}
+                  comparison={comparison}
+                  mode="overlay"
+                  currentLabel={
+                    selectedCandidate
+                      ? `Candidate ${selectedCandidate.rank}`
+                      : importedRob
+                        ? "Imported plan"
+                        : "Current plan"
+                  }
+                />
+              )}
 
               <ValidationLedger rows={ledgerRows} />
             </>
           ) : (
-            <section className="col-span-2 grid min-h-0 place-items-center border border-[var(--line)] bg-[var(--surface)]">
-              <p className="max-w-sm text-center text-[13px] leading-5 text-[var(--muted)]">
+            <section className="border-line bg-surface col-span-2 grid min-h-0 place-items-center border">
+              <p className="text-body text-muted max-w-sm text-center leading-5">
                 Create a pallet plan or open a .rob file to see the plan field,
                 layer strips, and inspection ledger.
               </p>
@@ -583,27 +713,23 @@ export function PlanningCaseWorkbench({
         </div>
       ) : null}
 
-      <footer className="app-chrome flex min-h-8 items-center gap-3 border-t border-[var(--line)] bg-[var(--surface)] px-3 font-mono text-[11px]">
+      <footer className="app-chrome border-line bg-surface text-micro flex min-h-8 items-center gap-3 border-t px-3 font-mono">
         {error ? (
-          <span
-            role="alert"
-            className="truncate text-[var(--danger)]"
-            title={error}
-          >
+          <span role="alert" className="text-danger truncate" title={error}>
             {error}
           </span>
         ) : statusMessage ? (
           <span
             role="status"
-            className="truncate text-[var(--muted)]"
+            className="text-muted truncate"
             title={statusMessage}
           >
             {statusMessage}
           </span>
         ) : (
-          <span className="text-[var(--muted)]">Ready</span>
+          <span className="text-muted">Ready</span>
         )}
-        <span className="ml-auto text-[var(--muted)]">
+        <span className="text-muted ml-auto">
           {selectedCandidate
             ? `Candidate #${selectedCandidate.rank} · ${selectedCandidate.metrics.packageCount} pkgs`
             : currentPalletData

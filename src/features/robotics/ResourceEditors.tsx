@@ -5,16 +5,16 @@ import type {
   PalletStation,
   PalletizingDirection,
 } from "~/domain/project/projectSchema";
+import { Field, NumberField as UiNumberField } from "~/components/ui";
 
-const inputClass =
-  "w-full rounded-md border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-xs text-zinc-200 outline-none focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20";
-const labelClass = "grid gap-1 text-[11px] text-zinc-500";
+const inputClass = "ui-input text-xs";
 
 function numberFrom(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+/** Empty -> null; non-finite input keeps the previous value (or 0). */
 function NumberField({
   label,
   value,
@@ -27,23 +27,15 @@ function NumberField({
   min?: number;
 }) {
   return (
-    <label className={labelClass}>
-      {label}
-      <input
-        type="number"
-        value={value ?? ""}
-        min={min}
-        step="any"
-        onChange={(event) =>
-          onChange(
-            event.target.value === ""
-              ? null
-              : numberFrom(event.target.value, value ?? 0),
-          )
-        }
-        className={inputClass}
-      />
-    </label>
+    <UiNumberField
+      label={label}
+      value={value}
+      min={min}
+      step="any"
+      onChange={(raw) =>
+        onChange(raw === "" ? null : numberFrom(raw, value ?? 0))
+      }
+    />
   );
 }
 
@@ -98,16 +90,14 @@ export function GripperEditor({
   return (
     <div className="grid gap-3">
       <div className="grid gap-2 md:grid-cols-3">
-        <label className={`${labelClass} md:col-span-2`}>
-          Name
+        <Field label="Name" className="md:col-span-2">
           <input
             value={value.name}
             onChange={(event) => update("name", event.target.value)}
             className={inputClass}
           />
-        </label>
-        <label className={labelClass}>
-          Type
+        </Field>
+        <Field label="Type">
           <select
             value={value.settings.type}
             onChange={(event) =>
@@ -126,9 +116,8 @@ export function GripperEditor({
             </option>
             <option value="fork">Fork (generated mechanics unverified)</option>
           </select>
-        </label>
-        <label className={labelClass}>
-          External ID
+        </Field>
+        <Field label="External ID">
           <input
             value={value.externalId ?? ""}
             onChange={(event) =>
@@ -136,9 +125,8 @@ export function GripperEditor({
             }
             className={inputClass}
           />
-        </label>
-        <label className={labelClass}>
-          Inlet orientation
+        </Field>
+        <Field label="Inlet orientation">
           <select
             value={value.inletOrientation}
             onChange={(event) =>
@@ -153,7 +141,7 @@ export function GripperEditor({
             <option value="lengthwise">Lengthwise</option>
             <option value="crosswise">Crosswise</option>
           </select>
-        </label>
+        </Field>
         <NumberField
           label="Maximum pickup length (mm; blank = unknown)"
           value={value.maxPickupLengthMm}
@@ -162,10 +150,8 @@ export function GripperEditor({
         />
       </div>
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
-          TCP (mm)
-        </legend>
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">TCP (mm)</legend>
         <div className="grid grid-cols-3 gap-2">
           {(["x", "y", "z"] as const).map((axis) => (
             <NumberField
@@ -183,8 +169,8 @@ export function GripperEditor({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">
           Horizontal tool envelope (mm)
         </legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -207,18 +193,18 @@ export function GripperEditor({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">
           Allowed place rotations
         </legend>
-        <div className="flex flex-wrap gap-3 text-xs text-zinc-300">
+        <div className="text-ink flex flex-wrap gap-3 text-xs">
           {([0, 90, 180, 270] as const).map((rotation) => (
             <label key={rotation} className="flex items-center gap-1.5">
               <input
                 type="checkbox"
                 checked={value.allowedPlaceRotations.includes(rotation)}
                 onChange={() => toggleRotation(rotation)}
-                className="accent-amber-400"
+                className="accent-brand"
               />
               {rotation}°
             </label>
@@ -226,11 +212,11 @@ export function GripperEditor({
         </div>
       </fieldset>
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">
           Package limits (mm)
         </legend>
-        <label className="flex items-center gap-2 text-xs text-zinc-300">
+        <label className="text-ink flex items-center gap-2 text-xs">
           <input
             type="checkbox"
             checked={value.packageLimits !== null}
@@ -246,7 +232,7 @@ export function GripperEditor({
                   : null,
               )
             }
-            className="accent-amber-400"
+            className="accent-brand"
           />
           Validate package dimensions against this gripper
         </label>
@@ -280,7 +266,7 @@ export function GripperEditor({
       </fieldset>
 
       {value.settings.type === "suction" ? (
-        <label className="flex items-center gap-2 border-t border-zinc-800 pt-3 text-xs text-zinc-300">
+        <label className="border-line text-ink flex items-center gap-2 border-t pt-3 text-xs">
           <input
             type="checkbox"
             checked={value.settings.multipickSinglePlace}
@@ -290,13 +276,13 @@ export function GripperEditor({
                 multipickSinglePlace: event.target.checked,
               })
             }
-            className="accent-amber-400"
+            className="accent-brand"
           />
           Multipick with split/single release (retained, generated split release
           unverified)
         </label>
       ) : (
-        <p className="border-t border-zinc-800 pt-3 text-xs leading-5 text-amber-200">
+        <p className="border-line text-caution border-t pt-3 text-xs leading-5">
           {value.settings.type === "clamp" ? "Clamp" : "Fork"} settings are
           retained as project data, but generated pick mechanics and kinematics
           are not verified and remain export-blocking.
@@ -342,16 +328,14 @@ export function StationEditor({
   return (
     <div className="grid gap-3">
       <div className="grid gap-2 md:grid-cols-3">
-        <label className={`${labelClass} md:col-span-2`}>
-          Name
+        <Field label="Name" className="md:col-span-2">
           <input
             value={value.name}
             onChange={(event) => update("name", event.target.value)}
             className={inputClass}
           />
-        </label>
-        <label className={labelClass}>
-          External ID
+        </Field>
+        <Field label="External ID">
           <input
             value={value.externalId ?? ""}
             onChange={(event) =>
@@ -359,9 +343,8 @@ export function StationEditor({
             }
             className={inputClass}
           />
-        </label>
-        <label className={labelClass}>
-          Pallet origin X
+        </Field>
+        <Field label="Pallet origin X">
           <select
             value={value.palletOrigin.x}
             onChange={(event) =>
@@ -376,9 +359,8 @@ export function StationEditor({
             <option value="center">Center</option>
             <option value="right">Right</option>
           </select>
-        </label>
-        <label className={labelClass}>
-          Pallet origin Y
+        </Field>
+        <Field label="Pallet origin Y">
           <select
             value={value.palletOrigin.y}
             onChange={(event) =>
@@ -393,9 +375,8 @@ export function StationEditor({
             <option value="center">Center</option>
             <option value="top">Top</option>
           </select>
-        </label>
-        <label className={labelClass}>
-          Inlet alignment
+        </Field>
+        <Field label="Inlet alignment">
           <select
             value={value.inletAlignment}
             onChange={(event) =>
@@ -410,7 +391,7 @@ export function StationEditor({
             <option value="center">Center</option>
             <option value="right">Right</option>
           </select>
-        </label>
+        </Field>
       </div>
 
       {(
@@ -419,11 +400,8 @@ export function StationEditor({
           ["Free-space / obstacle contour", "obstacleEnvelopeMm"],
         ] as const
       ).map(([label, field]) => (
-        <fieldset
-          key={field}
-          className="grid gap-2 border-t border-zinc-800 pt-3"
-        >
-          <legend className="pr-2 text-xs font-medium text-zinc-300">
+        <fieldset key={field} className="border-line grid gap-2 border-t pt-3">
+          <legend className="text-ink pr-2 text-xs font-medium">
             {label} (mm)
           </legend>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -447,8 +425,8 @@ export function StationEditor({
         </fieldset>
       ))}
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">
           Robot center and radial reach (mm)
         </legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -496,35 +474,34 @@ export function StationEditor({
           />
         </div>
         {value.robotRadiusMm.min === 0 && value.robotRadiusMm.max === 0 ? (
-          <p className="text-[11px] leading-5 text-amber-200">
+          <p className="text-micro text-caution leading-5">
             0 / 0 means radial reach is not calibrated. Reach checks will be
             skipped until a measured range is entered.
           </p>
         ) : null}
       </fieldset>
 
-      <fieldset className="grid gap-2 border-t border-zinc-800 pt-3">
-        <legend className="pr-2 text-xs font-medium text-zinc-300">
+      <fieldset className="border-line grid gap-2 border-t pt-3">
+        <legend className="text-ink pr-2 text-xs font-medium">
           Palletizing directions
         </legend>
         <div className="grid gap-2 md:grid-cols-2">
           {directions.map((direction) => (
             <label
               key={direction}
-              className="flex items-center gap-2 text-xs text-zinc-300"
+              className="text-ink flex items-center gap-2 text-xs"
             >
               <input
                 type="checkbox"
                 checked={value.allowedDirections.includes(direction)}
                 onChange={() => toggleDirection(direction)}
-                className="accent-amber-400"
+                className="accent-brand"
               />
               {direction}
             </label>
           ))}
         </div>
-        <label className={labelClass}>
-          Preferred direction
+        <Field label="Preferred direction">
           <select
             value={value.preferredDirection}
             onChange={(event) =>
@@ -541,7 +518,7 @@ export function StationEditor({
               </option>
             ))}
           </select>
-        </label>
+        </Field>
       </fieldset>
     </div>
   );

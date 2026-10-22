@@ -54,11 +54,13 @@ export function projectToFormValues(
     packageWeightKg: text(project?.package.weightKg ?? null),
     packageClearanceMm: String(project?.package.clearanceMm ?? 0),
     inletOrientation: project?.package.inletOrientation ?? "lengthwise",
-    labelSideAtPickup:
-      project?.package.labelSidesAtPickup.length === 1
+    // New projects start with the label on the bottom edge and multipick on.
+    labelSideAtPickup: project
+      ? project.package.labelSidesAtPickup.length === 1
         ? project.package.labelSidesAtPickup[0]!
-        : "",
-    multiPickAllowed: project?.package.multiPickAllowed ?? false,
+        : ""
+      : "bottom",
+    multiPickAllowed: project?.package.multiPickAllowed ?? true,
     palletKind: pallet.kind,
     palletId: pallet.id,
     palletName: pallet.name,

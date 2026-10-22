@@ -30,7 +30,7 @@ import { FlowMode } from "~/features/editor/FlowMode";
 import { OrderMode } from "~/features/editor/OrderMode";
 import { PatternMode } from "~/features/editor/PatternMode";
 
-const buttonClass = "ui-btn h-7 px-2.5 text-[12px]";
+const buttonClass = "ui-btn h-7 px-2.5 text-xs";
 const inputClass = "ui-input";
 
 const modes: ReadonlyArray<readonly [ProjectEditorMode, string]> = [
@@ -317,16 +317,16 @@ export function ProjectEditorWorkspace({
   return (
     <section
       data-testid="project-editor-workspace"
-      className="grid gap-3 bg-[var(--canvas)] p-3 text-[var(--ink)]"
+      className="grid gap-3 bg-canvas p-3 text-ink"
       onKeyDown={handleKeyboard}
     >
-      <header className="border border-[var(--line)] bg-[var(--surface)]">
-        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] px-3 py-2">
+      <header className="border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
           <div className="mr-auto">
-            <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+            <h2 className="text-body font-semibold text-ink">
               Project layer editor
             </h2>
-            <p className="mt-0.5 text-[12px] text-[var(--muted)]">
+            <p className="mt-0.5 text-xs text-muted">
               One command history covers package geometry, labels, groups,
               execution order, and stack interlayers.
             </p>
@@ -335,8 +335,8 @@ export function ProjectEditorWorkspace({
             role="status"
             className={
               dirty
-                ? "text-[12px] text-[var(--brand)]"
-                : "text-[12px] text-[var(--muted)]"
+                ? "text-xs text-brand"
+                : "text-xs text-muted"
             }
           >
             {dirty ? "Unsaved editor changes" : "Saved editor state"}
@@ -345,7 +345,7 @@ export function ProjectEditorWorkspace({
             type="button"
             disabled={!dirty || saving}
             onClick={() => void save()}
-            className="ui-btn-primary h-7 px-2.5 text-[12px]"
+            className="ui-btn-primary h-7 px-2.5 text-xs"
           >
             {saving ? "Saving…" : "Save"}
           </button>
@@ -377,17 +377,17 @@ export function ProjectEditorWorkspace({
             type="button"
             disabled={!projectEditorCanReset(history) || saving}
             onClick={() => dispatch({ type: "reset-to-original" })}
-            className={`${buttonClass} text-[var(--danger)]`}
+            className={`${buttonClass} text-danger`}
           >
             Reset original
           </button>
-          <span className="border border-[var(--line)] bg-[var(--canvas)] px-2 py-1 font-mono text-[11px] text-[var(--muted)]">
+          <span className="border border-line bg-canvas px-2 py-1 font-mono text-micro text-muted">
             History {position.position}/{position.length}
           </span>
         </div>
 
         <div className="flex flex-wrap items-end gap-3 p-3">
-          <label className="grid min-w-56 gap-1 text-[12px] text-[var(--muted)]">
+          <label className="grid min-w-56 gap-1 text-xs text-muted">
             Active solution
             <select
               aria-label="Editor active solution"
@@ -411,7 +411,7 @@ export function ProjectEditorWorkspace({
               ))}
             </select>
           </label>
-          <label className="grid min-w-56 gap-1 text-[12px] text-[var(--muted)]">
+          <label className="grid min-w-56 gap-1 text-xs text-muted">
             Active pattern
             <select
               aria-label="Editor active pattern"
@@ -422,7 +422,7 @@ export function ProjectEditorWorkspace({
                 setSelectedPlacementIds(new Set());
                 setSelectedGroupIds(new Set());
               }}
-              className={`${inputClass} disabled:text-[var(--muted)]`}
+              className={`${inputClass} disabled:text-muted`}
             >
               {solution?.patterns.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
@@ -433,7 +433,7 @@ export function ProjectEditorWorkspace({
           </label>
           <nav
             aria-label="Project editor mode"
-            className="flex items-stretch border border-[var(--line)]"
+            className="flex items-stretch border border-line"
           >
             {modes.map(([value, label]) => (
               <button
@@ -441,20 +441,20 @@ export function ProjectEditorWorkspace({
                 type="button"
                 aria-current={mode === value ? "page" : undefined}
                 onClick={() => setMode(value)}
-                className={`relative border-r border-[var(--line)] px-3 py-1.5 text-[12px] outline-none last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
+                className={`relative border-r border-line px-3 py-1.5 text-xs outline-none last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
                   mode === value
-                    ? "bg-[var(--canvas)] text-[var(--ink)]"
-                    : "text-[var(--muted)] hover:bg-[var(--surface-hover)] hover:text-[var(--ink)]"
+                    ? "bg-canvas text-ink"
+                    : "text-muted hover:bg-surface-hover hover:text-ink"
                 }`}
               >
                 {label}
                 {mode === value ? (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-[var(--brand)]" />
+                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />
                 ) : null}
               </button>
             ))}
           </nav>
-          <p className="ml-auto max-w-md text-[11px] leading-5 text-[var(--muted)]">
+          <p className="ml-auto max-w-md text-micro leading-5 text-muted">
             Shortcuts outside form controls: Ctrl/Command+Z,
             Shift+Ctrl/Command+Z or Ctrl/Command+Y, Delete, Escape, arrows, R
             rotate, C center, L/T insert.
@@ -465,7 +465,7 @@ export function ProjectEditorWorkspace({
       {history.error || saveError ? (
         <div
           role="alert"
-          className="border border-[var(--danger)] px-3 py-2 text-[13px] text-[var(--danger)]"
+          className="border border-danger px-3 py-2 text-body text-danger"
         >
           {history.error ?? saveError}
         </div>
@@ -473,14 +473,14 @@ export function ProjectEditorWorkspace({
       {status ? (
         <div
           role="status"
-          className="border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-[13px] text-[var(--ink)]"
+          className="border border-line bg-surface px-3 py-2 text-body text-ink"
         >
           {status}
         </div>
       ) : null}
 
       {!solution || !pattern || !orderModel ? (
-        <div className="flex min-h-24 items-center justify-center border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 text-center text-[13px] text-[var(--muted)]">
+        <div className="flex min-h-24 items-center justify-center border border-dashed border-line bg-surface px-4 text-center text-body text-muted">
           Save or import a stack with at least one layer pattern before opening
           the project editor.
         </div>
@@ -518,22 +518,22 @@ export function ProjectEditorWorkspace({
       )}
 
       {resourceDiagnostics.length > 0 ? (
-        <details className="border border-[var(--line)] bg-[var(--surface)]">
-          <summary className="px-3 py-2 text-[12px] font-medium text-[var(--ink)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset">
+        <details className="border border-line bg-surface">
+          <summary className="px-3 py-2 text-xs font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset">
             Canonical robotics resource diagnostics (
             {resourceDiagnostics.length})
           </summary>
-          <ul className="grid gap-2 border-t border-[var(--line)] p-3">
+          <ul className="grid gap-2 border-t border-line p-3">
             {resourceDiagnostics.map((diagnostic, index) => (
               <li
                 key={`${diagnostic.code}-${diagnostic.message}-${index}`}
                 className={
                   diagnostic.severity === "error"
-                    ? "text-[12px] leading-5 text-[var(--danger)]"
-                    : "text-[12px] leading-5 text-[var(--brand)]"
+                    ? "text-xs leading-5 text-danger"
+                    : "text-xs leading-5 text-brand"
                 }
               >
-                <span className="font-mono text-[10px] text-[var(--muted)]">
+                <span className="font-mono text-micro text-muted">
                   {diagnostic.phase}/{diagnostic.code}
                 </span>
                 <br />

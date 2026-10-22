@@ -5,6 +5,7 @@ import type {
   ViewerRobotConfig,
   ViewerScenePose,
 } from "~/components/rob-viewer/viewerTypes";
+import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
 
 export type ViewerRobotJoints = {
   base: { x: number; y: number; z: number };
@@ -146,7 +147,7 @@ export function createViewerEquipment(
       new THREE.BoxGeometry(bedSizeX, bedSizeY, height),
     );
     const bedMaterial = resources.trackMaterial(
-      new THREE.MeshPhongMaterial({ color: 0x3f3f46, shininess: 8 }),
+      new THREE.MeshPhongMaterial({ color: SCENE_THEME.equipment, shininess: 8 }),
     );
     const bed = new THREE.Mesh(bedGeometry, bedMaterial);
     bed.name = "conveyor-bed";
@@ -158,7 +159,7 @@ export function createViewerEquipment(
     root.add(bed);
 
     const edgeMaterial = resources.trackMaterial(
-      new THREE.LineBasicMaterial({ color: 0x71717a }),
+      new THREE.LineBasicMaterial({ color: SCENE_THEME.equipmentEdge }),
     );
     const edges = new THREE.LineSegments(
       resources.trackGeometry(new THREE.EdgesGeometry(bedGeometry)),
@@ -182,7 +183,7 @@ export function createViewerEquipment(
       ),
     );
     const rollerMaterial = resources.trackMaterial(
-      new THREE.MeshPhongMaterial({ color: 0x71717a, shininess: 15 }),
+      new THREE.MeshPhongMaterial({ color: SCENE_THEME.equipmentEdge, shininess: 15 }),
     );
     for (let index = 0; index < rollerCount; index += 1) {
       const offset =
@@ -219,7 +220,7 @@ export function createViewerEquipment(
       );
       const material = resources.trackMaterial(
         new THREE.MeshBasicMaterial({
-          color: 0xfbbf24,
+          color: SCENE_THEME.envelope,
           transparent: true,
           opacity: 0.08,
           depthWrite: false,
@@ -236,7 +237,7 @@ export function createViewerEquipment(
       const edges = new THREE.LineSegments(
         resources.trackGeometry(new THREE.EdgesGeometry(geometry)),
         resources.trackMaterial(
-          new THREE.LineBasicMaterial({ color: 0xfbbf24, opacity: 0.8 }),
+          new THREE.LineBasicMaterial({ color: SCENE_THEME.envelope, opacity: 0.8 }),
         ),
       );
       edges.position.copy(envelopeMesh.position);
@@ -259,10 +260,10 @@ export function createViewerEquipment(
       Math.min(90, positive(robot.upperArmLengthMm, 700) * 0.08),
     );
     const robotMaterial = resources.trackMaterial(
-      new THREE.MeshPhongMaterial({ color: 0x71717a, shininess: 12 }),
+      new THREE.MeshPhongMaterial({ color: SCENE_THEME.robotLink, shininess: 12 }),
     );
     const jointMaterial = resources.trackMaterial(
-      new THREE.MeshPhongMaterial({ color: 0xa1a1aa, shininess: 18 }),
+      new THREE.MeshPhongMaterial({ color: SCENE_THEME.robotJoint, shininess: 18 }),
     );
     const base = new THREE.Mesh(
       resources.trackGeometry(

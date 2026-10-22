@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import { ProjectLibrary } from "~/features/project/ProjectLibrary";
@@ -17,6 +23,7 @@ describe("ProjectLibrary management controls", () => {
     const onSortChange = vi.fn();
     const onDuplicate = vi.fn();
     const onSaveAs = vi.fn();
+    const onDelete = vi.fn();
     const onProjectConflictPolicyChange = vi.fn();
     const onResourceConflictPolicyChange = vi.fn();
 
@@ -43,8 +50,9 @@ describe("ProjectLibrary management controls", () => {
         onEdit={() => undefined}
         onDuplicate={onDuplicate}
         onSaveAs={onSaveAs}
-        onDelete={() => undefined}
+        onDelete={onDelete}
         onExportSelected={() => undefined}
+        onDownloadRob={() => undefined}
         onExportAll={() => undefined}
         onImport={() => undefined}
       />,
@@ -59,8 +67,24 @@ describe("ProjectLibrary management controls", () => {
     fireEvent.change(screen.getByLabelText("Sort"), {
       target: { value: "productNumber:asc" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save as" }));
+    const actions = within(
+      screen.getByRole("group", { name: "Actions for SKU-9" }),
+    );
+    fireEvent.click(actions.getByRole("button", { name: "Duplicate" }));
+    fireEvent.click(actions.getByRole("button", { name: "Save as" }));
+    // A plain click asks inline first; Cancel backs out without deleting.
+    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
+    expect(actions.getByText("Delete project?")).toBeTruthy();
+    expect(onDelete).not.toHaveBeenCalled();
+    fireEvent.click(actions.getByRole("button", { name: "Cancel" }));
+    expect(actions.queryByText("Delete project?")).toBeNull();
+    // Confirming deletes once.
+    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
+    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
+    // Shift+click skips the confirmation step.
+    fireEvent.click(actions.getByRole("button", { name: "Delete" }), {
+      shiftKey: true,
+    });
     fireEvent.change(screen.getByLabelText("Project import conflict policy"), {
       target: { value: "skip" },
     });
@@ -71,8 +95,11 @@ describe("ProjectLibrary management controls", () => {
     expect(onProjectNumberFilterChange).toHaveBeenCalledWith("P-1");
     expect(onProductNumberFilterChange).toHaveBeenCalledWith("SKU");
     expect(onSortChange).toHaveBeenCalledWith("productNumber", "asc");
-    expect(onDuplicate).toHaveBeenCalledTimes(1);
-    expect(onSaveAs).toHaveBeenCalledTimes(1);
+    // No stack and no imported file: there is no .rob plan to download.
+    expect(actions.queryByRole("button", { name: "Download .rob" })).toBeNull();
+    expect(onDuplicate).toHaveBeenCalledWith("project-1");
+    expect(onSaveAs).toHaveBeenCalledWith("project-1");
+    expect(onDelete.mock.calls).toEqual([["project-1"], ["project-1"]]);
     expect(onProjectConflictPolicyChange).toHaveBeenCalledWith("skip");
     expect(onResourceConflictPolicyChange).toHaveBeenCalledWith("overwrite");
   });

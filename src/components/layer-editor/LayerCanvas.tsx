@@ -178,7 +178,7 @@ export function LayerCanvas({
   };
 
   return (
-    <div className="min-h-[60vh] overflow-hidden rounded-md border border-zinc-800 bg-zinc-950 p-3 focus-within:border-zinc-500 lg:min-h-0">
+    <div className="min-h-[60vh] overflow-hidden border border-line bg-surface p-3 focus-within:border-focus lg:min-h-0">
       <p id={instructionsId} className="sr-only">
         Keyboard controls: Tab to focus the canvas. Home and End select the
         first and last grip. Page Up or left bracket selects the previous grip;
@@ -206,7 +206,7 @@ export function LayerCanvas({
         aria-label={`Top-down editor for unique layer ${uniqueLayerId}`}
         aria-describedby={`${instructionsId} ${selectionStatusId}`}
         tabIndex={0}
-        className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-zinc-400 lg:min-h-0"
+        className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus lg:min-h-0"
         onFocus={ensureKeyboardSelection}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
@@ -224,7 +224,7 @@ export function LayerCanvas({
             markerHeight={4}
             orient="auto-start-reverse"
           >
-            <path d="M 0 0 L 8 4 L 0 8 z" fill="#fbbf24" />
+            <path d="M 0 0 L 8 4 L 0 8 z" className="fill-info" />
           </marker>
         </defs>
         <rect
@@ -232,14 +232,12 @@ export function LayerCanvas({
           y={1}
           width={Math.max(0, palletWidth - 2)}
           height={Math.max(0, palletLength - 2)}
-          rx={4}
-          fill="#18181b"
-          stroke="#52525b"
+          className="fill-canvas stroke-line"
           strokeWidth={3}
           vectorEffect="non-scaling-stroke"
           pointerEvents="none"
         />
-        <g opacity={0.18} pointerEvents="none">
+        <g className="stroke-muted" opacity={0.18} pointerEvents="none">
           {Array.from({ length: 11 }, (_, index) => {
             const x = (palletWidth / 10) * index;
             return (
@@ -249,7 +247,6 @@ export function LayerCanvas({
                 y1={0}
                 x2={x}
                 y2={palletLength}
-                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -264,7 +261,6 @@ export function LayerCanvas({
                 y1={y}
                 x2={palletWidth}
                 y2={y}
-                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -311,20 +307,15 @@ export function LayerCanvas({
                       y={svgY - length / 2}
                       width={width}
                       height={length}
-                      rx={4}
-                      fill={
-                        isPrimary
-                          ? "#42350f"
-                          : isMergeSelected
-                            ? "#332a10"
-                            : "#2f2f36"
-                      }
-                      stroke={
-                        isPrimary || isMergeSelected ? "#fbbf24" : "#a1a1aa"
-                      }
                       strokeWidth={isPrimary ? 3 : 2}
                       vectorEffect="non-scaling-stroke"
-                      className="cursor-grab active:cursor-grabbing"
+                      className={`cursor-grab active:cursor-grabbing ${
+                        isPrimary
+                          ? "fill-brand/25 stroke-brand"
+                          : isMergeSelected
+                            ? "fill-plan-fill stroke-brand"
+                            : "fill-surface stroke-muted"
+                      }`}
                       onPointerDown={(event) =>
                         startPointerInteraction(event, gripIndex)
                       }
@@ -335,8 +326,7 @@ export function LayerCanvas({
                     {path ? (
                       <path
                         d={path}
-                        fill="none"
-                        stroke="#38bdf8"
+                        className="fill-none stroke-measure"
                         strokeWidth={3.5}
                         strokeLinecap="round"
                         strokeLinejoin="round"
@@ -354,7 +344,7 @@ export function LayerCanvas({
                     y1={deltaArrow.centerY}
                     x2={deltaArrow.endX}
                     y2={deltaArrow.endY}
-                    stroke="#fbbf24"
+                    className="stroke-info"
                     strokeWidth={isPrimary ? 5 : 2.5}
                     strokeLinecap="round"
                     markerEnd={`url(#grip-delta-arrow-${uniqueLayerId})`}
@@ -365,7 +355,7 @@ export function LayerCanvas({
                     cx={deltaArrow.centerX}
                     cy={deltaArrow.centerY}
                     r={isPrimary ? 6 : 4}
-                    fill="#fbbf24"
+                    className="fill-info"
                     opacity={isPrimary ? 1 : 0.55}
                     vectorEffect="non-scaling-stroke"
                   />
@@ -375,8 +365,7 @@ export function LayerCanvas({
                       y={deltaArrow.labelY}
                       textAnchor="middle"
                       dominantBaseline="middle"
-                      fill="#fef3c7"
-                      stroke="#18181b"
+                      className="fill-ink stroke-surface"
                       strokeWidth={5}
                       paintOrder="stroke"
                       fontSize={17}
@@ -394,7 +383,7 @@ export function LayerCanvas({
                   y={palletLength - firstBox.rect.y}
                   dy="0.35em"
                   textAnchor="middle"
-                  fill="#d4d4d8"
+                  className="fill-ink"
                   fontSize={Math.max(
                     18,
                     Math.min(firstBoxSize.width, firstBoxSize.length) * 0.16,

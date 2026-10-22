@@ -44,10 +44,10 @@ type FieldProps = {
 
 function Field({ label, error, children }: FieldProps) {
   return (
-    <label className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
+    <label className="grid min-w-0 gap-1 text-xs text-muted">
       <span>{label}</span>
       {children}
-      {error ? <span className="text-[var(--danger)]">{error}</span> : null}
+      {error ? <span className="text-danger">{error}</span> : null}
     </label>
   );
 }
@@ -181,16 +181,16 @@ export function ProjectDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-busy={saving}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-[var(--line)] bg-[var(--surface)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-line bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
       >
         <form
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => void submit(event)}
         >
-          <header className="flex shrink-0 items-center justify-between border-b border-[var(--line)] bg-[var(--surface)] px-5 py-4">
+          <header className="flex shrink-0 items-center justify-between border-b border-line bg-surface px-5 py-4">
             <h2
               id={titleId}
-              className="text-base font-semibold text-[var(--ink)]"
+              className="text-base font-semibold text-ink"
             >
               {project ? "Edit project" : "Create project"}
             </h2>
@@ -209,14 +209,14 @@ export function ProjectDialog({
               {failure ? (
                 <div
                   role="alert"
-                  className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-sm text-[var(--danger)]"
+                  className="border border-danger bg-danger/10 px-3 py-2 text-sm text-danger"
                 >
                   {failure}
                 </div>
               ) : null}
 
-              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+              <fieldset className="grid gap-3 border border-line p-4">
+                <legend className="px-1 text-sm font-semibold text-ink">
                   Line and product
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -250,8 +250,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+              <fieldset className="grid gap-3 border border-line p-4">
+                <legend className="px-1 text-sm font-semibold text-ink">
                   Cuboid package
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -337,8 +337,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-                <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
+              <fieldset className="grid gap-3 border border-line p-4">
+                <legend className="px-1 text-sm font-semibold text-ink">
                   Pallet and load envelope
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -391,7 +391,7 @@ export function ProjectDialog({
                       value={values.palletId}
                       onChange={(event) => set("palletId", event.target.value)}
                       disabled={values.palletKind !== "custom"}
-                      className={`${inputClass} disabled:cursor-not-allowed disabled:text-[var(--muted)]`}
+                      className={`${inputClass} disabled:cursor-not-allowed disabled:text-muted`}
                       placeholder="Generated when saved"
                     />
                   </Field>
@@ -442,8 +442,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <details className="border border-[var(--line)] p-4">
-                <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">
+              <details className="border border-line p-4">
+                <summary className="cursor-pointer text-sm font-semibold text-ink">
                   Advanced settings
                 </summary>
                 <div className="mt-3 grid gap-3">
@@ -529,14 +529,14 @@ export function ProjectDialog({
                       />
                     </Field>
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-[var(--ink)]">
+                  <label className="flex items-center gap-2 text-sm text-ink">
                     <input
                       type="checkbox"
                       checked={values.hasStorageEnvelope}
                       onChange={(event) =>
                         set("hasStorageEnvelope", event.target.checked)
                       }
-                      className="h-4 w-4 accent-[var(--brand)]"
+                      className="h-4 w-4 accent-brand"
                     />
                     Limit the load with a storage envelope
                   </label>
@@ -596,7 +596,7 @@ export function ProjectDialog({
                     </div>
                   ) : null}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="grid min-w-0 gap-1 text-xs text-[var(--muted)]">
+                    <div className="grid min-w-0 gap-1 text-xs text-muted">
                       <PackageLabelFacePicker
                         packageLengthMm={Number(values.packageLengthMm)}
                         packageWidthMm={Number(values.packageWidthMm)}
@@ -611,19 +611,19 @@ export function ProjectDialog({
                         }
                       />
                       {errorFor(fieldErrors, "package.inletOrientation") ? (
-                        <span className="text-[var(--danger)]">
+                        <span className="text-danger">
                           {errorFor(fieldErrors, "package.inletOrientation")}
                         </span>
                       ) : null}
                     </div>
-                    <label className="flex items-center gap-2 self-end border border-[var(--line)] px-3 py-2 text-sm text-[var(--ink)]">
+                    <label className="flex items-center gap-2 self-end border border-line px-3 py-2 text-sm text-ink">
                       <input
                         type="checkbox"
                         checked={values.multiPickAllowed}
                         onChange={(event) =>
                           set("multiPickAllowed", event.target.checked)
                         }
-                        className="h-4 w-4 accent-[var(--brand)]"
+                        className="h-4 w-4 accent-brand"
                       />
                       Allow multipick
                     </label>
@@ -633,7 +633,7 @@ export function ProjectDialog({
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-[var(--line)] bg-[var(--surface)] px-5 py-4">
+          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-5 py-4">
             <button
               type="button"
               onClick={onClose}

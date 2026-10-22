@@ -129,7 +129,11 @@ describe("ProjectDialog", () => {
     fireEvent.change(screen.getByLabelText("Height (mm)"), {
       target: { value: "150" },
     });
-    fireEvent.click(screen.getByLabelText("Allow multipick"));
+    // New projects default to multipick on.
+    expect(screen.getByLabelText("Allow multipick")).toHaveProperty(
+      "checked",
+      true,
+    );
     fireEvent.click(screen.getByRole("button", { name: "Save project" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
@@ -141,6 +145,7 @@ describe("ProjectDialog", () => {
       package: {
         dimensionsMm: { length: 157, width: 106, height: 150 },
         multiPickAllowed: true,
+        labelSidesAtPickup: ["bottom"],
       },
     });
 

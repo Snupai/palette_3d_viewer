@@ -304,7 +304,7 @@ export function PatternCanvas({
       : null;
 
   return (
-    <div className="overflow-hidden bg-[var(--canvas)] p-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-[var(--focus)]">
+    <div className="overflow-hidden bg-canvas p-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px] focus-within:outline-focus">
       <p className="sr-only" id="project-pattern-editor-instructions">
         Click a package to select it. Control or Command click toggles multiple
         packages. Hold Shift and drag empty pallet space for marquee selection.
@@ -321,7 +321,7 @@ export function PatternCanvas({
           aria-describedby="project-pattern-editor-instructions"
           tabIndex={0}
           data-testid="project-pattern-canvas"
-          className="block h-auto w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--focus)]"
+          className="block h-auto w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus"
           style={{
             aspectRatio: `${Math.max(width, 1)} / ${Math.max(height, 1)}`,
           }}
@@ -444,7 +444,7 @@ export function PatternCanvas({
                   stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
                   strokeWidth={isSelected ? 3 : 1.5}
                   vectorEffect="non-scaling-stroke"
-                  className="cursor-grab focus:outline-none focus-visible:stroke-[var(--brand)] active:cursor-grabbing"
+                  className="cursor-grab focus:outline-none focus-visible:stroke-brand active:cursor-grabbing"
                   onPointerDown={(event) => startPlacement(event, placement.id)}
                   onClick={(event) => clickPlacement(event, placement.id)}
                   onPointerMove={updatePointer}

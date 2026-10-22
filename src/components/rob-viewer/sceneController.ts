@@ -12,6 +12,10 @@ import {
 } from "~/components/rob-viewer/robotCellLoader";
 import { buildViewerScene } from "~/components/rob-viewer/sceneBuilder";
 import {
+  labelPositionBeside,
+  type LayerLabelBounds,
+} from "~/components/rob-viewer/sceneLabels";
+import {
   createViewerCalibrationOverlay,
   type ViewerCalibrationOverlay,
 } from "~/components/rob-viewer/sceneCalibrationOverlay";
@@ -53,6 +57,7 @@ import type {
   ViewerTemporaryCalibrationState,
   ViewerTemporaryCalibrationTarget,
 } from "~/components/rob-viewer/viewerTypes";
+import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
 
 const GRIPPER_MODEL_PATH = "/models/gripper/";
 const GRIPPER_OBJ = "10_01_43_00016.obj";
@@ -262,7 +267,7 @@ export function createViewerSceneController({
 
   const createRuntime = (data: PalletData): ViewerRuntime => {
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x101013);
+    scene.background = new THREE.Color(SCENE_THEME.background);
 
     const camera = new THREE.PerspectiveCamera(
       45,
@@ -278,7 +283,7 @@ export function createViewerSceneController({
     const displayPixelRatio = Math.min(browserWindow.devicePixelRatio, 2);
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.setPixelRatio(displayPixelRatio);
-    renderer.setClearColor(0x101013, 1);
+    renderer.setClearColor(SCENE_THEME.background, 1);
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
@@ -359,10 +364,25 @@ export function createViewerSceneController({
       emitSelection(toBoxSelection(entry, gripEntries));
     };
 
+    const labelRight = new THREE.Vector3();
+    const labelParentRotation = new THREE.Quaternion();
     const updateLayerLabelFacing = () => {
       if (!sceneBuild) return;
       for (const label of sceneBuild.layerLabels) {
         label.object.quaternion.copy(camera.quaternion);
+        const bounds = label.object.userData.layerBounds as
+          | LayerLabelBounds
+          | undefined;
+        if (!bounds) continue;
+        // Camera right vector in the label parent's frame (scene is Z-up).
+        labelRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+        if (label.object.parent) {
+          label.object.parent.getWorldQuaternion(labelParentRotation);
+          labelRight.applyQuaternion(labelParentRotation.invert());
+        }
+        const beside = labelPositionBeside(bounds, labelRight);
+        label.object.position.x = beside.x;
+        label.object.position.y = beside.y;
       }
     };
 

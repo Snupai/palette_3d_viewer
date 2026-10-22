@@ -6,6 +6,7 @@ import type {
   ViewerTemporaryCalibrationState,
   ViewerTemporaryCalibrationTarget,
 } from "~/components/rob-viewer/viewerTypes";
+import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
 
 export type ViewerCalibrationOverlay = {
   setState(state: ViewerTemporaryCalibrationState): void;
@@ -30,8 +31,8 @@ type CalibrationOverlayOptions = {
   requestRender: () => void;
 };
 
-const PICKUP_COLOR = 0x22d3ee;
-const PALLET_COLOR = 0xf59e0b;
+const PICKUP_COLOR = SCENE_THEME.calibrationPickup;
+const PALLET_COLOR = SCENE_THEME.calibrationPallet;
 
 function applyPose(object: THREE.Object3D, pose: ViewerScenePose): void {
   object.position.set(pose.positionMm.x, pose.positionMm.y, pose.positionMm.z);

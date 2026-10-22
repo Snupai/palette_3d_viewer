@@ -15,16 +15,16 @@ function InterlayerButton({
       aria-pressed={enabled}
       aria-label={`${label}: Zwischenlage ${enabled ? "yes" : "no"}`}
       onClick={onClick}
-      className={`flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-1 text-xs font-medium transition ${
+      className={`flex items-center gap-2 border px-2.5 py-1 text-xs font-medium transition ${
         enabled
-          ? "border-amber-400/40 bg-amber-400/10 text-amber-200 hover:bg-amber-400/20"
-          : "border-zinc-700 bg-zinc-950 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
+          ? "border-brand/40 bg-brand/10 text-brand hover:bg-brand/20"
+          : "border-line bg-canvas text-muted hover:bg-surface-hover hover:text-ink"
       }`}
     >
       <span>{label}</span>
       <span
-        className={`font-mono text-[10px] ${
-          enabled ? "text-amber-300" : "text-zinc-600"
+        className={`font-mono text-micro ${
+          enabled ? "text-brand" : "text-muted"
         }`}
       >
         {enabled ? "yes" : "no"}
@@ -49,15 +49,15 @@ export function InterlayerControls({
   return (
     <section
       aria-labelledby="interlayer-controls-title"
-      className="mb-3 rounded-md border border-zinc-800 bg-zinc-950/50 px-3 py-2"
+      className="mb-3 border border-line bg-canvas px-3 py-2"
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <h3
           id="interlayer-controls-title"
-          className="text-xs font-medium text-zinc-300"
+          className="text-xs font-medium text-ink"
         >
           Zwischenlagen{" "}
-          <span className="font-normal text-zinc-600">(3 mm)</span>
+          <span className="font-normal text-muted">(3 mm)</span>
         </h3>
         <div className="flex flex-wrap gap-1.5">
           <InterlayerButton

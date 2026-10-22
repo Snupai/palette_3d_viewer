@@ -99,7 +99,7 @@ describe("PlanningCaseWorkbench layout", () => {
     expect(grid!.classList.contains("grid-rows-[minmax(0,1fr)]")).toBe(true);
     expect(
       grid!.classList.contains(
-        "grid-cols-[minmax(240px,280px)_minmax(480px,1fr)_minmax(260px,300px)]",
+        "grid-cols-[minmax(290px,340px)_minmax(480px,1fr)_minmax(260px,300px)]",
       ),
     ).toBe(true);
 

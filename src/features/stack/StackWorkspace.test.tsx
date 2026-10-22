@@ -596,6 +596,7 @@ describe("stack workspace persistence", () => {
     const initial = createInitialStackWorkspaceState(candidates);
     const composed = rebuildStackSequence({
       ...initial,
+      patternBRef: candidatePatternRef(candidates[1]!),
       compositionMode: "longitudinal-mirror",
       requestedLayerCount: 4,
     });
@@ -686,6 +687,17 @@ describe("StackWorkspace", () => {
       />,
     );
 
+    // Pattern B starts as "Use pattern A"; pick the second candidate.
+    expect(screen.getByLabelText<HTMLSelectElement>("Pattern B").value).toBe(
+      "",
+    );
+    fireEvent.change(screen.getByLabelText("Pattern B"), {
+      target: { value: candidatePatternRef(candidates[1]!) },
+    });
+    // New stacks start without interlayers.
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Interlayer rule").value,
+    ).toBe("none");
     fireEvent.change(screen.getByLabelText("Composition mode"), {
       target: { value: "rotation" },
     });

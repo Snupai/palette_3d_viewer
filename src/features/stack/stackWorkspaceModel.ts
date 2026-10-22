@@ -30,7 +30,8 @@ export type StackWorkspaceState = {
   compositionMode: StackCompositionMode;
   requestedLayerCount: number;
   layers: readonly EditableStackLayer[];
-  interlayerMode: "all" | "individual";
+  /** "none" = no sheets between layers (base/deck sheets stay optional). */
+  interlayerMode: StackInterlayerMode;
   betweenThicknessMm: number;
   individualBeforeLayer: Readonly<
     Record<string, IndividualInterlayerSetting | undefined>
@@ -44,6 +45,8 @@ export type StackWorkspaceState = {
   specialTopTransform: StackLayerTransform;
 };
 
+export type StackInterlayerMode = "none" | "all" | "individual";
+
 export function candidatePatternRef(candidate: SolverCandidate): string {
   return solverCandidatePatternReference(candidate.id);
 }
@@ -51,8 +54,10 @@ export function candidatePatternRef(candidate: SolverCandidate): string {
 export function createInitialStackWorkspaceState(
   candidates: readonly SolverCandidate[],
 ): StackWorkspaceState {
+  // Pattern A is the candidate chosen in Generate (callers pass it first);
+  // pattern B starts as "Use pattern A".
   const patternARef = candidates[0] ? candidatePatternRef(candidates[0]) : null;
-  const patternBRef = candidates[1] ? candidatePatternRef(candidates[1]) : null;
+  const patternBRef = null;
   const layers = patternARef
     ? createCompositionSequence({
         mode: "tower",
@@ -61,13 +66,16 @@ export function createInitialStackWorkspaceState(
         secondaryPatternRef: patternBRef,
       })
     : [];
+  const alternativeRef = candidates[1]
+    ? candidatePatternRef(candidates[1])
+    : null;
   return {
     patternARef,
     patternBRef,
     compositionMode: "tower",
     requestedLayerCount: layers.length,
     layers,
-    interlayerMode: "all",
+    interlayerMode: "none",
     betweenThicknessMm: 3,
     individualBeforeLayer: {},
     baseEnabled: false,
@@ -75,7 +83,7 @@ export function createInitialStackWorkspaceState(
     deckEnabled: false,
     deckThicknessMm: 3,
     specialTopEnabled: false,
-    specialTopPatternRef: patternBRef ?? patternARef,
+    specialTopPatternRef: alternativeRef ?? patternARef,
     specialTopTransform: "identity",
   };
 }
@@ -112,6 +120,10 @@ export function stackInterlayerRules(
       baseSheet,
       deckSheet,
     };
+  }
+
+  if (state.interlayerMode === "none") {
+    return { mode: "individual", beforeLayer: {}, baseSheet, deckSheet };
   }
 
   const beforeLayer = Object.fromEntries(
@@ -212,11 +224,12 @@ export function calculateWorkspaceCapacity(
 ): StackCapacityResult | null {
   const storageHeightMm = project.pallet?.storageEnvelopeMm?.height;
   if (storageHeightMm === undefined) return null;
-  if (state.interlayerMode === "all") {
+  if (state.interlayerMode !== "individual") {
     return calculateUniformStackCapacity({
       storageHeightMm,
       packageHeightMm: project.package.dimensionsMm.height,
-      betweenLayerThicknessMm: state.betweenThicknessMm,
+      betweenLayerThicknessMm:
+        state.interlayerMode === "all" ? state.betweenThicknessMm : 0,
       baseSheetThicknessMm: state.baseEnabled ? state.baseThicknessMm : 0,
       deckSheetThicknessMm: state.deckEnabled ? state.deckThicknessMm : 0,
     });
@@ -278,6 +291,7 @@ function interlayerQuantityBefore(
   index: number,
 ): number {
   if (index === 0) return state.baseEnabled ? 1 : 0;
+  if (state.interlayerMode === "none") return 0;
   if (state.interlayerMode === "all") return 1;
   return state.individualBeforeLayer[layer.id]?.enabled ? 1 : 0;
 }

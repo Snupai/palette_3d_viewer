@@ -34,6 +34,8 @@ import {
   type ProjectDialogSubmission,
 } from "~/features/project/ProjectDialog";
 import { ProjectLibrary } from "~/features/project/ProjectLibrary";
+import { libraryRobDownload } from "~/features/project/projectRobDownload";
+import { downloadText } from "~/lib/download";
 import { RoboticsWorkspace } from "~/features/robotics/RoboticsWorkspace";
 import {
   createInitialRobotWorkspaceSettings,
@@ -453,6 +455,33 @@ export function PlannerProjectWorkspace({
     setSelectedId(id);
   };
 
+  /** The persisted project behind a library row; the open one wins. */
+  const libraryProject = (id: string): Project | null =>
+    selectedProject?.id === id
+      ? selectedProject
+      : (projects.find((entry) => entry.id === id) ?? null);
+
+  const pendingEditIdRef = useRef<string | null>(null);
+
+  const editProject = (id: string) => {
+    if (id === selectedId) {
+      setProjectDrawerOpen(false);
+      setDialogMode("edit");
+      return;
+    }
+    pendingEditIdRef.current = id;
+    selectProject(id);
+    if (selectedProjectIdRef.current !== id) pendingEditIdRef.current = null;
+  };
+
+  useEffect(() => {
+    if (!selectedProject || pendingEditIdRef.current !== selectedProject.id) {
+      return;
+    }
+    pendingEditIdRef.current = null;
+    setDialogMode("edit");
+  }, [selectedProject]);
+
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
     if (!confirmLeaveActiveTool(`Open ${productionToolTitles[tool]}`)) return;
@@ -465,16 +494,17 @@ export function PlannerProjectWorkspace({
     setActiveTool(null);
   };
 
-  const duplicate = async () => {
-    if (!selectedProject || !confirmDiscardUnsaved("Duplicate this project")) {
+  const duplicate = async (id: string) => {
+    const source = libraryProject(id);
+    if (!source || !confirmDiscardUnsaved("Duplicate this project")) {
       return;
     }
     setError(null);
     setStatusMessage(null);
     try {
-      const result = await repository.duplicateProject(selectedProject.id, {
-        projectNumber: selectedProject.projectNumber
-          ? `${selectedProject.projectNumber} copy`
+      const result = await repository.duplicateProject(source.id, {
+        projectNumber: source.projectNumber
+          ? `${source.projectNumber} copy`
           : "Copy",
       });
       if (!result.project) {
@@ -503,29 +533,25 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const saveAs = async () => {
-    if (
-      !selectedProject ||
-      !confirmDiscardUnsaved("Save this project as a copy")
-    ) {
+  const saveAs = async (id: string) => {
+    const source = libraryProject(id);
+    if (!source || !confirmDiscardUnsaved("Save this project as a copy")) {
       return;
     }
     const projectNumber = window.prompt(
       "Line number for the new copy",
-      selectedProject.projectNumber
-        ? `${selectedProject.projectNumber} copy`
-        : "New line",
+      source.projectNumber ? `${source.projectNumber} copy` : "New line",
     );
     if (projectNumber === null) return;
     const productNumber = window.prompt(
       "Product number for the new copy",
-      selectedProject.productNumber,
+      source.productNumber,
     );
     if (productNumber === null) return;
     setError(null);
     setStatusMessage(null);
     try {
-      const saved = await repository.saveProjectAs(selectedProject, {
+      const saved = await repository.saveProjectAs(source, {
         projectNumber,
         productNumber,
       });
@@ -547,30 +573,34 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const remove = async () => {
-    if (!selectedProject) return;
-    if (hasUnsavedChanges) {
-      if (
-        !window.confirm(
-          `Delete "${projectLabel(selectedProject)}" and discard unsaved planner changes?`,
-        )
-      ) {
-        return;
-      }
-    } else if (!window.confirm(`Delete "${projectLabel(selectedProject)}"?`)) {
+  /** The library already confirmed the delete (inline step or Shift+click). */
+  const remove = async (id: string) => {
+    const target = libraryProject(id);
+    if (!target) return;
+    const isOpen = target.id === selectedProject?.id;
+    // Losing unsaved work in the open project still asks separately.
+    if (
+      isOpen &&
+      hasUnsavedChanges &&
+      !window.confirm(
+        `Delete "${projectLabel(target)}" and discard unsaved planner changes?`,
+      )
+    ) {
       return;
     }
     setError(null);
     setStatusMessage(null);
     try {
-      const deleted = await repository.deleteProject(selectedProject.id);
+      const deleted = await repository.deleteProject(target.id);
       if (!deleted) throw new Error("The project no longer exists.");
-      discardUnsavedPlannerChanges();
-      setGeneratorLaunchRequest(null);
-      selectedProjectIdRef.current = null;
-      setSelectedProject(null);
-      setSelectedId(null);
-      setStatusMessage("Project deleted.");
+      if (isOpen) {
+        discardUnsavedPlannerChanges();
+        setGeneratorLaunchRequest(null);
+        selectedProjectIdRef.current = null;
+        setSelectedProject(null);
+        setSelectedId(null);
+      }
+      setStatusMessage(`Project "${projectLabel(target)}" deleted.`);
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to delete project", cause);
@@ -582,14 +612,31 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const exportProjects = async (selection: "selected" | "all") => {
+  const downloadRob = (id: string) => {
+    const target = libraryProject(id);
+    if (!target) return;
+    setError(null);
+    setStatusMessage(null);
+    const result = libraryRobDownload(target);
+    if (!result.ok) {
+      setError(`.rob download failed: ${result.message}`);
+      return;
+    }
+    downloadText(result.text, result.fileName);
+    setStatusMessage(`Downloaded ${result.fileName}.`);
+  };
+
+  const exportProjects = async (
+    selection: "selected" | "all",
+    projectId: string | null = selectedId,
+  ) => {
     setError(null);
     setStatusMessage(null);
     try {
       const result = await exportRepositoryPackageJson(
         repository,
-        selection === "selected" && selectedId
-          ? { projectIds: [selectedId] }
+        selection === "selected" && projectId
+          ? { projectIds: [projectId] }
           : {},
       );
       const errors = result.diagnostics.filter(
@@ -1036,16 +1083,21 @@ export function PlannerProjectWorkspace({
     setSelectedCandidateId(null);
     setCurrentLayerIndex(0);
     setStatusMessage(
-      `Stack saved: ${materialized.metrics.packages.totalPackageCount} packages across ${materialized.packageLayers.length} layers.`,
+      `Stack saved: ${materialized.metrics.packages.totalPackageCount} packages across ${materialized.packageLayers.length} layers. The .rob plan is ready to download.`,
     );
     await refreshProjects();
-    setActiveTool("robotics");
+    // Normal users finish here; robot setup stays under Advanced.
+    setActiveTool(null);
+    setActiveStage("stack");
   };
 
   return (
     <div className="planner-workspace-shell flex min-h-0 flex-1 overflow-hidden">
       <PlanningCaseWorkbench
         project={workspaceProject}
+        onDownloadRob={
+          selectedProject ? () => downloadRob(selectedProject.id) : undefined
+        }
         loadingProject={loadingProject}
         error={error}
         statusMessage={statusMessage}
@@ -1121,14 +1173,12 @@ export function PlannerProjectWorkspace({
             setProjectDrawerOpen(false);
             setDialogMode("create");
           }}
-          onEdit={() => {
-            setProjectDrawerOpen(false);
-            setDialogMode("edit");
-          }}
-          onDuplicate={() => void duplicate()}
-          onSaveAs={() => void saveAs()}
-          onDelete={() => void remove()}
-          onExportSelected={() => void exportProjects("selected")}
+          onEdit={editProject}
+          onDuplicate={(id) => void duplicate(id)}
+          onSaveAs={(id) => void saveAs(id)}
+          onDelete={(id) => void remove(id)}
+          onExportSelected={(id) => void exportProjects("selected", id)}
+          onDownloadRob={downloadRob}
           onExportAll={() => void exportProjects("all")}
           onImport={(file) => void importProjects(file)}
         />

@@ -3,6 +3,7 @@
 import { resolveAutomaticSuctionGroupLimit } from "~/domain/project/equipmentProfiles";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   createEffectivePalletEnvelope,
   symmetricSideAllowance,
@@ -328,6 +329,61 @@ function DimensionInput({
         className={inputClass}
       />
     </label>
+  );
+}
+
+function SolverProgressPanel({
+  progress,
+}: {
+  progress: SolverProgress;
+}) {
+  const percent =
+    progress.total && progress.total > 0
+      ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
+      : null;
+  // Floats at the top centre of the window while a run is active, so it is
+  // seen regardless of where the long controls column is scrolled.
+  return createPortal(
+    <div
+      aria-live="polite"
+      className="fixed top-14 left-1/2 z-30 grid w-[min(440px,calc(100vw-32px))] -translate-x-1/2 gap-2 border border-brand border-l-4 bg-surface px-4 py-3 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-body font-semibold">Generating patterns…</span>
+        <span className="font-mono text-body font-semibold text-brand">
+          {percent === null ? progress.completed : `${percent}%`}
+        </span>
+      </div>
+      <div
+        role="progressbar"
+        aria-label="Pattern generation progress"
+        aria-valuemin={0}
+        aria-valuemax={progress.total ?? undefined}
+        aria-valuenow={progress.total === null ? undefined : progress.completed}
+        className="h-2.5 w-full overflow-hidden border border-line bg-surface"
+      >
+        <div
+          className={`h-full bg-brand transition-[width] duration-200 ${
+            percent === null ? "w-1/3 animate-pulse" : ""
+          }`}
+          style={percent === null ? undefined : { width: `${percent}%` }}
+        />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-micro">
+        <span className="truncate">
+          {progress.phase}
+          {progress.generator ? ` · ${progress.generator}` : ""}
+        </span>
+        <span className="shrink-0 font-mono text-muted">
+          {progress.completed}
+          {progress.total === null ? "" : ` / ${progress.total}`}
+        </span>
+      </div>
+      {progress.message ? (
+        <span className="text-micro text-muted">{progress.message}</span>
+      ) : null}
+    </div>,
+    document.body,
   );
 }
 
@@ -972,24 +1028,7 @@ export function SolverControls({
         )}
 
         {progress ? (
-          <div aria-live="polite" className="grid gap-1 text-[var(--ink)]">
-            <div className="flex items-center justify-between gap-3">
-              <span>
-                {progress.phase}
-                {progress.generator ? ` · ${progress.generator}` : ""}
-              </span>
-              <span className="font-mono text-[var(--muted)]">
-                {progress.completed}
-                {progress.total === null ? "" : ` / ${progress.total}`}
-              </span>
-            </div>
-            <progress
-              max={progress.total ?? Math.max(1, progress.completed + 1)}
-              value={progress.completed}
-              className="h-1.5 w-full accent-[var(--brand)]"
-            />
-            <span className="text-[var(--muted)]">{progress.message}</span>
-          </div>
+          <SolverProgressPanel progress={progress} />
         ) : null}
 
         {resultSummary ? (

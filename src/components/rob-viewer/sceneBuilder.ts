@@ -7,7 +7,10 @@ import {
   trailingInterlayerHeightMm,
 } from "~/domain/palletGeometry";
 import type { Box, PalletData, PlanarDimensions } from "~/domain/palletTypes";
-import { createLayerLabelObject } from "~/components/rob-viewer/sceneLabels";
+import {
+  createLayerLabelObject,
+  LAYER_LABEL_GAP_MM,
+} from "~/components/rob-viewer/sceneLabels";
 import {
   IDENTITY_VIEWER_POSE,
   viewerPoseToLocal,
@@ -22,6 +25,7 @@ import type {
   ViewerSceneBuildOptions,
   ViewerSimulationState,
 } from "~/components/rob-viewer/viewerTypes";
+import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
 
 type FaceColors = {
   green: THREE.Color;
@@ -477,9 +481,29 @@ export function buildViewerScene(
 
     if (options.showLayerLabels) {
       const label = createLayerLabelObject(layerIndex + 1, resources);
+      // Sit beside this layer's own package block so the label reads as
+      // belonging to it; fall back to the pallet edge for an empty layer.
+      let layerMaxX = -Infinity;
+      let layerMinY = Infinity;
+      let layerMaxY = -Infinity;
+      for (let index = 0; index < positions.length; index += 3) {
+        layerMaxX = Math.max(layerMaxX, positions[index]!);
+        layerMinY = Math.min(layerMinY, positions[index + 1]!);
+        layerMaxY = Math.max(layerMaxY, positions[index + 1]!);
+      }
+      let layerMinX = Infinity;
+      for (let index = 0; index < positions.length; index += 3) {
+        layerMinX = Math.min(layerMinX, positions[index]!);
+      }
+      const hasBoxes = Number.isFinite(layerMaxX);
+      // The controller moves the label beside these bounds every frame so it
+      // stays on the screen-right of its own block (labelPositionBeside).
+      label.userData.layerBounds = hasBoxes
+        ? { minX: layerMinX, maxX: layerMaxX, minY: layerMinY, maxY: layerMaxY }
+        : { minX: 0, maxX: palletWidth, minY: 0, maxY: palletLength };
       label.position.set(
-        palletWidth + 80,
-        palletLength / 2,
+        (hasBoxes ? layerMaxX : palletWidth) + LAYER_LABEL_GAP_MM,
+        hasBoxes ? (layerMinY + layerMaxY) / 2 : palletLength / 2,
         zBottom + data.package.height / 2,
       );
       root.add(label);
@@ -672,8 +696,8 @@ export function buildViewerScene(
   const grid = new THREE.GridHelper(
     gridSize,
     gridDivisions,
-    0x2a2a2e,
-    0x1c1c1f,
+    SCENE_THEME.line,
+    SCENE_THEME.gridMinor,
   );
   grid.rotation.x = Math.PI / 2;
   grid.position.set(palletWidth / 2, palletLength / 2, 0.5);

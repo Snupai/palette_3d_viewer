@@ -7,6 +7,38 @@
   --font-mono:
     var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Type scale (docs/DESIGN.md): micro for captions/labels, body for chrome. */
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 18px;
+}
+
+/* Colour utilities backed by the runtime tokens: bg-surface, text-muted, … */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-on: var(--brand-on);
+  --color-accent: var(--accent);
+  --color-mist: var(--mist);
+  --color-ok: var(--ok);
+  --color-caution: var(--caution);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-focus: var(--focus);
+  --color-measure: var(--measure);
+  --color-plan-fill: var(--plan-fill);
+  --color-plan-stroke: var(--plan-stroke);
+  --color-viewport: var(--viewport);
+  --color-viewport-ink: var(--viewport-ink);
+  --color-viewport-line: var(--viewport-line);
 }
 
 :root {
@@ -23,21 +55,18 @@
   --accent: #8bb0c9;
   --mist: #b8dde1;
   --ok: #3d7a4e;
+  --caution: #94630b;
   --danger: #dc143c;
+  --info: #2f6a8f;
   --focus: #8bb0c9;
   --plan-fill: rgba(23, 49, 89, 0.14);
   --plan-stroke: #173159;
   --measure: #8bb0c9;
 
-  --deck-black: var(--canvas);
-  --graphite-surface: var(--surface);
-  --steel-rule: var(--line);
-  --chalk-text: var(--ink);
-  --muted-text: var(--muted);
-  --measured-blue: var(--measure);
-  --selection-amber: var(--brand);
-  --inspection-pass: var(--ok);
-  --inspection-fail: var(--danger);
+  /* The 3D/canvas stage stays dark in both schemes so geometry reads clearly. */
+  --viewport: #111a26;
+  --viewport-ink: #e8eef4;
+  --viewport-line: #2c3d55;
   color-scheme: light;
 }
 
@@ -55,7 +84,9 @@
     --accent: #b8dde1;
     --mist: #8bb0c9;
     --ok: #a9d4b2;
+    --caution: #e2b45a;
     --danger: #f07178;
+    --info: #8bb0c9;
     --focus: #8bb0c9;
     --plan-fill: rgba(139, 176, 201, 0.18);
     --plan-stroke: #8bb0c9;
@@ -87,66 +118,157 @@ summary {
   cursor: pointer;
 }
 
-.ui-input {
-  width: 100%;
-  border: 1px solid var(--line);
-  background: var(--canvas);
-  padding: 8px 10px;
-  color: var(--ink);
-  outline: none;
+/* Component classes live in the components layer so Tailwind utilities on
+   the same element (px-2, text-muted, …) still override them. */
+@layer components {
+  .ui-input {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: var(--canvas);
+    padding: 8px 10px;
+    color: var(--ink);
+    outline: none;
+  }
+
+  .ui-input:focus {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 28%, transparent);
+  }
+
+  .ui-btn {
+    min-height: 32px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 6px 10px;
+    color: var(--ink);
+    outline: none;
+  }
+
+  .ui-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  .ui-btn:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
+  }
+
+  .ui-btn:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+  }
+
+  .ui-btn-primary {
+    min-height: 32px;
+    border: 1px solid var(--brand);
+    background: var(--brand);
+    padding: 6px 10px;
+    font-weight: 600;
+    color: var(--brand-on);
+    outline: none;
+  }
+
+  .ui-btn-primary:hover:not(:disabled) {
+    background: var(--brand-hover);
+    border-color: var(--brand-hover);
+  }
+
+  .ui-btn-primary:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
+  }
+
+  .ui-btn-primary:disabled {
+    cursor: not-allowed;
+    border-color: var(--line);
+    background: var(--surface-hover);
+    color: var(--muted);
+  }
+
+  .ui-btn,
+  .ui-btn-primary {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  /* Size and tone modifiers; declared after the base classes so they win. */
+  .ui-btn-sm {
+    min-height: 26px;
+    padding: 2px 8px;
+    font-size: var(--text-micro);
+  }
+
+  .ui-btn-touch {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .ui-btn-ghost {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .ui-btn-danger {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+    color: var(--danger);
+  }
+
+  .ui-btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  }
+
+  .ui-input:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+  }
+
+  .ui-input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+
+  /* Data tables: dense, mono numbers, sticky header. */
+  .ui-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-micro);
+    color: var(--ink);
+  }
+
+  .ui-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .ui-table td {
+    border-bottom: 1px solid var(--line);
+    padding: 6px 8px;
+    vertical-align: top;
+  }
+
+  .ui-table tbody tr:hover {
+    background: var(--surface-hover);
+  }
+
+  .ui-table tr[aria-selected="true"],
+  .ui-table tbody tr[aria-selected="true"]:hover {
+    background: var(--plan-fill);
+  }
 }
 
-.ui-input:focus {
-  border-color: var(--focus);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 28%, transparent);
-}
-
-.ui-btn {
-  min-height: 32px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  padding: 6px 10px;
-  color: var(--ink);
-  outline: none;
-}
-
-.ui-btn:hover:not(:disabled) {
-  background: var(--surface-hover);
-}
-
-.ui-btn:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
-}
-
-.ui-btn:disabled {
-  cursor: not-allowed;
-  color: var(--muted);
-}
-
-.ui-btn-primary {
-  min-height: 32px;
-  border: 1px solid var(--brand);
-  background: var(--brand);
-  padding: 6px 10px;
-  font-weight: 600;
-  color: var(--brand-on);
-  outline: none;
-}
-
-.ui-btn-primary:hover:not(:disabled) {
-  background: var(--brand-hover);
-  border-color: var(--brand-hover);
-}
-
-.ui-btn-primary:focus-visible {
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
-}
-
-.ui-btn-primary:disabled {
-  cursor: not-allowed;
-  border-color: var(--line);
-  background: var(--surface-hover);
-  color: var(--muted);
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
 }
 
 .planning-ledger details[open] > summary {

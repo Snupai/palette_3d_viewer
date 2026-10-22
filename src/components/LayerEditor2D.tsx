@@ -83,19 +83,19 @@ export function LayerEditor2D({
   const { history } = editor;
 
   return (
-    <section className="flex min-h-[calc(100dvh-7rem)] flex-col rounded-md border border-zinc-800 bg-zinc-900 p-3">
+    <section className="flex min-h-[calc(100dvh-7rem)] flex-col border border-line bg-surface p-3">
       <div className="mb-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-          <h2 className="text-sm font-semibold text-zinc-100">
+          <h2 className="text-sm font-semibold text-ink">
             Unique Layer {uniqueLayerId} Editor
           </h2>
           <div
-            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-zinc-500"
+            className="flex flex-wrap items-center gap-x-4 gap-y-1 text-micro text-muted"
             aria-label="Delta marker legend"
           >
             <span className="inline-flex items-center gap-1.5">
               <span
-                className="h-1 w-5 rounded-full bg-sky-400"
+                className="h-1 w-5 bg-measure"
                 aria-hidden="true"
               />
               Cyan edge/corner = side selected by dx/dy
@@ -103,7 +103,7 @@ export function LayerEditor2D({
             <span className="inline-flex items-center gap-1.5">
               <svg
                 viewBox="0 0 24 8"
-                className="h-2 w-6 text-amber-400"
+                className="h-2 w-6 text-info"
                 aria-hidden="true"
               >
                 <circle cx="3" cy="4" r="2" fill="currentColor" />
@@ -125,7 +125,7 @@ export function LayerEditor2D({
           <div className="flex flex-wrap items-center gap-2">
             <span
               className={`text-xs ${
-                history.hasUnsavedChanges ? "text-amber-300" : "text-zinc-500"
+                history.hasUnsavedChanges ? "text-caution" : "text-muted"
               }`}
               role="status"
             >
@@ -137,7 +137,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onSave}
               disabled={!history.hasUnsavedChanges || history.isSaving}
-              className="cursor-pointer rounded-md bg-zinc-100 px-3 py-1.5 text-xs font-medium text-zinc-900 transition hover:bg-white disabled:cursor-not-allowed disabled:bg-zinc-800 disabled:text-zinc-600"
+              className="ui-btn-primary text-xs"
             >
               {history.isSaving ? "Saving…" : "Save changes"}
             </button>
@@ -145,7 +145,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onDiscard}
               disabled={!history.hasUnsavedChanges || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className="ui-btn text-xs font-medium"
             >
               Discard changes
             </button>
@@ -153,7 +153,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onUndo}
               disabled={!history.canUndo || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className="ui-btn text-xs font-medium"
             >
               Undo
             </button>
@@ -161,12 +161,12 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onRedo}
               disabled={!history.canRedo || history.isSaving}
-              className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+              className="ui-btn text-xs font-medium"
             >
               Redo
             </button>
             <span
-              className="self-center rounded-md border border-zinc-800 bg-zinc-950 px-2 py-1 font-mono text-[11px] text-zinc-500"
+              className="self-center border border-line bg-canvas px-2 py-1 font-mono text-micro text-muted"
               role="status"
             >
               History {history.position}/{history.length}
@@ -175,7 +175,7 @@ export function LayerEditor2D({
               type="button"
               onClick={history.onResetToOriginal}
               disabled={!history.canResetToOriginal || history.isSaving}
-              className="cursor-pointer rounded-md border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+              className="ui-btn ui-btn-danger text-xs font-medium"
             >
               Reset to original
             </button>
@@ -183,7 +183,7 @@ export function LayerEditor2D({
           <button
             type="button"
             onClick={editor.addPackage}
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100"
+            className="ui-btn text-xs font-medium"
           >
             Add package
           </button>
@@ -193,7 +193,7 @@ export function LayerEditor2D({
             disabled={
               !editor.selectedGrip || editor.selectedGrip.numPackages <= 1
             }
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn text-xs font-medium"
           >
             Split into singles
           </button>
@@ -201,7 +201,7 @@ export function LayerEditor2D({
             type="button"
             onClick={editor.mergeSelected}
             disabled={editor.mergeSelection.size < 2}
-            className="cursor-pointer rounded-md border border-zinc-700 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-800 hover:text-zinc-100 disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn text-xs font-medium"
           >
             Merge selected ({editor.mergeSelection.size})
           </button>
@@ -209,7 +209,7 @@ export function LayerEditor2D({
             type="button"
             onClick={editor.deleteSelected}
             disabled={!editor.selectedGrip}
-            className="cursor-pointer rounded-md border border-red-500/30 px-3 py-1.5 text-xs font-medium text-red-300 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+            className="ui-btn ui-btn-danger text-xs font-medium"
           >
             Delete group
           </button>

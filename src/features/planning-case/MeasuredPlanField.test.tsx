@@ -70,7 +70,7 @@ describe("MeasuredPlanField", () => {
     expect(field!.classList.contains("max-h-[32.5rem]")).toBe(true);
     expect(field!.classList.contains("self-start")).toBe(true);
     expect(svg.classList.contains("min-h-0")).toBe(true);
-    expect(svg.getAttribute("viewBox")).toBe("-72 -72 1300.8 923.84");
+    expect(svg.getAttribute("viewBox")).toBe("-72 -72 1333.56 933.56");
     expect(svg.getAttribute("preserveAspectRatio")).toBe("xMidYMid meet");
   });
 
@@ -95,7 +95,7 @@ describe("MeasuredPlanField", () => {
     for (const drawing of drawings) {
       expect(drawing.classList.contains("min-h-0")).toBe(true);
       expect(drawing.parentElement?.classList.contains("h-[360px]")).toBe(true);
-      expect(drawing.getAttribute("viewBox")).toBe("-72 -72 1300.8 923.84");
+      expect(drawing.getAttribute("viewBox")).toBe("-72 -72 1333.56 933.56");
     }
 
     expect(container.querySelectorAll("svg")).toHaveLength(2);

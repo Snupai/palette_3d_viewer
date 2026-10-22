@@ -815,10 +815,16 @@ describe("PlannerProjectWorkspace generator integration", () => {
     });
     expect(stackMetricValue("Generated candidates")).toBe("20");
     expect(stackMetricValue("Selectable layouts")).toBe("1");
-    const openStackComposer = screen.getByRole("button", {
-      name: "Open stack composer",
-    });
-    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
+    // Saving ends the normal flow: finished state with the .rob download,
+    // no robot workspace opened.
+    expect(screen.getByRole("region", { name: "Plan finished" })).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Download .rob" })
+        .disabled,
+    ).toBe(false);
+    expect(screen.queryByTestId("robotics-workspace")).toBeNull();
+    const editStack = screen.getByRole("button", { name: "Edit stack" });
+    expect((editStack as HTMLButtonElement).disabled).toBe(false);
 
     const saved = await repository.getProject(
       (await repository.listProjects()).projects[0]!.id,

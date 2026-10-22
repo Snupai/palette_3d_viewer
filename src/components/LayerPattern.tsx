@@ -128,8 +128,7 @@ export function LayerPattern({
             1,
             preview.effectiveEnvelopeMm.maxY - preview.effectiveEnvelopeMm.minY,
           )}
-          fill="none"
-          stroke="#71717a"
+          className="fill-none stroke-muted"
           strokeWidth={1.5}
           strokeDasharray="6 4"
           vectorEffect="non-scaling-stroke"
@@ -148,8 +147,7 @@ export function LayerPattern({
             1,
             preview.generationBoundsMm.maxY - preview.generationBoundsMm.minY,
           )}
-          fill="none"
-          stroke="#fbbf24"
+          className="fill-none stroke-info"
           strokeWidth={1.5}
           strokeDasharray="3 3"
           vectorEffect="non-scaling-stroke"
@@ -161,14 +159,17 @@ export function LayerPattern({
         y={boundsSvgY(pallet)}
         width={palletWidth}
         height={palletLength}
-        rx={4}
-        fill="#18181b"
-        stroke="#52525b"
+        className="fill-canvas stroke-line"
         strokeWidth={2}
         vectorEffect="non-scaling-stroke"
       />
       {showGrid ? (
-        <g opacity={0.18} pointerEvents="none" aria-hidden="true">
+        <g
+          className="stroke-muted"
+          opacity={0.18}
+          pointerEvents="none"
+          aria-hidden="true"
+        >
           {Array.from({ length: 11 }, (_, index) => {
             const x = pallet.minX + (palletWidth / 10) * index;
             return (
@@ -178,7 +179,6 @@ export function LayerPattern({
                 y1={boundsSvgY(pallet)}
                 x2={x}
                 y2={boundsSvgY(pallet) + palletLength}
-                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -193,7 +193,6 @@ export function LayerPattern({
                 y1={y}
                 x2={pallet.maxX}
                 y2={y}
-                stroke="#71717a"
                 strokeWidth={1}
                 vectorEffect="non-scaling-stroke"
               />
@@ -215,17 +214,15 @@ export function LayerPattern({
               y={svgY - item.sizeMm.y / 2}
               width={item.sizeMm.x}
               height={item.sizeMm.y}
-              rx={3}
-              fill="#2f2f36"
-              stroke="#a1a1aa"
+              className="fill-plan-fill stroke-plan-stroke"
               strokeWidth={1.5}
               vectorEffect="non-scaling-stroke"
             />
             {path ? (
               <path
                 d={path}
-                fill="none"
-                stroke="#38bdf8"
+                data-label-side={item.labelSide}
+                className="fill-none stroke-measure"
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -238,7 +235,7 @@ export function LayerPattern({
                 y={svgY}
                 dy="0.35em"
                 textAnchor="middle"
-                fill="#d4d4d8"
+                className="fill-ink"
                 fontSize={fontSize}
                 fontFamily="ui-monospace, monospace"
                 pointerEvents="none"

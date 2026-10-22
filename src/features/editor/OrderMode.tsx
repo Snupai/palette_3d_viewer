@@ -16,7 +16,7 @@ import {
 } from "~/features/editor/editorModel";
 
 const inputClass = "ui-input";
-const buttonClass = "ui-btn h-7 px-2.5 text-[12px]";
+const buttonClass = "ui-btn h-7 px-2.5 text-xs";
 
 export type OrderModeProps = {
   project: Project;
@@ -102,8 +102,8 @@ export function OrderMode({
 
   return (
     <div className="grid gap-3 2xl:grid-cols-[minmax(680px,1.15fr)_minmax(420px,0.85fr)]">
-      <section className="border border-[var(--line)] bg-[var(--surface)]">
-        <div className="flex flex-wrap items-center gap-2 border-b border-[var(--line)] p-2">
+      <section className="border border-line bg-surface">
+        <div className="flex flex-wrap items-center gap-2 border-b border-line p-2">
           <button
             type="button"
             disabled={selectedPlacementIds.size === 0}
@@ -148,7 +148,7 @@ export function OrderMode({
                 gripIds: suggestion.order,
               });
             }}
-            className="ui-btn-primary h-7 px-2.5 text-[12px]"
+            className="ui-btn-primary h-7 px-2.5 text-xs"
           >
             Apply automatic order
           </button>
@@ -156,21 +156,21 @@ export function OrderMode({
 
         <div className="scrollbar-thin overflow-auto">
           <table className="w-full min-w-[680px] border-collapse text-left text-xs">
-            <thead className="bg-[var(--canvas)] text-[var(--muted)]">
+            <thead className="bg-canvas text-muted">
               <tr>
-                <th className="border-b border-[var(--line)] px-2 py-2 font-medium">
+                <th className="border-b border-line px-2 py-2 font-medium">
                   Select
                 </th>
-                <th className="border-b border-[var(--line)] px-2 py-2 font-medium">
+                <th className="border-b border-line px-2 py-2 font-medium">
                   Grip / Order
                 </th>
-                <th className="border-b border-[var(--line)] px-2 py-2 font-medium">
+                <th className="border-b border-line px-2 py-2 font-medium">
                   Packages
                 </th>
-                <th className="border-b border-[var(--line)] px-2 py-2 font-medium">
+                <th className="border-b border-line px-2 py-2 font-medium">
                   Center X/Y
                 </th>
-                <th className="border-b border-[var(--line)] px-2 py-2 font-medium">
+                <th className="border-b border-line px-2 py-2 font-medium">
                   Actions
                 </th>
               </tr>
@@ -180,7 +180,7 @@ export function OrderMode({
                 <tr
                   key={group.id}
                   data-editor-group-id={group.id}
-                  className="border-b border-[var(--line)] text-[var(--ink)]"
+                  className="border-b border-line text-ink"
                 >
                   <td className="px-2 py-2">
                     <input
@@ -188,7 +188,7 @@ export function OrderMode({
                       aria-label={`Select grip G${index + 1}`}
                       checked={selectedGroupIds.has(group.id)}
                       onChange={() => toggleGroup(group.id)}
-                      className="h-4 w-4 cursor-pointer accent-[var(--brand)]"
+                      className="h-4 w-4 cursor-pointer accent-brand"
                     />
                   </td>
                   <td className="px-2 py-2 font-mono">G{index + 1}</td>
@@ -196,7 +196,7 @@ export function OrderMode({
                     <span className="font-mono">
                       {group.placementIds.length}
                     </span>
-                    <span className="ml-2 text-[10px] text-[var(--muted)]">
+                    <span className="ml-2 text-micro text-muted">
                       {group.placementIds.join(", ")}
                     </span>
                   </td>
@@ -263,7 +263,7 @@ export function OrderMode({
                             gripId: group.id,
                           })
                         }
-                        className={`${buttonClass} text-[var(--danger)]`}
+                        className={`${buttonClass} text-danger`}
                       >
                         Remove
                       </button>
@@ -275,7 +275,7 @@ export function OrderMode({
                 <tr>
                   <td
                     colSpan={5}
-                    className="px-3 py-6 text-center text-[var(--muted)]"
+                    className="px-3 py-6 text-center text-muted"
                   >
                     This pattern has no package groups.
                   </td>
@@ -287,17 +287,17 @@ export function OrderMode({
       </section>
 
       <div className="grid content-start gap-3">
-        <section className="border border-[var(--line)] bg-[var(--surface)]">
-          <header className="border-b border-[var(--line)] px-3 py-2">
-            <h3 className="text-sm font-semibold text-[var(--ink)]">
+        <section className="border border-line bg-surface">
+          <header className="border-b border-line px-3 py-2">
+            <h3 className="text-sm font-semibold text-ink">
               2D execution order
             </h3>
-            <p className="mt-0.5 text-xs text-[var(--muted)]">
+            <p className="mt-0.5 text-xs text-muted">
               G1 is the first executed grip. Reordering rows renumbers all grips
               automatically.
             </p>
           </header>
-          <div className="bg-[var(--canvas)] p-3">
+          <div className="bg-canvas p-3">
             <SequenceCanvas
               ariaLabel={`Execution order for ${pattern.name}`}
               envelope={envelope}
@@ -315,12 +315,12 @@ export function OrderMode({
           </div>
         </section>
 
-        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
-          <h3 className="text-sm font-semibold text-[var(--ink)]">
+        <section className="border border-line bg-surface p-3">
+          <h3 className="text-sm font-semibold text-ink">
             Order dependencies
           </h3>
           <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto] sm:items-end">
-            <label className="grid gap-1 text-xs text-[var(--muted)]">
+            <label className="grid gap-1 text-xs text-muted">
               Prerequisite group
               <select
                 aria-label="Dependency prerequisite group"
@@ -336,12 +336,12 @@ export function OrderMode({
               </select>
             </label>
             <span
-              className="pb-2 text-xs text-[var(--muted)]"
+              className="pb-2 text-xs text-muted"
               aria-hidden="true"
             >
               before
             </span>
-            <label className="grid gap-1 text-xs text-[var(--muted)]">
+            <label className="grid gap-1 text-xs text-muted">
               Dependent group
               <select
                 aria-label="Dependency dependent group"
@@ -375,7 +375,7 @@ export function OrderMode({
             </button>
           </div>
           {orderModel.dependencies.length === 0 ? (
-            <p className="mt-3 text-xs text-[var(--muted)]">
+            <p className="mt-3 text-xs text-muted">
               No explicit or retained legacy dependencies.
             </p>
           ) : (
@@ -388,13 +388,13 @@ export function OrderMode({
                 return (
                   <li
                     key={`${dependency.beforeGripId}:${dependency.afterGripId}`}
-                    className="flex items-center gap-2 border-t border-[var(--line)] py-1.5 text-xs text-[var(--muted)]"
+                    className="flex items-center gap-2 border-t border-line py-1.5 text-xs text-muted"
                   >
                     <span className="mr-auto font-mono">
                       G{beforeNumber ?? "?"} before G{afterNumber ?? "?"}
                     </span>
                     {dependency.source === "inferred" ? (
-                      <span className="text-[11px] text-[var(--muted)]">
+                      <span className="text-micro text-muted">
                         Inferred from package geometry or legacy dx/dy;
                         immutable.
                       </span>
@@ -410,7 +410,7 @@ export function OrderMode({
                             afterGripId: dependency.afterGripId,
                           })
                         }
-                        className={`${buttonClass} text-[var(--danger)]`}
+                        className={`${buttonClass} text-danger`}
                       >
                         Remove
                       </button>
@@ -422,17 +422,17 @@ export function OrderMode({
           )}
         </section>
 
-        <section className="border border-[var(--line)] bg-[var(--surface)] p-3">
-          <h3 className="text-sm font-semibold text-[var(--ink)]">
+        <section className="border border-line bg-surface p-3">
+          <h3 className="text-sm font-semibold text-ink">
             Order feedback ({diagnostics.length})
           </h3>
           {orderModel.unassignedPlacementIds.length > 0 ? (
-            <p className="mt-2 text-xs leading-5 text-[var(--danger)]">
+            <p className="mt-2 text-xs leading-5 text-danger">
               Ungrouped packages: {orderModel.unassignedPlacementIds.join(", ")}
             </p>
           ) : null}
           {diagnostics.length === 0 ? (
-            <p className="mt-2 text-xs text-[var(--muted)]">
+            <p className="mt-2 text-xs text-muted">
               The current order satisfies all known dependencies.
             </p>
           ) : (
@@ -442,11 +442,11 @@ export function OrderMode({
                   key={`${diagnostic.code}-${diagnostic.message}-${index}`}
                   className={
                     diagnostic.severity === "error"
-                      ? "text-xs leading-5 text-[var(--danger)]"
-                      : "text-xs leading-5 text-[var(--brand)]"
+                      ? "text-xs leading-5 text-danger"
+                      : "text-xs leading-5 text-brand"
                   }
                 >
-                  <span className="font-mono text-[10px] text-[var(--muted)]">
+                  <span className="font-mono text-micro text-muted">
                     {diagnostic.code}
                   </span>
                   <br />

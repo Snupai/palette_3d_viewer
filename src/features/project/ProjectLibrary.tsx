@@ -1,7 +1,8 @@
 "use client";
 
-import { useRef, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent } from "react";
 import type { Project } from "~/domain/project/projectSchema";
+import { hasRobPlan } from "~/features/project/projectRobDownload";
 import type {
   ProjectConflictPolicy,
   ProjectSortField,
@@ -27,17 +28,23 @@ export type ProjectLibraryProps = {
   onResourceConflictPolicyChange: (policy: ProjectConflictPolicy) => void;
   onSelect: (id: string) => void;
   onCreate: () => void;
-  onEdit: () => void;
-  onDuplicate: () => void;
-  onSaveAs: () => void;
-  onDelete: () => void;
-  onExportSelected: () => void;
+  onEdit: (id: string) => void;
+  onDuplicate: (id: string) => void;
+  onSaveAs: (id: string) => void;
+  /**
+   * Called once deletion is confirmed: after the inline "Delete project?"
+   * step, or straight away on Shift+click.
+   */
+  onDelete: (id: string) => void;
+  onExportSelected: (id: string) => void;
+  onDownloadRob: (id: string) => void;
   onExportAll: () => void;
   onImport: (file: File) => void;
 };
 
 const controlClass = "ui-input text-xs";
 const buttonClass = "ui-btn text-xs";
+const itemActionClass = "ui-btn ui-btn-sm ui-btn-ghost";
 
 function projectTitle(project: Project): string {
   return project.productNumber || project.projectNumber || "Untitled project";
@@ -67,11 +74,13 @@ export function ProjectLibrary({
   onSaveAs,
   onDelete,
   onExportSelected,
+  onDownloadRob,
   onExportAll,
   onImport,
 }: ProjectLibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const hasSelection = selectedId !== null;
+  // In-app confirmation; native window.confirm is not shown in every host.
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   const changeImport = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -80,10 +89,10 @@ export function ProjectLibrary({
   };
 
   return (
-    <aside className="app-chrome flex h-full min-h-0 w-full flex-col bg-[var(--surface)]">
-      <div className="grid gap-2 border-b border-[var(--line)] p-3">
+    <aside className="app-chrome flex h-full min-h-0 w-full flex-col bg-surface">
+      <div className="grid gap-2 border-b border-line p-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">Projects</h2>
+          <h2 className="text-sm font-semibold text-ink">Projects</h2>
           <button
             type="button"
             onClick={onCreate}
@@ -101,7 +110,7 @@ export function ProjectLibrary({
           placeholder="ID, line, product, file…"
         />
         <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+          <label className="grid gap-1 text-micro text-muted">
             Line filter
             <input
               type="search"
@@ -114,7 +123,7 @@ export function ProjectLibrary({
               placeholder="Line no."
             />
           </label>
-          <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+          <label className="grid gap-1 text-micro text-muted">
             Product filter
             <input
               type="search"
@@ -128,7 +137,7 @@ export function ProjectLibrary({
             />
           </label>
         </div>
-        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+        <label className="grid gap-1 text-micro text-muted">
           Sort
           <select
             value={`${sortBy}:${sortDirection}`}
@@ -154,86 +163,151 @@ export function ProjectLibrary({
 
       <div className="scrollbar-thin min-h-[160px] flex-1 overflow-auto p-2">
         {loading ? (
-          <p className="p-2 text-xs text-[var(--muted)]">Loading projects…</p>
+          <p className="p-2 text-xs text-muted">Loading projects…</p>
         ) : projects.length === 0 ? (
-          <p className="p-2 text-xs leading-5 text-[var(--muted)]">
+          <p className="p-2 text-xs leading-5 text-muted">
             No projects match the current search.
           </p>
         ) : (
           <div role="list" aria-label="Project library" className="grid gap-1">
-            {projects.map((project) => (
-              <div key={project.id} role="listitem">
-                <button
-                  type="button"
-                  aria-current={project.id === selectedId ? "true" : undefined}
-                  onClick={() => onSelect(project.id)}
-                  className={`grid w-full min-w-0 gap-1 border px-3 py-2 text-left focus:ring-2 focus:ring-[var(--focus)] focus:outline-none ${
-                    project.id === selectedId
-                      ? "border-[var(--brand)] bg-[var(--plan-fill)]"
-                      : "border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-hover)]"
+            {projects.map((project) => {
+              const selected = project.id === selectedId;
+              const title = projectTitle(project);
+              return (
+                <div
+                  key={project.id}
+                  role="listitem"
+                  className={`group border ${
+                    selected
+                      ? "border-brand bg-plan-fill"
+                      : "border-transparent hover:border-line hover:bg-surface-hover"
                   }`}
                 >
-                  <span className="truncate text-sm font-medium text-[var(--ink)]">
-                    {projectTitle(project)}
-                  </span>
-                  <span className="truncate text-xs text-[var(--muted)]">
-                    {project.projectNumber || "No line number"}
-                  </span>
-                  <span className="text-[11px] text-[var(--muted)]">
-                    {new Date(project.updatedAt).toLocaleString()}
-                  </span>
-                </button>
-              </div>
-            ))}
+                  <button
+                    type="button"
+                    aria-current={selected ? "true" : undefined}
+                    onClick={() => onSelect(project.id)}
+                    className="grid w-full min-w-0 gap-1 px-3 pt-2 pb-1 text-left focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+                  >
+                    <span className="truncate text-sm font-medium text-ink">
+                      {title}
+                    </span>
+                    <span className="truncate text-xs text-muted">
+                      {project.projectNumber || "No line number"}
+                    </span>
+                    <span className="text-micro text-muted">
+                      {new Date(project.updatedAt).toLocaleString()}
+                    </span>
+                  </button>
+                  <div
+                    role="group"
+                    aria-label={`Actions for ${title}`}
+                    className={`flex flex-wrap items-center gap-0.5 px-1.5 pb-1.5 ${
+                      selected || pendingDeleteId === project.id
+                        ? ""
+                        : "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onEdit(project.id)}
+                      className={itemActionClass}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDuplicate(project.id)}
+                      className={itemActionClass}
+                    >
+                      Duplicate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onSaveAs(project.id)}
+                      className={itemActionClass}
+                    >
+                      Save as
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onExportSelected(project.id)}
+                      className={itemActionClass}
+                    >
+                      Export
+                    </button>
+                    {hasRobPlan(project) ? (
+                      <button
+                        type="button"
+                        title={
+                          project.source.kind === "rob-import"
+                            ? "Download the imported .rob file"
+                            : "Download the .rob plan derived from the saved stack"
+                        }
+                        onClick={() => onDownloadRob(project.id)}
+                        className={itemActionClass}
+                      >
+                        Download .rob
+                      </button>
+                    ) : null}
+                    {pendingDeleteId === project.id ? (
+                      <span className="ml-auto flex items-center gap-0.5">
+                        <span className="px-1 text-micro text-danger">
+                          Delete project?
+                        </span>
+                        <button
+                          type="button"
+                          autoFocus
+                          onClick={() => {
+                            setPendingDeleteId(null);
+                            onDelete(project.id);
+                          }}
+                          className="ui-btn ui-btn-sm ui-btn-danger"
+                        >
+                          Delete
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDeleteId(null)}
+                          className={itemActionClass}
+                        >
+                          Cancel
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        type="button"
+                        title="Shift+click deletes without confirmation"
+                        onClick={(event) => {
+                          if (event.shiftKey) {
+                            setPendingDeleteId(null);
+                            onDelete(project.id);
+                          } else {
+                            setPendingDeleteId(project.id);
+                          }
+                        }}
+                        className={`${itemActionClass} ml-auto text-danger hover:bg-danger/10`}
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-[var(--line)] p-3">
+      <div className="grid grid-cols-2 gap-2 border-t border-line p-3">
         <button
           type="button"
-          onClick={onEdit}
-          disabled={!hasSelection}
-          className={buttonClass}
+          onClick={onExportAll}
+          className={`${buttonClass} col-span-2`}
         >
-          Edit
+          Export all projects
         </button>
-        <button
-          type="button"
-          onClick={onDuplicate}
-          disabled={!hasSelection}
-          className={buttonClass}
-        >
-          Duplicate
-        </button>
-        <button
-          type="button"
-          onClick={onSaveAs}
-          disabled={!hasSelection}
-          className={buttonClass}
-        >
-          Save as
-        </button>
-        <button
-          type="button"
-          onClick={onDelete}
-          disabled={!hasSelection}
-          className={`${buttonClass} text-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)]`}
-        >
-          Delete
-        </button>
-        <button
-          type="button"
-          onClick={onExportSelected}
-          disabled={!hasSelection}
-          className={buttonClass}
-        >
-          Export selected
-        </button>
-        <button type="button" onClick={onExportAll} className={buttonClass}>
-          Export all
-        </button>
-        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+        <label className="grid gap-1 text-micro text-muted">
           Project conflict
           <select
             aria-label="Project import conflict policy"
@@ -250,7 +324,7 @@ export function ProjectLibrary({
             <option value="overwrite">Overwrite existing</option>
           </select>
         </label>
-        <label className="grid gap-1 text-[11px] text-[var(--muted)]">
+        <label className="grid gap-1 text-micro text-muted">
           Resource conflict
           <select
             aria-label="Resource import conflict policy"

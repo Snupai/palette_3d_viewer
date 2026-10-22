@@ -66,7 +66,7 @@ export type ProductionToolGate =
       action: ProductionToolGateAction;
     };
 
-function stackLayerCount(project: Project): number {
+export function stackLayerCount(project: Project): number {
   const solution =
     project.solutions.find((entry) => entry.id === project.activeSolutionId) ??
     project.solutions[0];

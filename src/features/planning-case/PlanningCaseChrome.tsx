@@ -3,6 +3,12 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
+import {
+  Drawer,
+  statusToneSymbol,
+  statusToneText,
+  toneForLedgerStatus,
+} from "~/components/ui";
 import { candidateRankReason } from "~/features/candidates/candidateListModel";
 import {
   type ValidationLedgerRow,
@@ -99,22 +105,22 @@ export function PlanningCandidateIndex({
   };
 
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)]">
+    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-line">
       <div>
-        <header className="flex items-center justify-between border-b border-[var(--line)] px-2.5 py-2">
-          <h3 className="text-[13px] font-semibold text-[var(--ink)]">
+        <header className="flex items-center justify-between border-b border-line px-2.5 py-2">
+          <h3 className="text-body font-semibold text-ink">
             Candidate layouts
           </h3>
-          <span className="font-mono text-[11px] text-[var(--muted)]">
+          <span className="font-mono text-micro text-muted">
             {rows.length}/{candidates.length}
           </span>
         </header>
         {selectedCandidate && selectedRankReason ? (
           <p
             aria-live="polite"
-            className="border-b border-[var(--line)] px-2.5 py-1.5 text-[11px] leading-4 text-[var(--muted)]"
+            className="border-b border-line px-2.5 py-1.5 text-micro leading-4 text-muted"
           >
-            <span className="font-semibold text-[var(--ink)]">
+            <span className="font-semibold text-ink">
               #{selectedCandidate.rank}
               {followingCandidate
                 ? ` ahead of #${followingCandidate.rank}`
@@ -130,14 +136,18 @@ export function PlanningCandidateIndex({
         aria-label="Generated pattern layouts"
         className="scrollbar-thin min-h-0 overflow-auto"
       >
-        <table className="w-full border-collapse text-[11px]">
-          <thead className="sticky top-0 z-10 bg-[var(--surface)] text-left text-[11px] text-[var(--muted)]">
-            <tr className="border-b border-[var(--line)]">
+        <table className="w-full border-collapse text-micro whitespace-nowrap">
+          <thead className="sticky top-0 z-10 bg-surface text-left text-micro text-muted">
+            <tr className="border-b border-line">
               <th className="px-2 py-1.5 font-medium">Rank</th>
               <th className="px-2 py-1.5 font-medium">Pkgs</th>
               <th className="px-2 py-1.5 text-right font-medium">Util</th>
               <th className="px-2 py-1.5 text-right font-medium">Cycles</th>
-              <th className="px-2 py-1.5 font-medium">Geometry</th>
+              <th className="px-1 py-1.5 text-center font-medium">
+                <abbr title="Geometry check" className="no-underline">
+                  Geo
+                </abbr>
+              </th>
               <th className="px-2 py-1.5 text-right font-medium">Bounds mm</th>
             </tr>
           </thead>
@@ -158,10 +168,10 @@ export function PlanningCandidateIndex({
                   tabIndex={index === tabStopIndex ? 0 : -1}
                   onClick={() => selectAt(index)}
                   onKeyDown={(event) => onCandidateKeyDown(event, index)}
-                  className={`cursor-pointer border-b border-[var(--line)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
+                  className={`cursor-pointer border-b border-line outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
                     selected
-                      ? "border-l-2 border-l-[var(--brand)] bg-[var(--plan-fill)] text-[var(--ink)]"
-                      : "border-l-2 border-l-transparent text-[var(--ink)] hover:bg-[var(--surface-hover)]"
+                      ? "border-l-2 border-l-brand bg-plan-fill text-ink"
+                      : "border-l-2 border-l-transparent text-ink hover:bg-surface-hover"
                   }`}
                 >
                   <td className="px-2 py-1.5 font-mono">#{candidate.rank}</td>
@@ -174,10 +184,25 @@ export function PlanningCandidateIndex({
                   <td className="px-2 py-1.5 text-right font-mono">
                     {candidate.metrics.provisionalCycleCount}
                   </td>
-                  <td className="px-2 py-1.5">
-                    {candidate.validation.valid ? "Geometry OK" : "Rejected"}
+                  <td
+                    className="px-1 py-1.5 text-center"
+                    title={
+                      candidate.validation.valid ? "Geometry OK" : "Rejected"
+                    }
+                  >
+                    <span
+                      aria-hidden="true"
+                      className={`font-mono ${
+                        candidate.validation.valid ? "text-ok" : "text-danger"
+                      }`}
+                    >
+                      {candidate.validation.valid ? "■" : "×"}
+                    </span>
+                    <span className="sr-only">
+                      {candidate.validation.valid ? "Geometry OK" : "Rejected"}
+                    </span>
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono text-[10px] text-[var(--muted)]">
+                  <td className="px-2 py-1.5 text-right font-mono text-micro text-muted">
                     {candidate.metrics.boundingBlockLengthMm} ×{" "}
                     {candidate.metrics.boundingBlockWidthMm}
                   </td>
@@ -187,12 +212,12 @@ export function PlanningCandidateIndex({
           </tbody>
         </table>
         {rows.length === 0 ? (
-          <p className="p-3 text-xs leading-5 text-[var(--muted)]">
+          <p className="p-3 text-xs leading-5 text-muted">
             Generate patterns to populate the candidate layouts.
           </p>
         ) : null}
         {candidates.length > rowLimit ? (
-          <div className="grid gap-2 border-t border-[var(--line)] p-2 text-[10px] text-[var(--muted)]">
+          <div className="grid gap-2 border-t border-line p-2 text-micro text-muted">
             <p>
               {selectedOutsideTopRows
                 ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
@@ -221,33 +246,25 @@ export function PlanningCandidateIndex({
   );
 }
 
-const statusSymbol: Record<ValidationStatus, string> = {
-  PASS: "■",
-  FAIL: "×",
-  BLOCKED: "□",
-  OBSERVED: "◇",
-  SKIPPED: "–",
-};
+function statusSymbol(status: ValidationStatus): string {
+  return statusToneSymbol[toneForLedgerStatus(status)];
+}
 
-const statusClass: Record<ValidationStatus, string> = {
-  PASS: "text-[var(--inspection-pass)]",
-  FAIL: "text-[var(--inspection-fail)]",
-  BLOCKED: "text-[var(--muted)]",
-  OBSERVED: "text-[var(--measure)]",
-  SKIPPED: "text-[var(--muted)]",
-};
+function statusClass(status: ValidationStatus): string {
+  return statusToneText[toneForLedgerStatus(status)];
+}
 
 export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
   return (
     <aside
       aria-label="Inspection ledger"
-      className="planning-ledger app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-[var(--line)] bg-[var(--surface)]"
+      className="planning-ledger app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-line bg-surface"
     >
-      <header className="border-b border-[var(--line)] px-3 py-2">
-        <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+      <header className="border-b border-line px-3 py-2">
+        <h2 className="text-body font-semibold text-ink">
           Inspection ledger
         </h2>
-        <p className="mt-0.5 text-[11px] text-[var(--muted)]">
+        <p className="mt-0.5 text-micro text-muted">
           G generated · O observed · ? unknown
         </p>
       </header>
@@ -255,34 +272,34 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
         {rows.map((row) => (
           <details
             key={row.id}
-            className="group border-b border-[var(--line)] last:border-b-0"
+            className="group border-b border-line last:border-b-0"
           >
-            <summary className="grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 text-[11px] marker:hidden hover:bg-[var(--surface-hover)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:outline-none">
+            <summary className="grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 text-micro marker:hidden hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none">
               <span
                 aria-hidden="true"
-                className={`font-mono ${statusClass[row.status]}`}
+                className={`font-mono ${statusClass(row.status)}`}
               >
-                {statusSymbol[row.status]}
+                {statusSymbol(row.status)}
               </span>
               <span
-                className={`font-mono font-semibold ${statusClass[row.status]}`}
+                className={`font-mono font-semibold ${statusClass(row.status)}`}
               >
                 {row.status}
               </span>
-              <span className="font-mono text-[var(--muted)]">
+              <span className="font-mono text-muted">
                 {row.evidence}
               </span>
               <span>
-                <strong className="block font-semibold text-[var(--ink)]">
+                <strong className="block font-semibold text-ink">
                   {row.label}
                 </strong>
-                <span className="mt-0.5 block leading-4 text-[var(--muted)]">
+                <span className="mt-0.5 block leading-4 text-muted">
                   {row.claim}
                 </span>
               </span>
             </summary>
             {row.detail ? (
-              <p className="border-t border-[var(--line)] bg-[var(--canvas)] px-3 py-2 font-mono text-[10px] leading-4 whitespace-pre-wrap text-[var(--muted)]">
+              <p className="border-t border-line bg-canvas px-3 py-2 font-mono text-micro leading-4 whitespace-pre-wrap text-muted">
                 {row.detail}
               </p>
             ) : null}
@@ -335,13 +352,13 @@ function StripRow({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[76px_minmax(0,1fr)] border-b border-[var(--line)] last:border-b-0">
-      <div className="flex items-center border-r border-[var(--line)] px-2 text-[11px] font-semibold text-[var(--muted)]">
+    <div className="grid grid-cols-[76px_minmax(0,1fr)] border-b border-line last:border-b-0">
+      <div className="flex items-center border-r border-line px-2 text-micro font-semibold text-muted">
         {label}
       </div>
       <div className="scrollbar-thin flex min-w-0 overflow-x-auto">
         {items.length === 0 ? (
-          <span className="px-3 py-2 text-[10px] text-[var(--muted)]">
+          <span className="px-3 py-2 text-micro text-muted">
             No layer sequence
           </span>
         ) : (
@@ -357,14 +374,14 @@ function StripRow({
                 type="button"
                 title={`${item.label} · ${item.pattern}`}
                 onClick={() => onSelect(index)}
-                className={`min-w-14 border-r border-[var(--line)] px-2 py-1 text-left font-mono text-[9px] outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-inset ${
+                className={`min-w-14 border-r border-line px-2 py-1 text-left font-mono text-micro outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
                   selectedIndex === index
-                    ? "bg-[var(--plan-fill)] text-[var(--brand)]"
-                    : "text-[var(--ink)] hover:bg-[var(--surface-hover)]"
+                    ? "bg-plan-fill text-brand"
+                    : "text-ink hover:bg-surface-hover"
                 }`}
               >
                 <span className="block">{item.label}</span>
-                <span className="block max-w-24 truncate text-[var(--muted)]">
+                <span className="block max-w-24 truncate text-muted">
                   {item.pattern}
                 </span>
               </button>
@@ -394,7 +411,7 @@ export function LayerStrips({
   return (
     <section
       aria-label="Layer sequences"
-      className="app-chrome border border-[var(--line)] bg-[var(--surface)]"
+      className="app-chrome border border-line bg-surface"
     >
       {reference ? (
         <StripRow
@@ -427,45 +444,9 @@ export function CaseDrawer({
   onClose: () => void;
   children: ReactNode;
 }) {
-  if (!open) return null;
-  const narrow = width === "narrow";
   return (
-    <div
-      className={`fixed inset-0 z-40 flex ${narrow ? "justify-end bg-black/70" : ""}`}
-      role="presentation"
-    >
-      {narrow ? (
-        <button
-          type="button"
-          aria-label={`Close ${title}`}
-          onClick={onClose}
-          className="min-w-8 flex-1 cursor-default"
-        />
-      ) : null}
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        className={`grid h-full min-w-0 grid-rows-[44px_minmax(0,1fr)] bg-[var(--surface)] ${
-          narrow
-            ? "w-[min(420px,calc(100vw-32px))] border-l border-[var(--line)] shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
-            : "w-full"
-        }`}
-      >
-        <header className="app-chrome flex items-center border-b border-[var(--line)] px-3">
-          <h2 className="mr-auto text-[13px] font-semibold text-[var(--ink)]">
-            {title}
-          </h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="ui-btn h-7 px-2 text-[11px]"
-          >
-            Close
-          </button>
-        </header>
-        <div className="scrollbar-thin min-h-0 overflow-auto">{children}</div>
-      </section>
-    </div>
+    <Drawer open={open} title={title} width={width} onClose={onClose}>
+      {children}
+    </Drawer>
   );
 }

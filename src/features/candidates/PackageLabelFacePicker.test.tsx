@@ -49,15 +49,17 @@ describe("PackageLabelFacePicker", () => {
         .getByRole("button", {
           name: "Select label on displayed top edge",
         })
-        .querySelector("span")?.className,
-    ).toContain("bg-[var(--brand)]");
+        .querySelector("span")
+        ?.classList.contains("bg-brand"),
+    ).toBe(true);
     expect(
       screen
         .getByRole("button", {
           name: "Select label on displayed bottom edge",
         })
-        .querySelector("span")?.className,
-    ).not.toContain("bg-[var(--brand)]");
+        .querySelector("span")
+        ?.classList.contains("bg-brand"),
+    ).toBe(false);
     expect(
       screen
         .getByLabelText("Infeed direction: left to right")

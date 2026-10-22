@@ -5,6 +5,12 @@ import type {
   LayerPatternPreview,
   LayerPatternPreviewItem,
 } from "~/domain/layerPatternPreview";
+import {
+  type DimensionChain,
+  formatMm,
+  loadBounds,
+  planFieldGeometry,
+} from "~/features/planning-case/planFieldGeometry";
 import type { PatternComparison } from "~/features/planning-case/planningCaseModel";
 
 export type PlanFieldMode = "overlay" | "split";
@@ -225,14 +231,18 @@ function MeasuredSvg({
   const bounds = drawingBoundsOverride ?? drawingBounds(reference, current);
   const width = Math.max(1, bounds.maxX - bounds.minX);
   const height = Math.max(1, bounds.maxY - bounds.minY);
-  const gutter = Math.max(56, Math.min(width, height) * 0.09);
-  const rightGutter = gutter * 0.4;
-  const bottomGutter = gutter * 0.72;
+  const dimensioned = current ?? reference;
+  const { gutter, rightGutter, bottomGutter, chainSpacing, chains } =
+    planFieldGeometry(
+      bounds,
+      dimensioned?.palletBoundsMm ?? null,
+      dimensioned ? loadBounds(dimensioned.items) : null,
+    );
   const stepX = tickStep(width);
   const stepY = tickStep(height);
   const toSvgY = (value: number) => bounds.minY + bounds.maxY - value;
   const overflowPatternId = `overflow-${uid}`;
-  const arrowId = `arrow-${uid}`;
+  const tickId = `dimension-tick-${uid}`;
 
   return (
     <svg
@@ -251,7 +261,11 @@ function MeasuredSvg({
           patternUnits="userSpaceOnUse"
           patternTransform="rotate(45)"
         >
-          <rect width="12" height="12" fill="rgba(214, 106, 94, 0.12)" />
+          <rect
+            width="12"
+            height="12"
+            fill="color-mix(in srgb, var(--danger) 12%, transparent)"
+          />
           <line
             x1="0"
             y1="0"
@@ -261,16 +275,23 @@ function MeasuredSvg({
             strokeWidth="3"
           />
         </pattern>
+        {/* Architectural dimension tick: a 45° slash, as on a drawing. */}
         <marker
-          id={arrowId}
+          id={tickId}
           viewBox="0 0 10 10"
           refX="5"
           refY="5"
-          markerWidth="5"
-          markerHeight="5"
-          orient="auto-start-reverse"
+          markerWidth="7"
+          markerHeight="7"
+          orient="auto"
+          markerUnits="userSpaceOnUse"
         >
-          <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)" />
+          <path
+            d="M 2 8 L 8 2"
+            stroke="var(--ink)"
+            strokeWidth="1.4"
+            fill="none"
+          />
         </marker>
       </defs>
 
@@ -413,52 +434,151 @@ function MeasuredSvg({
         </text>
       </g>
 
-      <g
-        aria-hidden="true"
-        stroke="var(--muted)"
-        fill="var(--ink)"
-        fontFamily="var(--font-geist-mono), monospace"
-        fontSize={Math.max(20, gutter * 0.28)}
-      >
-        <line
-          x1={bounds.minX}
-          y1={bounds.maxY + bottomGutter * 0.62}
-          x2={bounds.maxX}
-          y2={bounds.maxY + bottomGutter * 0.62}
-          markerStart={`url(#${arrowId})`}
-          markerEnd={`url(#${arrowId})`}
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-        <text
-          x={(bounds.minX + bounds.maxX) / 2}
-          y={bounds.maxY + bottomGutter * 0.48}
-          textAnchor="middle"
-          stroke="none"
-        >
-          {width} mm
-        </text>
-        <line
-          x1={bounds.maxX + rightGutter * 0.5}
-          y1={bounds.minY}
-          x2={bounds.maxX + rightGutter * 0.5}
-          y2={bounds.maxY}
-          markerStart={`url(#${arrowId})`}
-          markerEnd={`url(#${arrowId})`}
-          strokeWidth="1"
-          vectorEffect="non-scaling-stroke"
-        />
-        <text
-          x={bounds.maxX + rightGutter * 0.74}
-          y={(bounds.minY + bounds.maxY) / 2}
-          textAnchor="middle"
-          transform={`rotate(90 ${bounds.maxX + rightGutter * 0.74} ${(bounds.minY + bounds.maxY) / 2})`}
-          stroke="none"
-        >
-          {height} mm
-        </text>
-      </g>
+      <DimensionChains
+        chains={chains}
+        bounds={bounds}
+        toSvgY={toSvgY}
+        chainSpacing={chainSpacing}
+        fontSize={Math.max(18, gutter * 0.26)}
+        tickId={tickId}
+      />
     </svg>
+  );
+}
+
+function DimensionChains({
+  chains,
+  bounds,
+  toSvgY,
+  chainSpacing,
+  fontSize,
+  tickId,
+}: {
+  chains: DimensionChain[];
+  bounds: { minX: number; minY: number; maxX: number; maxY: number };
+  toSvgY: (value: number) => number;
+  chainSpacing: number;
+  fontSize: number;
+  tickId: string;
+}) {
+  const overshoot = chainSpacing * 0.22;
+  return (
+    <g
+      aria-hidden="true"
+      data-plan-dimensions=""
+      fontFamily="var(--font-geist-mono), monospace"
+      fontSize={fontSize}
+    >
+      {chains.map((chain) => {
+        const load = chain.kind === "load";
+        const tone = load ? "var(--caution)" : "var(--ink)";
+        const key = `${chain.axis}-${chain.kind}`;
+        if (chain.axis === "x") {
+          // Horizontal chain below the drawing; witness lines drop from the
+          // dimensioned edge (svg y grows downward, toSvgY flips the plan).
+          const y = bounds.maxY + chainSpacing * chain.level;
+          const edge = toSvgY(bounds.minY);
+          const mid = (chain.from + chain.to) / 2;
+          return (
+            <g key={key} data-dimension-chain={key}>
+              {[chain.from, chain.to].map((x) => (
+                <line
+                  key={x}
+                  x1={x}
+                  y1={edge + chainSpacing * 0.15}
+                  x2={x}
+                  y2={y + overshoot}
+                  stroke="var(--muted)"
+                  strokeWidth="0.75"
+                  vectorEffect="non-scaling-stroke"
+                />
+              ))}
+              <line
+                x1={chain.from}
+                y1={y}
+                x2={chain.to}
+                y2={y}
+                stroke={tone}
+                strokeWidth="1"
+                markerStart={`url(#${tickId})`}
+                markerEnd={`url(#${tickId})`}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={mid}
+                y={y - chainSpacing * 0.18}
+                textAnchor="middle"
+                fill={tone}
+              >
+                {chain.label}
+              </text>
+              {chain.overhangStart > 0 ? (
+                <text
+                  x={chain.from}
+                  y={y + chainSpacing * 0.62}
+                  textAnchor="start"
+                  fill="var(--caution)"
+                  fontSize={fontSize * 0.8}
+                >
+                  +{formatMm(chain.overhangStart)}
+                </text>
+              ) : null}
+              {chain.overhangEnd > 0 ? (
+                <text
+                  x={chain.to}
+                  y={y + chainSpacing * 0.62}
+                  textAnchor="end"
+                  fill="var(--caution)"
+                  fontSize={fontSize * 0.8}
+                >
+                  +{formatMm(chain.overhangEnd)}
+                </text>
+              ) : null}
+            </g>
+          );
+        }
+        const x = bounds.maxX + chainSpacing * chain.level;
+        const top = toSvgY(chain.to);
+        const bottom = toSvgY(chain.from);
+        const mid = (top + bottom) / 2;
+        return (
+          <g key={key} data-dimension-chain={key}>
+            {[top, bottom].map((y) => (
+              <line
+                key={y}
+                x1={bounds.maxX + chainSpacing * 0.15}
+                y1={y}
+                x2={x + overshoot}
+                y2={y}
+                stroke="var(--muted)"
+                strokeWidth="0.75"
+                vectorEffect="non-scaling-stroke"
+              />
+            ))}
+            <line
+              x1={x}
+              y1={top}
+              x2={x}
+              y2={bottom}
+              stroke={tone}
+              strokeWidth="1"
+              markerStart={`url(#${tickId})`}
+              markerEnd={`url(#${tickId})`}
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x={x + chainSpacing * 0.22}
+              y={mid}
+              textAnchor="middle"
+              fill={tone}
+              transform={`rotate(90 ${x + chainSpacing * 0.22} ${mid})`}
+            >
+              {chain.label}
+            </text>
+          </g>
+        );
+      })}
+    </g>
   );
 }
 
@@ -494,20 +614,20 @@ export function MeasuredPlanField({
     mode === "split" ? drawingBounds(reference, current) : undefined;
 
   return (
-    <section className="planning-plan-field grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border border-[var(--line)] bg-[var(--canvas)]">
-      <header className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b border-[var(--line)] px-3 py-1.5 text-[12px]">
-        <span className="font-semibold text-[var(--ink)]">Plan field</span>
+    <section className="planning-plan-field grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border border-line bg-canvas">
+      <header className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-3 py-1.5 text-xs">
+        <span className="font-semibold text-ink">Plan field</span>
         {reference ? (
-          <span className="flex items-center gap-1.5 text-[var(--measure)]">
+          <span className="flex items-center gap-1.5 text-measure">
             <span className="inline-block h-2.5 w-4 border border-dashed border-current" />
             {referenceLabel}
           </span>
         ) : null}
-        <span className="flex items-center gap-1.5 text-[var(--brand)]">
+        <span className="flex items-center gap-1.5 text-brand">
           <span className="inline-block h-2.5 w-4 border border-current bg-current/20" />
           {currentLabel}
         </span>
-        <span className="ml-auto font-mono text-[var(--muted)]">
+        <span className="ml-auto font-mono text-muted">
           {comparisonText(comparison, current)}
         </span>
       </header>
@@ -515,8 +635,8 @@ export function MeasuredPlanField({
         className={`min-h-0 p-2 ${mode === "split" ? "overflow-auto" : "overflow-hidden"}`}
       >
         {mode === "split" ? (
-          <div className="grid min-h-[720px] gap-px bg-[var(--line)] 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
-            <div className="h-[360px] min-h-0 bg-[var(--canvas)] 2xl:h-auto">
+          <div className="grid min-h-[720px] gap-px bg-line 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
+            <div className="h-[360px] min-h-0 bg-canvas 2xl:h-auto">
               <MeasuredSvg
                 reference={reference}
                 current={null}
@@ -524,7 +644,7 @@ export function MeasuredPlanField({
                 drawingBoundsOverride={sharedSplitBounds}
               />
             </div>
-            <div className="h-[360px] min-h-0 bg-[var(--canvas)] 2xl:h-auto">
+            <div className="h-[360px] min-h-0 bg-canvas 2xl:h-auto">
               <MeasuredSvg
                 reference={null}
                 current={current}
