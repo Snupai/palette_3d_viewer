@@ -136,7 +136,7 @@ describe("LayerPattern", () => {
     expect(svg.getAttribute("data-layer-pattern-id")).toBe("physical-layer-1");
     expect(screen.getByText("G1")).toBeTruthy();
     expect(container.querySelector("path")?.getAttribute("class")).toBe(
-      "fill-none stroke-measure",
+      "stroke-measure fill-none",
     );
 
     rerender(
