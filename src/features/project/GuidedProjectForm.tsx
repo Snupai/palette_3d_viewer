@@ -335,7 +335,11 @@ function LabelEdgePicker({
                   : packageSideForDisplayedEdge(values.inletOrientation, edge),
               )
             }
-          />
+          >
+            <span className="fw-label-edge-text" aria-hidden="true">
+              {edgeLabels[edge]}
+            </span>
+          </button>
         ))}
       </div>
       <div className="fw-label-flow" aria-hidden="true">

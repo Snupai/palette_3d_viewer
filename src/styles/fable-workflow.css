@@ -425,7 +425,7 @@
 }
 .fw-label-box {
   position: relative;
-  margin: 22px;
+  margin: 30px 48px;
   background: var(--carton-top);
   border: 1px solid var(--carton-edge);
 }
@@ -436,16 +436,59 @@
   background: transparent;
   cursor: pointer;
 }
+/* Unselected edges read as dashed "click here" slots; hover fills them. */
 .fw-label-edge::after {
   content: "";
   position: absolute;
-  background: color-mix(in srgb, var(--ink) 25%, transparent);
+  box-sizing: border-box;
+  border: 2px dashed color-mix(in srgb, var(--ink) 55%, transparent);
+  background: transparent;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease;
 }
 .fw-label-edge:hover::after {
-  background: var(--ink);
+  border-style: solid;
+  border-color: var(--brand-hover);
+  background: color-mix(in srgb, var(--brand-hover) 35%, transparent);
 }
 .fw-label-edge[aria-pressed="true"]::after {
+  border-style: solid;
+  border-color: var(--brand);
   background: var(--brand);
+}
+.fw-label-edge-text {
+  position: absolute;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.fw-label-edge:hover .fw-label-edge-text,
+.fw-label-edge[aria-pressed="true"] .fw-label-edge-text {
+  color: var(--ink);
+  font-weight: 600;
+}
+.fw-label-edge-top .fw-label-edge-text {
+  left: 50%;
+  top: 2px;
+  transform: translateX(-50%);
+}
+.fw-label-edge-bottom .fw-label-edge-text {
+  left: 50%;
+  bottom: 2px;
+  transform: translateX(-50%);
+}
+.fw-label-edge-left .fw-label-edge-text {
+  right: calc(100% - 8px);
+  top: 50%;
+  transform: translateY(-50%);
+}
+.fw-label-edge-right .fw-label-edge-text {
+  left: calc(100% - 8px);
+  top: 50%;
+  transform: translateY(-50%);
 }
 .fw-label-edge:focus-visible {
   outline: 2px solid var(--brand);
@@ -480,7 +523,7 @@
   left: 0;
   right: 0;
   top: 50%;
-  height: 3px;
+  height: 8px;
   transform: translateY(-50%);
 }
 .fw-label-edge-left::after,
@@ -488,22 +531,22 @@
   top: 0;
   bottom: 0;
   left: 50%;
-  width: 3px;
+  width: 8px;
   transform: translateX(-50%);
 }
 .fw-label-edge[aria-pressed="true"].fw-label-edge-top::after,
 .fw-label-edge[aria-pressed="true"].fw-label-edge-bottom::after {
-  height: 7px;
+  height: 10px;
 }
 .fw-label-edge[aria-pressed="true"].fw-label-edge-left::after,
 .fw-label-edge[aria-pressed="true"].fw-label-edge-right::after {
-  width: 7px;
+  width: 10px;
 }
 .fw-label-flow {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-left: 22px;
+  margin-left: 48px;
   color: var(--muted);
   font-size: 13px;
 }
