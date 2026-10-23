@@ -25,25 +25,38 @@ h3 {
   display: block !important;
   overflow: visible !important;
 }
-.fable-app button,
-.fable-app input,
-.fable-app select {
-  font: inherit;
+/* Base layer so component/utility font sizes (ui-btn, text-xs, …) still win. */
+@layer base {
+  .fable-app button,
+  .fable-app input,
+  .fable-app select {
+    font: inherit;
+  }
 }
 .fable-app button:not(:disabled) {
   cursor: pointer;
 }
-.fable-app .ui-btn,
-.fable-app .ui-btn-primary {
-  min-height: 44px;
-  padding: 9px 16px;
-  font-size: 15px;
-  border-radius: 2px;
-}
-.fable-app .ui-input {
-  min-height: 44px;
-  font-size: 16px;
-  background: var(--surface);
+/* Touch-sized defaults for the production shell. Declared inside the
+   components layer so the size modifiers (.ui-btn-sm, h-7, text-xs, …)
+   still win; an unlayered rule here would silently override them all. */
+@layer components {
+  .fable-app .ui-btn,
+  .fable-app .ui-btn-primary {
+    min-height: 44px;
+    padding: 9px 16px;
+    font-size: 15px;
+    border-radius: 2px;
+  }
+  .fable-app .ui-btn-sm {
+    min-height: 26px;
+    padding: 2px 8px;
+    font-size: var(--text-micro);
+  }
+  .fable-app .ui-input {
+    min-height: 44px;
+    font-size: 16px;
+    background: var(--surface);
+  }
 }
 .fable-app :focus-visible {
   outline: 2px solid var(--brand);
@@ -403,7 +416,7 @@ h3 {
   z-index: 20;
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 3px 14px #0002;
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--ink) 14%, transparent);
   width: 210px;
   padding: 6px;
 }
@@ -601,7 +614,7 @@ h3 {
   padding: 8px;
   background: var(--surface);
   border: 1px solid var(--line);
-  box-shadow: 0 2px 8px #0002;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 14%, transparent);
 }
 .fable-tool-menu button {
   display: flex;
@@ -1365,7 +1378,7 @@ h3 {
   margin: 0 auto;
   padding: 14px 32px;
   background: var(--surface);
-  box-shadow: 0 -2px 8px #00000006;
+  box-shadow: 0 -2px 8px color-mix(in srgb, var(--ink) 3%, transparent);
 }
 .planning-case-grid.is-generating {
   padding-bottom: 120px;
