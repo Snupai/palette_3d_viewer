@@ -3,10 +3,15 @@ import type { ProjectFactoryDependencies } from "~/domain/project/projectFactory
 import { MULTIPACK_GRIPPER_ID } from "~/domain/project/equipmentProfiles";
 import { solveLayer } from "~/domain/solver";
 import {
+  rawPalletSheetSchema,
+  validatePalletSheet,
+} from "~/domain/sheetExtraction";
+import {
   buildMobilePlanProject,
   createMobilePlanDraft,
   createMobilePlanSolverInput,
   createMobilePlanStackState,
+  mobileDraftFromSheet,
   parseMobilePlanDraft,
   projectWithMobilePlanStack,
   savedProjectPatternPreview,
@@ -47,6 +52,8 @@ describe("mobilePlannerModel draft", () => {
       palletLengthMm: "1200",
       palletWidthMm: "800",
       palletHeightMm: "144",
+      overhangLengthMm: "0",
+      overhangWidthMm: "0",
       packagesPerLayer: "",
       layerCount: "10",
     });
@@ -127,6 +134,7 @@ describe("parseMobilePlanDraft", () => {
       packageWeightKg: 8.5,
       palletKind: "custom",
       palletDimensionsMm: { length: 1000, width: 600, height: 150 },
+      allowedOverhangMm: { length: 0, width: 0 },
       packagesPerLayer: 9,
       layerCount: 6,
     });
@@ -387,5 +395,54 @@ describe("savedProjectPatternPreview", () => {
     const { plan } = parseMobilePlanDraft(validDraft());
     const project = buildMobilePlanProject(plan!, {}, deterministicDeps());
     expect(savedProjectPatternPreview(project)).toBeNull();
+  });
+});
+
+describe("mobileDraftFromSheet", () => {
+  it("fills a EURO plan with −(pallet − block) / 2 overhang that reaches the project", () => {
+    const sheet = validatePalletSheet(
+      rawPalletSheetSchema.parse({
+        productNumber: "699-00277",
+        cartonMm: { length: 172, width: 130, height: 104 },
+        blockMm: { length: 1162, width: 780, height: 832 },
+        palletMm: { length: 1190, width: 790 },
+        cartonsPerLayer: 40,
+        layers: 8,
+        cartonsPerPallet: 320,
+      }),
+    ).sheet;
+    const draft = mobileDraftFromSheet(createMobilePlanDraft(), sheet);
+    expect(draft).toEqual({
+      ...createMobilePlanDraft(),
+      productNumber: "699-00277",
+      packageLengthMm: "172",
+      packageWidthMm: "130",
+      packageHeightMm: "104",
+      overhangLengthMm: "-19",
+      overhangWidthMm: "-10",
+      packagesPerLayer: "40",
+      layerCount: "8",
+    });
+    const { plan } = parseMobilePlanDraft(draft);
+    const project = buildMobilePlanProject(
+      plan!,
+      {},
+      {
+        now: () => 0,
+        createId: (kind) => `${kind}-1`,
+      },
+    );
+    expect(project.pallet?.allowedOverhangMm).toEqual({
+      length: -19,
+      width: -10,
+    });
+    expect(createMobilePlanSolverInput(project, 40).generationBoundsMm).toEqual(
+      {
+        minX: 19,
+        minY: 10,
+        maxX: 1181,
+        maxY: 790,
+      },
+    );
   });
 });

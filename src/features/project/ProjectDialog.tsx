@@ -19,6 +19,8 @@ import {
   type ProjectFieldErrors,
   type ProjectFormValues,
 } from "~/features/project/projectForm";
+import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
+import { applySheetToFormValues } from "~/features/project/sheetImport";
 
 export type ProjectGenerationIntent = {
   exactPackageCount: number;
@@ -77,6 +79,8 @@ export function ProjectDialog({
   const [fieldErrors, setFieldErrors] = useState<ProjectFieldErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [readingSheet, setReadingSheet] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -85,6 +89,7 @@ export function ProjectDialog({
     setFieldErrors({});
     setFailure(null);
     setSaving(false);
+    setAdvancedOpen(false);
   }, [open, project]);
 
   useEffect(() => {
@@ -213,6 +218,22 @@ export function ProjectDialog({
                 >
                   {failure}
                 </div>
+              ) : null}
+
+              {project === null && open ? (
+                <SheetPhotoImport
+                  disabled={saving}
+                  onBusyChange={setReadingSheet}
+                  onExtracted={({ sheet }) => {
+                    const patch = applySheetToFormValues(values, sheet);
+                    setValues(patch.values);
+                    setExactPackageCount(patch.exactPackageCount);
+                    setFieldErrors({});
+                    setFailure(null);
+                    // Show the filled overhang/underhang fields.
+                    setAdvancedOpen(true);
+                  }}
+                />
               ) : null}
 
               <fieldset className="grid gap-3 border border-[var(--line)] p-4">
@@ -442,7 +463,11 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <details className="border border-[var(--line)] p-4">
+              <details
+                open={advancedOpen}
+                onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+                className="border border-[var(--line)] p-4"
+              >
                 <summary className="cursor-pointer text-sm font-semibold text-[var(--ink)]">
                   Advanced settings
                 </summary>
@@ -647,7 +672,7 @@ export function ProjectDialog({
                 type="submit"
                 name="creationAction"
                 value="create-only"
-                disabled={saving}
+                disabled={saving || readingSheet}
                 className="ui-btn px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
               >
                 Save project
@@ -657,7 +682,7 @@ export function ProjectDialog({
               type="submit"
               name="creationAction"
               value={project ? "save" : "generate"}
-              disabled={saving}
+              disabled={saving || readingSheet}
               className="ui-btn-primary px-3 py-2 text-sm disabled:cursor-wait"
             >
               {saving

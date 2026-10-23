@@ -20,6 +20,7 @@ import {
   createMobilePlanSolverInput,
   MOBILE_PACKAGE_STEP_FIELDS,
   MOBILE_PLAN_STEPS,
+  mobileDraftFromSheet,
   parseMobilePlanDraft,
   projectWithMobilePlanStack,
   savedProjectPatternPreview,
@@ -31,6 +32,7 @@ import {
   type MobilePlanStep,
   type ParsedMobilePlan,
 } from "~/features/mobile/mobilePlannerModel";
+import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
 import { exportProjectRobDownload } from "~/features/robotics/robotWorkspaceModel";
 import { solverCandidateToPatternPreview } from "~/lib/previewAdapters";
 import {
@@ -152,6 +154,7 @@ function NumberField({
   onChange,
   error,
   integer = false,
+  signed = false,
   optional = false,
   placeholder,
   disabled = false,
@@ -161,6 +164,8 @@ function NumberField({
   onChange: (value: string) => void;
   error?: string | undefined;
   integer?: boolean;
+  /** Allows negative values; phone number pads have no minus key, so use the text keyboard. */
+  signed?: boolean;
   optional?: boolean;
   placeholder?: string;
   disabled?: boolean;
@@ -170,9 +175,9 @@ function NumberField({
       {label}
       {optional ? " (optional)" : ""}
       <input
-        type="number"
-        inputMode={integer ? "numeric" : "decimal"}
-        min={integer ? "1" : "0"}
+        type={signed ? "text" : "number"}
+        inputMode={signed ? "text" : integer ? "numeric" : "decimal"}
+        min={signed ? undefined : integer ? "1" : "0"}
         step={integer ? "1" : "any"}
         value={value}
         placeholder={placeholder}
@@ -674,6 +679,12 @@ export function MobilePlanner() {
 
         {screen === "package" ? (
           <Panel step="package">
+            <SheetPhotoImport
+              onExtracted={({ sheet }) => {
+                setDraft((current) => mobileDraftFromSheet(current, sheet));
+                setFieldErrors({});
+              }}
+            />
             <label className="grid gap-1 text-[11px] font-medium text-[var(--muted)]">
               Product number (optional)
               <input
@@ -781,6 +792,27 @@ export function MobilePlanner() {
                 />
               </fieldset>
             ) : null}
+            <fieldset className="grid grid-cols-2 gap-2">
+              <legend className="col-span-2 mb-1 text-[10px] font-semibold text-[var(--muted)]">
+                Overhang / underhang per side · mm (− = underhang)
+              </legend>
+              <NumberField
+                label="Length"
+                signed
+                value={draft.overhangLengthMm}
+                error={fieldErrors.overhangLengthMm}
+                onChange={(overhangLengthMm) =>
+                  updateDraft({ overhangLengthMm })
+                }
+              />
+              <NumberField
+                label="Width"
+                signed
+                value={draft.overhangWidthMm}
+                error={fieldErrors.overhangWidthMm}
+                onChange={(overhangWidthMm) => updateDraft({ overhangWidthMm })}
+              />
+            </fieldset>
             <div className="grid grid-cols-2 gap-2">
               <NumberField
                 label="Packages per layer"

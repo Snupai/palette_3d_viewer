@@ -12,6 +12,7 @@ import {
   getPalletTemplate,
 } from "~/domain/project/palletTemplates";
 import type { Project } from "~/domain/project/projectSchema";
+import type { PalletSheet } from "~/domain/sheetExtraction";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import { createLayerSolverInputFromProject } from "~/domain/solver";
 import {
@@ -20,6 +21,7 @@ import {
   rebuildStackSequence,
   type StackWorkspaceState,
 } from "~/features/stack/stackWorkspaceModel";
+import { sheetOverhangPerSideMm } from "~/features/project/sheetImport";
 
 export const MOBILE_PLAN_STEPS = ["package", "pallet", "pattern"] as const;
 export type MobilePlanStep = (typeof MOBILE_PLAN_STEPS)[number];
@@ -38,6 +40,9 @@ export type MobilePlanDraft = {
   palletLengthMm: string;
   palletWidthMm: string;
   palletHeightMm: string;
+  /** Signed per side like the desktop form: positive = overhang, negative = underhang. */
+  overhangLengthMm: string;
+  overhangWidthMm: string;
   packagesPerLayer: string;
   layerCount: string;
 };
@@ -50,6 +55,8 @@ export type MobilePlanField =
   | "palletLengthMm"
   | "palletWidthMm"
   | "palletHeightMm"
+  | "overhangLengthMm"
+  | "overhangWidthMm"
   | "packagesPerLayer"
   | "layerCount";
 
@@ -66,6 +73,8 @@ export const MOBILE_PALLET_STEP_FIELDS = [
   "palletLengthMm",
   "palletWidthMm",
   "palletHeightMm",
+  "overhangLengthMm",
+  "overhangWidthMm",
   "packagesPerLayer",
   "layerCount",
 ] as const satisfies readonly MobilePlanField[];
@@ -84,6 +93,8 @@ export function createMobilePlanDraft(): MobilePlanDraft {
     palletLengthMm: "1200",
     palletWidthMm: "800",
     palletHeightMm: "144",
+    overhangLengthMm: "0",
+    overhangWidthMm: "0",
     packagesPerLayer: "",
     layerCount: String(MOBILE_PLAN_DEFAULT_LAYER_COUNT),
   };
@@ -96,6 +107,8 @@ export type ParsedMobilePlan = {
   packageWeightKg: number | null;
   palletKind: MobilePlanPalletKind;
   palletDimensionsMm: { length: number; width: number; height: number };
+  /** Signed per side: negative = underhang. */
+  allowedOverhangMm: { length: number; width: number };
   packagesPerLayer: number;
   layerCount: number;
 };
@@ -104,6 +117,12 @@ function parsePositiveNumber(raw: string): number | null {
   if (raw.trim() === "") return null;
   const parsed = Number(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseSignedAllowance(raw: string): number | null {
+  if (raw.trim() === "") return 0;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 function parsePositiveInteger(raw: string): number | null {
@@ -158,6 +177,15 @@ export function parseMobilePlanDraft(draft: MobilePlanDraft): {
     }
   }
 
+  const overhangLengthMm = parseSignedAllowance(draft.overhangLengthMm);
+  if (overhangLengthMm === null) {
+    errors.overhangLengthMm = "Overhang must be a number (0 for none).";
+  }
+  const overhangWidthMm = parseSignedAllowance(draft.overhangWidthMm);
+  if (overhangWidthMm === null) {
+    errors.overhangWidthMm = "Overhang must be a number (0 for none).";
+  }
+
   const packagesPerLayer = parsePositiveInteger(draft.packagesPerLayer);
   if (packagesPerLayer === null) {
     errors.packagesPerLayer =
@@ -193,6 +221,10 @@ export function parseMobilePlanDraft(draft: MobilePlanDraft): {
       packageWeightKg,
       palletKind: draft.palletKind,
       palletDimensionsMm,
+      allowedOverhangMm: {
+        length: overhangLengthMm!,
+        width: overhangWidthMm!,
+      },
       packagesPerLayer: packagesPerLayer!,
       layerCount: layerCount!,
     },
@@ -217,10 +249,12 @@ export function buildMobilePlanProject(
   options: { id?: string } = {},
   dependencies: ProjectFactoryDependencies = {},
 ): Project {
-  const pallet =
-    plan.palletKind === "custom"
+  const pallet = {
+    ...(plan.palletKind === "custom"
       ? createCustomPallet({ dimensionsMm: plan.palletDimensionsMm })
-      : getPalletTemplate(plan.palletKind);
+      : getPalletTemplate(plan.palletKind)),
+    allowedOverhangMm: { ...plan.allowedOverhangMm },
+  };
   return createProject(
     {
       ...(options.id ? { id: options.id } : {}),
@@ -237,6 +271,48 @@ export function buildMobilePlanProject(
     },
     dependencies,
   );
+}
+
+/**
+ * Fills the mobile wizard from a read sheet: EURO pallet, carton, counts, and
+ * the signed per-side overhang (−(pallet − block) / 2) that shrinks the pallet
+ * to the sheet's block, exactly like the desktop form.
+ */
+export function mobileDraftFromSheet(
+  current: MobilePlanDraft,
+  sheet: PalletSheet,
+): MobilePlanDraft {
+  const euro = getPalletTemplate("euro").dimensionsMm;
+  const { cartonMm, blockMm } = sheet;
+  return {
+    ...current,
+    productNumber:
+      sheet.productNumber ?? sheet.cartonId ?? current.productNumber,
+    ...(cartonMm
+      ? {
+          packageLengthMm: String(cartonMm.length),
+          packageWidthMm: String(cartonMm.width),
+          packageHeightMm: String(cartonMm.height),
+        }
+      : {}),
+    ...(sheet.cartonWeightKg !== null
+      ? { packageWeightKg: String(sheet.cartonWeightKg) }
+      : {}),
+    palletKind: "euro",
+    palletLengthMm: String(euro.length),
+    palletWidthMm: String(euro.width),
+    palletHeightMm: String(euro.height),
+    overhangLengthMm: blockMm
+      ? String(sheetOverhangPerSideMm(blockMm.length, euro.length))
+      : "0",
+    overhangWidthMm: blockMm
+      ? String(sheetOverhangPerSideMm(blockMm.width, euro.width))
+      : "0",
+    ...(sheet.cartonsPerLayer !== null
+      ? { packagesPerLayer: String(sheet.cartonsPerLayer) }
+      : {}),
+    ...(sheet.layers !== null ? { layerCount: String(sheet.layers) } : {}),
+  };
 }
 
 /** Mirrors the desktop SolverControls input: exact count, single picks, mixed orientations. */
