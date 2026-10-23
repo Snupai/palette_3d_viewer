@@ -65,7 +65,7 @@ describe("guided project form model", () => {
       "Euro-Palette 1.200 × 800 mm, Überstand +40 / -20 mm gesamt",
     );
     expect(sectionSummary("limits", values)).toBe(
-      "Keine Lagerhöhe, max. 1.500 kg brutto",
+      "Lagerhöhe 1.800 mm, max. 1.500 kg brutto",
     );
     expect(sectionSummary("handling", values)).toBe(
       "Einlauf längs, Etikett unten, Mehrfachgriff",
@@ -74,9 +74,9 @@ describe("guided project form model", () => {
       sectionSummary("limits", {
         ...values,
         maxGrossKg: "",
-        hasStorageEnvelope: true,
+        hasStorageEnvelope: false,
       }),
-    ).toBe("Lagerhöhe 1.800 mm, kein Gewichtslimit");
+    ).toBe("Keine Lagerhöhe, kein Gewichtslimit");
     expect(sectionSummary("meta", values)).toBe("Artikel 1329-00004");
     expect(
       sectionSummary("meta", { ...values, projectNumber: "AP-5006" }),
@@ -84,8 +84,12 @@ describe("guided project form model", () => {
     expect(sectionSummary("meta", { ...values, productNumber: "" })).toBe(
       "Artikelnummer fehlt noch",
     );
+    // Storage footprint off: the +40 mm overhang would not fit 1200 × 800.
     expect(
-      validateProjectFormValues({ ...values, productNumber: " " }, null),
+      validateProjectFormValues(
+        { ...values, productNumber: " ", hasStorageEnvelope: false },
+        null,
+      ),
     ).toEqual({ productNumber: "Darf nicht leer sein." });
     expect(sectionSummary("package", projectToFormValues(null))).toBe(
       "Länge, Breite und Höhe fehlen noch",

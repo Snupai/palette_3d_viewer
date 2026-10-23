@@ -70,7 +70,9 @@ export function projectToFormValues(
     palletHeightMm: String(pallet.dimensionsMm.height),
     overhangLengthMm: String(pallet.allowedOverhangMm.length * 2),
     overhangWidthMm: String(pallet.allowedOverhangMm.width * 2),
-    hasStorageEnvelope: pallet.storageEnvelopeMm !== null,
+    // New plans start with the 1800 mm storage height on so the guided stack
+    // can fill the pallet; opened projects keep whatever they saved.
+    hasStorageEnvelope: project ? pallet.storageEnvelopeMm !== null : true,
     storageLengthMm: String(
       pallet.storageEnvelopeMm?.length ?? pallet.dimensionsMm.length,
     ),

@@ -113,7 +113,9 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
           weightKg: null,
           labelSidesAtPickup: ["bottom"],
         },
-        pallet: { storageEnvelopeMm: null },
+        pallet: {
+          storageEnvelopeMm: { length: 1200, width: 800, height: 1800 },
+        },
       },
       generationIntent: { exactPackageCount: 8 },
     });
