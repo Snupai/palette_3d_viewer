@@ -19,6 +19,7 @@ const deps = { now: () => 1, createId: (kind: string) => `${kind}-guided` };
 function filled() {
   return {
     ...projectToFormValues(null),
+    productNumber: "A-1",
     packageLengthMm: "400",
     packageWidthMm: "300",
     packageHeightMm: "190",
@@ -77,6 +78,15 @@ describe("guided project form model", () => {
       }),
     ).toBe("Lagerhöhe 1.800 mm, kein Gewichtslimit");
     expect(sectionSummary("meta", values)).toBe("Artikel 1329-00004");
+    expect(
+      sectionSummary("meta", { ...values, projectNumber: "AP-5006" }),
+    ).toBe("Artikel 1329-00004, Linie AP-5006");
+    expect(sectionSummary("meta", { ...values, productNumber: "" })).toBe(
+      "Artikelnummer fehlt noch",
+    );
+    expect(
+      validateProjectFormValues({ ...values, productNumber: " " }, null),
+    ).toEqual({ productNumber: "Darf nicht leer sein." });
     expect(sectionSummary("package", projectToFormValues(null))).toBe(
       "Länge, Breite und Höhe fehlen noch",
     );

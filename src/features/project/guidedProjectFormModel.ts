@@ -16,11 +16,11 @@ export type GuidedSectionId =
   | "meta";
 
 export const guidedSectionOrder: readonly GuidedSectionId[] = [
+  "meta",
   "package",
   "pallet",
   "limits",
   "handling",
-  "meta",
 ];
 
 export const guidedSectionTitles: Record<GuidedSectionId, string> = {
@@ -142,12 +142,22 @@ export function validateProjectFormValues(
   values: ProjectFormValues,
   project: Project | null,
 ): ProjectFieldErrors {
+  // The project schema allows an empty article number (imported .rob files
+  // have none), but a planned project needs one for the plan list.
+  const required: ProjectFieldErrors =
+    values.productNumber.trim() === ""
+      ? { productNumber: "Darf nicht leer sein." }
+      : {};
   try {
     buildProjectFromForm(values, project, validationDependencies);
-    return {};
+    return required;
   } catch (cause) {
-    if (cause instanceof z.ZodError) return zodFieldErrors(cause);
-    return { form: cause instanceof Error ? cause.message : String(cause) };
+    if (cause instanceof z.ZodError)
+      return { ...zodFieldErrors(cause), ...required };
+    return {
+      form: cause instanceof Error ? cause.message : String(cause),
+      ...required,
+    };
   }
 }
 
@@ -316,11 +326,10 @@ export function sectionSummary(
         values.multiPickAllowed ? "Mehrfachgriff" : "Einzelgriff"
       }`;
     case "meta": {
-      const parts = [
-        values.productNumber.trim() && `Artikel ${values.productNumber.trim()}`,
-        values.projectNumber.trim() && `Linie ${values.projectNumber.trim()}`,
-      ].filter(Boolean);
-      return parts.length > 0 ? parts.join(", ") : "Optional";
+      const product = values.productNumber.trim();
+      const line = values.projectNumber.trim();
+      if (!product) return "Artikelnummer fehlt noch";
+      return line ? `Artikel ${product}, Linie ${line}` : `Artikel ${product}`;
     }
   }
 }

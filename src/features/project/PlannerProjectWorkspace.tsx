@@ -1129,7 +1129,7 @@ export function PlannerProjectWorkspace({
     discardUnsavedPlannerChanges();
     setShowWelcome(false);
     setProjectDrawerOpen(false);
-    setInputSection("package");
+    setInputSection("meta");
     setDialogMode("create");
   };
   const openInputs = (section: GuidedSectionId = "package") => {

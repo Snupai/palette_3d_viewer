@@ -405,7 +405,7 @@ function Segmented<T extends string>({
 
 export function GuidedProjectForm({
   project,
-  initialSection = "package",
+  initialSection = "meta",
   onClose,
   onSave,
   onDirtyChange,
@@ -698,7 +698,7 @@ export function GuidedProjectForm({
             </h1>
             <p>
               {creating
-                ? "Drei Maße genügen für den Anfang. Alles Weitere hat Vorgaben, die Sie hier anpassen können."
+                ? "Artikelnummer und drei Maße genügen für den Anfang. Alles Weitere hat Vorgaben, die Sie hier anpassen können."
                 : "Angaben ändern und speichern. Nur Maße, Überstand, Abstand und Einlauf verwerfen erzeugte Muster."}
             </p>
           </header>
@@ -711,8 +711,48 @@ export function GuidedProjectForm({
 
           <div className="fw-sections">
             <Section
-              id={id("package")}
+              id={id("meta")}
               index={1}
+              title={guidedSectionTitles.meta}
+              summary={sectionSummary("meta", values)}
+              status={sectionStatus("meta")}
+              open={openSection === "meta"}
+              onToggle={() => toggle("meta")}
+            >
+              <div className="fw-grid2">
+                <TextField
+                  {...field("productNumber")}
+                  label="Artikelnummer"
+                  placeholder="z. B. 1329-00004"
+                  value={values.productNumber}
+                  onChange={(value) => set("productNumber", value)}
+                />
+                <TextField
+                  {...field("projectNumber")}
+                  label="Linie / Auftrag"
+                  placeholder="z. B. AP-5006"
+                  value={values.projectNumber}
+                  onChange={(value) => set("projectNumber", value)}
+                />
+              </div>
+              <p className="fw-note">
+                Die Artikelnummer benennt den Plan in der Planliste; die Linie
+                ist optional. Beides ändert weder Muster noch Stapel.
+              </p>
+              <div className="fw-sec-foot">
+                <button
+                  type="button"
+                  className="ui-btn"
+                  onClick={() => nextSection("meta")}
+                >
+                  Weiter zum Paket
+                </button>
+              </div>
+            </Section>
+
+            <Section
+              id={id("package")}
+              index={2}
               title={guidedSectionTitles.package}
               summary={sectionSummary("package", values)}
               status={sectionStatus("package")}
@@ -785,7 +825,7 @@ export function GuidedProjectForm({
 
             <Section
               id={id("pallet")}
-              index={2}
+              index={3}
               title={guidedSectionTitles.pallet}
               summary={sectionSummary("pallet", values)}
               status={sectionStatus("pallet")}
@@ -896,7 +936,7 @@ export function GuidedProjectForm({
 
             <Section
               id={id("limits")}
-              index={3}
+              index={4}
               title={guidedSectionTitles.limits}
               summary={sectionSummary("limits", values)}
               status={sectionStatus("limits")}
@@ -987,7 +1027,7 @@ export function GuidedProjectForm({
 
             <Section
               id={id("handling")}
-              index={4}
+              index={5}
               title={guidedSectionTitles.handling}
               summary={sectionSummary("handling", values)}
               status={sectionStatus("handling")}
@@ -1033,45 +1073,6 @@ export function GuidedProjectForm({
                   />
                 </fieldset>
               </div>
-              <div className="fw-sec-foot">
-                <button
-                  type="button"
-                  className="ui-btn"
-                  onClick={() => nextSection("handling")}
-                >
-                  Weiter zu Artikel und Linie
-                </button>
-              </div>
-            </Section>
-
-            <Section
-              id={id("meta")}
-              index={5}
-              title={guidedSectionTitles.meta}
-              summary={sectionSummary("meta", values)}
-              status={sectionStatus("meta")}
-              open={openSection === "meta"}
-              onToggle={() => toggle("meta")}
-            >
-              <div className="fw-grid2">
-                <TextField
-                  {...field("productNumber")}
-                  label="Artikelnummer"
-                  placeholder="z. B. 1329-00004"
-                  value={values.productNumber}
-                  onChange={(value) => set("productNumber", value)}
-                />
-                <TextField
-                  {...field("projectNumber")}
-                  label="Linie / Auftrag"
-                  placeholder="z. B. AP-5006"
-                  value={values.projectNumber}
-                  onChange={(value) => set("projectNumber", value)}
-                />
-              </div>
-              <p className="fw-note">
-                Ändert weder Muster noch Stapel und erscheint in der Planliste.
-              </p>
             </Section>
           </div>
 

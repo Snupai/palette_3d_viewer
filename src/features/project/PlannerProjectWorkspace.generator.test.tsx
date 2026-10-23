@@ -309,6 +309,7 @@ afterEach(() => {
 
 function fillNewProjectPackageDimensions() {
   for (const [label, value] of [
+    ["Artikelnummer", "A-1"],
     ["Länge", "400"],
     ["Breite", "300"],
     ["Höhe", "200"],

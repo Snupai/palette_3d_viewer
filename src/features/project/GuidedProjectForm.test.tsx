@@ -39,9 +39,10 @@ function type(label: string, value: string) {
 describe("GuidedProjectForm (inline ProjectDialog)", () => {
   it("starts blank, keeps the same input node while typing, and shows errors only after edit and blur", () => {
     renderInline();
+    // The article step comes first; package dimensions are the second step.
+    expect(document.activeElement).toBe(screen.getByLabelText("Artikelnummer"));
     const length = screen.getByLabelText<HTMLInputElement>("Länge");
     expect(length.value).toBe("");
-    expect(document.activeElement).toBe(length);
 
     type("Länge", "0");
     expect(screen.queryByText("Muss größer als 0 sein.")).toBeNull();
@@ -60,6 +61,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
 
   it("opens the section of the first error and focuses its field on submit", async () => {
     const { onSave } = renderInline();
+    type("Artikelnummer", "A-1");
     type("Länge", "400");
     type("Breite", "300");
     type("Höhe", "190");
@@ -87,6 +89,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
 
   it("requires the exact count only for generation and submits it as the intent", async () => {
     const { onSave, onClose } = renderInline();
+    type("Artikelnummer", "A-1");
     type("Länge", "400");
     type("Breite", "300");
     type("Höhe", "190");
@@ -119,6 +122,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
 
   it("saves without generation via Nur speichern and closes on Escape", async () => {
     const { onSave, onClose } = renderInline();
+    type("Artikelnummer", "A-1");
     type("Länge", "157");
     type("Breite", "106");
     type("Höhe", "150");
@@ -207,6 +211,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
     type("Länge", "400");
     type("Breite", "300");
     type("Höhe", "190");
+    type("Artikelnummer", "A-1");
     expect(onDirtyChange).toHaveBeenCalledTimes(3);
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
