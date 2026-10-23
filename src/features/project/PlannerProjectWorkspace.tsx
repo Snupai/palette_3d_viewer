@@ -33,7 +33,9 @@ import {
   ProjectDialog,
   type ProjectDialogSubmission,
 } from "~/features/project/ProjectDialog";
-import { ProjectLibrary } from "~/features/project/ProjectLibrary";
+import type { GuidedSectionId } from "~/features/project/guidedProjectFormModel";
+import { PlanLibrary } from "~/features/planner/PlanLibrary";
+import { PlannerWelcome } from "~/features/planner/PlannerWelcome";
 import { libraryRobDownload } from "~/features/project/projectRobDownload";
 import { downloadText } from "~/lib/download";
 import { RoboticsWorkspace } from "~/features/robotics/RoboticsWorkspace";
@@ -141,7 +143,7 @@ const productionToolTitles: Record<ProductionTool, string> = {
 };
 
 function projectLabel(project: Project): string {
-  return project.productNumber || project.projectNumber || "Untitled project";
+  return project.productNumber || project.projectNumber || "Unbenannter Plan";
 }
 
 /**
@@ -201,6 +203,9 @@ export function PlannerProjectWorkspace({
     useState<ProjectConflictPolicy>("rename");
   const [activeStage, setActiveStage] = useState<PlanningStage>("inputs");
   const [projectDrawerOpen, setProjectDrawerOpen] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(true);
+  const [workbenchEpoch, setWorkbenchEpoch] = useState(0);
+  const [inputSection, setInputSection] = useState<GuidedSectionId>("package");
   const [activeTool, setActiveTool] = useState<ProductionTool | null>(null);
   const [currentLayerIndex, setCurrentLayerIndex] = useState(0);
   const [legacyDirty, setLegacyDirty] = useState(false);
@@ -220,6 +225,13 @@ export function PlannerProjectWorkspace({
     useState<GeneratorLaunchRequest | null>(null);
   const [repositoryReady, setRepositoryReady] = useState(false);
   const [stackDirty, setStackDirty] = useState(false);
+  const [inputsDirty, setInputsDirty] = useState(false);
+  const inputsDirtyRef = useRef(false);
+  const markInputsDirty = useCallback((dirty: boolean) => {
+    inputsDirtyRef.current = dirty;
+    setInputsDirty(dirty);
+  }, []);
+
   const [editorDirty, setEditorDirty] = useState(false);
   const [editorDraftProject, setEditorDraftProject] = useState<Project | null>(
     null,
@@ -240,9 +252,9 @@ export function PlannerProjectWorkspace({
   }, []);
 
   useEffect(() => {
-    onUnsavedChange?.(stackDirty || editorDirty || legacyDirty);
+    onUnsavedChange?.(stackDirty || editorDirty || legacyDirty || inputsDirty);
     return () => onUnsavedChange?.(false);
-  }, [editorDirty, legacyDirty, onUnsavedChange, stackDirty]);
+  }, [editorDirty, legacyDirty, onUnsavedChange, stackDirty, inputsDirty]);
 
   const refreshProjects = useCallback(async () => {
     const request = ++listRequest.current;
@@ -379,6 +391,8 @@ export function PlannerProjectWorkspace({
   }, [repository, selectedId]);
 
   const saveProject = async (project: Project): Promise<Project> => {
+    setShowWelcome(false);
+    setProjectDrawerOpen(false);
     setError(null);
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
@@ -392,15 +406,16 @@ export function PlannerProjectWorkspace({
       setActiveStage(planningStageForProject(saved));
       setActiveTool(null);
     }
-    setStatusMessage(`Project "${projectLabel(saved)}" saved.`);
+    setStatusMessage(`Plan „${projectLabel(saved)}“ gespeichert.`);
     await refreshProjects();
     return saved;
   };
 
-  const hasUnsavedChanges = stackDirty || editorDirty || legacyDirty;
+  const hasUnsavedChanges =
+    stackDirty || editorDirty || legacyDirty || inputsDirty;
   const confirmDiscardUnsaved = (action: string): boolean =>
-    !hasUnsavedChanges ||
-    window.confirm(`${action} and discard unsaved planner changes?`);
+    !(stackDirty || editorDirty || legacyDirty || inputsDirtyRef.current) ||
+    window.confirm(`${action}: Ungespeicherte Änderungen verwerfen?`);
 
   const productionToolIsDirty = (tool: ProductionTool): boolean => {
     if (tool === "stack") return stackDirty;
@@ -419,6 +434,8 @@ export function PlannerProjectWorkspace({
   };
 
   const discardUnsavedPlannerChanges = (): void => {
+    markInputsDirty(false);
+    setWorkbenchEpoch((epoch) => epoch + 1);
     setStackDirty(false);
     setEditorDraftProject(null);
     setEditorDirty(false);
@@ -441,7 +458,17 @@ export function PlannerProjectWorkspace({
   };
 
   const selectProject = (id: string) => {
-    if (id === selectedId) return;
+    if (id === selectedId) {
+      setShowWelcome(false);
+      setProjectDrawerOpen(false);
+      // The library can open before the selected project finishes loading.
+      // In that case the loader chooses its furthest completed stage.
+      if (selectedProject) {
+        setActiveStage(planningStageForProject(selectedProject));
+      }
+      setSelectedCandidateId(null);
+      return;
+    }
     if (!confirmDiscardUnsaved("Switch projects")) return;
     discardUnsavedPlannerChanges();
     setGeneratorLaunchRequest(null);
@@ -452,6 +479,7 @@ export function PlannerProjectWorkspace({
       ),
     );
     setProjectDrawerOpen(false);
+    setShowWelcome(false);
     setSelectedId(id);
   };
 
@@ -464,8 +492,10 @@ export function PlannerProjectWorkspace({
   const pendingEditIdRef = useRef<string | null>(null);
 
   const editProject = (id: string) => {
+    setInputSection("meta");
     if (id === selectedId) {
       setProjectDrawerOpen(false);
+      setShowWelcome(false);
       setDialogMode("edit");
       return;
     }
@@ -475,7 +505,7 @@ export function PlannerProjectWorkspace({
   };
 
   useEffect(() => {
-    if (!selectedProject || pendingEditIdRef.current !== selectedProject.id) {
+    if (pendingEditIdRef.current !== selectedProject?.id) {
       return;
     }
     pendingEditIdRef.current = null;
@@ -904,6 +934,9 @@ export function PlannerProjectWorkspace({
   ]);
   const importedRob = workspaceProject?.source.kind === "rob-import";
   const resolvedStage = clampPlanningStage(activeStage, Boolean(importedRob));
+  useEffect(() => {
+    document.scrollingElement?.scrollTo?.({ top: 0, behavior: "auto" });
+  }, [resolvedStage, showWelcome, projectDrawerOpen, dialogMode]);
   const emptyComparison = {
     status: "unavailable" as const,
     referenceCount: 0,
@@ -1083,106 +1116,232 @@ export function PlannerProjectWorkspace({
     setSelectedCandidateId(null);
     setCurrentLayerIndex(0);
     setStatusMessage(
-      `Stack saved: ${materialized.metrics.packages.totalPackageCount} packages across ${materialized.packageLayers.length} layers. The .rob plan is ready to download.`,
+      `Stapel gespeichert: ${materialized.metrics.packages.totalPackageCount} Pakete auf ${materialized.packageLayers.length} Lagen.`,
     );
     await refreshProjects();
-    // Normal users finish here; robot setup stays under Advanced.
+    // A saved stack opens in the plan viewer; robot setup is a secondary surface.
     setActiveTool(null);
     setActiveStage("stack");
   };
 
+  const createNew = () => {
+    if (!confirmDiscardUnsaved("Neuen Plan erstellen")) return;
+    discardUnsavedPlannerChanges();
+    setShowWelcome(false);
+    setProjectDrawerOpen(false);
+    setInputSection("package");
+    setDialogMode("create");
+  };
+  const openInputs = (section: GuidedSectionId = "package") => {
+    setInputSection(section);
+    setDialogMode("edit");
+  };
+  const browsePlans = () => {
+    if (!confirmDiscardUnsaved("Planliste öffnen")) return;
+    discardUnsavedPlannerChanges();
+    setShowWelcome(false);
+    setProjectDrawerOpen(true);
+    setDialogMode("closed");
+  };
   return (
-    <div className="planner-workspace-shell flex min-h-0 flex-1 overflow-hidden">
-      <PlanningCaseWorkbench
-        project={workspaceProject}
-        onDownloadRob={
-          selectedProject ? () => downloadRob(selectedProject.id) : undefined
-        }
-        loadingProject={loadingProject}
-        error={error}
-        statusMessage={statusMessage}
-        activeStage={resolvedStage}
-        onStageChange={(stage) =>
-          setActiveStage(clampPlanningStage(stage, Boolean(importedRob)))
-        }
-        onOpenProjects={() => {
-          if (!confirmLeaveActiveTool("Open planner projects")) return;
-          setActiveTool(null);
-          setProjectDrawerOpen(true);
-        }}
-        onCreateProject={() => {
-          if (!confirmDiscardUnsaved("Create a new project")) return;
-          discardUnsavedPlannerChanges();
-          setProjectDrawerOpen(false);
-          setDialogMode("create");
-        }}
-        onEditProject={() => setDialogMode("edit")}
-        onOpenTool={openProductionTool}
-        onImportRob={(file) => void importRobAsProject(file)}
-        solverResult={solverResult}
-        solverInput={solverInput}
-        candidates={candidateLayouts}
-        selectedCandidate={selectedCandidate}
-        selectedCandidateId={selectedCandidateId}
-        generatorLaunchRequest={generatorLaunchRequest}
-        onGeneratorLaunchRequestConsumed={consumeGeneratorLaunchRequest}
-        onApplyGeneratorPackageInputs={applyGeneratorPackageInputs}
-        onSolverResult={onSolverResult}
-        onResetSolver={resetSolver}
-        onCandidateChange={(candidateId) => changeCandidate(candidateId)}
-        currentPreview={currentPreview}
-        comparison={emptyComparison}
-        ledgerRows={ledgerRows}
-        currentPalletData={currentPalletData}
-        currentLayerIndex={resolvedCurrentLayerIndex}
-        onCurrentLayerChange={setCurrentLayerIndex}
-        hasUnsavedChanges={hasUnsavedChanges}
-        robotCycleCount={robotCycleCount}
-      />
-
-      <CaseDrawer
-        open={projectDrawerOpen}
-        title="Planner projects"
-        width="narrow"
-        onClose={() => setProjectDrawerOpen(false)}
-      >
-        <ProjectLibrary
-          projects={projects}
-          selectedId={selectedId}
-          loading={loadingLibrary}
-          search={search}
-          projectNumberFilter={projectNumberFilter}
-          productNumberFilter={productNumberFilter}
-          sortBy={sortBy}
-          sortDirection={sortDirection}
-          projectConflictPolicy={projectConflictPolicy}
-          resourceConflictPolicy={resourceConflictPolicy}
-          onSearchChange={setSearch}
-          onProjectNumberFilterChange={setProjectNumberFilter}
-          onProductNumberFilterChange={setProductNumberFilter}
-          onSortChange={(nextSortBy, nextDirection) => {
-            setSortBy(nextSortBy);
-            setSortDirection(nextDirection);
-          }}
-          onProjectConflictPolicyChange={setProjectConflictPolicy}
-          onResourceConflictPolicyChange={setResourceConflictPolicy}
-          onSelect={selectProject}
-          onCreate={() => {
-            if (!confirmDiscardUnsaved("Create a new project")) return;
+    <div className="planner-workspace-shell">
+      <header className="fable-header">
+        <button
+          className="fable-logo"
+          onClick={() => {
+            if (!confirmDiscardUnsaved("Startseite öffnen")) return;
             discardUnsavedPlannerChanges();
+            setShowWelcome(true);
             setProjectDrawerOpen(false);
-            setDialogMode("create");
+            setDialogMode("closed");
           }}
-          onEdit={editProject}
-          onDuplicate={(id) => void duplicate(id)}
-          onSaveAs={(id) => void saveAs(id)}
-          onDelete={(id) => void remove(id)}
-          onExportSelected={(id) => void exportProjects("selected", id)}
-          onDownloadRob={downloadRob}
-          onExportAll={() => void exportProjects("all")}
-          onImport={(file) => void importProjects(file)}
+          aria-label="Palettenplaner Startseite"
+        >
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 2 29 9 16 17 3 9Z" fill="var(--carton-top)" />
+            <path d="M3 9 16 17 16 31 3 23Z" fill="var(--carton-left)" />
+            <path d="M29 9 16 17 16 31 29 23Z" fill="var(--carton-right)" />
+            <path d="M9 6 22 14" stroke="var(--carton-tape)" strokeWidth="3" />
+          </svg>
+          Palettenplaner
+        </button>
+        <span className="header-context">
+          {showWelcome
+            ? ""
+            : projectDrawerOpen
+              ? "Planbibliothek"
+              : dialogMode === "create"
+                ? "Neuer Plan"
+                : workspaceProject
+                  ? projectLabel(workspaceProject)
+                  : "Neuer Plan"}
+        </span>
+        <div className="header-actions">
+          {!showWelcome && (
+            <button className="text-action" onClick={browsePlans}>
+              Pläne
+            </button>
+          )}
+          {!showWelcome &&
+            !projectDrawerOpen &&
+            dialogMode === "closed" &&
+            workspaceProject && (
+              <details className="fable-tool-menu">
+                <summary>Bearbeiten & prüfen</summary>
+                <div>
+                  {(
+                    [
+                      ["editor", "Muster-Editor"],
+                      ["robotics", "Robotik & Greifer"],
+                      ["simulation", "Simulation"],
+                      ["report", "Palettierblatt"],
+                      ["legacy-rob", ".rob-Arbeitsbereich"],
+                    ] as const
+                  ).map(([tool, label]) => {
+                    const gate = productionToolGate(
+                      tool,
+                      workspaceProject,
+                      robotCycleCount,
+                    );
+                    return (
+                      <button
+                        key={tool}
+                        title={gate.ready ? undefined : gate.missing}
+                        onClick={(event) => {
+                          const menu = event.currentTarget.closest("details");
+                          if (menu) menu.open = false;
+                          openProductionTool(tool);
+                        }}
+                      >
+                        {label}
+                        <span>{gate.ready ? "" : "▲"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </details>
+            )}
+        </div>
+      </header>
+      {showWelcome && dialogMode === "closed" ? (
+        <PlannerWelcome
+          planCount={projects.length}
+          onCreate={createNew}
+          onBrowse={browsePlans}
+          onResume={
+            workspaceProject
+              ? () => {
+                  setShowWelcome(false);
+                  setProjectDrawerOpen(false);
+                }
+              : undefined
+          }
         />
-      </CaseDrawer>
+      ) : null}
+      {!showWelcome && !projectDrawerOpen ? (
+        <div hidden={dialogMode !== "closed"}>
+          <PlanningCaseWorkbench
+            key={workbenchEpoch}
+            project={workspaceProject}
+            stackContent={
+              workspaceProject &&
+              solverResult &&
+              solverInput &&
+              stackComposerCandidates.length ? (
+                <StackWorkspace
+                  guided
+                  onBack={() => setActiveStage("generate")}
+                  onEditProject={openInputs}
+                  project={workspaceProject}
+                  candidates={stackComposerCandidates}
+                  solverInput={solverInput}
+                  onSave={saveStack}
+                  onDirtyChange={setStackDirty}
+                />
+              ) : undefined
+            }
+            onDownloadRob={
+              selectedProject
+                ? () => downloadRob(selectedProject.id)
+                : undefined
+            }
+            loadingProject={loadingProject}
+            error={error}
+            statusMessage={statusMessage}
+            activeStage={resolvedStage}
+            onStageChange={(stage) =>
+              setActiveStage(clampPlanningStage(stage, Boolean(importedRob)))
+            }
+            onOpenProjects={browsePlans}
+            onCreateProject={createNew}
+            onEditProject={() => openInputs()}
+            onOpenTool={openProductionTool}
+            onImportRob={(file) => void importRobAsProject(file)}
+            solverResult={solverResult}
+            solverInput={solverInput}
+            candidates={candidateLayouts}
+            selectedCandidate={selectedCandidate}
+            selectedCandidateId={selectedCandidateId}
+            generatorLaunchRequest={generatorLaunchRequest}
+            onGeneratorLaunchRequestConsumed={consumeGeneratorLaunchRequest}
+            onApplyGeneratorPackageInputs={applyGeneratorPackageInputs}
+            onSolverResult={onSolverResult}
+            onResetSolver={resetSolver}
+            onCandidateChange={(candidateId) => changeCandidate(candidateId)}
+            currentPreview={currentPreview}
+            comparison={emptyComparison}
+            ledgerRows={ledgerRows}
+            currentPalletData={currentPalletData}
+            currentLayerIndex={resolvedCurrentLayerIndex}
+            onCurrentLayerChange={setCurrentLayerIndex}
+            hasUnsavedChanges={hasUnsavedChanges}
+            robotCycleCount={robotCycleCount}
+          />
+        </div>
+      ) : null}
+      {!showWelcome && projectDrawerOpen && dialogMode === "closed" ? (
+        <>
+          {error && (
+            <div className="fable-page">
+              <p role="alert" className="fable-notice">
+                {error}
+              </p>
+            </div>
+          )}
+          <PlanLibrary
+            projects={projects}
+            selectedId={selectedId}
+            loading={loadingLibrary}
+            search={search}
+            projectNumberFilter={projectNumberFilter}
+            productNumberFilter={productNumberFilter}
+            sortBy={sortBy}
+            sortDirection={sortDirection}
+            projectConflictPolicy={projectConflictPolicy}
+            resourceConflictPolicy={resourceConflictPolicy}
+            onSearchChange={setSearch}
+            onProjectNumberFilterChange={setProjectNumberFilter}
+            onProductNumberFilterChange={setProductNumberFilter}
+            onSortChange={(nextSortBy, nextDirection) => {
+              setSortBy(nextSortBy);
+              setSortDirection(nextDirection);
+            }}
+            onProjectConflictPolicyChange={setProjectConflictPolicy}
+            onResourceConflictPolicyChange={setResourceConflictPolicy}
+            onSelect={selectProject}
+            onCreate={createNew}
+            onImportRob={(file) => void importRobAsProject(file)}
+            onEdit={editProject}
+            onDuplicate={(id) => void duplicate(id)}
+            onSaveAs={(id) => void saveAs(id)}
+            onDelete={(id) => void remove(id)}
+            onExportSelected={(id) => void exportProjects("selected", id)}
+            onDownloadRob={downloadRob}
+            onExportAll={() => void exportProjects("all")}
+            onImport={(file) => void importProjects(file)}
+          />
+        </>
+      ) : null}
 
       <CaseDrawer
         open={activeTool !== null}
@@ -1307,39 +1466,63 @@ export function PlannerProjectWorkspace({
         )}
       </CaseDrawer>
 
-      <ProjectDialog
-        open={dialogMode !== "closed"}
-        project={dialogMode === "edit" ? workspaceProject : null}
-        onClose={() => setDialogMode("closed")}
-        onSave={async ({
-          project,
-          generationIntent,
-        }: ProjectDialogSubmission) => {
-          const previous = selectedProject;
-          const saved = await saveProject(project);
-          if (
-            previous &&
-            previous.id === saved.id &&
-            solverInputSignature(previous) !== solverInputSignature(saved)
-          ) {
-            // Editing in place keeps `selectedId` stable, so the project-switch
-            // reset never runs and stale candidates would outlive their input.
-            resetSolver();
-          }
-          if (!generationIntent) {
-            setGeneratorLaunchRequest(null);
-            return;
-          }
+      <div className={dialogMode !== "closed" ? "fable-page" : undefined}>
+        {dialogMode === "create" && (
+          <ol className="fable-steps" aria-label="Planungsschritte">
+            <li aria-current="step">
+              <span className="step-number">1</span>
+              <span className="step-name">Paket & Palette</span>
+            </li>
+            <li>
+              <span className="step-number">2</span>
+              <span className="step-name">Muster auswählen</span>
+            </li>
+            <li>
+              <span className="step-number">3</span>
+              <span className="step-name">Stapel aufbauen</span>
+            </li>
+          </ol>
+        )}
+        <ProjectDialog
+          inline
+          initialSection={inputSection}
+          {...{ onDirtyChange: markInputsDirty }}
+          open={dialogMode !== "closed"}
+          project={dialogMode === "edit" ? workspaceProject : null}
+          onClose={() => {
+            if (confirmDiscardUnsaved("Eingaben schließen"))
+              setDialogMode("closed");
+          }}
+          onSave={async ({
+            project,
+            generationIntent,
+          }: ProjectDialogSubmission) => {
+            const previous = selectedProject;
+            const saved = await saveProject(project);
+            markInputsDirty(false);
+            if (
+              previous?.id === saved.id &&
+              solverInputSignature(previous) !== solverInputSignature(saved)
+            ) {
+              // Editing in place keeps `selectedId` stable, so the project-switch
+              // reset never runs and stale candidates would outlive their input.
+              resetSolver();
+            }
+            if (!generationIntent) {
+              setGeneratorLaunchRequest(null);
+              return;
+            }
 
-          setGeneratorLaunchRequest({
-            requestId: `${saved.id}:${++generatorLaunchSequence.current}`,
-            projectId: saved.id,
-            exactPackageCount: generationIntent.exactPackageCount,
-          });
-          setActiveStage("generate");
-          setActiveTool(null);
-        }}
-      />
+            setGeneratorLaunchRequest({
+              requestId: `${saved.id}:${++generatorLaunchSequence.current}`,
+              projectId: saved.id,
+              exactPackageCount: generationIntent.exactPackageCount,
+            });
+            setActiveStage("generate");
+            setActiveTool(null);
+          }}
+        />
+      </div>
     </div>
   );
 }

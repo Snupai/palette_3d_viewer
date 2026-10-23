@@ -110,14 +110,14 @@ describe("RobViewer", () => {
 
     await waitFor(() => expect(controller.setData).toHaveBeenCalled());
     expect(controller.setLiftCarriageMm).toHaveBeenCalledWith(450);
-    expect(
-      screen.getByRole("toolbar", { name: "3D view controls" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("toolbar", { name: "3D-Ansicht" })).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Top" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draufsicht" }));
     expect(controller.setCameraPreset).toHaveBeenCalledWith("top");
 
-    fireEvent.click(screen.getByRole("button", { name: "Lift top" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Oberste Lage anheben" }),
+    );
     await waitFor(() =>
       expect(controller.setData).toHaveBeenLastCalledWith(source, {
         preserveView: true,
@@ -128,7 +128,7 @@ describe("RobViewer", () => {
       }),
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Labels" }));
+    fireEvent.click(screen.getByRole("button", { name: "Lagennummern" }));
     await waitFor(() =>
       expect(controller.setData).toHaveBeenLastCalledWith(source, {
         preserveView: true,

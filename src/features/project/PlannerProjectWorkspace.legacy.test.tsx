@@ -113,15 +113,16 @@ describe("PlannerProjectWorkspace legacy integration", () => {
       />,
     );
 
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "M5-LEGACY" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: /Legacy \.rob workspace/i }),
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "M5-LEGACY öffnen" }),
+    );
+    await screen.findByRole("button", { name: "Weiter zu den Mustern" });
+    fireEvent.click(screen.getByText("Bearbeiten & prüfen"));
+    fireEvent.click(
+      screen.getByRole("button", { name: ".rob-Arbeitsbereich" }),
     );
 
     const drawer = await screen.findByRole("dialog", {

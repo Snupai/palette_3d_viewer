@@ -78,9 +78,9 @@ function unavailableCapture(): ViewerCaptureResult {
 
 const cameraPresetLabels: ReadonlyArray<readonly [ViewerCameraPreset, string]> =
   [
-    ["top", "Top"],
-    ["front", "Front"],
-    ["right-top", "Right top"],
+    ["top", "Draufsicht"],
+    ["front", "Vorne"],
+    ["right-top", "Schräg rechts"],
   ];
 
 export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
@@ -311,8 +311,8 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
         {showSceneControls ? (
           <div
             role="toolbar"
-            aria-label="3D view controls"
-            className="absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 border border-viewport-line bg-viewport p-1"
+            aria-label="3D-Ansicht"
+            className="border-viewport-line bg-viewport absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 border p-1"
           >
             {cameraPresetLabels.map(([preset, label]) => (
               <button
@@ -325,7 +325,10 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                 {label}
               </button>
             ))}
-            <span className="mx-0.5 h-4 w-px bg-viewport-line" aria-hidden="true" />
+            <span
+              className="bg-viewport-line mx-0.5 h-4 w-px"
+              aria-hidden="true"
+            />
             <button
               type="button"
               aria-pressed={topLayerLift > 0}
@@ -335,9 +338,9 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                   current > 0 ? 0 : topLiftDistance,
                 )
               }
-              className={`${controlClass(topLayerLift > 0)} disabled:cursor-not-allowed disabled:text-viewport-ink/30`}
+              className={`${controlClass(topLayerLift > 0)} disabled:text-viewport-ink/30 disabled:cursor-not-allowed`}
             >
-              Lift top
+              Oberste Lage anheben
             </button>
             <button
               type="button"
@@ -345,12 +348,12 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
               onClick={() => setLabelsVisible((current) => !current)}
               className={controlClass(labelsVisible)}
             >
-              Labels
+              Lagennummern
             </button>
             {temporaryCalibration ? (
               <>
                 <span
-                  className="mx-0.5 h-4 w-px bg-viewport-line"
+                  className="bg-viewport-line mx-0.5 h-4 w-px"
                   aria-hidden="true"
                 />
                 <button
@@ -370,21 +373,21 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
             aria-label="Temporary 3D calibration"
             data-testid="temporary-calibration-panel"
             data-calibration-values={calibrationValues}
-            className="absolute bottom-2 left-2 z-20 w-[min(360px,calc(100%-1rem))] border border-viewport-line bg-viewport/95 p-2.5 text-viewport-ink shadow-[0_2px_8px_rgba(0,0,0,0.1)] backdrop-blur"
+            className="border-viewport-line bg-viewport/95 text-viewport-ink absolute bottom-2 left-2 z-20 w-[min(360px,calc(100%-1rem))] border p-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.1)] backdrop-blur"
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-xs font-semibold text-viewport-ink">
+                <h3 className="text-viewport-ink text-xs font-semibold">
                   Temporary calibration
                 </h3>
-                <p className="mt-0.5 text-micro text-viewport-ink/60">
+                <p className="text-micro text-viewport-ink/60 mt-0.5">
                   Drag the 3D axes. Values are not saved.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setCalibrationEnabled(false)}
-                className="px-1 text-sm leading-none text-viewport-ink/60 hover:text-viewport-ink"
+                className="text-viewport-ink/60 hover:text-viewport-ink px-1 text-sm leading-none"
                 aria-label="Close calibration"
               >
                 ×
@@ -406,7 +409,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                 </button>
               ))}
               <span
-                className="mx-0.5 h-4 w-px bg-viewport-line"
+                className="bg-viewport-line mx-0.5 h-4 w-px"
                 aria-hidden="true"
               />
               {(["translate", "rotate"] as const).map((mode) => (
@@ -426,12 +429,12 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
               ))}
             </div>
 
-            <div className="mt-2 grid grid-cols-[76px_repeat(4,minmax(0,1fr))] gap-x-2 gap-y-1 border-t border-viewport-line pt-2 font-mono text-micro tabular-nums">
-              <span className="font-sans text-viewport-ink/50">Object</span>
-              <span className="text-right text-viewport-ink/50">X mm</span>
-              <span className="text-right text-viewport-ink/50">Y mm</span>
-              <span className="text-right text-viewport-ink/50">Z mm</span>
-              <span className="text-right text-viewport-ink/50">Yaw°</span>
+            <div className="border-viewport-line text-micro mt-2 grid grid-cols-[76px_repeat(4,minmax(0,1fr))] gap-x-2 gap-y-1 border-t pt-2 font-mono tabular-nums">
+              <span className="text-viewport-ink/50 font-sans">Object</span>
+              <span className="text-viewport-ink/50 text-right">X mm</span>
+              <span className="text-viewport-ink/50 text-right">Y mm</span>
+              <span className="text-viewport-ink/50 text-right">Z mm</span>
+              <span className="text-viewport-ink/50 text-right">Yaw°</span>
               {(
                 [
                   ["Pallet", calibrationState.palletPose, "pallet"],
@@ -466,30 +469,30 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                   >
                     {label}
                   </button>
-                  <output className="text-right text-viewport-ink">
+                  <output className="text-viewport-ink text-right">
                     {formatCalibrationValue(pose.positionMm.x)}
                   </output>
-                  <output className="text-right text-viewport-ink">
+                  <output className="text-viewport-ink text-right">
                     {formatCalibrationValue(pose.positionMm.y)}
                   </output>
-                  <output className="text-right text-viewport-ink">
+                  <output className="text-viewport-ink text-right">
                     {formatCalibrationValue(pose.positionMm.z)}
                   </output>
-                  <output className="text-right text-viewport-ink">
+                  <output className="text-viewport-ink text-right">
                     {formatCalibrationValue(pose.yawDeg)}
                   </output>
                 </div>
               ))}
             </div>
 
-            <div className="mt-2 flex items-center justify-between gap-3 border-t border-viewport-line pt-2">
+            <div className="border-viewport-line mt-2 flex items-center justify-between gap-3 border-t pt-2">
               <span className="text-micro text-viewport-ink/50">
                 1 mm / 1° snapping
               </span>
               <button
                 type="button"
                 onClick={resetCalibration}
-                className="text-micro font-medium text-viewport-ink/70 hover:text-viewport-ink"
+                className="text-micro text-viewport-ink/70 hover:text-viewport-ink font-medium"
               >
                 Reset both
               </button>

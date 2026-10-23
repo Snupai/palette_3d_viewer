@@ -43,6 +43,8 @@ export type GeneratorLaunchRequest = {
 
 export type SolverControlsProps = {
   project: Project;
+  guided?: boolean;
+  initialPackageCount?: number;
   launchRequest?: GeneratorLaunchRequest | null;
   onLaunchRequestConsumed?: (requestId: string) => void;
   onApplyPackageInputs: (inputs: GeneratorPackageInputs) => Promise<Project>;
@@ -332,11 +334,7 @@ function DimensionInput({
   );
 }
 
-function SolverProgressPanel({
-  progress,
-}: {
-  progress: SolverProgress;
-}) {
+function SolverProgressPanel({ progress }: { progress: SolverProgress }) {
   const percent =
     progress.total && progress.total > 0
       ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
@@ -346,11 +344,11 @@ function SolverProgressPanel({
   return createPortal(
     <div
       aria-live="polite"
-      className="fixed top-14 left-1/2 z-30 grid w-[min(440px,calc(100vw-32px))] -translate-x-1/2 gap-2 border border-brand border-l-4 bg-surface px-4 py-3 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+      className="border-brand bg-surface text-ink fixed top-14 left-1/2 z-30 grid w-[min(440px,calc(100vw-32px))] -translate-x-1/2 gap-2 border border-l-4 px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
     >
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-body font-semibold">Generating patterns…</span>
-        <span className="font-mono text-body font-semibold text-brand">
+        <span className="text-body text-brand font-mono font-semibold">
           {percent === null ? progress.completed : `${percent}%`}
         </span>
       </div>
@@ -360,21 +358,21 @@ function SolverProgressPanel({
         aria-valuemin={0}
         aria-valuemax={progress.total ?? undefined}
         aria-valuenow={progress.total === null ? undefined : progress.completed}
-        className="h-2.5 w-full overflow-hidden border border-line bg-surface"
+        className="border-line bg-surface h-2.5 w-full overflow-hidden border"
       >
         <div
-          className={`h-full bg-brand transition-[width] duration-200 ${
+          className={`bg-brand h-full transition-[width] duration-200 ${
             percent === null ? "w-1/3 animate-pulse" : ""
           }`}
           style={percent === null ? undefined : { width: `${percent}%` }}
         />
       </div>
-      <div className="flex items-center justify-between gap-3 text-micro">
+      <div className="text-micro flex items-center justify-between gap-3">
         <span className="truncate">
           {progress.phase}
           {progress.generator ? ` · ${progress.generator}` : ""}
         </span>
-        <span className="shrink-0 font-mono text-muted">
+        <span className="text-muted shrink-0 font-mono">
           {progress.completed}
           {progress.total === null ? "" : ` / ${progress.total}`}
         </span>
@@ -389,6 +387,8 @@ function SolverProgressPanel({
 
 export function SolverControls({
   project,
+  guided = false,
+  initialPackageCount,
   launchRequest = null,
   onLaunchRequestConsumed,
   onApplyPackageInputs,
@@ -411,7 +411,10 @@ export function SolverControls({
     JSON.stringify(project.package.labelSidesAtPickup),
   );
   const currentProjectKey = useMemo(() => solverProjectKey(project), [project]);
-  const [draft, setDraft] = useState<SolverDraft>(() => initialDraft(project));
+  const [draft, setDraft] = useState<SolverDraft>(() => ({
+    ...initialDraft(project),
+    packageCount: initialPackageCount ? String(initialPackageCount) : "",
+  }));
   const [allowMixedPackageOrientations, setAllowMixedPackageOrientations] =
     useState(true);
   const [includeSymmetryVariants, setIncludeSymmetryVariants] = useState(true);
@@ -432,6 +435,7 @@ export function SolverControls({
   );
   const runKeyRef = useRef(currentRunKey);
   const [status, setStatus] = useState<RunStatus>("idle");
+  const [showSearchSettings, setShowSearchSettings] = useState(false);
   const [progress, setProgress] = useState<SolverProgress | null>(null);
   const [resultSummary, setResultSummary] = useState<SolverResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -711,8 +715,7 @@ export function SolverControls({
 
   useEffect(() => {
     if (
-      !launchRequest ||
-      launchRequest.projectId !== project.id ||
+      launchRequest?.projectId !== project.id ||
       claimedLaunchRequestIdsRef.current.has(launchRequest.requestId)
     ) {
       return;
@@ -728,8 +731,7 @@ export function SolverControls({
 
   useEffect(() => {
     if (
-      !pendingLaunchRequest ||
-      pendingLaunchRequest.projectId !== project.id ||
+      pendingLaunchRequest?.projectId !== project.id ||
       draft.packageCount !== String(pendingLaunchRequest.exactPackageCount) ||
       !canSolve
     ) {
@@ -758,6 +760,244 @@ export function SolverControls({
   };
 
   const inputsDisabled = status === "running";
+
+  if (guided)
+    return (
+      <section
+        className="fable-generator"
+        data-completed={Boolean(resultSummary) && !showSearchSettings}
+        aria-label="Mustersuche"
+      >
+        <div className="generator-heading">
+          <div>
+            <h2>
+              {status === "running"
+                ? "Passende Muster werden gesucht"
+                : resultSummary
+                  ? "Suche abgeschlossen"
+                  : "Muster berechnen"}
+            </h2>
+            <p>
+              {project.package.dimensionsMm.length} ×{" "}
+              {project.package.dimensionsMm.width} mm auf{" "}
+              {project.pallet?.name ?? "Palette"}
+            </p>
+          </div>
+          <span className="generator-state">
+            {status === "running"
+              ? "Berechnung läuft"
+              : status === "cancelled"
+                ? "Abgebrochen"
+                : resultSummary
+                  ? `${distinctCandidateLayoutCount} unterschiedliche Muster`
+                  : "Bereit"}
+          </span>
+        </div>
+        {progress && (
+          <div className="generator-progress" role="status" aria-live="polite">
+            <progress
+              aria-label="Fortschritt der Mustersuche"
+              value={progress.total ? progress.completed : undefined}
+              max={progress.total ?? 1}
+            />
+            <p>
+              {(
+                {
+                  generation: "Muster erzeugen",
+                  validation: "Geometrie prüfen",
+                  ranking: "Muster sortieren",
+                  complete: "Abgeschlossen",
+                  normalization: "Eingaben prüfen",
+                } as Record<string, string>
+              )[progress.phase] ?? "Muster berechnen"}
+              {progress.generator ? `: ${progress.generator}` : ""}{" "}
+              <span>
+                {progress.completed}
+                {progress.total ? ` / ${progress.total}` : ""}
+              </span>
+            </p>
+          </div>
+        )}
+        {resultSummary && !showSearchSettings && (
+          <button
+            type="button"
+            className="text-action"
+            onClick={() => setShowSearchSettings(true)}
+          >
+            Suche anpassen
+          </button>
+        )}
+        <div hidden={Boolean(resultSummary) && !showSearchSettings}>
+          <div className="generator-main">
+            <label>
+              Pakete je Lage
+              <input
+                className="ui-input"
+                type="number"
+                min="1"
+                step="1"
+                value={draft.packageCount}
+                disabled={inputsDisabled}
+                onChange={(e) => updateDraft({ packageCount: e.target.value })}
+              />
+            </label>
+            <button
+              type="button"
+              className={status === "running" ? "ui-btn" : "ui-btn-primary"}
+              disabled={status !== "running" && !canSolve}
+              onClick={() => (status === "running" ? cancel() : void start())}
+            >
+              {status === "running"
+                ? "Berechnung abbrechen"
+                : resultSummary
+                  ? "Neu berechnen"
+                  : "Muster erzeugen"}
+            </button>
+          </div>
+          <details className="generator-options">
+            <summary>Suchparameter anpassen</summary>
+            <div className="generator-option-fields">
+              <DimensionInput
+                label="Paketlänge (mm)"
+                value={draft.packageLength}
+                disabled={inputsDisabled}
+                onChange={(packageLength) => updateDraft({ packageLength })}
+              />
+              <DimensionInput
+                label="Paketbreite (mm)"
+                value={draft.packageWidth}
+                disabled={inputsDisabled}
+                onChange={(packageWidth) => updateDraft({ packageWidth })}
+              />
+              <DimensionInput
+                label="Pakethöhe (mm)"
+                value={draft.packageHeight}
+                disabled={inputsDisabled}
+                onChange={(packageHeight) => updateDraft({ packageHeight })}
+              />
+              <DimensionInput
+                label="Über-/Unterstand Länge gesamt (mm)"
+                value={draft.lengthAllowanceTotal}
+                signed
+                disabled={inputsDisabled}
+                onChange={(lengthAllowanceTotal) =>
+                  updateDraft({ lengthAllowanceTotal })
+                }
+              />
+              <DimensionInput
+                label="Über-/Unterstand Breite gesamt (mm)"
+                value={draft.widthAllowanceTotal}
+                signed
+                disabled={inputsDisabled}
+                onChange={(widthAllowanceTotal) =>
+                  updateDraft({ widthAllowanceTotal })
+                }
+              />
+              <label>
+                Max. Kandidaten je Generator
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="1"
+                  value={draft.maxCandidatesPerGenerator}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    updateDraft({ maxCandidatesPerGenerator: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Max. Pakete je Griff
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="1"
+                  value={draft.provisionalPackagesPerCycle}
+                  disabled={inputsDisabled || !draft.multiPickAllowed}
+                  onChange={(e) =>
+                    updateDraft({ provisionalPackagesPerCycle: e.target.value })
+                  }
+                />
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={allowMixedPackageOrientations}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    setAllowMixedPackageOrientations(e.target.checked)
+                  }
+                />
+                Längs und quer kombinieren
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={draft.multiPickAllowed}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    updateDraft({ multiPickAllowed: e.target.checked })
+                  }
+                />
+                Mehrfachgriff erlauben
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={includeSymmetryVariants}
+                  disabled={inputsDisabled}
+                  onChange={(e) => setIncludeSymmetryVariants(e.target.checked)}
+                />
+                Gespiegelte Varianten einbeziehen
+              </label>
+            </div>
+            <p>
+              Der Über-/Unterstand wird gleichmäßig auf beide Seiten verteilt.
+              Die Suchparameter ändern die gespeicherte Palettenfreigabe nicht.
+            </p>
+            <PackageLabelFacePicker
+              packageLengthMm={Number(draft.packageLength)}
+              packageWidthMm={Number(draft.packageWidth)}
+              inletOrientation={draft.inletOrientation}
+              selectedPackageSide={draft.unrotatedPackageLabelSide || null}
+              disabled={inputsDisabled}
+              onInletOrientationChange={(inletOrientation) =>
+                updateDraft({ inletOrientation })
+              }
+              onPackageSideChange={(side) =>
+                updateDraft({ unrotatedPackageLabelSide: side ?? "" })
+              }
+            />
+          </details>
+        </div>
+        {preflightIssues.length > 0 && (
+          <p className="generator-hint">
+            {draft.packageCount.trim() === ""
+              ? "Geben Sie die gewünschte Anzahl Pakete je Lage ein."
+              : preflightIssues.join(" ")}
+          </p>
+        )}
+        {failure && (
+          <p role="alert" className="fable-notice">
+            {status === "cancelled"
+              ? "Berechnung abgebrochen. Es wurden keine unvollständigen Muster übernommen."
+              : failure}
+          </p>
+        )}
+        {staleNotice && (
+          <p role="status" className="generator-hint">
+            Die Suchparameter wurden geändert. Bitte berechnen Sie die Muster
+            erneut.
+          </p>
+        )}
+        {resultSummary?.candidates.length === 0 && (
+          <p role="status" className="fable-notice">
+            Kein passendes Muster gefunden. Ändern Sie die Paketanzahl oder die
+            Suchparameter.
+          </p>
+        )}
+      </section>
+    );
 
   return (
     <section className="border border-[var(--line)] bg-[var(--surface)]">
@@ -1027,9 +1267,7 @@ export function SolverControls({
           </p>
         )}
 
-        {progress ? (
-          <SolverProgressPanel progress={progress} />
-        ) : null}
+        {progress ? <SolverProgressPanel progress={progress} /> : null}
 
         {resultSummary ? (
           <div

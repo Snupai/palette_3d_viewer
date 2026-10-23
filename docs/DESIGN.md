@@ -1,165 +1,80 @@
-# Design
+# Hallenboden — Palettenplaner
 
-Corporate UI for the palletizing planner, derived from
-[Szaidel Cosmetic GmbH](https://www.szaidel-cosmetics.de/) (`szaidel-cosmetics.de`).
-The app follows the OS appearance (`prefers-color-scheme`). Do not invent a
-separate theme toggle, and do not reintroduce a skippable tab strip for the
-planning workflow.
+The production UI follows the approved **Fable v2** proposal. Its material language
+is a quiet epoxy-grey floor, kraft cartons with tape, a wooden pallet and one robot-orange
+accent. The former navy/steel corporate chrome is superseded. Domain geometry, solver
+ranking, robot checks, persistence and `.rob` semantics remain the source of truth.
 
-## Brand
+## Tokens and typography
 
-Szaidel Cosmetics is a German contract manufacturer. Their site uses a deep
-navy identity with cool steel, sage, and mist accents. That navy is the
-product colour, not a generic SaaS blue.
+| Role           | Light     | Dark      |
+| -------------- | --------- | --------- |
+| Canvas         | `#e7e9e4` | `#1a1b19` |
+| Surface        | `#f8f8f5` | `#242623` |
+| Ink            | `#1d1b18` | `#ecebe6` |
+| Muted          | `#62625a` | `#b1b4a9` |
+| Line           | `#c9ccc3` | `#41453b` |
+| Primary action | `#f25316` | `#ff6a2e` |
 
-| Token                 | Light                    | Dark                        | Role                          |
-| --------------------- | ------------------------ | --------------------------- | ----------------------------- |
-| `--canvas`            | `#f3f3f3`                | `#101820`                   | Page / plan-field background  |
-| `--surface`           | `#ffffff`                | `#162033`                   | Panels, header, drawers       |
-| `--surface-hover`     | `#e8eef3`                | `#1c2b40`                   | Row / button hover            |
-| `--ink`               | `#173159`                | `#e8eef4`                   | Primary text                  |
-| `--muted`             | `#5e5e5e`                | `#9aadc0`                   | Secondary text                |
-| `--line`              | `#d5dbe3`                | `#2c3d55`                   | 1px borders                   |
-| `--brand`             | `#173159`                | `#8bb0c9`                   | Primary actions, current step |
-| `--brand-hover`       | `#122744`                | `#b8dde1`                   | Primary hover                 |
-| `--brand-on`          | `#ffffff`                | `#101820`                   | Text on `--brand`             |
-| `--accent` / `--mist` | `#8bb0c9` / `#b8dde1`    | `#b8dde1` / `#8bb0c9`       | Steel highlight               |
-| `--ok`                | `#3d7a4e`                | `#a9d4b2`                   | Pass / sage                   |
-| `--caution`           | `#94630b`                | `#e2b45a`                   | Needs input / blocked step    |
-| `--danger`            | `#dc143c`                | `#f07178`                   | Fail / crimson from the site  |
-| `--info`              | `#2f6a8f`                | `#8bb0c9`                   | Engineering / informational   |
-| `--viewport`          | `#111a26`                | `#111a26`                   | 3D / canvas stage (always dark) |
-| `--viewport-ink`      | `#e8eef4`                | `#e8eef4`                   | Text and lines on the stage   |
-| `--viewport-line`     | `#2c3d55`                | `#2c3d55`                   | Grid and rules on the stage   |
-| `--focus`             | `#8bb0c9`                | `#8bb0c9`                   | Focus ring                    |
-| `--plan-fill`         | `rgba(23, 49, 89, 0.14)` | `rgba(139, 176, 201, 0.18)` | Selected plan packages        |
-| `--plan-stroke`       | `#173159`                | `#8bb0c9`                   | Current-plan outlines         |
-| `--measure`           | `#8bb0c9`                | `#b8dde1`                   | Observed / imported evidence  |
+Use the existing semantic CSS/Tailwind tokens, not an independent palette per tool.
+Barlow is the body/control face; Barlow Semi Condensed carries headings and numeric
+readouts. Both are bundled under `public/fonts/` with OFL licenses and loaded locally.
+System appearance applies throughout. WebGL retains its contrasting engineering stage.
 
-Site-extracted source colours (do not use raw unless mapped above):
+Chrome is flat, with 1px rules and small radii. Orange indicates a primary action,
+selection or current step. The pallet geometry carries the visual emphasis. Every
+interactive control has a pointer cursor and visible keyboard focus; primary controls
+are at least 44px high. Honor reduced motion. Avoid decorative animation, fake scores
+and unexplained technical status walls.
 
-- Navy `#173159` (dominant brand)
-- Steel `#8bb0c9`
-- Sage `#a9d4b2`
-- Mist `#b8dde1`
-- Lavender `#dfdaeb` (marketing only, not in the app chrome)
-- Crimson `#dc143c`
-- Body grey `#5e5e5e`, page grey `#f3f3f3`
+## Entry and saved plans
 
-Every token is also a Tailwind colour (`@theme inline` in `globals.css`):
-write `bg-surface`, `text-muted`, `border-line`, `text-caution`, not
-`bg-[var(--surface)]` and never a Tailwind palette colour (`zinc-*`,
-`amber-*`, `red-*`, …) or a raw hex class.
+The first screen offers two explicit choices: **Neuen Plan erstellen** and
+**Vorhandene Pläne ansehen**. The library is a full page with actual geometric
+thumbnails and visible package L × W × H, physical layer count, counts per layer,
+total packages and pallet dimensions. Filters combine dimensions, layer range,
+packages-per-layer range, origin and pallet. Mixed stacks show their actual distinct
+per-layer counts rather than one misleading average. Search/sort and portable
+project/resource import/export retain the repository's behavior.
 
-## Character
+## Creation
 
-The planner is a measuring instrument for a pallet. Measurements are the
-content, so they get the typographic emphasis: Geist Mono for every
-dimension, count, rank, and status; Geist Sans for prose and labels.
-Surfaces stay flat and quiet (1px rules, radius 0) so the plan itself is
-the loudest thing on screen.
+New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel**.
+Review/save belongs to the stack stage, not a freely skippable planning tab.
 
-Signature: the plan field is drawn like a dimensioned technical drawing:
-edge scale ticks and dimension lines carry the real pallet measurements
-instead of decorative frames. Spend boldness there and nowhere else.
+- Inputs use progressive sections, useful defaults and optional advanced controls.
+  Dimensions begin blank. Required exact package count reflects the real production
+  solver; a simple-raster suggestion is only a suggestion, not a claimed maximum.
+- Generation runs through `solverClient` and the worker protocol. Progress and results
+  come from the actual run. Large top-down selected-pattern previews, alternatives
+  and focused comparison support choice. Recommendation follows the existing
+  deterministic ranker; it does not imply mechanical stability or robot readiness.
+- Stack composition reuses the stack model and materialization. Counts, transforms,
+  interlayers, dimensions, weight and capacity use real results. Review keeps the
+  draft. Warnings retain their existing semantics; the UI must not invent new gates.
+- Metadata or weight-only edits must not discard geometrically valid candidates.
+  Geometry changes invalidate generation via the canonical solver input signature.
+- Saved projects reopen on their furthest completed step. Imported `.rob` files
+  already are the plan, so they bypass generation. There is no reference overlay.
 
-## Type and chrome
+## Tools and rendering
 
-- Fonts stay Geist Sans / Geist Mono (already in the app). Do not load Avenir
-  from the marketing site.
-- Type scale: `text-micro` (11px, labels and captions), `text-xs` (12px,
-  controls and tables), `text-body` (13px, chrome and headings), `text-sm`
-  (14px, dialogs), `text-base` (16px, touch inputs). No `text-[Npx]`.
-- Radius 0 everywhere. Utility buttons use `.ui-btn` / `.ui-btn-primary`
-  with modifiers `.ui-btn-sm`, `.ui-btn-touch`, `.ui-btn-ghost`,
-  `.ui-btn-danger`; inputs use `.ui-input`; tables use `.ui-table`.
-  No pills, no gradients, no glass, no glow.
-- Motion: 120 ms colour transitions only; `prefers-reduced-motion` disables
-  them globally.
-- Shadows at most `0 2px 8px rgba(0,0,0,0.1)`.
-- Clickable controls use `cursor: pointer`.
-- Appearance is **system only**: light tokens in `:root`, dark tokens in
-  `@media (prefers-color-scheme: dark)`.
+Editor, Robotics, Simulation and Report are named secondary surfaces. Their gates
+come exclusively from `productionToolGate` in `planningCaseModel.ts`. Do not duplicate
+prerequisite logic in overlays. There is no Tools catalog or Validate planning step.
+Original `.rob` text stays verbatim; only project-derived exports are regenerated.
 
-## Planning workflow
+`PlanRender` is a server-safe read-only SVG projection of actual preview/stack data;
+WebGL and interactive editors remain client-only. Clicking a package cuts visibility
+to its layer and selects its grip; the selection inspector shows canonical placement
+coordinates. Above-cutoff layers are hidden; the gripper remains ~30% opaque.
 
-Do not bring back a six-tab strip (Inputs / Reference / Generate / Compare /
-Stack / Validate). Steps are sequential.
+## Responsive layout
 
-**New project** (`source.kind === "new"`):
-
-1. Inputs
-2. Generate
-3. Stack
-
-**Imported `.rob`** (`source.kind === "rob-import"`):
-
-1. Plan
-
-There is no Tools / Validate step and no “Production tools” catalog.
-Editor, Robotics, Simulation, and Report open as named surfaces from the
-header. They cover the viewport; do not leave a tools list visible beside
-them. Legacy `.rob` stays as a quiet action on Plan / Inputs. There is no
-`.mpb` inspector in the product: proprietary MultiPack files are not decoded.
-
-Tools are not steps. Each tool declares its prerequisites through
-`productionToolGate` (`src/features/planning-case/planningCaseModel.ts`):
-Editor and Robotics need a materialized stack, Simulation needs at least one
-calculated robot cycle, and Report opens for any project. A blocked tool
-names the missing prerequisite and links back to the step that resolves it;
-overlays must not re-implement their own gating.
-
-## Product language
-
-The product is the **Pallet planner** in metadata, the desktop and mobile
-chrome, and the exported report. Terms stay distinct:
-
-- **Project** — the persisted planning case (package, pallet, solutions).
-- **Plan** — what the user is building; a project contains it.
-- **Layout** — one generated layer pattern; a solver candidate.
-- **Stack** — the materialized sequence of layers with interlayers.
-- **Layer** — one physical tier of the stack.
-- **Robot cycle** — one calculated pick-and-place unit derived from the stack.
-- **`.rob` file** — the legacy robot plan format; opening one creates a
-  project.
-
-Rules:
-
-- There is no step tab strip. Back and Continue move one screen at a time.
-- Compact readout `2/3` sits on the current-step panel, not as skippable tabs.
-- Opening a project starts at the furthest completed step: empty → Inputs,
-  patterns without a stack → Generate, a saved stack → Stack. Imported `.rob`
-  stays on Plan.
-- Opening a `.rob` file **creates the project**. It is not a session
-  “reference” to recreate. If a `.rob` already exists, skip Generate /
-  Compare / Reference.
-- The plan field shows the current (or imported) layer only. Do not overlay a
-  second reference plan in the default chrome.
-
-## Components
-
-One design system covers every surface: planner chrome, dialogs, library,
-and the operator tools (Stack, Editor, Robotics, Simulation, Report). All of
-them follow the system light/dark scheme through the tokens. The only fixed
-dark area is the 3D / canvas stage itself (`--viewport*`), so geometry reads
-the same in both schemes. There is no separate zinc/amber operator palette.
-
-Shared primitives live in `src/components/ui/`; use them instead of
-hand-writing the markup:
-
-| Primitive                 | Use                                              |
-| ------------------------- | ------------------------------------------------ |
-| `Panel` / `PanelHeader`   | Bordered section with title, note, actions       |
-| `MetricRow`               | Label / mono value row inside a `<dl>`           |
-| `Field` / `NumberField`   | Label, control, inline error (raw text kept)     |
-| `StatusBadge` / `Notice`  | Status marker and inline message box             |
-| `ProgressBlock`           | Long-running progress with optional cancel       |
-| `Drawer`                  | Modal surface: `wide`, `narrow`, `dialog`; Escape closes, focus is trapped |
-
-Status meanings are one vocabulary (`statusTone.ts`): pass `--ok` ■,
-caution `--caution` ▲ (needs input, blocked step), blocked / failure
-`--danger` ×, observed `--measure` ◇, info `--info` ●, unknown `--muted` –.
-Map workspace states onto it (`toneForLedgerStatus`, `toneForReadiness`)
-instead of picking colours locally. One primary action per surface.
-
-Downloads go through `src/lib/download.ts`.
+Use one responsive application for phones and desktops. Main pages have no fixed
+minimum desktop width. On desktop forms/results sit beside the growing geometric
+stage. On mobile that stage is compact and expandable, actions remain reachable,
+and lists reflow into readable compact entries. Library filters collapse into a
+mobile disclosure. Dense engineering tables may scroll within their own surface,
+not widen the entire page. Do not resurrect a separate mobile planner with fewer
+capabilities.

@@ -105,6 +105,14 @@ const referenceRob = [
   "100 50 0 600 400 0 1 0 0",
 ].join("\n");
 
+async function openSavedPlan() {
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: "M5-EDITOR öffnen" }),
+  );
+}
 describe("PlannerProjectWorkspace editor integration", () => {
   it("guards a dirty editor, propagates its draft, and saves through the repository", async () => {
     const { project, repository } = await repositoryWithProject();
@@ -116,6 +124,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         onUnsavedChange={onUnsavedChange}
       />,
     );
+    await openSavedPlan();
     expect(
       await screen.findByRole(
         "heading",
@@ -123,7 +132,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Editor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
     expect(await screen.findByTestId("project-editor-workspace")).toBeTruthy();
 
     const packageRect = document.querySelector<SVGRectElement>(
@@ -145,14 +154,12 @@ describe("PlannerProjectWorkspace editor integration", () => {
     await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(true));
 
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
     expect(confirm).toHaveBeenCalledWith(
-      "Open planner projects and discard unsaved changes in Pattern editor?",
+      "Planliste öffnen: Ungespeicherte Änderungen verwerfen?",
     );
     expect(screen.getByTestId("project-editor-workspace")).toBeTruthy();
-    expect(
-      screen.queryByRole("dialog", { name: "Planner projects" }),
-    ).toBeNull();
+    expect(screen.queryByRole("region", { name: "Planbibliothek" })).toBeNull();
     confirm.mockRestore();
 
     fireEvent.click(screen.getByRole("button", { name: "Flow" }));
@@ -175,6 +182,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     const { project, repository } = await repositoryWithProject();
 
     render(<PlannerProjectWorkspace repository={repository} />);
+    await openSavedPlan();
     expect(
       await screen.findByRole(
         "heading",
@@ -182,10 +190,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
     expect(
-      screen.getByRole("heading", { name: "Project inputs" }),
+      await screen.findByRole("region", { name: "Planbibliothek" }),
     ).toBeTruthy();
 
     const input = document.querySelector<HTMLInputElement>(
@@ -206,16 +213,16 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    expect(await screen.findAllByText("reference.rob")).not.toHaveLength(0);
+    expect(await screen.findByText("Importierter Plan")).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Imported .rob plan" }),
+      screen.getByRole("heading", { name: "Plan im Überblick" }),
     ).toBeTruthy();
     expect(
       screen.queryByRole("navigation", { name: "Planning workflow" }),
     ).toBeNull();
     expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect(screen.queryByText("Footprint recreation")).toBeNull();
-    expect(screen.getAllByText("Imported plan").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Imported plan")).toHaveLength(1);
 
     await waitFor(async () => {
       const listed = (await repository.listProjects()).projects;
