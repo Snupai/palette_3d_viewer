@@ -51,7 +51,8 @@ export type SolverPackageInput = {
 export type RequiredCandidateShape = "any" | "rectangular-block";
 
 export type RectangularBlockFootprintPolicy =
-  "fill-generation-bounds" | "compact-centered";
+  | "fill-generation-bounds"
+  | "compact-centered";
 
 export type SolverInputConstraints = {
   allowedRotations?: readonly Rotation[];

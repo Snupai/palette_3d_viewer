@@ -63,7 +63,7 @@ export function StackResultPanel({
         {warnings.length === 0 ? (
           <p className="text-muted mt-2">No stack warnings.</p>
         ) : (
-          <ul className="text-muted mt-2 max-h-52 scrollbar-thin space-y-1 overflow-auto pr-2">
+          <ul className="text-muted scrollbar-thin mt-2 max-h-52 space-y-1 overflow-auto pr-2">
             {warnings.map((warning) => (
               <li key={warning.id} className="border-line border-b pb-1">
                 <span

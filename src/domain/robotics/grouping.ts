@@ -80,7 +80,7 @@ export function contiguousSuctionGroupSizes(
     : null;
   const groupSizes: number[] = [];
 
-  for (let start = 0; start < packageCount;) {
+  for (let start = 0; start < packageCount; ) {
     const groupSize = start === singletonIndex ? 1 : groupCapacity;
     groupSizes.push(Math.min(groupSize, packageCount - start));
     start += groupSize;

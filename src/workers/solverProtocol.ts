@@ -73,7 +73,9 @@ export type SolverErrorMessage = {
 };
 
 export type SolverWorkerResponse =
-  SolverProgressMessage | SolverCompleteMessage | SolverErrorMessage;
+  | SolverProgressMessage
+  | SolverCompleteMessage
+  | SolverErrorMessage;
 
 export function serializeSolverError(error: unknown): SerializedSolverError {
   if (error instanceof Error) {

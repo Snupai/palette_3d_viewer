@@ -653,7 +653,8 @@ export function RoboticsWorkspace({
                       onSettingsChange({
                         ...settings,
                         pickReferenceStatus: event.target.value as
-                          "verified" | "unverified",
+                          | "verified"
+                          | "unverified",
                       })
                     }
                     className={inputClass}

@@ -223,7 +223,10 @@ function candidateVariant(
         y: placement.positionMm.y,
       },
       rotation: ((placement.rotation + rotationOffset) % 360) as
-        0 | 90 | 180 | 270,
+        | 0
+        | 90
+        | 180
+        | 270,
     })),
     grips: source.grips.map((grip) => ({
       ...grip,

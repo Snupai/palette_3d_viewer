@@ -161,7 +161,7 @@ export function ProjectLibrary({
         </label>
       </div>
 
-      <div className="min-h-[160px] flex-1 scrollbar-thin overflow-auto p-2">
+      <div className="scrollbar-thin min-h-[160px] flex-1 overflow-auto p-2">
         {loading ? (
           <p className="text-micro text-muted p-2">Loading projects…</p>
         ) : projects.length === 0 ? (

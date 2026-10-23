@@ -20,7 +20,9 @@ export const REGION_WORK_KINDS = [
 export type RegionWorkKind = (typeof REGION_WORK_KINDS)[number];
 
 export type RegionSearchStopReason =
-  "work-budget-exhausted" | "frontier-budget-exhausted" | "cancelled";
+  | "work-budget-exhausted"
+  | "frontier-budget-exhausted"
+  | "cancelled";
 
 export type RegionWorkDecision = "continue" | RegionSearchStopReason;
 

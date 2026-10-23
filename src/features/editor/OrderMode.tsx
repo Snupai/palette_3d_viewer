@@ -430,7 +430,7 @@ export function OrderMode({
               The current order satisfies all known dependencies.
             </p>
           ) : (
-            <ul className="mt-2 max-h-48 scrollbar-thin space-y-2 overflow-auto pr-1">
+            <ul className="scrollbar-thin mt-2 max-h-48 space-y-2 overflow-auto pr-1">
               {diagnostics.map((diagnostic, index) => (
                 <li
                   key={`${diagnostic.code}-${diagnostic.message}-${index}`}

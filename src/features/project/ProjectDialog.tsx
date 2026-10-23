@@ -237,7 +237,7 @@ function ModalProjectDialog({
             </button>
           </header>
 
-          <div className="min-h-0 flex-1 scrollbar-thin overflow-y-auto">
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto">
             <div className="grid gap-5 p-5">
               {failure ? (
                 <div

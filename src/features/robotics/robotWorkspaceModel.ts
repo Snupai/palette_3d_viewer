@@ -28,7 +28,10 @@ export type RobotWorkspaceSettings = {
 };
 
 export type WorkspaceUnknownFieldMode =
-  "block" | "preserve-imported" | "from-cycle-or-zero" | "explicit-values";
+  | "block"
+  | "preserve-imported"
+  | "from-cycle-or-zero"
+  | "explicit-values";
 
 export type RobotExportWorkspaceSettings = {
   quantization: NonNullable<RobExportOptions["quantization"]>["mode"];

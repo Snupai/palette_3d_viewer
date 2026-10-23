@@ -73,7 +73,8 @@ type ActiveRun = {
 };
 
 function createSharedCancellation():
-  { message: SolverCancellationSignal; view: Int32Array } | undefined {
+  | { message: SolverCancellationSignal; view: Int32Array }
+  | undefined {
   if (typeof SharedArrayBuffer !== "function") return undefined;
   try {
     const buffer = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);

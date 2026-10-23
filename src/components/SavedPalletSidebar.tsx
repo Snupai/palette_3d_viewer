@@ -91,7 +91,7 @@ export function SavedPalletSidebar({
           Reset Filters
         </button>
       </div>
-      <div className="flex max-h-[70vh] scrollbar-thin flex-col gap-1 overflow-auto pr-1">
+      <div className="scrollbar-thin flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1">
         {filteredSaved.length === 0 && (
           <div className="text-muted">No saved pallets yet.</div>
         )}

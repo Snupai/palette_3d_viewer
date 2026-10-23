@@ -21,7 +21,9 @@ export type CorpusParityStatus = (typeof CORPUS_PARITY_STATUSES)[number];
 
 export type JsonPrimitive = string | number | boolean | null;
 export type JsonValue =
-  JsonPrimitive | JsonValue[] | { [key: string]: JsonValue };
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
 
 export type CorpusMismatch = {
   path: string;

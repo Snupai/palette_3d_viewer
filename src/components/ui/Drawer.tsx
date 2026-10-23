@@ -105,7 +105,7 @@ export function Drawer({
             Close
           </button>
         </header>
-        <div className="min-h-0 scrollbar-thin overflow-auto">{children}</div>
+        <div className="scrollbar-thin min-h-0 overflow-auto">{children}</div>
       </section>
     </div>
   );

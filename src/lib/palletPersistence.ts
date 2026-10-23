@@ -209,7 +209,8 @@ export type PalletStorageLoadResult = {
 };
 
 type NormalizedPallet =
-  { pallet: SavedPallet; repaired: boolean } | { issue: PalletStorageIssue };
+  | { pallet: SavedPallet; repaired: boolean }
+  | { issue: PalletStorageIssue };
 
 function savedPallet(value: z.infer<typeof savedPalletSchema>): SavedPallet {
   return value as SavedPallet;

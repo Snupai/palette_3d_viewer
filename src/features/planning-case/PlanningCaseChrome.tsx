@@ -41,8 +41,8 @@ export function PlanningCandidateIndex({
   );
   const selectedOutsideTopRows = Boolean(
     selectedCandidate &&
-    rowLimit > 0 &&
-    !topRows.some(({ id }) => id === selectedCandidate.id),
+      rowLimit > 0 &&
+      !topRows.some(({ id }) => id === selectedCandidate.id),
   );
   const rows = selectedOutsideTopRows
     ? [...topRows.slice(0, rowLimit - 1), selectedCandidate!]
@@ -134,7 +134,7 @@ export function PlanningCandidateIndex({
       <div
         role="listbox"
         aria-label="Generated pattern layouts"
-        className="min-h-0 scrollbar-thin overflow-auto"
+        className="scrollbar-thin min-h-0 overflow-auto"
       >
         <table className="text-micro w-full border-collapse whitespace-nowrap">
           <thead className="bg-surface text-micro text-muted sticky top-0 z-10 text-left">
@@ -266,7 +266,7 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
           G generated · O observed · ? unknown
         </p>
       </header>
-      <div className="min-h-0 scrollbar-thin overflow-auto">
+      <div className="scrollbar-thin min-h-0 overflow-auto">
         {rows.map((row) => (
           <details
             key={row.id}
@@ -352,7 +352,7 @@ function StripRow({
       <div className="border-line text-micro text-muted flex items-center border-r px-2 font-semibold">
         {label}
       </div>
-      <div className="flex min-w-0 scrollbar-thin overflow-x-auto">
+      <div className="scrollbar-thin flex min-w-0 overflow-x-auto">
         {items.length === 0 ? (
           <span className="text-micro text-muted px-3 py-2">
             No layer sequence

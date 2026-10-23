@@ -24,7 +24,10 @@ export type RobSignConvention = {
   yawOffsetDeg: number;
   provenance: {
     status:
-      "verified" | "repository-behavior" | "project-defined" | "unverified";
+      | "verified"
+      | "repository-behavior"
+      | "project-defined"
+      | "unverified";
     source: string;
   };
 };

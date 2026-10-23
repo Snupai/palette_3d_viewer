@@ -40,7 +40,7 @@ export function StackLayerSequence({
         Each row is one physical layer. Set requested layers to 1 to build
         exactly one layer, then choose its transform below.
       </p>
-      <div className="border-line max-h-[360px] scrollbar-thin overflow-auto border">
+      <div className="border-line scrollbar-thin max-h-[360px] overflow-auto border">
         <table className="ui-table min-w-[600px]">
           <thead>
             <tr>

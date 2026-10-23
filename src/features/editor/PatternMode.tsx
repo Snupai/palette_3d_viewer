@@ -392,7 +392,7 @@ export function PatternMode({
                   ))}
                 </select>
               </label>
-              <div className="border-line max-h-36 scrollbar-thin overflow-auto border">
+              <div className="border-line scrollbar-thin max-h-36 overflow-auto border">
                 <table className="text-micro w-full text-left">
                   <thead className="bg-canvas text-muted sticky top-0">
                     <tr>
@@ -558,7 +558,7 @@ export function PatternMode({
               No pattern, grouping, or order diagnostics.
             </p>
           ) : (
-            <ul className="mt-2 max-h-48 scrollbar-thin space-y-2 overflow-auto pr-1">
+            <ul className="scrollbar-thin mt-2 max-h-48 space-y-2 overflow-auto pr-1">
               {diagnostics.map((diagnostic, index) => (
                 <li
                   key={`${diagnostic.code}-${diagnostic.message}-${index}`}

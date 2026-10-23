@@ -197,7 +197,7 @@ export function CandidateBrowser({
         }
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="focus-visible:ring-focus min-h-0 scrollbar-thin overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
+        className="focus-visible:ring-focus scrollbar-thin min-h-0 overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         <table
           role="presentation"
@@ -315,7 +315,7 @@ export function CandidateBrowser({
               Solver diagnostics ({diagnostics.length}) and exclusions (
               {exclusions.length})
             </summary>
-            <div className="mt-2 max-h-32 scrollbar-thin overflow-auto pr-2">
+            <div className="scrollbar-thin mt-2 max-h-32 overflow-auto pr-2">
               {diagnostics.length === 0 && exclusions.length === 0 ? (
                 <p className="text-muted">No diagnostics or exclusions.</p>
               ) : (

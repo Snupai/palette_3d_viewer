@@ -9,7 +9,11 @@ import {
 } from "~/features/project/projectForm";
 
 export type GuidedSectionId =
-  "package" | "pallet" | "limits" | "handling" | "meta";
+  | "package"
+  | "pallet"
+  | "limits"
+  | "handling"
+  | "meta";
 
 export const guidedSectionOrder: readonly GuidedSectionId[] = [
   "package",

@@ -400,8 +400,8 @@ function remapWitness(
     return Object.freeze({
       ...witness,
       rotationSystemRelationIds: Object.freeze(
-        witness.rotationSystemRelationIds.map((relationId) =>
-          canonicalRelationIdByOriginal.get(relationId)!,
+        witness.rotationSystemRelationIds.map(
+          (relationId) => canonicalRelationIdByOriginal.get(relationId)!,
         ),
       ),
     });
@@ -415,8 +415,8 @@ function remapWitness(
         Object.freeze({
           spineSlotId: canonicalSlotIdByOriginal.get(spine.spineSlotId)!,
           attachmentSlotIds: Object.freeze(
-            spine.attachmentSlotIds.map((slotId) =>
-              canonicalSlotIdByOriginal.get(slotId)!,
+            spine.attachmentSlotIds.map(
+              (slotId) => canonicalSlotIdByOriginal.get(slotId)!,
             ),
           ) as readonly [string, string],
         }),
@@ -640,8 +640,8 @@ function canonicalEmbedding(
   const reverseOrientation = symmetryReversesOrientation(symmetry);
   const rotationSystem = embedding.rotationSystem
     .map(({ slotId, relationIdsClockwise }) => {
-      const relationIds = relationIdsClockwise.map((relationId) =>
-        canonicalRelationIdByOriginal.get(relationId)!,
+      const relationIds = relationIdsClockwise.map(
+        (relationId) => canonicalRelationIdByOriginal.get(relationId)!,
       );
       if (reverseOrientation) relationIds.reverse();
       return Object.freeze({
@@ -655,8 +655,8 @@ function canonicalEmbedding(
     return Object.freeze({ rotationSystem: Object.freeze(rotationSystem) });
   }
 
-  const relationIds = embedding.directedBoundary.relationIds.map((relationId) =>
-    canonicalRelationIdByOriginal.get(relationId)!,
+  const relationIds = embedding.directedBoundary.relationIds.map(
+    (relationId) => canonicalRelationIdByOriginal.get(relationId)!,
   );
   if (reverseOrientation) relationIds.reverse();
   return Object.freeze({
