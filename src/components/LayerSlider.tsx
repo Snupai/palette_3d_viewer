@@ -99,7 +99,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
           })}
         </div>
       </div>
-      <span className="font-mono text-micro text-muted tabular-nums">
+      <span className="text-micro text-muted font-mono tabular-nums">
         {clamped}/{layerCount}
       </span>
     </div>

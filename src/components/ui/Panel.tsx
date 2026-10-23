@@ -23,10 +23,14 @@ export function Panel({
   return (
     <Tag
       aria-label={ariaLabel}
-      className={`min-w-0 border border-line bg-surface text-ink ${className}`}
+      className={`border-line bg-surface text-ink min-w-0 border ${className}`}
     >
       {title !== undefined ? (
-        <PanelHeader title={title} description={description} actions={actions} />
+        <PanelHeader
+          title={title}
+          description={description}
+          actions={actions}
+        />
       ) : null}
       {children !== undefined ? (
         <div className={bodyClassName}>{children}</div>
@@ -45,11 +49,11 @@ export function PanelHeader({
   actions?: ReactNode;
 }) {
   return (
-    <header className="flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-line px-3 py-2">
+    <header className="border-line flex min-h-10 flex-wrap items-center gap-x-3 gap-y-1.5 border-b px-3 py-2">
       <div className="mr-auto min-w-0">
-        <h2 className="truncate text-body font-semibold text-ink">{title}</h2>
+        <h2 className="text-body text-ink truncate font-semibold">{title}</h2>
         {description ? (
-          <p className="mt-0.5 text-micro text-muted">{description}</p>
+          <p className="text-micro text-muted mt-0.5">{description}</p>
         ) : null}
       </div>
       {actions ? (
@@ -70,16 +74,14 @@ export function MetricRow({
   tone?: string;
 }) {
   return (
-    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b border-line py-1.5 last:border-b-0">
+    <div className="border-line grid grid-cols-[minmax(0,1fr)_auto] gap-3 border-b py-1.5 last:border-b-0">
       <dt className="text-micro text-muted">{label}</dt>
-      <dd className={`font-mono text-micro ${tone ?? "text-ink"}`}>{value}</dd>
+      <dd className={`text-micro font-mono ${tone ?? "text-ink"}`}>{value}</dd>
     </div>
   );
 }
 
 /** Small uppercase-free section label used above groups of fields. */
 export function SectionLabel({ children }: { children: ReactNode }) {
-  return (
-    <h3 className="text-micro font-semibold text-muted">{children}</h3>
-  );
+  return <h3 className="text-micro text-muted font-semibold">{children}</h3>;
 }

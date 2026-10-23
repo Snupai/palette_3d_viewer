@@ -208,10 +208,7 @@ export class MemoryPlannerRecordStorage implements PlannerRecordStorage {
 }
 
 export type ProjectSortField =
-  | "updatedAt"
-  | "createdAt"
-  | "projectNumber"
-  | "productNumber";
+  "updatedAt" | "createdAt" | "projectNumber" | "productNumber";
 export type SortDirection = "asc" | "desc";
 
 export type ProjectListOptions = {

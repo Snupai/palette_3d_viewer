@@ -462,8 +462,8 @@ function relationHolds(
       const second = bounds(relation.second.slotId);
       return Boolean(
         first &&
-          second &&
-          contactRelationHolds(relation, first, second, clearanceMm),
+        second &&
+        contactRelationHolds(relation, first, second, clearanceMm),
       );
     }
     case "align": {
@@ -471,11 +471,11 @@ function relationHolds(
       const second = bounds(relation.secondSlotId);
       return Boolean(
         first &&
-          second &&
-          approximatelyEqual(
-            alignedCoordinate(first, relation.axis, relation.edge),
-            alignedCoordinate(second, relation.axis, relation.edge),
-          ),
+        second &&
+        approximatelyEqual(
+          alignedCoordinate(first, relation.axis, relation.edge),
+          alignedCoordinate(second, relation.axis, relation.edge),
+        ),
       );
     }
     case "span": {
@@ -515,11 +515,11 @@ function relationHolds(
       const region = bounds(relation.port.slotId);
       return Boolean(
         region &&
-          sideAxis(relation.port.side) === sideAxis(relation.frameSide) &&
-          approximatelyEqual(
-            sideValue(region, relation.port.side),
-            sideValue(frameBoundsMm, relation.frameSide),
-          ),
+        sideAxis(relation.port.side) === sideAxis(relation.frameSide) &&
+        approximatelyEqual(
+          sideValue(region, relation.port.side),
+          sideValue(frameBoundsMm, relation.frameSide),
+        ),
       );
     }
     case "containment": {
@@ -527,12 +527,12 @@ function relationHolds(
       const contained = bounds(relation.containedSlotId);
       return Boolean(
         container &&
-          contained &&
-          rectangleBoundsContain(
-            container,
-            contained,
-            SOLVER_GEOMETRY_EPSILON_MM,
-          ),
+        contained &&
+        rectangleBoundsContain(
+          container,
+          contained,
+          SOLVER_GEOMETRY_EPSILON_MM,
+        ),
       );
     }
   }
@@ -562,13 +562,13 @@ function guillotineRelationHolds(
   const second = boundsBySlotId.get(relation.second.slotId);
   return Boolean(
     first &&
-      second &&
-      contactRelationHolds(
-        Object.freeze({ ...relation, gap: "residual-seam" }),
-        first,
-        second,
-        clearanceMm,
-      ),
+    second &&
+    contactRelationHolds(
+      Object.freeze({ ...relation, gap: "residual-seam" }),
+      first,
+      second,
+      clearanceMm,
+    ),
   );
 }
 
@@ -594,10 +594,7 @@ function structuralNodeMap(
 
 type PinwheelArmIndex = 0 | 1 | 2 | 3;
 type PinwheelResidualMode =
-  | "regions-balanced"
-  | "first-region"
-  | "second-region"
-  | "seam";
+  "regions-balanced" | "first-region" | "second-region" | "seam";
 type PinwheelAxisResidualAllocation = Readonly<{
   firstExtraMm: number;
   secondExtraMm: number;
@@ -1278,13 +1275,13 @@ function embeddedBridgeRelationHolds(
   const second = boundsBySlotId.get(relation.second.slotId);
   return Boolean(
     first &&
-      second &&
-      contactRelationHolds(
-        Object.freeze({ ...relation, gap: "residual-seam" }),
-        first,
-        second,
-        clearanceMm,
-      ),
+    second &&
+    contactRelationHolds(
+      Object.freeze({ ...relation, gap: "residual-seam" }),
+      first,
+      second,
+      clearanceMm,
+    ),
   );
 }
 

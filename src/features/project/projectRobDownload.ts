@@ -4,8 +4,7 @@ import { stackLayerCount } from "~/features/planning-case/planningCaseModel";
 import { exportProjectRobDownload } from "~/features/robotics/robotWorkspaceModel";
 
 export type LibraryRobDownload =
-  | { ok: true; fileName: string; text: string }
-  | { ok: false; message: string };
+  { ok: true; fileName: string; text: string } | { ok: false; message: string };
 
 /**
  * A project has a .rob plan when it keeps the imported file's text, or when

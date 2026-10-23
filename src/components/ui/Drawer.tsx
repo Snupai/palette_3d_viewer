@@ -96,20 +96,16 @@ export function Drawer({
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
-        className={`relative grid min-w-0 grid-rows-[44px_minmax(0,1fr)] bg-surface text-ink outline-none ${layout}`}
+        className={`bg-surface text-ink relative grid min-w-0 grid-rows-[44px_minmax(0,1fr)] outline-none ${layout}`}
       >
-        <header className="app-chrome flex items-center gap-2 border-b border-line px-3">
-          <h2 className="mr-auto truncate text-body font-semibold">{title}</h2>
+        <header className="app-chrome border-line flex items-center gap-2 border-b px-3">
+          <h2 className="text-body mr-auto truncate font-semibold">{title}</h2>
           {actions}
-          <button
-            type="button"
-            onClick={onClose}
-            className="ui-btn ui-btn-sm"
-          >
+          <button type="button" onClick={onClose} className="ui-btn ui-btn-sm">
             Close
           </button>
         </header>
-        <div className="scrollbar-thin min-h-0 overflow-auto">{children}</div>
+        <div className="min-h-0 scrollbar-thin overflow-auto">{children}</div>
       </section>
     </div>
   );

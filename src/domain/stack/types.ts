@@ -4,10 +4,7 @@ import type { GeneratorProvenance } from "~/domain/solver/types";
 import type { Rotation, Side } from "~/domain/palletTypes";
 
 export type MetricProvenanceStatus =
-  | "verified"
-  | "derived"
-  | "unverified"
-  | "unknown";
+  "verified" | "derived" | "unverified" | "unknown";
 
 export type MetricProvenance = {
   status: MetricProvenanceStatus;
@@ -81,8 +78,7 @@ export type SolverCandidatePatternProvenance = {
 };
 
 export type StackPatternProvenance =
-  | ProjectPatternProvenance
-  | SolverCandidatePatternProvenance;
+  ProjectPatternProvenance | SolverCandidatePatternProvenance;
 
 export type StackPatternOrderDependency = {
   beforeGripId: string;
@@ -285,9 +281,7 @@ export type MaterializedPackageLayer = {
 };
 
 export type MaterializedSheetRole =
-  | "base-sheet"
-  | "between-layers"
-  | "deck-sheet";
+  "base-sheet" | "between-layers" | "deck-sheet";
 
 export type MaterializedSheetRule =
   | "base-sheet"
@@ -314,8 +308,7 @@ export type MaterializedSheet = {
 };
 
 export type MaterializedPhysicalItem =
-  | MaterializedPackageLayer
-  | MaterializedSheet;
+  MaterializedPackageLayer | MaterializedSheet;
 
 export type NamedMetricOperand = {
   name: string;
@@ -461,10 +454,7 @@ export type MaterializedStackResult = {
 };
 
 export type StackCapacityStatus =
-  | "calculated"
-  | "empty-sequence"
-  | "impossible"
-  | "invalid-input";
+  "calculated" | "empty-sequence" | "impossible" | "invalid-input";
 
 export type StackCapacityResult = {
   status: StackCapacityStatus;

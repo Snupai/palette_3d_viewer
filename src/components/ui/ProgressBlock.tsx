@@ -18,9 +18,9 @@ export function ProgressBlock({
   const safeCompleted = Math.min(Math.max(0, completed), safeTotal);
   return (
     <div className="grid gap-1.5" aria-live="polite">
-      <div className="flex items-baseline gap-2 text-micro">
-        <span className="mr-auto font-semibold text-ink">{label}</span>
-        <span className="font-mono text-muted">
+      <div className="text-micro flex items-baseline gap-2">
+        <span className="text-ink mr-auto font-semibold">{label}</span>
+        <span className="text-muted font-mono">
           {safeCompleted}/{safeTotal}
         </span>
         {onCancel ? (
@@ -34,12 +34,12 @@ export function ProgressBlock({
         ) : null}
       </div>
       <progress
-        className="h-1 w-full appearance-none overflow-hidden bg-line [&::-moz-progress-bar]:bg-brand [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:bg-brand"
+        className="bg-line [&::-moz-progress-bar]:bg-brand [&::-webkit-progress-bar]:bg-line [&::-webkit-progress-value]:bg-brand h-1 w-full appearance-none overflow-hidden"
         max={safeTotal || 1}
         value={safeTotal === 0 ? 0 : safeCompleted}
       />
       {detail ? (
-        <p className="truncate font-mono text-micro text-muted">{detail}</p>
+        <p className="text-micro text-muted truncate font-mono">{detail}</p>
       ) : null}
     </div>
   );

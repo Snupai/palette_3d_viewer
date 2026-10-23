@@ -371,8 +371,7 @@ export function createViewerSceneController({
       for (const label of sceneBuild.layerLabels) {
         label.object.quaternion.copy(camera.quaternion);
         const bounds = label.object.userData.layerBounds as
-          | LayerLabelBounds
-          | undefined;
+          LayerLabelBounds | undefined;
         if (!bounds) continue;
         // Camera right vector in the label parent's frame (scene is Z-up).
         labelRight.set(1, 0, 0).applyQuaternion(camera.quaternion);

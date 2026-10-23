@@ -178,7 +178,7 @@ export function LayerCanvas({
   };
 
   return (
-    <div className="min-h-[60vh] overflow-hidden border border-line bg-surface p-3 focus-within:border-focus lg:min-h-0">
+    <div className="border-line bg-surface focus-within:border-focus min-h-[60vh] overflow-hidden border p-3 lg:min-h-0">
       <p id={instructionsId} className="sr-only">
         Keyboard controls: Tab to focus the canvas. Home and End select the
         first and last grip. Page Up or left bracket selects the previous grip;
@@ -206,7 +206,7 @@ export function LayerCanvas({
         aria-label={`Top-down editor for unique layer ${uniqueLayerId}`}
         aria-describedby={`${instructionsId} ${selectionStatusId}`}
         tabIndex={0}
-        className="h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus lg:min-h-0"
+        className="focus-visible:outline-focus h-full min-h-[calc(60vh-1.5rem)] w-full touch-none focus-visible:outline-2 focus-visible:outline-offset-[-2px] lg:min-h-0"
         onFocus={ensureKeyboardSelection}
         onKeyDown={handleKeyDown}
         onPointerDown={(event) => {
@@ -326,7 +326,7 @@ export function LayerCanvas({
                     {path ? (
                       <path
                         d={path}
-                        className="fill-none stroke-measure"
+                        className="stroke-measure fill-none"
                         strokeWidth={3.5}
                         strokeLinecap="round"
                         strokeLinejoin="round"

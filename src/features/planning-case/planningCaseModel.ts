@@ -54,8 +54,7 @@ export function planningStageForProject(
 }
 
 export type ProductionToolGateAction =
-  | { kind: "stage"; stage: PlanningStage }
-  | { kind: "tool"; tool: string };
+  { kind: "stage"; stage: PlanningStage } | { kind: "tool"; tool: string };
 
 export type ProductionToolGate =
   | { ready: true }
@@ -230,11 +229,7 @@ export function comparePatternPreviews(
 }
 
 export type ValidationStatus =
-  | "PASS"
-  | "FAIL"
-  | "BLOCKED"
-  | "OBSERVED"
-  | "SKIPPED";
+  "PASS" | "FAIL" | "BLOCKED" | "OBSERVED" | "SKIPPED";
 
 export type ValidationEvidence = "G" | "O" | "?";
 

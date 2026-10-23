@@ -31,10 +31,7 @@ export const DEFAULT_ROBOT_TIMELINE_CONFIG: RobotTimelineConfig = {
 };
 
 export type RobotTimelineSegmentKind =
-  | RobotMotionSegmentKind
-  | "pick-dwell"
-  | "place-dwell"
-  | "between-cycle-dwell";
+  RobotMotionSegmentKind | "pick-dwell" | "place-dwell" | "between-cycle-dwell";
 
 export type RobotTimelineSegment = {
   id: string;

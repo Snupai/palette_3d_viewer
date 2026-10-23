@@ -54,9 +54,7 @@ export type CandidateIdentityInput = {
 };
 
 type Presence<T> =
-  | { state: "unknown" }
-  | { state: "none" }
-  | { state: "known"; value: T };
+  { state: "unknown" } | { state: "none" } | { state: "known"; value: T };
 
 const rotations = new Set<Rotation>([0, 90, 180, 270]);
 

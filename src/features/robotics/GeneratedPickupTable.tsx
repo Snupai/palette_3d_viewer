@@ -24,7 +24,7 @@ export function GeneratedPickupTable({
   materialization: RobotCycleMaterialization;
 }) {
   return (
-    <div className="scrollbar-thin border-line overflow-auto border-t">
+    <div className="border-line scrollbar-thin overflow-auto border-t">
       <table className="ui-table min-w-[1120px]">
         <thead>
           <tr>

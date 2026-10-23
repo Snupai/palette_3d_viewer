@@ -4,12 +4,7 @@
  * same meaning always gets the same colour and symbol.
  */
 export type StatusTone =
-  | "pass"
-  | "caution"
-  | "blocked"
-  | "observed"
-  | "info"
-  | "unknown";
+  "pass" | "caution" | "blocked" | "observed" | "info" | "unknown";
 
 export const statusToneText: Record<StatusTone, string> = {
   pass: "text-ok",

@@ -128,7 +128,7 @@ export function LayerPattern({
             1,
             preview.effectiveEnvelopeMm.maxY - preview.effectiveEnvelopeMm.minY,
           )}
-          className="fill-none stroke-muted"
+          className="stroke-muted fill-none"
           strokeWidth={1.5}
           strokeDasharray="6 4"
           vectorEffect="non-scaling-stroke"
@@ -147,7 +147,7 @@ export function LayerPattern({
             1,
             preview.generationBoundsMm.maxY - preview.generationBoundsMm.minY,
           )}
-          className="fill-none stroke-info"
+          className="stroke-info fill-none"
           strokeWidth={1.5}
           strokeDasharray="3 3"
           vectorEffect="non-scaling-stroke"
@@ -222,7 +222,7 @@ export function LayerPattern({
               <path
                 d={path}
                 data-label-side={item.labelSide}
-                className="fill-none stroke-measure"
+                className="stroke-measure fill-none"
                 strokeWidth={3}
                 strokeLinecap="round"
                 strokeLinejoin="round"

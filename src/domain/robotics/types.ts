@@ -164,9 +164,7 @@ export type RobotGripGroup = {
   sourceCycleId: string | null;
   sourceSequence: number | null;
   groupingSource:
-    | "explicit-project-cycle"
-    | "explicit-pattern-grip"
-    | "suction-adjacency-v1";
+    "explicit-project-cycle" | "explicit-pattern-grip" | "suction-adjacency-v1";
 };
 
 export type LegacyRobUnknownFields = {
@@ -207,9 +205,7 @@ export type RobotCycleProvenance = {
   coordinateConvention: string;
   tcpOffsetConvention: "tcp-to-grasp-vector-subtracted" | "already-encoded";
   signConventionStatus:
-    | "repository-behavior"
-    | "project-defined"
-    | "unverified";
+    "repository-behavior" | "project-defined" | "unverified";
 };
 
 /**

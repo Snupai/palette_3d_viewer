@@ -1385,19 +1385,17 @@ describe("candidate canonicalization and geometric deduplication", () => {
     };
     const symmetryDrafts = (
       ["mirror-x", "mirror-y", "rotate-180"] as const
-    ).map(
-      (symmetry): GeneratedCandidateDraft => ({
-        placements: transformPlacements(
-          basePlacements,
-          input.generationBoundsMm,
-          symmetry,
-        ),
-        provenance: [
-          { family: "row", variant: "base-layout" },
-          { family: "symmetry", variant: symmetry, symmetry },
-        ],
-      }),
-    );
+    ).map((symmetry): GeneratedCandidateDraft => ({
+      placements: transformPlacements(
+        basePlacements,
+        input.generationBoundsMm,
+        symmetry,
+      ),
+      provenance: [
+        { family: "row", variant: "base-layout" },
+        { family: "symmetry", variant: symmetry, symmetry },
+      ],
+    }));
     const oppositeDirectedYawDraft: GeneratedCandidateDraft = {
       placements: basePlacements.map((placement) => ({
         ...placement,

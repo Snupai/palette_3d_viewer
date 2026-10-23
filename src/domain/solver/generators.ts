@@ -2864,8 +2864,7 @@ function pinwheelPlacements(
 type PinwheelChirality = "cross-bottom-left" | "lengthwise-bottom-left";
 
 type PinwheelSidePattern =
-  | "cross-bottom-lengthwise-top"
-  | "lengthwise-bottom-crosswise-top";
+  "cross-bottom-lengthwise-top" | "lengthwise-bottom-crosswise-top";
 
 type PinwheelResidualRegion = "bottom" | "top";
 
