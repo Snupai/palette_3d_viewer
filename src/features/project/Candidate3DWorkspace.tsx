@@ -13,7 +13,7 @@ export function Candidate3DWorkspace({
   cameraResetKey,
 }: Candidate3DWorkspaceProps) {
   return (
-    <div className="h-full min-h-[640px] overflow-hidden bg-viewport">
+    <div className="bg-viewport h-full min-h-[640px] overflow-hidden">
       {data ? (
         <RobViewer
           data={data}
@@ -22,7 +22,7 @@ export function Candidate3DWorkspace({
           showSceneControls
         />
       ) : (
-        <div className="flex h-full items-center justify-center text-sm text-viewport-ink/60">
+        <div className="text-body text-viewport-ink/60 flex h-full items-center justify-center">
           Select a generated candidate before opening 3D inspection.
         </div>
       )}

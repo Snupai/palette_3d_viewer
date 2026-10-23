@@ -23,7 +23,7 @@ export function ObstacleEditor({
   return (
     <div className="grid gap-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-muted text-xs leading-5">
+        <p className="text-muted text-micro leading-5">
           Add measured fixed objects in the station coordinate system. Without
           them, collision against individual station objects is not checked.
         </p>
@@ -47,7 +47,7 @@ export function ObstacleEditor({
         </button>
       </div>
       {obstacles.length === 0 ? (
-        <p className="border-line text-muted border border-dashed px-3 py-2 text-xs leading-5">
+        <p className="border-line text-muted text-micro border border-dashed px-3 py-2 leading-5">
           No fixed obstacles are modeled. Collision against individual station
           objects has not been checked.
         </p>

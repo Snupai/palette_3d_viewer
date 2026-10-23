@@ -42,8 +42,8 @@ export type ProjectLibraryProps = {
   onImport: (file: File) => void;
 };
 
-const controlClass = "ui-input text-xs";
-const buttonClass = "ui-btn text-xs";
+const controlClass = "ui-input text-micro";
+const buttonClass = "ui-btn text-micro";
 const itemActionClass = "ui-btn ui-btn-sm ui-btn-ghost";
 
 function projectTitle(project: Project): string {
@@ -89,14 +89,14 @@ export function ProjectLibrary({
   };
 
   return (
-    <aside className="app-chrome flex h-full min-h-0 w-full flex-col bg-surface">
-      <div className="grid gap-2 border-b border-line p-3">
+    <aside className="app-chrome bg-surface flex h-full min-h-0 w-full flex-col">
+      <div className="border-line grid gap-2 border-b p-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold text-ink">Projects</h2>
+          <h2 className="text-body text-ink font-semibold">Projects</h2>
           <button
             type="button"
             onClick={onCreate}
-            className="ui-btn-primary px-2.5 py-1.5 text-xs"
+            className="ui-btn-primary text-micro px-2.5 py-1.5"
           >
             New
           </button>
@@ -110,7 +110,7 @@ export function ProjectLibrary({
           placeholder="ID, line, product, file…"
         />
         <div className="grid grid-cols-2 gap-2">
-          <label className="grid gap-1 text-micro text-muted">
+          <label className="text-micro text-muted grid gap-1">
             Line filter
             <input
               type="search"
@@ -123,7 +123,7 @@ export function ProjectLibrary({
               placeholder="Line no."
             />
           </label>
-          <label className="grid gap-1 text-micro text-muted">
+          <label className="text-micro text-muted grid gap-1">
             Product filter
             <input
               type="search"
@@ -137,7 +137,7 @@ export function ProjectLibrary({
             />
           </label>
         </div>
-        <label className="grid gap-1 text-micro text-muted">
+        <label className="text-micro text-muted grid gap-1">
           Sort
           <select
             value={`${sortBy}:${sortDirection}`}
@@ -161,11 +161,11 @@ export function ProjectLibrary({
         </label>
       </div>
 
-      <div className="scrollbar-thin min-h-[160px] flex-1 overflow-auto p-2">
+      <div className="min-h-[160px] flex-1 scrollbar-thin overflow-auto p-2">
         {loading ? (
-          <p className="p-2 text-xs text-muted">Loading projects…</p>
+          <p className="text-micro text-muted p-2">Loading projects…</p>
         ) : projects.length === 0 ? (
-          <p className="p-2 text-xs leading-5 text-muted">
+          <p className="text-micro text-muted p-2 leading-5">
             No projects match the current search.
           </p>
         ) : (
@@ -180,19 +180,19 @@ export function ProjectLibrary({
                   className={`group border ${
                     selected
                       ? "border-brand bg-plan-fill"
-                      : "border-transparent hover:border-line hover:bg-surface-hover"
+                      : "hover:border-line hover:bg-surface-hover border-transparent"
                   }`}
                 >
                   <button
                     type="button"
                     aria-current={selected ? "true" : undefined}
                     onClick={() => onSelect(project.id)}
-                    className="grid w-full min-w-0 gap-1 px-3 pt-2 pb-1 text-left focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none"
+                    className="focus-visible:ring-focus grid w-full min-w-0 gap-1 px-3 pt-2 pb-1 text-left focus-visible:ring-2 focus-visible:outline-none"
                   >
-                    <span className="truncate text-sm font-medium text-ink">
+                    <span className="text-body text-ink truncate font-medium">
                       {title}
                     </span>
-                    <span className="truncate text-xs text-muted">
+                    <span className="text-micro text-muted truncate">
                       {project.projectNumber || "No line number"}
                     </span>
                     <span className="text-micro text-muted">
@@ -252,7 +252,7 @@ export function ProjectLibrary({
                     ) : null}
                     {pendingDeleteId === project.id ? (
                       <span className="ml-auto flex items-center gap-0.5">
-                        <span className="px-1 text-micro text-danger">
+                        <span className="text-micro text-danger px-1">
                           Delete project?
                         </span>
                         <button
@@ -286,7 +286,7 @@ export function ProjectLibrary({
                             setPendingDeleteId(project.id);
                           }
                         }}
-                        className={`${itemActionClass} ml-auto text-danger hover:bg-danger/10`}
+                        className={`${itemActionClass} text-danger hover:bg-danger/10 ml-auto`}
                       >
                         Delete
                       </button>
@@ -299,7 +299,7 @@ export function ProjectLibrary({
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-line p-3">
+      <div className="border-line grid grid-cols-2 gap-2 border-t p-3">
         <button
           type="button"
           onClick={onExportAll}
@@ -307,7 +307,7 @@ export function ProjectLibrary({
         >
           Export all projects
         </button>
-        <label className="grid gap-1 text-micro text-muted">
+        <label className="text-micro text-muted grid gap-1">
           Project conflict
           <select
             aria-label="Project import conflict policy"
@@ -324,7 +324,7 @@ export function ProjectLibrary({
             <option value="overwrite">Overwrite existing</option>
           </select>
         </label>
-        <label className="grid gap-1 text-micro text-muted">
+        <label className="text-micro text-muted grid gap-1">
           Resource conflict
           <select
             aria-label="Resource import conflict policy"

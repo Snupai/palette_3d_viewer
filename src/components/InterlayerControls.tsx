@@ -15,7 +15,7 @@ function InterlayerButton({
       aria-pressed={enabled}
       aria-label={`${label}: Zwischenlage ${enabled ? "yes" : "no"}`}
       onClick={onClick}
-      className={`flex items-center gap-2 border px-2.5 py-1 text-xs font-medium transition ${
+      className={`text-micro flex items-center gap-2 border px-2.5 py-1 font-medium transition ${
         enabled
           ? "border-brand/40 bg-brand/10 text-brand hover:bg-brand/20"
           : "border-line bg-canvas text-muted hover:bg-surface-hover hover:text-ink"
@@ -23,7 +23,7 @@ function InterlayerButton({
     >
       <span>{label}</span>
       <span
-        className={`font-mono text-micro ${
+        className={`text-micro font-mono ${
           enabled ? "text-brand" : "text-muted"
         }`}
       >
@@ -49,15 +49,14 @@ export function InterlayerControls({
   return (
     <section
       aria-labelledby="interlayer-controls-title"
-      className="mb-3 border border-line bg-canvas px-3 py-2"
+      className="border-line bg-canvas mb-3 border px-3 py-2"
     >
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
         <h3
           id="interlayer-controls-title"
-          className="text-xs font-medium text-ink"
+          className="text-micro text-ink font-medium"
         >
-          Zwischenlagen{" "}
-          <span className="font-normal text-muted">(3 mm)</span>
+          Zwischenlagen <span className="text-muted font-normal">(3 mm)</span>
         </h3>
         <div className="flex flex-wrap gap-1.5">
           <InterlayerButton

@@ -214,7 +214,9 @@ export function StackWorkspace({
       description="Compose patterns A/B, edit the physical sequence, and materialize production metrics."
       actions={
         <>
-          <span className={`text-xs ${dirty ? "text-caution" : "text-muted"}`}>
+          <span
+            className={`text-micro ${dirty ? "text-caution" : "text-muted"}`}
+          >
             {dirty ? "Unsaved stack edits" : "Saved state"}
           </span>
           <button
@@ -223,7 +225,7 @@ export function StackWorkspace({
             disabled={
               saving || !materialized.result || state.layers.length === 0
             }
-            className="ui-btn-primary text-xs"
+            className="ui-btn-primary text-micro"
           >
             {saving ? "Saving…" : "Save stack and continue to Robotics"}
           </button>
@@ -273,7 +275,7 @@ export function StackWorkspace({
                   showSceneControls
                 />
               ) : (
-                <div className="text-viewport-ink/60 flex h-full min-h-[420px] items-center justify-center text-sm">
+                <div className="text-viewport-ink/60 text-body flex h-full min-h-[420px] items-center justify-center">
                   Build a stack to preview it in 3D.
                 </div>
               )}
@@ -287,12 +289,12 @@ export function StackWorkspace({
                     className="h-full min-h-[164px] w-full"
                   />
                 ) : (
-                  <div className="text-muted flex min-h-[164px] items-center justify-center text-xs">
+                  <div className="text-muted text-micro flex min-h-[164px] items-center justify-center">
                     No top layer
                   </div>
                 )}
               </div>
-              <p className="text-muted text-xs leading-5">
+              <p className="text-muted text-micro leading-5">
                 The 3D toolbar provides top, front, right-top, lifted-top, and
                 layer-label views.
               </p>

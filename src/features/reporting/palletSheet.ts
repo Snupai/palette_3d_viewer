@@ -26,7 +26,11 @@ export type PalletSheetInput = {
 };
 
 const COMPANY = "Szaidel Cosmetic GmbH";
-const BRAND = "#173159";
+const BRAND = "#f25316";
+const CARTON_TOP = "#e0b576";
+const CARTON_LEFT = "#c39759";
+const CARTON_RIGHT = "#ac7f45";
+const CARTON_EDGE = "#a57a43";
 const INK = "#1a1a1a";
 const MUTED = "#5e5e5e";
 const FRAME = "#9a9a9a";
@@ -86,7 +90,7 @@ function percent(value: number | null): string {
   return value === null ? "–" : `${formatSheetNumber(value)} %`;
 }
 
-/** Small isometric carton mark for the header, drawn with the brand navy. */
+/** Small isometric carton mark for the header, drawn in the kraft carton tones. */
 function brandMark(x: number, y: number, size: number): SheetPrimitive[] {
   const c = Math.cos(Math.PI / 6) * size;
   const h = size;
@@ -105,13 +109,13 @@ function brandMark(x: number, y: number, size: number): SheetPrimitive[] {
     kind: "polygon",
     points,
     fill,
-    stroke: BRAND,
+    stroke: CARTON_EDGE,
     strokeWidthMm: 0.4,
   });
   return [
-    face([top, right, front, left], "#ffffff"),
-    face([left, front, down(front), down(left)], "#8bb0c9"),
-    face([front, right, down(right), down(front)], BRAND),
+    face([top, right, front, left], CARTON_TOP),
+    face([left, front, down(front), down(left)], CARTON_LEFT),
+    face([front, right, down(right), down(front)], CARTON_RIGHT),
   ];
 }
 

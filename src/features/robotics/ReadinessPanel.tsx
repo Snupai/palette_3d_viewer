@@ -28,7 +28,7 @@ export function ReadinessPanel({
       description="Each row states what this workspace actually checked."
       actions={
         <span
-          className={`text-xs ${
+          className={`text-micro ${
             !cycleDataValid
               ? "text-danger"
               : allComplete
@@ -54,15 +54,15 @@ export function ReadinessPanel({
               className="h-fit min-w-[82px] justify-center"
             />
             <div className="min-w-0">
-              <p className="text-ink text-xs font-semibold">{item.label}</p>
-              <p className="text-muted mt-1 text-xs leading-5">
+              <p className="text-ink text-micro font-semibold">{item.label}</p>
+              <p className="text-muted text-micro mt-1 leading-5">
                 {item.evidence}
               </p>
             </div>
           </li>
         ))}
       </ul>
-      <div className="border-caution/40 bg-caution/5 text-ink border-t px-3 py-2 text-xs leading-5">
+      <div className="border-caution/40 bg-caution/5 text-ink text-micro border-t px-3 py-2 leading-5">
         <strong>Production feasibility is not assessed.</strong> Confirm the
         real gripper, station frame, robot program mapping, guarding, and full
         collision model before production use.

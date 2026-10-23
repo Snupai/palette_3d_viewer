@@ -8,20 +8,20 @@ type PalletInfoPanelProps = {
 
 export function PalletInfoPanel({ data, boxSelection }: PalletInfoPanelProps) {
   return (
-    <aside className="order-3 w-full border border-line bg-surface p-4 text-sm md:min-w-0 md:flex-1 xl:order-3 xl:w-[260px] xl:shrink-0">
-      <h2 className="mb-3 text-body font-semibold text-ink">Pallet Info</h2>
-      <div className="space-y-2 text-ink">
+    <aside className="border-line bg-surface text-body order-3 w-full border p-4 md:min-w-0 md:flex-1 xl:order-3 xl:w-[260px] xl:shrink-0">
+      <h2 className="text-body text-ink mb-3 font-semibold">Pallet Info</h2>
+      <div className="text-ink space-y-2">
         <div>
           <span className="text-muted">Layers:</span> {data.layer_count}
         </div>
         <div>
           <span className="text-muted">Total boxes:</span> {data.total_boxes}
         </div>
-        <div className="pt-2 font-medium text-ink">Package (LxWxH)</div>
+        <div className="text-ink pt-2 font-medium">Package (LxWxH)</div>
         <div>
           {data.package.width} x {data.package.length} x {data.package.height}
         </div>
-        <div className="pt-2 font-medium text-ink">Pallet (LxWxH)</div>
+        <div className="text-ink pt-2 font-medium">Pallet (LxWxH)</div>
         <div>
           {data.pallet ? (
             <span>
@@ -33,22 +33,19 @@ export function PalletInfoPanel({ data, boxSelection }: PalletInfoPanelProps) {
         </div>
       </div>
 
-      <h2 className="mt-5 mb-3 text-body font-semibold text-ink">
+      <h2 className="text-body text-ink mt-5 mb-3 font-semibold">
         Selected Box
       </h2>
       {boxSelection ? (
-        <div className="space-y-2 text-ink">
+        <div className="text-ink space-y-2">
           <div>
-            <span className="text-muted">Place X:</span>{" "}
-            {boxSelection.placeX}
+            <span className="text-muted">Place X:</span> {boxSelection.placeX}
           </div>
           <div>
-            <span className="text-muted">Place Y:</span>{" "}
-            {boxSelection.placeY}
+            <span className="text-muted">Place Y:</span> {boxSelection.placeY}
           </div>
           <div>
-            <span className="text-muted">Place Z:</span>{" "}
-            {boxSelection.placeZ}
+            <span className="text-muted">Place Z:</span> {boxSelection.placeZ}
             <span className="text-muted"> (Oberkante, ohne Palette)</span>
           </div>
           <div>
@@ -76,12 +73,12 @@ export function PalletInfoPanel({ data, boxSelection }: PalletInfoPanelProps) {
             <span className="text-muted">Grip #:</span>{" "}
             {boxSelection.blueNumber}
           </div>
-          <div className="pt-1 text-xs text-muted">
+          <div className="text-micro text-muted pt-1">
             Box center: {boxSelection.rect.x}, {boxSelection.rect.y}
           </div>
         </div>
       ) : (
-        <p className="text-xs text-muted">
+        <p className="text-micro text-muted">
           Click a box to highlight its grip group and show place coordinates.
         </p>
       )}

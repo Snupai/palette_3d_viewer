@@ -78,7 +78,7 @@ import {
 
 function WorkspaceLoading() {
   return (
-    <div className="flex min-h-[320px] items-center justify-center text-sm text-[var(--muted)]">
+    <div className="text-body text-muted flex min-h-[320px] items-center justify-center">
       Loading…
     </div>
   );
@@ -1350,7 +1350,7 @@ export function PlannerProjectWorkspace({
       >
         {activeToolGate && !activeToolGate.ready ? (
           <div className="grid justify-items-start gap-3 p-4">
-            <p className="text-[13px] leading-5 text-[var(--ink)]">
+            <p className="text-ink text-[13px] leading-5">
               {activeToolGate.missing}
             </p>
             <button

@@ -116,13 +116,13 @@ export function ResourceLibraryPanel({
           </button>
         </div>
         {draftIsBuiltIn ? (
-          <div className="border-caution/40 bg-caution/5 text-muted grid gap-2 border p-3 text-xs leading-5">
+          <div className="border-caution/40 bg-caution/5 text-muted text-micro grid gap-2 border p-3 leading-5">
             {builtInNote}
           </div>
         ) : hasDraft ? (
           editor
         ) : (
-          <p className="text-muted text-xs">{emptyText}</p>
+          <p className="text-muted text-micro">{emptyText}</p>
         )}
       </div>
     </details>

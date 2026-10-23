@@ -61,7 +61,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="de" className={`${barlow.variable} ${condensed.variable}`}>
-      <body className="bg-[var(--canvas)] text-[var(--ink)]">{children}</body>
+      <body className="bg-canvas text-ink">{children}</body>
     </html>
   );
 }

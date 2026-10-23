@@ -40,7 +40,7 @@ export function ViewerToolbar({
 }: ViewerToolbarProps) {
   return (
     <div className="flex w-full flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-      <h1 className="text-center text-lg font-semibold text-ink sm:text-left">
+      <h1 className="text-ink text-center text-lg font-semibold sm:text-left">
         Pallet 3D Viewer (.rob)
       </h1>
       <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap sm:items-center sm:justify-end">
@@ -54,23 +54,23 @@ export function ViewerToolbar({
         />
         <button
           onClick={requestFileImport}
-          className="ui-btn col-span-2 w-full text-sm font-medium sm:w-auto"
+          className="ui-btn text-body col-span-2 w-full font-medium sm:w-auto"
         >
           Import .rob file(s)
         </button>
         <div
           role="group"
           aria-label="Plan view"
-          className="grid w-full grid-cols-2 border border-line bg-canvas p-0.5 sm:w-auto"
+          className="border-line bg-canvas grid w-full grid-cols-2 border p-0.5 sm:w-auto"
         >
           <button
             type="button"
             onClick={() => selectPlanView("original")}
             disabled={!originalRawText}
             aria-pressed={planView === "original"}
-            className={`px-3 py-1.5 text-sm font-medium transition ${
+            className={`text-body px-3 py-1.5 font-medium transition ${
               !originalRawText
-                ? "cursor-not-allowed text-muted opacity-50"
+                ? "text-muted cursor-not-allowed opacity-50"
                 : planView === "original"
                   ? "bg-surface-hover text-ink"
                   : "text-muted hover:text-ink"
@@ -83,9 +83,9 @@ export function ViewerToolbar({
             onClick={() => selectPlanView("edited")}
             disabled={!selectedRawText}
             aria-pressed={planView === "edited"}
-            className={`flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium transition ${
+            className={`text-body flex items-center justify-center gap-1.5 px-3 py-1.5 font-medium transition ${
               !selectedRawText
-                ? "cursor-not-allowed text-muted opacity-50"
+                ? "text-muted cursor-not-allowed opacity-50"
                 : planView === "edited"
                   ? "bg-surface-hover text-ink"
                   : "text-muted hover:text-ink"
@@ -94,7 +94,7 @@ export function ViewerToolbar({
             Edited
             {hasUnsavedEdits ? (
               <span
-                className="h-2 w-2 bg-caution"
+                className="bg-caution h-2 w-2"
                 aria-label="Unsaved changes"
               />
             ) : null}
@@ -104,7 +104,7 @@ export function ViewerToolbar({
           type="button"
           onClick={onDownloadCurrent}
           disabled={downloadDisabled}
-          className="ui-btn w-full text-sm font-medium sm:w-auto"
+          className="ui-btn text-body w-full font-medium sm:w-auto"
         >
           Download current plan
         </button>
@@ -112,7 +112,7 @@ export function ViewerToolbar({
           type="button"
           onClick={onModifyPlan}
           disabled={modifyDisabled}
-          className="ui-btn w-full text-sm font-medium sm:w-auto"
+          className="ui-btn text-body w-full font-medium sm:w-auto"
         >
           Modify plan (rotate 180°)
         </button>
@@ -123,7 +123,7 @@ export function ViewerToolbar({
           aria-pressed={editMode}
           className={`${
             editMode && hasData ? "ui-btn-primary" : "ui-btn"
-          } w-full text-sm font-medium sm:w-auto`}
+          } text-body w-full font-medium sm:w-auto`}
         >
           {editMode ? "Exit edit mode" : "Edit mode"}
         </button>

@@ -377,7 +377,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="text-viewport-ink text-xs font-semibold">
+                <h3 className="text-viewport-ink text-micro font-semibold">
                   Temporary calibration
                 </h3>
                 <p className="text-micro text-viewport-ink/60 mt-0.5">
@@ -387,7 +387,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
               <button
                 type="button"
                 onClick={() => setCalibrationEnabled(false)}
-                className="text-viewport-ink/60 hover:text-viewport-ink px-1 text-sm leading-none"
+                className="text-viewport-ink/60 hover:text-viewport-ink text-body px-1 leading-none"
                 aria-label="Close calibration"
               >
                 ×

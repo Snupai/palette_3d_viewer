@@ -7,7 +7,7 @@ import type {
 } from "~/domain/project/projectSchema";
 import { Field, NumberField as UiNumberField } from "~/components/ui";
 
-const inputClass = "ui-input text-xs";
+const inputClass = "ui-input text-micro";
 
 function numberFrom(value: string, fallback: number): number {
   const parsed = Number(value);
@@ -151,7 +151,9 @@ export function GripperEditor({
       </div>
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">TCP (mm)</legend>
+        <legend className="text-ink text-micro pr-2 font-medium">
+          TCP (mm)
+        </legend>
         <div className="grid grid-cols-3 gap-2">
           {(["x", "y", "z"] as const).map((axis) => (
             <NumberField
@@ -170,7 +172,7 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">
+        <legend className="text-ink text-micro pr-2 font-medium">
           Horizontal tool envelope (mm)
         </legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -194,10 +196,10 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">
+        <legend className="text-ink text-micro pr-2 font-medium">
           Allowed place rotations
         </legend>
-        <div className="text-ink flex flex-wrap gap-3 text-xs">
+        <div className="text-ink text-micro flex flex-wrap gap-3">
           {([0, 90, 180, 270] as const).map((rotation) => (
             <label key={rotation} className="flex items-center gap-1.5">
               <input
@@ -213,10 +215,10 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">
+        <legend className="text-ink text-micro pr-2 font-medium">
           Package limits (mm)
         </legend>
-        <label className="text-ink flex items-center gap-2 text-xs">
+        <label className="text-ink text-micro flex items-center gap-2">
           <input
             type="checkbox"
             checked={value.packageLimits !== null}
@@ -266,7 +268,7 @@ export function GripperEditor({
       </fieldset>
 
       {value.settings.type === "suction" ? (
-        <label className="border-line text-ink flex items-center gap-2 border-t pt-3 text-xs">
+        <label className="border-line text-ink text-micro flex items-center gap-2 border-t pt-3">
           <input
             type="checkbox"
             checked={value.settings.multipickSinglePlace}
@@ -282,7 +284,7 @@ export function GripperEditor({
           unverified)
         </label>
       ) : (
-        <p className="border-line text-caution border-t pt-3 text-xs leading-5">
+        <p className="border-line text-caution text-micro border-t pt-3 leading-5">
           {value.settings.type === "clamp" ? "Clamp" : "Fork"} settings are
           retained as project data, but generated pick mechanics and kinematics
           are not verified and remain export-blocking.
@@ -401,7 +403,7 @@ export function StationEditor({
         ] as const
       ).map(([label, field]) => (
         <fieldset key={field} className="border-line grid gap-2 border-t pt-3">
-          <legend className="text-ink pr-2 text-xs font-medium">
+          <legend className="text-ink text-micro pr-2 font-medium">
             {label} (mm)
           </legend>
           <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -426,7 +428,7 @@ export function StationEditor({
       ))}
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">
+        <legend className="text-ink text-micro pr-2 font-medium">
           Robot center and radial reach (mm)
         </legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
@@ -482,14 +484,14 @@ export function StationEditor({
       </fieldset>
 
       <fieldset className="border-line grid gap-2 border-t pt-3">
-        <legend className="text-ink pr-2 text-xs font-medium">
+        <legend className="text-ink text-micro pr-2 font-medium">
           Palletizing directions
         </legend>
         <div className="grid gap-2 md:grid-cols-2">
           {directions.map((direction) => (
             <label
               key={direction}
-              className="text-ink flex items-center gap-2 text-xs"
+              className="text-ink text-micro flex items-center gap-2"
             >
               <input
                 type="checkbox"

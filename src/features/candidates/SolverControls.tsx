@@ -76,7 +76,7 @@ type PreparedSolverInput = {
   error: string | null;
 };
 
-const inputClass = "ui-input min-w-0 font-mono text-xs";
+const inputClass = "ui-input min-w-0 font-mono text-micro";
 
 const labelFaceDescription: Record<Side, string> = {
   top: "+Y face — edge parallel to package length",
@@ -319,7 +319,7 @@ function DimensionInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid min-w-0 gap-1 text-[10px] text-[var(--muted)]">
+    <label className="text-muted grid min-w-0 gap-1 text-[10px]">
       {label}
       <input
         type="number"
@@ -1000,12 +1000,10 @@ export function SolverControls({
     );
 
   return (
-    <section className="border border-[var(--line)] bg-[var(--surface)]">
-      <header className="border-b border-[var(--line)] p-3">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">
-          Layer solver
-        </h2>
-        <p className="mt-1 text-xs leading-4 text-[var(--muted)]">
+    <section className="border-line bg-surface border">
+      <header className="border-line border-b p-3">
+        <h2 className="text-body text-ink font-semibold">Layer solver</h2>
+        <p className="text-micro text-muted mt-1 leading-4">
           Enter the package, signed pallet allowance, and exact package count
           for this layer.
         </p>
@@ -1013,7 +1011,7 @@ export function SolverControls({
 
       <div className="grid gap-3 p-3">
         <fieldset className="grid grid-cols-3 gap-2">
-          <legend className="col-span-3 mb-1 text-[10px] font-semibold text-[var(--muted)]">
+          <legend className="text-muted col-span-3 mb-1 text-[10px] font-semibold">
             Package dimensions · mm
           </legend>
           <DimensionInput
@@ -1037,7 +1035,7 @@ export function SolverControls({
         </fieldset>
 
         <fieldset className="grid grid-cols-2 gap-2">
-          <legend className="col-span-2 mb-1 text-[10px] font-semibold text-[var(--muted)]">
+          <legend className="text-muted col-span-2 mb-1 text-[10px] font-semibold">
             Total pallet allowance · mm
           </legend>
           <DimensionInput
@@ -1060,7 +1058,7 @@ export function SolverControls({
           />
           {prepared.input?.generationBoundsMm ? (
             <p
-              className="col-span-2 font-mono text-[11px] text-[var(--ink)]"
+              className="text-ink col-span-2 font-mono text-[11px]"
               aria-live="polite"
             >
               Effective frame:{" "}
@@ -1072,7 +1070,7 @@ export function SolverControls({
               mm
             </p>
           ) : null}
-          <p className="col-span-2 text-[10px] leading-4 text-[var(--muted)]">
+          <p className="text-muted col-span-2 text-[10px] leading-4">
             The total is split equally between both sides (−38 mm means −19 mm
             per side). Zero on both axes creates a tight centered footprint. Any
             positive or negative value defines the requested frame and may
@@ -1081,7 +1079,7 @@ export function SolverControls({
           </p>
         </fieldset>
 
-        <label className="grid gap-1 text-[10px] font-semibold text-[var(--muted)]">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold">
           Packages per layer
           <input
             type="number"
@@ -1112,7 +1110,7 @@ export function SolverControls({
             })
           }
         />
-        <p className="text-[10px] leading-4 text-[var(--muted)]">
+        <p className="text-muted text-[10px] leading-4">
           The infeed reference always runs left to right. Changing lengthwise or
           crosswise rotates only the package view and preserves the selected
           physical face. The solver keeps the generated footprint and rotates a
@@ -1121,7 +1119,7 @@ export function SolverControls({
         </p>
         {draft.unrotatedPackageLabelSide &&
         project.selectedGripperId === null ? (
-          <p className="border border-[var(--brand)] bg-[var(--plan-fill)] px-2 py-1.5 text-[10px] leading-4 text-[var(--ink)]">
+          <p className="border-brand bg-plan-fill text-ink border px-2 py-1.5 text-[10px] leading-4">
             No gripper is selected, so all four orthogonal place yaws are
             provisionally available. Select a gripper to enforce its exact yaw
             limits.
@@ -1129,7 +1127,7 @@ export function SolverControls({
         ) : null}
 
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex min-h-9 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+          <label className="border-line text-micro text-ink flex min-h-9 items-center gap-2 border px-2.5">
             <input
               type="checkbox"
               checked={allowMixedPackageOrientations}
@@ -1137,11 +1135,11 @@ export function SolverControls({
               onChange={(event) =>
                 setAllowMixedPackageOrientations(event.target.checked)
               }
-              className="h-4 w-4 accent-[var(--brand)]"
+              className="accent-brand h-4 w-4"
             />
             Allow mixed lengthwise / crosswise orientations
           </label>
-          <label className="flex min-h-9 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+          <label className="border-line text-micro text-ink flex min-h-9 items-center gap-2 border px-2.5">
             <input
               type="checkbox"
               checked={draft.multiPickAllowed}
@@ -1151,23 +1149,23 @@ export function SolverControls({
                   multiPickAllowed: event.target.checked,
                 })
               }
-              className="h-4 w-4 accent-[var(--brand)]"
+              className="accent-brand h-4 w-4"
             />
             Allow multipick
           </label>
         </div>
-        <p className="text-[10px] leading-4 text-[var(--muted)]">
+        <p className="text-muted text-[10px] leading-4">
           Valid results may include compact rectangles, pinwheels, and mosaics.
           Multipick groups only equal-yaw packages that are directly adjacent
           along their package length; incompatible packages remain single picks.
         </p>
 
-        <details className="border-t border-[var(--line)] pt-2">
-          <summary className="cursor-pointer text-[10px] font-semibold text-[var(--muted)]">
+        <details className="border-line border-t pt-2">
+          <summary className="text-muted cursor-pointer text-[10px] font-semibold">
             Advanced generation
           </summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-[10px] text-[var(--muted)]">
+            <label className="text-muted grid gap-1 text-[10px]">
               Candidates / generator
               <input
                 type="number"
@@ -1183,7 +1181,7 @@ export function SolverControls({
                 className={inputClass}
               />
             </label>
-            <label className="grid gap-1 text-[10px] text-[var(--muted)]">
+            <label className="text-muted grid gap-1 text-[10px]">
               Automatic group limit
               <input
                 type="number"
@@ -1199,7 +1197,7 @@ export function SolverControls({
                 className={inputClass}
               />
             </label>
-            <label className="col-span-2 flex h-8 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+            <label className="border-line text-micro text-ink col-span-2 flex h-8 items-center gap-2 border px-2.5">
               <input
                 type="checkbox"
                 checked={includeSymmetryVariants}
@@ -1207,7 +1205,7 @@ export function SolverControls({
                 onChange={(event) =>
                   setIncludeSymmetryVariants(event.target.checked)
                 }
-                className="h-4 w-4 accent-[var(--brand)]"
+                className="accent-brand h-4 w-4"
               />
               Include block symmetries
             </label>
@@ -1218,7 +1216,7 @@ export function SolverControls({
           <button
             type="button"
             onClick={cancel}
-            className="ui-btn h-9 border-[var(--danger)] px-3 text-xs font-medium text-[var(--danger)]"
+            className="ui-btn border-danger text-micro text-danger h-9 px-3 font-medium"
           >
             Cancel
           </button>
@@ -1227,18 +1225,18 @@ export function SolverControls({
             type="button"
             onClick={() => void start()}
             disabled={!canSolve}
-            className="ui-btn-primary h-9 px-3 text-xs"
+            className="ui-btn-primary text-micro h-9 px-3"
           >
             Apply inputs & solve
           </button>
         )}
       </div>
 
-      <div className="grid gap-2 border-t border-[var(--line)] p-3 text-xs">
+      <div className="border-line text-micro grid gap-2 border-t p-3">
         {preflightIssues.length > 0 ? (
           <div
             role="alert"
-            className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-[var(--danger)]"
+            className="border-danger text-danger border bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2"
           >
             <strong className="font-semibold">Preflight failed.</strong>
             <ul className="mt-1 list-disc space-y-1 pl-4">
@@ -1248,7 +1246,7 @@ export function SolverControls({
             </ul>
           </div>
         ) : (
-          <p className="text-[var(--muted)]">
+          <p className="text-muted">
             Ready: {draft.packageLength} × {draft.packageWidth} ×{" "}
             {draft.packageHeight} mm package · {draft.inletOrientation} infeed
             left to right · L {draft.lengthAllowanceTotal}/W{" "}
@@ -1272,7 +1270,7 @@ export function SolverControls({
         {resultSummary ? (
           <div
             role="status"
-            className="border border-[var(--line)] bg-[var(--canvas)] px-3 py-2 text-[var(--ink)]"
+            className="border-line bg-canvas text-ink border px-3 py-2"
           >
             {resultSummary.status === "completed" ? "Completed" : "Cancelled"}:{" "}
             {resultSummary.statistics.candidateCount} candidates (
@@ -1286,7 +1284,7 @@ export function SolverControls({
         {failure ? (
           <div
             role="alert"
-            className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-[var(--danger)]"
+            className="border-danger text-danger border bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2"
           >
             {failure}
           </div>
@@ -1294,7 +1292,7 @@ export function SolverControls({
         {staleNotice ? (
           <div
             role="status"
-            className="border border-[var(--brand)] bg-[var(--plan-fill)] px-3 py-2 text-[var(--ink)]"
+            className="border-brand bg-plan-fill text-ink border px-3 py-2"
           >
             {staleNotice}
           </div>

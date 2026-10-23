@@ -416,7 +416,7 @@ export function RoboticsWorkspace({
             Operator view
           </p>
           <h2 className="text-ink mt-1 text-base font-semibold">Robot setup</h2>
-          <p className="text-muted mt-1 max-w-3xl text-xs leading-5">
+          <p className="text-muted text-micro mt-1 max-w-3xl leading-5">
             Choose the equipment, review the derived pickup, and check
             readiness. Detailed equipment and export settings stay closed until
             needed.
@@ -427,7 +427,7 @@ export function RoboticsWorkspace({
             <p className="text-micro text-muted tracking-wide uppercase">
               Package
             </p>
-            <p className="text-ink mt-1 font-mono text-sm">
+            <p className="text-ink text-body mt-1 font-mono">
               {project.package.dimensionsMm.length} ×{" "}
               {project.package.dimensionsMm.width} ×{" "}
               {project.package.dimensionsMm.height} mm
@@ -437,7 +437,7 @@ export function RoboticsWorkspace({
             <p className="text-micro text-muted tracking-wide uppercase">
               Pallet plan
             </p>
-            <p className="text-ink mt-1 text-sm">
+            <p className="text-ink text-body mt-1">
               {activeSolution
                 ? `${activeSolution.stack.layers.length} layer${activeSolution.stack.layers.length === 1 ? "" : "s"} · ${plannedPackageCount} package${plannedPackageCount === 1 ? "" : "s"}`
                 : "No active plan"}
@@ -447,7 +447,7 @@ export function RoboticsWorkspace({
             <p className="text-micro text-muted tracking-wide uppercase">
               Calculated output
             </p>
-            <p className="text-ink mt-1 text-sm">
+            <p className="text-ink text-body mt-1">
               {materialization.cycles.length} pickup
               {materialization.cycles.length === 1 ? "" : "s"}
             </p>
@@ -466,7 +466,7 @@ export function RoboticsWorkspace({
         }
         bodyClassName="grid gap-3 p-3 md:grid-cols-2"
       >
-        <label className="text-muted grid gap-1 text-xs">
+        <label className="text-muted text-micro grid gap-1">
           Gripper
           <select
             aria-label="Selected project gripper"
@@ -482,7 +482,7 @@ export function RoboticsWorkspace({
             ))}
           </select>
         </label>
-        <label className="text-muted grid gap-1 text-xs">
+        <label className="text-muted text-micro grid gap-1">
           Pallet station
           <select
             aria-label="Selected project station"
@@ -575,7 +575,7 @@ export function RoboticsWorkspace({
         </button>
         <span
           className={
-            exportGate.enabled ? "text-ok text-xs" : "text-muted text-xs"
+            exportGate.enabled ? "text-ok text-micro" : "text-muted text-micro"
           }
         >
           {exportGate.enabled
@@ -588,7 +588,7 @@ export function RoboticsWorkspace({
         <summary className={disclosureSummaryClass}>
           Generated pickup list ({materialization.cycles.length})
         </summary>
-        <p className="border-line text-muted border-t px-3 py-2 text-xs leading-5">
+        <p className="border-line text-muted text-micro border-t px-3 py-2 leading-5">
           These canonical coordinates are shared with motion preview, reports,
           and project-derived export.
         </p>
@@ -610,7 +610,7 @@ export function RoboticsWorkspace({
               Motion values and pickup evidence
             </summary>
             <div className="border-line grid gap-3 border-t p-3">
-              <p className="text-muted text-xs leading-5">
+              <p className="text-muted text-micro leading-5">
                 Leave X, Y, and Z blank to keep the derived box-group
                 top-center. Entering all four values treats pickup as a surveyed
                 station pose.
@@ -653,8 +653,7 @@ export function RoboticsWorkspace({
                       onSettingsChange({
                         ...settings,
                         pickReferenceStatus: event.target.value as
-                          | "verified"
-                          | "unverified",
+                          "verified" | "unverified",
                       })
                     }
                     className={inputClass}
@@ -801,7 +800,7 @@ export function RoboticsWorkspace({
             Imported source-file downloads
           </summary>
           <div className="border-measure/40 grid gap-3 border-t p-3">
-            <p className="text-muted text-xs leading-5">
+            <p className="text-muted text-micro leading-5">
               These downloads return retained imported text. They are not
               project-derived output and make no compatibility or production
               claim.

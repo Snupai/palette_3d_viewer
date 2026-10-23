@@ -21,12 +21,12 @@ export function ExportMappingPanel({
         Internal .rob export mapping
       </summary>
       <div className="border-line grid gap-3 border-t p-3">
-        <p className="text-muted text-xs leading-5">
+        <p className="text-muted text-micro leading-5">
           These fields describe an internal project export. They do not
           establish compatibility with an external Multipack controller.
         </p>
         <div className="grid gap-3 lg:grid-cols-3">
-          <label className="text-muted grid gap-1 text-xs">
+          <label className="text-muted text-micro grid gap-1">
             Integer quantization
             <select
               aria-label="ROB integer quantization"
@@ -47,7 +47,7 @@ export function ExportMappingPanel({
               <option value="reject-decimals">Reject decimals</option>
             </select>
           </label>
-          <label className="text-muted grid gap-1 text-xs">
+          <label className="text-muted text-micro grid gap-1">
             Final two .rob fields
             <select
               aria-label="ROB unknown field policy"
@@ -71,7 +71,7 @@ export function ExportMappingPanel({
               <option value="explicit-values">Enter internal values</option>
             </select>
           </label>
-          <label className="text-ink flex items-end gap-2 pb-1 text-xs">
+          <label className="text-ink text-micro flex items-end gap-2 pb-1">
             <input
               type="checkbox"
               checked={exportSettings.allowCountOnlyInterlayers}
@@ -122,7 +122,7 @@ export function ExportMappingPanel({
               onChange({ ...exportSettings, yawOffsetDeg: value })
             }
           />
-          <label className="text-ink flex items-end gap-2 pb-1 text-xs leading-5 lg:col-span-6">
+          <label className="text-ink text-micro flex items-end gap-2 pb-1 leading-5 lg:col-span-6">
             <input
               aria-label="Acknowledge unverified ROB mapping"
               type="checkbox"

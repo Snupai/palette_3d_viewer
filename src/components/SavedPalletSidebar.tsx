@@ -43,9 +43,9 @@ export function SavedPalletSidebar({
   };
 
   return (
-    <aside className="order-2 w-full border border-line bg-surface p-4 text-sm md:min-w-0 md:flex-1 xl:order-1 xl:w-[240px] xl:shrink-0">
+    <aside className="border-line bg-surface text-body order-2 w-full border p-4 md:min-w-0 md:flex-1 xl:order-1 xl:w-[240px] xl:shrink-0">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="text-body font-semibold text-ink">Saved Pallets</h2>
+        <h2 className="text-body text-ink font-semibold">Saved Pallets</h2>
         {saved.length > 0 && (
           <button
             onClick={(event) => void clearAll(event)}
@@ -62,7 +62,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="L"
           aria-label="Filter length"
-          className="ui-input px-2 py-1 font-mono text-xs placeholder:text-muted"
+          className="ui-input text-micro placeholder:text-muted px-2 py-1 font-mono"
         />
         <input
           value={filterW}
@@ -70,7 +70,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="W"
           aria-label="Filter width"
-          className="ui-input px-2 py-1 font-mono text-xs placeholder:text-muted"
+          className="ui-input text-micro placeholder:text-muted px-2 py-1 font-mono"
         />
         <input
           value={filterH}
@@ -78,7 +78,7 @@ export function SavedPalletSidebar({
           inputMode="numeric"
           placeholder="H"
           aria-label="Filter height"
-          className="ui-input px-2 py-1 font-mono text-xs placeholder:text-muted"
+          className="ui-input text-micro placeholder:text-muted px-2 py-1 font-mono"
         />
         <button
           onClick={() => {
@@ -91,7 +91,7 @@ export function SavedPalletSidebar({
           Reset Filters
         </button>
       </div>
-      <div className="scrollbar-thin flex max-h-[70vh] flex-col gap-1 overflow-auto pr-1">
+      <div className="flex max-h-[70vh] scrollbar-thin flex-col gap-1 overflow-auto pr-1">
         {filteredSaved.length === 0 && (
           <div className="text-muted">No saved pallets yet.</div>
         )}
@@ -101,7 +101,7 @@ export function SavedPalletSidebar({
             className={`group flex items-start justify-between gap-2 border px-3 py-2 transition-colors ${
               pallet.id === selectedId
                 ? "border-brand bg-plan-fill"
-                : "border-transparent hover:bg-surface-hover"
+                : "hover:bg-surface-hover border-transparent"
             }`}
           >
             <button
@@ -117,15 +117,15 @@ export function SavedPalletSidebar({
                 onSelect(pallet);
               }}
             >
-              <span className="truncate text-ink">{pallet.name}</span>
-              <span className="font-mono text-micro text-muted">
+              <span className="text-ink truncate">{pallet.name}</span>
+              <span className="text-micro text-muted font-mono">
                 {pallet.data.layer_count} layers x {pallet.data.total_boxes}{" "}
                 boxes
               </span>
             </button>
             <button
               aria-label="Delete"
-              className="px-2 py-1 text-xs text-danger opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100 hover:bg-danger/10"
+              className="text-micro text-danger hover:bg-danger/10 px-2 py-1 opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100"
               onClick={(event) => {
                 const allow =
                   event.ctrlKey || window.confirm(`Delete "${pallet.name}"?`);

@@ -59,7 +59,7 @@ type FieldProps = {
 
 function Field({ label, error, children }: FieldProps) {
   return (
-    <label className="text-muted grid min-w-0 gap-1 text-xs">
+    <label className="text-muted text-micro grid min-w-0 gap-1">
       <span>{label}</span>
       {children}
       {error ? <span className="text-danger">{error}</span> : null}
@@ -67,7 +67,7 @@ function Field({ label, error, children }: FieldProps) {
   );
 }
 
-const inputClass = "ui-input text-sm";
+const inputClass = "ui-input text-body";
 
 function errorFor(
   errors: ProjectFieldErrors,
@@ -231,7 +231,7 @@ function ModalProjectDialog({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="ui-btn px-2.5 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn text-body px-2.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Close
             </button>
@@ -242,14 +242,14 @@ function ModalProjectDialog({
               {failure ? (
                 <div
                   role="alert"
-                  className="border-danger bg-danger/10 text-danger border px-3 py-2 text-sm"
+                  className="border-danger bg-danger/10 text-danger text-body border px-3 py-2"
                 >
                   {failure}
                 </div>
               ) : null}
 
               <fieldset className="border-line grid gap-3 border p-4">
-                <legend className="text-ink px-1 text-sm font-semibold">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Line and product
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -284,7 +284,7 @@ function ModalProjectDialog({
               </fieldset>
 
               <fieldset className="border-line grid gap-3 border p-4">
-                <legend className="text-ink px-1 text-sm font-semibold">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Cuboid package
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -371,7 +371,7 @@ function ModalProjectDialog({
               </fieldset>
 
               <fieldset className="border-line grid gap-3 border p-4">
-                <legend className="text-ink px-1 text-sm font-semibold">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Pallet and load envelope
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -476,7 +476,7 @@ function ModalProjectDialog({
               </fieldset>
 
               <details className="border-line border p-4">
-                <summary className="text-ink cursor-pointer text-sm font-semibold">
+                <summary className="text-ink text-body cursor-pointer font-semibold">
                   Advanced settings
                 </summary>
                 <div className="mt-3 grid gap-3">
@@ -562,7 +562,7 @@ function ModalProjectDialog({
                       />
                     </Field>
                   </div>
-                  <label className="text-ink flex items-center gap-2 text-sm">
+                  <label className="text-ink text-body flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={values.hasStorageEnvelope}
@@ -629,7 +629,7 @@ function ModalProjectDialog({
                     </div>
                   ) : null}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="text-muted grid min-w-0 gap-1 text-xs">
+                    <div className="text-muted text-micro grid min-w-0 gap-1">
                       <PackageLabelFacePicker
                         packageLengthMm={Number(values.packageLengthMm)}
                         packageWidthMm={Number(values.packageWidthMm)}
@@ -649,7 +649,7 @@ function ModalProjectDialog({
                         </span>
                       ) : null}
                     </div>
-                    <label className="border-line text-ink flex items-center gap-2 self-end border px-3 py-2 text-sm">
+                    <label className="border-line text-ink text-body flex items-center gap-2 self-end border px-3 py-2">
                       <input
                         type="checkbox"
                         checked={values.multiPickAllowed}
@@ -671,7 +671,7 @@ function ModalProjectDialog({
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="ui-btn px-3 py-2 text-sm disabled:opacity-50"
+              className="ui-btn text-body px-3 py-2 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -681,7 +681,7 @@ function ModalProjectDialog({
                 name="creationAction"
                 value="create-only"
                 disabled={saving}
-                className="ui-btn px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
+                className="ui-btn text-body px-3 py-2 disabled:cursor-wait disabled:opacity-50"
               >
                 Save project
               </button>
@@ -691,7 +691,7 @@ function ModalProjectDialog({
               name="creationAction"
               value={project ? "save" : "generate"}
               disabled={saving}
-              className="ui-btn-primary px-3 py-2 text-sm disabled:cursor-wait"
+              className="ui-btn-primary text-body px-3 py-2 disabled:cursor-wait"
             >
               {saving
                 ? "Saving…"

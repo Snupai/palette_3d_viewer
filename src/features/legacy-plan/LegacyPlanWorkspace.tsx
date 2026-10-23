@@ -24,7 +24,7 @@ const LayerEditor2D = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="flex min-h-[60vh] items-center justify-center border border-line bg-surface text-sm text-muted">
+      <div className="border-line bg-surface text-body text-muted flex min-h-[60vh] items-center justify-center border">
         Loading editor…
       </div>
     ),
@@ -153,20 +153,20 @@ export function LegacyPlanWorkspace({
       {library.error && (
         <div
           role="alert"
-          className="border border-danger/40 bg-danger/10 p-3 text-sm whitespace-pre-line text-danger"
+          className="border-danger/40 bg-danger/10 text-body text-danger border p-3 whitespace-pre-line"
         >
           {library.error}
         </div>
       )}
       {!viewedData && (
-        <div className="flex min-h-[420px] flex-1 items-center justify-center border border-dashed border-line bg-surface">
-          <p className="text-center text-muted">
+        <div className="border-line bg-surface flex min-h-[420px] flex-1 items-center justify-center border border-dashed">
+          <p className="text-muted text-center">
             Upload a .rob file to visualize the pallet
           </p>
         </div>
       )}
       {viewedData && viewedData.total_boxes === 0 && (
-        <div className="flex flex-1 items-center justify-center border border-caution/40 bg-caution/10 p-3 text-sm text-caution">
+        <div className="border-caution/40 bg-caution/10 text-body text-caution flex flex-1 items-center justify-center border p-3">
           Parsed 0 boxes. The .rob format may differ from the expected
           structure.
         </div>
@@ -182,7 +182,7 @@ export function LegacyPlanWorkspace({
             onClear={library.clearLibrary}
           />
           <div className="order-1 flex min-w-0 flex-1 items-stretch gap-1 md:basis-full xl:order-2 xl:basis-auto">
-            <div className="relative min-h-[320px] min-w-0 flex-1 overflow-hidden border border-line bg-viewport sm:min-h-[420px] md:min-h-[55vh] xl:h-[70vh]">
+            <div className="border-line bg-viewport relative min-h-[320px] min-w-0 flex-1 overflow-hidden border sm:min-h-[420px] md:min-h-[55vh] xl:h-[70vh]">
               <RobViewer
                 data={viewedData}
                 cameraResetKey={library.selectedId}
@@ -250,7 +250,7 @@ export function LegacyPlanWorkspace({
             />
           }
           layerSelector={
-            <label className="flex min-w-[250px] flex-col gap-1 text-xs text-muted">
+            <label className="text-micro text-muted flex min-w-[250px] flex-col gap-1">
               <span>Layer pattern</span>
               <select
                 value={selectedUniqueLayerId}
@@ -265,7 +265,7 @@ export function LegacyPlanWorkspace({
                       : Math.min(current ?? 0, nextGripCount - 1),
                   );
                 }}
-                className="ui-input cursor-pointer px-2 py-1.5 text-xs"
+                className="ui-input text-micro cursor-pointer px-2 py-1.5"
               >
                 {uniqueLayerOptions.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -282,7 +282,7 @@ export function LegacyPlanWorkspace({
         editMode &&
         selectedUniqueLayerId === null &&
         uniqueLayerOptions.length === 0 && (
-          <div className="border border-caution/40 bg-caution/10 p-3 text-sm text-caution">
+          <div className="border-caution/40 bg-caution/10 text-body text-caution border p-3">
             This plan has no editable unique layer pattern.
           </div>
         )}

@@ -35,7 +35,7 @@ import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
 import { Panel } from "~/components/ui";
 
 const buttonClass = "ui-btn ui-btn-sm";
-const inputClass = "ui-input text-xs";
+const inputClass = "ui-input text-micro";
 
 export type SimulationWorkspaceProps = {
   project: Project;
@@ -365,7 +365,7 @@ export function SimulationWorkspace({
           >
             Reverse
           </button>
-          <label className="text-muted ml-auto flex items-center gap-2 text-xs">
+          <label className="text-muted text-micro ml-auto flex items-center gap-2">
             Speed
             <select
               aria-label="Playback speed"
@@ -415,7 +415,7 @@ export function SimulationWorkspace({
           </div>
         </div>
 
-        <dl className="border-line grid auto-rows-[1.25rem] grid-cols-2 items-center gap-x-4 gap-y-1 border-t pt-3 text-xs md:grid-cols-5 xl:grid-cols-10">
+        <dl className="border-line text-micro grid auto-rows-[1.25rem] grid-cols-2 items-center gap-x-4 gap-y-1 border-t pt-3 md:grid-cols-5 xl:grid-cols-10">
           <dt className="text-muted">Cycle</dt>
           <dd className="text-ink font-mono">
             {cycle ? `${cycle.sequence + 1} / ${timeline.cycles.length}` : "—"}
@@ -494,13 +494,13 @@ export function SimulationWorkspace({
               <div className="flex items-center justify-between gap-3">
                 <label
                   htmlFor="lift-carriage-mm"
-                  className="text-ink text-xs font-medium"
+                  className="text-ink text-micro font-medium"
                 >
                   Ewellix lift visualization
                 </label>
                 <output
                   htmlFor="lift-carriage-mm"
-                  className="text-brand font-mono text-xs"
+                  className="text-brand text-micro font-mono"
                 >
                   {liftCarriageMm} mm
                 </output>
@@ -529,7 +529,7 @@ export function SimulationWorkspace({
             </div>
           ) : null}
           {timeline.diagnostics.length > 0 ? (
-            <ul className="text-danger mt-3 grid gap-1 text-xs">
+            <ul className="text-danger text-micro mt-3 grid gap-1">
               {timeline.diagnostics.map((diagnostic, index) => (
                 <li key={`${diagnostic.code}-${index}`}>
                   {diagnostic.message}
@@ -537,7 +537,7 @@ export function SimulationWorkspace({
               ))}
             </ul>
           ) : null}
-          <p className="text-muted mt-3 text-xs leading-5">
+          <p className="text-muted text-micro mt-3 leading-5">
             {project.source.kind === "new"
               ? `The CAD cell falls back to procedural scene aids if it cannot load. ${BUNDLED_ROBOT_CELL.evidence.limitations}`
               : "Conveyor, gripper envelope, pallet, and articulated arm are scene aids. Reach and collision validity comes only from robotics diagnostics, not from the simplified arm drawing."}
@@ -560,7 +560,7 @@ export function SimulationWorkspace({
               temporaryCalibration={temporaryCalibration}
             />
           ) : (
-            <div className="text-viewport-ink flex min-h-[560px] items-center justify-center px-4 text-center text-sm">
+            <div className="text-viewport-ink text-body flex min-h-[560px] items-center justify-center px-4 text-center">
               Save a non-empty stack before running the simulation scene.
             </div>
           )}

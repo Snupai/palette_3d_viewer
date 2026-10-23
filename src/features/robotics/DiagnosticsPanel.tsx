@@ -12,10 +12,10 @@ import {
 
 const severityClass = (severity: RobotDiagnostic["severity"]) =>
   severity === "error"
-    ? "text-xs leading-5 text-danger"
+    ? "text-micro leading-5 text-danger"
     : severity === "warning"
-      ? "text-xs leading-5 text-caution"
-      : "text-xs leading-5 text-ink";
+      ? "text-micro leading-5 text-caution"
+      : "text-micro leading-5 text-ink";
 
 /** Advanced engineering: unique preflight diagnostics grouped by category. */
 export function DiagnosticsPanel({
@@ -38,11 +38,11 @@ export function DiagnosticsPanel({
             );
             return (
               <div key={category} className="bg-surface p-3">
-                <h3 className="text-ink text-xs font-semibold">
+                <h3 className="text-ink text-micro font-semibold">
                   {categoryLabels[category]}
                 </h3>
                 {items.length === 0 ? (
-                  <p className="text-muted mt-2 text-xs leading-5">
+                  <p className="text-muted text-micro mt-2 leading-5">
                     {category === "collision" && obstacleCount === 0
                       ? "No fixed obstacles are modeled; no collision claim is made."
                       : "No diagnostics in this category."}
