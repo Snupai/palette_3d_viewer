@@ -19,6 +19,7 @@ import {
   fieldPathByValue,
   firstSectionWithError,
   formatNumber,
+  overhangPerSideHint,
   germanFieldError,
   guidedSectionOrder,
   guidedSectionTitles,
@@ -863,17 +864,17 @@ export function GuidedProjectForm({
               <div className="fw-grid2">
                 <NumberField
                   {...field("overhangLengthMm")}
-                  label="Überstand in Länge je Seite"
+                  label="Überstand Länge"
                   unit="mm"
-                  hint="Negativ für Unterstand."
+                  hint={overhangPerSideHint(values.overhangLengthMm)}
                   value={values.overhangLengthMm}
                   onChange={(value) => set("overhangLengthMm", value)}
                 />
                 <NumberField
                   {...field("overhangWidthMm")}
-                  label="Überstand in Breite je Seite"
+                  label="Überstand Breite"
                   unit="mm"
-                  hint="Negativ für Unterstand."
+                  hint={overhangPerSideHint(values.overhangWidthMm)}
                   value={values.overhangWidthMm}
                   onChange={(value) => set("overhangWidthMm", value)}
                 />

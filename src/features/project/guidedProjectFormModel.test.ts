@@ -53,15 +53,15 @@ describe("guided project form model", () => {
     const values = {
       ...filled(),
       packageWeightKg: "3.4",
-      overhangLengthMm: "20",
-      overhangWidthMm: "-10",
+      overhangLengthMm: "40",
+      overhangWidthMm: "-20",
       productNumber: "1329-00004",
     };
     expect(sectionSummary("package", values)).toBe(
       "400 × 300 × 190 mm, 3,4 kg",
     );
     expect(sectionSummary("pallet", values)).toBe(
-      "Euro-Palette 1.200 × 800 mm, Überstand +20 / -10 mm je Seite",
+      "Euro-Palette 1.200 × 800 mm, Überstand +40 / -20 mm gesamt",
     );
     expect(sectionSummary("limits", values)).toBe(
       "Keine Lagerhöhe, max. 1.500 kg brutto",
@@ -91,7 +91,7 @@ describe("guided project form model", () => {
   it("derives the load area and the single-orientation grid reference", () => {
     const values = {
       ...filled(),
-      overhangLengthMm: "20",
+      overhangLengthMm: "40",
       overhangWidthMm: "0",
     };
     expect(loadAreaMm(values)).toEqual({ length: 1240, width: 800 });

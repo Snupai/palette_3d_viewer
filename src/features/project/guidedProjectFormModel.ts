@@ -158,6 +158,14 @@ const numberFormat = new Intl.NumberFormat("de-DE", {
   maximumFractionDigits: 2,
 });
 
+/** Hint under a total-overhang field: the per-side share of the entered value. */
+export function overhangPerSideHint(value: string): string {
+  const total = finite(value);
+  return total === null
+    ? "Gesamt über beide Seiten, je Seite die Hälfte. Negativ für Unterstand."
+    : `Je Seite ${formatNumber(total / 2)} mm. Negativ für Unterstand.`;
+}
+
 export function formatNumber(value: number): string {
   return numberFormat.format(value);
 }
@@ -185,7 +193,7 @@ export function packageDimensions(
     : null;
 }
 
-/** Pallet plus signed overhang on both sides, as the solver envelope uses it. */
+/** Pallet plus the signed total overhang, as the solver envelope uses it. */
 export function loadAreaMm(
   values: ProjectFormValues,
 ): { length: number; width: number } | null {
@@ -201,8 +209,8 @@ export function loadAreaMm(
   ) {
     return null;
   }
-  const length = palletLength + overhangLength * 2;
-  const width = palletWidth + overhangWidth * 2;
+  const length = palletLength + overhangLength;
+  const width = palletWidth + overhangWidth;
   return length > 0 && width > 0 ? { length, width } : null;
 }
 
@@ -256,7 +264,7 @@ function overhangText(values: ProjectFormValues): string {
   if (length === 0 && width === 0) return "ohne Überstand";
   const signed = (value: number) =>
     `${value > 0 ? "+" : ""}${formatNumber(value)}`;
-  return `Überstand ${signed(length)} / ${signed(width)} mm je Seite`;
+  return `Überstand ${signed(length)} / ${signed(width)} mm gesamt`;
 }
 
 /** One-line summary shown on a collapsed section. */

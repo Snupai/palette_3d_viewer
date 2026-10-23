@@ -498,7 +498,7 @@ function ModalProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang length per side (mm)"
+                      label="Overhang / underhang length total (mm)"
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.length",
@@ -515,7 +515,7 @@ function ModalProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang width per side (mm)"
+                      label="Overhang / underhang width total (mm)"
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.width",

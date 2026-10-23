@@ -25,6 +25,7 @@ export type ProjectFormValues = {
   palletLengthMm: string;
   palletWidthMm: string;
   palletHeightMm: string;
+  /** Total overhang over both sides; the project stores half of it per side. */
   overhangLengthMm: string;
   overhangWidthMm: string;
   hasStorageEnvelope: boolean;
@@ -67,8 +68,8 @@ export function projectToFormValues(
     palletLengthMm: String(pallet.dimensionsMm.length),
     palletWidthMm: String(pallet.dimensionsMm.width),
     palletHeightMm: String(pallet.dimensionsMm.height),
-    overhangLengthMm: String(pallet.allowedOverhangMm.length),
-    overhangWidthMm: String(pallet.allowedOverhangMm.width),
+    overhangLengthMm: String(pallet.allowedOverhangMm.length * 2),
+    overhangWidthMm: String(pallet.allowedOverhangMm.width * 2),
     hasStorageEnvelope: pallet.storageEnvelopeMm !== null,
     storageLengthMm: String(
       pallet.storageEnvelopeMm?.length ?? pallet.dimensionsMm.length,
@@ -95,8 +96,8 @@ export function palletTemplateFormValues(
     palletLengthMm: String(pallet.dimensionsMm.length),
     palletWidthMm: String(pallet.dimensionsMm.width),
     palletHeightMm: String(pallet.dimensionsMm.height),
-    overhangLengthMm: String(pallet.allowedOverhangMm.length),
-    overhangWidthMm: String(pallet.allowedOverhangMm.width),
+    overhangLengthMm: String(pallet.allowedOverhangMm.length * 2),
+    overhangWidthMm: String(pallet.allowedOverhangMm.width * 2),
     tareKg: text(pallet.tareKg),
     maxGrossKg: text(pallet.maxGrossKg),
     storageLengthMm: String(pallet.dimensionsMm.length),
@@ -160,8 +161,8 @@ export function buildProjectFromForm(
         }
       : null,
     allowedOverhangMm: {
-      length: requiredNumber(values.overhangLengthMm),
-      width: requiredNumber(values.overhangWidthMm),
+      length: requiredNumber(values.overhangLengthMm) / 2,
+      width: requiredNumber(values.overhangWidthMm) / 2,
     },
     tareKg: optionalNumber(values.tareKg),
     maxGrossKg: optionalNumber(values.maxGrossKg),
