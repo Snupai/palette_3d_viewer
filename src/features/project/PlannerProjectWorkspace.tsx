@@ -1250,7 +1250,17 @@ export function PlannerProjectWorkspace({
               stackComposerCandidates.length ? (
                 <StackWorkspace
                   guided
-                  onBack={() => setActiveStage("generate")}
+                  onBack={() => {
+                    if (
+                      stackDirty &&
+                      !window.confirm(
+                        "Anderes Muster wählen: Ungespeicherte Stapeländerungen gehen verloren, wenn Sie ein anderes Muster auswählen. Fortfahren?",
+                      )
+                    ) {
+                      return;
+                    }
+                    setActiveStage("generate");
+                  }}
                   onEditProject={openInputs}
                   project={workspaceProject}
                   candidates={stackComposerCandidates}
@@ -1292,6 +1302,7 @@ export function PlannerProjectWorkspace({
             comparison={emptyComparison}
             ledgerRows={ledgerRows}
             currentPalletData={currentPalletData}
+            savedPalletData={savedCurrentPalletData}
             currentLayerIndex={resolvedCurrentLayerIndex}
             onCurrentLayerChange={setCurrentLayerIndex}
             hasUnsavedChanges={hasUnsavedChanges}

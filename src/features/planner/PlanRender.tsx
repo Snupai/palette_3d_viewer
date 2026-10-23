@@ -167,10 +167,22 @@ export function PlanRender({
     ),
     point(0, 0, topZ),
   ];
-  const minX = Math.min(...cloud.map((p) => p[0])) - 70,
-    maxX = Math.max(...cloud.map((p) => p[0])) + 70,
-    minY = Math.min(...cloud.map((p) => p[1])) - 65,
-    maxY = Math.max(...cloud.map((p) => p[1])) + 45;
+  // Iterative bounds: spreading the cloud into Math.min/max overflows the
+  // engine's argument limit on large stacks.
+  let minX = Infinity,
+    maxX = -Infinity,
+    minY = Infinity,
+    maxY = -Infinity;
+  for (const [x, y] of cloud) {
+    if (x < minX) minX = x;
+    if (x > maxX) maxX = x;
+    if (y < minY) minY = y;
+    if (y > maxY) maxY = y;
+  }
+  minX -= 70;
+  maxX += 70;
+  minY -= 65;
+  maxY += 45;
   return (
     <svg
       className={`plan-render ${className}`}

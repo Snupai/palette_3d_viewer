@@ -1,6 +1,6 @@
 "use client";
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { Project } from "~/domain/project/projectSchema";
 import type { PalletData } from "~/domain/palletTypes";
@@ -75,6 +75,8 @@ export type PlanningCaseWorkbenchProps = {
   comparison: PatternComparison;
   ledgerRows: ValidationLedgerRow[];
   currentPalletData: PalletData | null;
+  /** The project's saved stack, independent of the current candidate preview. */
+  savedPalletData?: PalletData | null;
   currentLayerIndex: number;
   onCurrentLayerChange: (index: number) => void;
   hasUnsavedChanges: boolean;
@@ -95,6 +97,15 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
       }
     : undefined;
   const selected = p.selectedCandidate;
+  // "Gespeicherten Plan ansehen" shows the saved stack even while a new
+  // candidate is selected; "Stapel aufbauen" returns to the composer.
+  const [savedView, setSavedView] = useState(false);
+  const composerVisible =
+    stage === "stack" &&
+    Boolean(p.stackContent) &&
+    (!stackSaved || selected !== null) &&
+    !savedView;
+  const savedPalletData = p.savedPalletData ?? p.currentPalletData;
   const preview = (
     <aside className="fable-stage">
       <h3>{stage === "generate" ? "Ihre Lage" : "Paket & Palette"}</h3>
@@ -220,7 +231,10 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               {stackSaved && (
                 <button
                   className="ui-btn"
-                  onClick={() => p.onStageChange("stack")}
+                  onClick={() => {
+                    setSavedView(true);
+                    p.onStageChange("stack");
+                  }}
                 >
                   Gespeicherten Plan ansehen
                 </button>
@@ -231,7 +245,10 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               <button
                 className="ui-btn-primary"
                 disabled={!selected}
-                onClick={() => p.onStageChange("stack")}
+                onClick={() => {
+                  setSavedView(false);
+                  p.onStageChange("stack");
+                }}
               >
                 Stapel aufbauen
               </button>
@@ -239,16 +256,10 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
           </div>
         </div>
       ) : null}
-      {p.stackContent && (
-        <div hidden={stage !== "stack" || (stackSaved && !selected)}>
-          {p.stackContent}
-        </div>
-      )}
-      {stage === "generate" ||
-      (stage === "stack" &&
-        p.stackContent &&
-        (!stackSaved || selected)) ? null : (imported || stage === "stack") &&
-        p.currentPalletData ? (
+      {p.stackContent && <div hidden={!composerVisible}>{p.stackContent}</div>}
+      {stage === "generate" || composerVisible ? null : (imported ||
+          stage === "stack") &&
+        savedPalletData ? (
         <>
           <div className="viewer-heading">
             <div>
@@ -266,7 +277,7 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
           <div className="fable-two-column">
             <div className="viewer-main">
               <FinishedStack3D
-                data={p.currentPalletData}
+                data={savedPalletData}
                 resetKey={`${project?.id}:${project?.updatedAt}`}
               />
               <p className="generator-hint">
@@ -292,18 +303,18 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 </div>
                 <div>
                   <dt>Lagen</dt>
-                  <dd>{p.currentPalletData.layer_count}</dd>
+                  <dd>{savedPalletData.layer_count}</dd>
                 </div>
                 <div>
                   <dt>Pakete gesamt</dt>
-                  <dd>{p.currentPalletData.total_boxes}</dd>
+                  <dd>{savedPalletData.total_boxes}</dd>
                 </div>
                 <div>
                   <dt>Pakete je Lage</dt>
                   <dd>
                     {[
                       ...new Set(
-                        p.currentPalletData.layers.map((l) => l.boxes.length),
+                        savedPalletData.layers.map((l) => l.boxes.length),
                       ),
                     ].join(" / ")}
                   </dd>
