@@ -1,10 +1,4 @@
 import type { RobotObstacle } from "~/domain/robotics";
-import {
-  buttonClass,
-  dangerButtonClass,
-  fieldLabelClass,
-  inputClass,
-} from "~/features/robotics/roboticsStyles";
 
 export function ObstacleEditor({
   obstacles,
@@ -21,11 +15,11 @@ export function ObstacleEditor({
     );
 
   return (
-    <div className="grid gap-2">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-muted text-micro leading-5">
-          Add measured fixed objects in the station coordinate system. Without
-          them, collision against individual station objects is not checked.
+    <>
+      <div className="ed-actions">
+        <p className="ed-panel-note">
+          Gemessene feste Objekte im Stationskoordinatensystem. Ohne sie wird
+          die Kollision mit einzelnen Stationsobjekten nicht geprüft.
         </p>
         <button
           type="button"
@@ -34,37 +28,35 @@ export function ObstacleEditor({
               ...obstacles,
               {
                 id: `obstacle-${obstacles.length + 1}`,
-                name: `Obstacle ${obstacles.length + 1}`,
+                name: `Hindernis ${obstacles.length + 1}`,
                 boundsMm: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
                 minZMm: 0,
                 maxZMm: 1_000,
               },
             ])
           }
-          className={`${buttonClass} shrink-0`}
+          className="ui-btn ui-btn-sm"
         >
-          Add obstacle
+          Hindernis hinzufügen
         </button>
       </div>
       {obstacles.length === 0 ? (
-        <p className="border-line text-muted text-micro border border-dashed px-3 py-2 leading-5">
-          No fixed obstacles are modeled. Collision against individual station
-          objects has not been checked.
+        <p className="ed-panel-note">
+          Keine festen Hindernisse modelliert. Die Kollision mit einzelnen
+          Stationsobjekten wurde nicht geprüft.
         </p>
       ) : (
         obstacles.map((obstacle, index) => (
-          <div
-            key={`${obstacle.id}-${index}`}
-            className="border-line bg-canvas grid gap-2 border p-2"
-          >
-            <div className="flex items-center gap-2">
+          <div key={`${obstacle.id}-${index}`} className="ed-panel">
+            <div className="ed-actions">
               <input
-                aria-label={`Obstacle ${index + 1} name`}
+                aria-label={`Name von Hindernis ${index + 1}`}
                 value={obstacle.name ?? ""}
                 onChange={(event) =>
                   update(index, { ...obstacle, name: event.target.value })
                 }
-                className={`${inputClass} min-w-0 flex-1`}
+                className="ui-input"
+                style={{ flex: "1 1 160px" }}
               />
               <button
                 type="button"
@@ -73,12 +65,12 @@ export function ObstacleEditor({
                     obstacles.filter((_, itemIndex) => itemIndex !== index),
                   )
                 }
-                className={dangerButtonClass}
+                className="ui-btn ui-btn-sm ui-btn-danger"
               >
-                Remove
+                Entfernen
               </button>
             </div>
-            <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
+            <div className="ed-grid3">
               {(
                 [
                   ["Min X", "minX"],
@@ -87,7 +79,7 @@ export function ObstacleEditor({
                   ["Max Y", "maxY"],
                 ] as const
               ).map(([label, field]) => (
-                <label key={field} className={fieldLabelClass}>
+                <label key={field} className="ed-field">
                   {label}
                   <input
                     type="number"
@@ -102,7 +94,7 @@ export function ObstacleEditor({
                         },
                       })
                     }
-                    className={`${inputClass} font-mono`}
+                    className="ui-input"
                   />
                 </label>
               ))}
@@ -112,7 +104,7 @@ export function ObstacleEditor({
                   ["Max Z", "maxZMm"],
                 ] as const
               ).map(([label, field]) => (
-                <label key={field} className={fieldLabelClass}>
+                <label key={field} className="ed-field">
                   {label}
                   <input
                     type="number"
@@ -127,7 +119,7 @@ export function ObstacleEditor({
                             : Number(event.target.value),
                       })
                     }
-                    className={`${inputClass} font-mono`}
+                    className="ui-input"
                   />
                 </label>
               ))}
@@ -135,6 +127,6 @@ export function ObstacleEditor({
           </div>
         ))
       )}
-    </div>
+    </>
   );
 }

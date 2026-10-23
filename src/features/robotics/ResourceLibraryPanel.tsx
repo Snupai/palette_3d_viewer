@@ -1,15 +1,8 @@
 import type { ReactNode } from "react";
-import {
-  buttonClass,
-  dangerButtonClass,
-  disclosureSummaryClass,
-  inputClass,
-  sectionClass,
-} from "~/features/robotics/roboticsStyles";
 
 /**
- * Advanced engineering: reusable template library plus the draft editor for
- * one equipment kind (gripper or pallet station).
+ * Technik: reusable template library plus the draft editor for one equipment
+ * kind (gripper or pallet station).
  */
 export function ResourceLibraryPanel({
   title,
@@ -51,15 +44,16 @@ export function ResourceLibraryPanel({
   emptyText: string;
 }) {
   return (
-    <details className={sectionClass}>
-      <summary className={disclosureSummaryClass}>{title}</summary>
-      <div className="border-line grid gap-3 border-t p-3">
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
+    <details className="ed-sub-details">
+      <summary>{title}</summary>
+      <div>
+        <div className="ed-actions">
           <select
             aria-label={libraryAriaLabel}
             value={libraryId}
             onChange={(event) => onLibraryIdChange(event.target.value)}
-            className={inputClass}
+            className="ui-input"
+            style={{ flex: "1 1 220px" }}
           >
             <option value="">{libraryPlaceholder}</option>
             {libraryOptions.map((resource) => (
@@ -72,57 +66,59 @@ export function ResourceLibraryPanel({
             type="button"
             disabled={!libraryId}
             onClick={onApplyTemplate}
-            className={buttonClass}
+            className="ui-btn ui-btn-sm"
           >
-            Apply
+            Übernehmen
           </button>
           <button
             type="button"
             disabled={!libraryId}
             onClick={onRemoveTemplate}
-            className={dangerButtonClass}
+            className="ui-btn ui-btn-sm ui-btn-danger"
           >
-            Remove
+            Aus Bibliothek entfernen
           </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={onCreateDraft} className={buttonClass}>
+        <div className="ed-actions">
+          <button
+            type="button"
+            onClick={onCreateDraft}
+            className="ui-btn ui-btn-sm"
+          >
             {createDraftLabel}
           </button>
           {draftIsBuiltIn && hasDraft ? (
             <button
               type="button"
               onClick={onCreateEditableCopy}
-              className={buttonClass}
+              className="ui-btn ui-btn-sm"
             >
-              Create editable copy
+              Bearbeitbare Kopie anlegen
             </button>
           ) : null}
           <button
             type="button"
             disabled={!hasDraft || draftIsBuiltIn}
             onClick={onSaveToProject}
-            className={buttonClass}
+            className="ui-btn ui-btn-sm"
           >
-            Save to project
+            Im Plan speichern
           </button>
           <button
             type="button"
             disabled={!hasDraft || draftIsBuiltIn}
             onClick={onSaveTemplate}
-            className={buttonClass}
+            className="ui-btn ui-btn-sm"
           >
-            Save reusable template
+            Als Vorlage speichern
           </button>
         </div>
         {draftIsBuiltIn ? (
-          <div className="border-caution/40 bg-caution/5 text-muted text-micro grid gap-2 border p-3 leading-5">
-            {builtInNote}
-          </div>
+          <div className="ed-warn">{builtInNote}</div>
         ) : hasDraft ? (
           editor
         ) : (
-          <p className="text-muted text-micro">{emptyText}</p>
+          <p className="ed-panel-note">{emptyText}</p>
         )}
       </div>
     </details>
@@ -136,9 +132,10 @@ export function BuiltInProfileNotice({
   version: string | number;
 }) {
   return (
-    <p className="text-ink">
-      Built-in Multipack profile v{version} is read-only. Create an editable
-      copy before changing or saving it as a reusable template.
+    <p>
+      Das mitgelieferte Multipack-Profil v{version} ist schreibgeschützt. Für
+      Änderungen oder eine eigene Vorlage zuerst eine bearbeitbare Kopie
+      anlegen.
     </p>
   );
 }

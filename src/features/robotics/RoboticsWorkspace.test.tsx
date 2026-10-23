@@ -199,18 +199,17 @@ describe("RoboticsWorkspace operator view", () => {
         .filter((element) => element.closest("details") === null),
     ).toHaveLength(0);
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected project gripper")
-        .value,
+      screen.getByLabelText<HTMLSelectElement>("Greifer des Plans").value,
     ).toBe("");
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected project station")
+      screen.getByLabelText<HTMLSelectElement>("Palettenstation des Plans")
         .value,
     ).toBe("");
     expect(project.grippers).toHaveLength(0);
     expect(project.palletStations).toHaveLength(0);
     expect(onSaveProject).not.toHaveBeenCalled();
     expect(
-      screen.getByText("Production feasibility is not assessed."),
+      screen.getByText("Produktionsfreigabe wird hier nicht bewertet."),
     ).toBeTruthy();
     expect(
       screen
@@ -221,12 +220,12 @@ describe("RoboticsWorkspace operator view", () => {
     ).toHaveLength(1);
     expect(
       screen
-        .getByLabelText("ROB integer quantization")
+        .getByLabelText("Ganzzahl-Rundung")
         .closest('[data-testid="robotics-advanced"]'),
     ).toBeTruthy();
     expect(
       screen
-        .getByRole("button", { name: "Create unverified suction draft" })
+        .getByRole("button", { name: "Neuen Sauggreifer anlegen (ungeprüft)" })
         .closest('[data-testid="robotics-advanced"]'),
     ).toBeTruthy();
     expect(
@@ -235,21 +234,23 @@ describe("RoboticsWorkspace operator view", () => {
         .closest('[data-testid="generated-pickup-list"]'),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Advanced engineering"));
+    fireEvent.click(
+      screen.getByTestId("robotics-advanced").querySelector("summary")!,
+    );
     const gripperEditor = screen
-      .getByText("Gripper library and editor")
+      .getByText("Greifer: Bibliothek und Editor")
       .closest("details")!;
     const stationEditor = screen
-      .getByText("Pallet station library and editor")
+      .getByText("Palettenstation: Bibliothek und Editor")
       .closest("details")!;
     expect(gripperEditor.open).toBe(false);
     expect(stationEditor.open).toBe(false);
 
-    fireEvent.click(screen.getByText(/Detailed diagnostics/));
+    fireEvent.click(screen.getByText(/Diagnose im Detail/));
     expect(screen.getByText("missing-gripper-selection")).toBeTruthy();
     expect(
       screen.getByText(
-        "No fixed obstacles are modeled; no collision claim is made.",
+        "Keine festen Hindernisse modelliert; keine Aussage zur Kollision.",
       ),
     ).toBeTruthy();
   });
@@ -274,22 +275,15 @@ describe("RoboticsWorkspace operator view", () => {
     );
 
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected project gripper")
-        .value,
+      screen.getByLabelText<HTMLSelectElement>("Greifer des Plans").value,
     ).toBe(MULTIPACK_GRIPPER_ID);
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected project station")
+      screen.getByLabelText<HTMLSelectElement>("Palettenstation des Plans")
         .value,
     ).toBe(MULTIPACK_PALLET_STATION_ID);
+    expect(screen.getByText("Multipack-Profil v1")).toBeTruthy();
     expect(
-      screen.getByText(
-        "Multipack Roboter observed defaults v1 are preselected for this project.",
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByText(
-        /documented configuration evidence, not a station survey/,
-      ),
+      screen.getByText(/dokumentierte Konfiguration, keine Stationsvermessung/),
     ).toBeTruthy();
     expect(
       screen.getByText(
@@ -297,19 +291,19 @@ describe("RoboticsWorkspace operator view", () => {
       ),
     ).toBeTruthy();
 
-    fireEvent.click(screen.getByText("Advanced engineering"));
+    fireEvent.click(
+      screen.getByTestId("robotics-advanced").querySelector("summary")!,
+    );
     const gripperEditor = screen
-      .getByText("Gripper library and editor")
+      .getByText("Greifer: Bibliothek und Editor")
       .closest("details")!;
-    fireEvent.click(screen.getByText("Gripper library and editor"));
+    fireEvent.click(screen.getByText("Greifer: Bibliothek und Editor"));
     expect(
-      within(gripperEditor).getByText(
-        /Package limits: lengthwise 50–500 × 50–420 mm/,
-      ),
+      within(gripperEditor).getByText(/Paketgrenzen: längs 50–500 × 50–420 mm/),
     ).toBeTruthy();
     expect(
       within(gripperEditor).getByRole("button", {
-        name: "Create editable copy",
+        name: "Bearbeitbare Kopie anlegen",
       }),
     ).toBeTruthy();
   });
@@ -340,12 +334,10 @@ describe("RoboticsWorkspace operator view", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Preview calculated motion" }),
+        screen.getByRole("button", { name: "Bewegung ansehen" }),
       ).toBeTruthy();
     });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Preview calculated motion" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Bewegung ansehen" }));
 
     expect(onPreviewMotion).toHaveBeenCalledTimes(1);
   });
