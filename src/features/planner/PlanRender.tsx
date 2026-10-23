@@ -152,18 +152,21 @@ export function PlanRender({
   const cloud = [
     ...corners.map(([x, y, z]) => point(x, y, z)),
     ...layers.flatMap((layer) =>
-      layer.preview.items.flatMap((i) => [
-        point(
-          i.centerMm.x - i.sizeMm.x / 2,
-          i.centerMm.y - i.sizeMm.y / 2,
-          layer.z + ph,
-        ),
-        point(
-          i.centerMm.x + i.sizeMm.x / 2,
-          i.centerMm.y + i.sizeMm.y / 2,
-          layer.z + ph,
-        ),
-      ]),
+      // All four corners: the isometric projection puts the horizontal
+      // extremes on the off-diagonal corners.
+      layer.preview.items.flatMap((i) => {
+        const x0 = i.centerMm.x - i.sizeMm.x / 2;
+        const x1 = i.centerMm.x + i.sizeMm.x / 2;
+        const y0 = i.centerMm.y - i.sizeMm.y / 2;
+        const y1 = i.centerMm.y + i.sizeMm.y / 2;
+        const z = layer.z + ph;
+        return [
+          point(x0, y0, z),
+          point(x1, y0, z),
+          point(x0, y1, z),
+          point(x1, y1, z),
+        ];
+      }),
     ),
     point(0, 0, topZ),
   ];

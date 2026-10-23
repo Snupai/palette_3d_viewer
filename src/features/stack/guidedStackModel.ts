@@ -53,9 +53,11 @@ export function createGuidedInitialState(
   if (capacity?.status !== "calculated" || capacity.capacityLayers <= 1) {
     return initial;
   }
+  // Same bound as manual edits; a tiny package height would otherwise
+  // materialize millions of layers before the user can correct it.
   return rebuildStackSequence({
     ...initial,
-    requestedLayerCount: capacity.capacityLayers,
+    requestedLayerCount: clampLayerCount(capacity.capacityLayers),
   });
 }
 
