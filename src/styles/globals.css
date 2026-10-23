@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "./fable.css";
 @import "./fable-workflow.css";
+@import "./fable-editor.css";
 
 @theme {
   --font-sans:

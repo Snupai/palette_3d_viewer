@@ -4,7 +4,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
@@ -270,6 +269,13 @@ function renderEditor(
   return { project, materialization, onSaveProject, ...view };
 }
 
+/** Plain selection goes through pointer events; clicks only handle modifiers. */
+function selectPlacement(id: string, pointerId = 1): void {
+  const rect = placementRect(id);
+  fireEvent.pointerDown(rect, { pointerId, clientX: 50, clientY: 250 });
+  fireEvent.pointerUp(rect, { pointerId, clientX: 50, clientY: 250 });
+}
+
 function placementRect(id: string): SVGRectElement {
   const value = document.querySelector<SVGRectElement>(
     `[data-placement-id="${id}"] rect`,
@@ -302,10 +308,10 @@ describe("ProjectEditorWorkspace pattern interaction", () => {
       clientX: 50,
       clientY: 250,
     });
-    expect(screen.getByText("1 selected")).toBeTruthy();
+    expect(screen.getByText("1 ausgewählt")).toBeTruthy();
 
     fireEvent.click(second, { ctrlKey: true });
-    expect(screen.getByText("2 selected")).toBeTruthy();
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
 
     const canvas = screen.getByTestId("project-pattern-canvas");
     Object.defineProperty(canvas, "getBoundingClientRect", {
@@ -351,7 +357,7 @@ describe("ProjectEditorWorkspace pattern interaction", () => {
         clientY: 220,
       }),
     );
-    expect(screen.getByText("2 selected")).toBeTruthy();
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
   });
 
   it("keeps undo, Delete, arrows, and shortcuts out of form controls", () => {
@@ -360,16 +366,14 @@ describe("ProjectEditorWorkspace pattern interaction", () => {
     fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
     fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
 
-    const labelSelect = screen.getByLabelText<HTMLSelectElement>(
-      "Selected package label side",
-    );
+    const labelSelect =
+      screen.getByLabelText<HTMLSelectElement>("Etikettseite");
     fireEvent.change(labelSelect, { target: { value: "top" } });
     expect(labelSelect.value).toBe("top");
     fireEvent.keyDown(labelSelect, { key: "z", ctrlKey: true });
     expect(labelSelect.value).toBe("top");
 
-    const xInput =
-      screen.getByLabelText<HTMLInputElement>("Selected package X");
+    const xInput = screen.getByLabelText<HTMLInputElement>("Position X");
     fireEvent.keyDown(xInput, { key: "Delete" });
     fireEvent.keyDown(xInput, { key: "ArrowRight" });
     expect(document.querySelectorAll("[data-placement-id]")).toHaveLength(4);
@@ -379,75 +383,135 @@ describe("ProjectEditorWorkspace pattern interaction", () => {
       key: "z",
       ctrlKey: true,
     });
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("");
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "",
+    );
+  });
+
+  it("hides the solution and pattern selectors when there is only one", () => {
+    renderEditor();
+    expect(screen.queryByLabelText("Aktive Lösung")).toBeNull();
+    expect(screen.queryByLabelText("Aktives Muster")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Pattern 1" })).toBeTruthy();
+    // Without saved grips the model proposes two provisional grips.
+    expect(screen.getByText("4 Pakete · 2 Griffe")).toBeTruthy();
+  });
+
+  it("shows a rejected command as an alert and keeps the typed position", () => {
+    renderEditor();
+    expect(screen.getByText("keine Hinweise")).toBeTruthy();
+    const first = placementRect("p1");
+    fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
+    fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
+    const xInput = screen.getByLabelText<HTMLInputElement>("Position X");
+    fireEvent.change(xInput, { target: { value: "150" } });
+    fireEvent.blur(xInput);
+    expect(screen.getByRole("alert").textContent).toMatch(/overlap/);
+    expect(xInput.value).toBe("150");
   });
 });
 
-describe("ProjectEditorWorkspace order, flow, and persistence", () => {
+describe("ProjectEditorWorkspace order and persistence", () => {
+  it("builds a grip from the canvas selection and offers merging two grips", () => {
+    renderEditor();
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
+    // Without saved grips the model proposes provisional ones, marked as new.
+    expect(screen.getAllByText(/· neu$/)).toHaveLength(2);
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Griffe zusammenlegen (0)",
+      }).disabled,
+    ).toBe(true);
+
+    // Face-adjacent neighbours along the package length can form a grip.
+    // Creating one grip persists the remaining provisional grips as well.
+    selectPlacement("p1");
+    fireEvent.click(placementRect("p2"), { ctrlKey: true });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Griff aus Auswahl bilden (2)" }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.queryByText(/· neu$/)).toBeNull();
+    expect(screen.getByText("4 Pakete · 2 Griffe")).toBeTruthy();
+
+    // A package click selects its whole grip; two grips enable merging.
+    selectPlacement("p1");
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    fireEvent.click(placementRect("p3"), { ctrlKey: true });
+    expect(screen.getByText("4 ausgewählt")).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Griffe zusammenlegen (2)",
+      }).disabled,
+    ).toBe(false);
+  });
+
   it("shows invalid dependency feedback and applies the automatic suggestion", async () => {
     renderEditor({ project: importedGripProject() });
-    fireEvent.click(screen.getByRole("button", { name: "Order" }));
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
 
     fireEvent.change(
-      screen.getByLabelText<HTMLSelectElement>("Dependency prerequisite group"),
+      screen.getByLabelText<HTMLSelectElement>("Abhängigkeit: zuerst"),
       { target: { value: "g2" } },
     );
     fireEvent.change(
-      screen.getByLabelText<HTMLSelectElement>("Dependency dependent group"),
+      screen.getByLabelText<HTMLSelectElement>("Abhängigkeit: danach"),
       { target: { value: "g1" } },
     );
-    fireEvent.click(screen.getByRole("button", { name: "Add" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hinzufügen" }));
 
     expect(await screen.findByText(/would create a cycle/)).toBeTruthy();
-    fireEvent.click(
-      screen.getByRole("button", { name: "Apply automatic order" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Automatisch ordnen" }));
     await waitFor(() =>
       expect(screen.queryByText(/would create a cycle/)).toBeNull(),
     );
-    expect(screen.getAllByText(/G\d/).length).toBeGreaterThan(0);
+    expect(
+      screen.getByRole("button", { name: "Griff G1 auswählen" }),
+    ).toBeTruthy();
   });
 
-  it("renders inferred legacy dependencies as immutable", () => {
+  it("renders inferred legacy dependencies as immutable and selects grips from the list", () => {
     renderEditor({ project: importedGripProject() });
-    fireEvent.click(screen.getByRole("button", { name: "Order" }));
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
 
-    expect(
-      screen.getByText(
-        "Inferred from package geometry or legacy dx/dy; immutable.",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText("aus der Geometrie abgeleitet")).toBeTruthy();
     expect(
       screen.queryByRole("button", {
-        name: "Remove dependency group 1 before group 2",
+        name: "Abhängigkeit G1 vor G2 entfernen",
       }),
     ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Griff G2 auswählen" }));
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Griff G2 auswählen" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
   });
 
-  it("steps the shared flow and supports save, discard, and reset", async () => {
+  it("supports save, discard, and reset", async () => {
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
     const onSaveProject = vi.fn(async (value: Project) => value);
     renderEditor({ onSaveProject });
     const first = placementRect("p1");
     fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
     fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
-    fireEvent.change(screen.getByLabelText("Selected package label side"), {
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
       target: { value: "top" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(() => expect(onSaveProject).toHaveBeenCalledTimes(1));
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("top");
+    expect(screen.getByText("Gespeichert")).toBeTruthy();
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "top",
+    );
 
-    fireEvent.change(screen.getByLabelText("Selected package label side"), {
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
       target: { value: "right" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verwerfen" }));
     const discardedFirst = placementRect("p1");
     fireEvent.pointerDown(discardedFirst, {
       pointerId: 3,
@@ -459,20 +523,15 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
       clientX: 50,
       clientY: 250,
     });
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("top");
-    fireEvent.click(screen.getByRole("button", { name: "Reset original" }));
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("");
-
-    fireEvent.click(screen.getByRole("button", { name: "Flow" }));
-    expect(screen.getByText("pick")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Next" }));
-    expect(screen.getByText("transfer")).toBeTruthy();
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "top",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Original wiederherstellen" }),
+    );
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "",
+    );
     confirm.mockRestore();
   });
 
@@ -494,11 +553,9 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
     const first = placementRect("p1");
     fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
     fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
-    const labelSide = screen.getByLabelText<HTMLSelectElement>(
-      "Selected package label side",
-    );
+    const labelSide = screen.getByLabelText<HTMLSelectElement>("Etikettseite");
     fireEvent.change(labelSide, { target: { value: "top" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(onSaveProject).toHaveBeenCalledTimes(1);
 
     const submitted = onSaveProject.mock.calls[0]![0];
@@ -516,21 +573,20 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
         onSaveProject={onSaveProject}
       />,
     );
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("right");
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "right",
+    );
 
     resolveSave?.(saved);
     await waitFor(() =>
-      expect(screen.getByText("Unsaved editor changes")).toBeTruthy(),
+      expect(screen.getByText("Ungespeicherte Änderungen")).toBeTruthy(),
+    );
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "right",
     );
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("right");
-    expect(
-      screen.getByRole<HTMLButtonElement>("button", { name: "Save" }).disabled,
+      screen.getByRole<HTMLButtonElement>("button", { name: "Speichern" })
+        .disabled,
     ).toBe(false);
     expect(
       onDraftChange.mock.calls.at(-1)?.[0]?.solutions[0]?.patterns[0]
@@ -539,7 +595,7 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
     expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
 
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
-    fireEvent.click(screen.getByRole("button", { name: "Discard" }));
+    fireEvent.click(screen.getByRole("button", { name: "Verwerfen" }));
     const discardedFirst = placementRect("p1");
     fireEvent.pointerDown(discardedFirst, {
       pointerId: 3,
@@ -551,31 +607,23 @@ describe("ProjectEditorWorkspace order, flow, and persistence", () => {
       clientX: 50,
       clientY: 250,
     });
-    expect(
-      screen.getByLabelText<HTMLSelectElement>("Selected package label side")
-        .value,
-    ).toBe("top");
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "top",
+    );
     confirm.mockRestore();
   });
 
-  it("resets flow stepping when the active pattern changes", async () => {
+  it("switches patterns through the selector and edits interlayers", () => {
     renderEditor({ project: projectWithSecondPattern() });
-    fireEvent.click(screen.getByRole("button", { name: "Flow" }));
-    const toolbar = screen.getByRole("toolbar", {
-      name: "Flow stepping controls",
-    });
-    fireEvent.click(within(toolbar).getByRole("button", { name: "Next" }));
-    fireEvent.click(within(toolbar).getByRole("button", { name: "Next" }));
-    expect(within(toolbar).getByText(/^3 \/ \d+$/)).toBeTruthy();
-    expect(screen.getByText("place")).toBeTruthy();
-
-    fireEvent.change(screen.getByLabelText("Editor active pattern"), {
+    fireEvent.change(screen.getByLabelText("Aktives Muster"), {
       target: { value: "pattern-2" },
     });
+    expect(screen.getByRole("heading", { name: "Pattern 2" })).toBeTruthy();
 
-    await waitFor(() =>
-      expect(within(toolbar).getByText(/^1 \/ \d+$/)).toBeTruthy(),
-    );
-    expect(screen.getByText("pick")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Zwischenlagen unter Lage 2"), {
+      target: { value: "1" },
+    });
+    expect(screen.getByText("1 Blatt")).toBeTruthy();
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeTruthy();
   });
 });

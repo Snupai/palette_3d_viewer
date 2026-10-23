@@ -148,7 +148,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
       clientX: 100,
       clientY: 200,
     });
-    fireEvent.change(screen.getByLabelText("Selected package label side"), {
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
       target: { value: "left" },
     });
     await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(true));
@@ -162,11 +162,12 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(screen.queryByRole("region", { name: "Planbibliothek" })).toBeNull();
     confirm.mockRestore();
 
-    fireEvent.click(screen.getByRole("button", { name: "Flow" }));
-    expect(await screen.findByText("Current canonical phase")).toBeTruthy();
-    expect(screen.getByText("pick")).toBeTruthy();
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
+    expect(
+      await screen.findByRole("heading", { name: "Griffe in Reihenfolge" }),
+    ).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await waitFor(async () => {
       const saved = await repository.getProject(project.id);
       expect(

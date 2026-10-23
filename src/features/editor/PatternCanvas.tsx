@@ -304,20 +304,25 @@ export function PatternCanvas({
       : null;
 
   return (
-    <div className="bg-canvas focus-within:outline-focus overflow-hidden p-3 focus-within:outline focus-within:outline-2 focus-within:outline-offset-[-2px]">
+    <div className="ed-canvas">
       <p className="sr-only" id="project-pattern-editor-instructions">
-        Click a package to select it. Control or Command click toggles multiple
-        packages. Hold Shift and drag empty pallet space for marquee selection.
-        Arrow keys nudge the selection; Shift plus an arrow uses the configured
-        coarse step. Press R to rotate, Delete to remove, and Escape to clear.
+        Paket anklicken, um es auszuwählen. Strg- oder Cmd-Klick wählt mehrere
+        Pakete, Shift-Ziehen auf freier Fläche zieht einen Auswahlrahmen.
+        Pfeiltasten verschieben die Auswahl, mit Shift im groben Schritt. R
+        dreht, Entf löscht, Escape hebt die Auswahl auf.
       </p>
-      <div className="mx-auto w-full" style={{ maxWidth: "min(100%, 34rem)" }}>
+      <div
+        className="ed-canvas-wrap"
+        style={{
+          ["--ed-aspect" as string]: `${Math.max(width, 1) / Math.max(height, 1)}`,
+        }}
+      >
         <svg
           ref={svgRef}
           viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="application"
-          aria-label={`Editable top view of ${pattern.name}`}
+          aria-label={`Draufsicht von ${pattern.name}, bearbeitbar`}
           aria-describedby="project-pattern-editor-instructions"
           tabIndex={0}
           data-testid="project-pattern-canvas"
