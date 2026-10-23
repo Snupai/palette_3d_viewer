@@ -319,11 +319,6 @@ export function PlanLibrary(
                             <button onClick={() => p.onExportSelected(pr.id)}>
                               Projekt exportieren
                             </button>
-                            {hasRobPlan(pr) && (
-                              <button onClick={() => p.onDownloadRob(pr.id)}>
-                                .rob herunterladen
-                              </button>
-                            )}
                             <button
                               className="text-danger"
                               onClick={() => setPendingDelete(pr.id)}
@@ -332,8 +327,16 @@ export function PlanLibrary(
                             </button>
                           </div>
                         </details>
+                        {hasRobPlan(pr) && (
+                          <button
+                            className="ui-btn"
+                            onClick={() => p.onDownloadRob(pr.id)}
+                          >
+                            .rob herunterladen
+                          </button>
+                        )}
                         <button
-                          className="ui-btn"
+                          className="ui-btn-primary"
                           onClick={() => p.onSelect(pr.id)}
                         >
                           Öffnen
