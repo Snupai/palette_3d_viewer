@@ -92,14 +92,6 @@ const Candidate3DWorkspace = dynamic(
   { ssr: false, loading: WorkspaceLoading },
 );
 
-const LegacyPlanWorkspace = dynamic(
-  () =>
-    import("~/features/legacy-plan/LegacyPlanWorkspace").then(
-      (module) => module.LegacyPlanWorkspace,
-    ),
-  { ssr: false, loading: WorkspaceLoading },
-);
-
 const ReportWorkspace = dynamic(
   () =>
     import("~/features/reporting/ReportWorkspace").then(
@@ -135,11 +127,10 @@ const productionToolTitles: Record<ProductionTool, string> = {
   "candidate-browser": "Candidate browser",
   "candidate-3d": "Candidate 3D inspection",
   stack: "Stack composer",
-  editor: "Pattern editor",
-  robotics: "Robotics",
+  editor: "Muster-Editor",
+  robotics: "Robotik & Greifer",
   simulation: "Simulation",
-  report: "Validation report",
-  "legacy-rob": "Legacy .rob workspace",
+  report: "Palettierblatt",
 };
 
 function projectLabel(project: Project): string {
@@ -208,7 +199,6 @@ export function PlannerProjectWorkspace({
   const [inputSection, setInputSection] = useState<GuidedSectionId>("package");
   const [activeTool, setActiveTool] = useState<ProductionTool | null>(null);
   const [currentLayerIndex, setCurrentLayerIndex] = useState(0);
-  const [legacyDirty, setLegacyDirty] = useState(false);
   const [robotSettings, setRobotSettings] =
     useState<RobotWorkspaceSettings | null>(null);
   const [loadingLibrary, setLoadingLibrary] = useState(true);
@@ -252,9 +242,9 @@ export function PlannerProjectWorkspace({
   }, []);
 
   useEffect(() => {
-    onUnsavedChange?.(stackDirty || editorDirty || legacyDirty || inputsDirty);
+    onUnsavedChange?.(stackDirty || editorDirty || inputsDirty);
     return () => onUnsavedChange?.(false);
-  }, [editorDirty, legacyDirty, onUnsavedChange, stackDirty, inputsDirty]);
+  }, [editorDirty, onUnsavedChange, stackDirty, inputsDirty]);
 
   const refreshProjects = useCallback(async () => {
     const request = ++listRequest.current;
@@ -411,16 +401,14 @@ export function PlannerProjectWorkspace({
     return saved;
   };
 
-  const hasUnsavedChanges =
-    stackDirty || editorDirty || legacyDirty || inputsDirty;
+  const hasUnsavedChanges = stackDirty || editorDirty || inputsDirty;
   const confirmDiscardUnsaved = (action: string): boolean =>
-    !(stackDirty || editorDirty || legacyDirty || inputsDirtyRef.current) ||
+    !(stackDirty || editorDirty || inputsDirtyRef.current) ||
     window.confirm(`${action}: Ungespeicherte Änderungen verwerfen?`);
 
   const productionToolIsDirty = (tool: ProductionTool): boolean => {
     if (tool === "stack") return stackDirty;
     if (tool === "editor") return editorDirty;
-    if (tool === "legacy-rob") return legacyDirty;
     return false;
   };
 
@@ -430,7 +418,6 @@ export function PlannerProjectWorkspace({
       setEditorDraftProject(null);
       setEditorDirty(false);
     }
-    if (tool === "legacy-rob") setLegacyDirty(false);
   };
 
   const discardUnsavedPlannerChanges = (): void => {
@@ -439,7 +426,6 @@ export function PlannerProjectWorkspace({
     setStackDirty(false);
     setEditorDraftProject(null);
     setEditorDirty(false);
-    setLegacyDirty(false);
     setActiveTool(null);
   };
 
@@ -448,7 +434,7 @@ export function PlannerProjectWorkspace({
     if (
       productionToolIsDirty(activeTool) &&
       !window.confirm(
-        `${action} and discard unsaved changes in ${productionToolTitles[activeTool]}?`,
+        `${action}: Ungespeicherte Änderungen in „${productionToolTitles[activeTool]}“ verwerfen?`,
       )
     ) {
       return false;
@@ -514,13 +500,13 @@ export function PlannerProjectWorkspace({
 
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
-    if (!confirmLeaveActiveTool(`Open ${productionToolTitles[tool]}`)) return;
+    if (!confirmLeaveActiveTool(`${productionToolTitles[tool]} öffnen`)) return;
     setProjectDrawerOpen(false);
     setActiveTool(tool);
   };
 
   const closeProductionTool = () => {
-    if (!confirmLeaveActiveTool("Close")) return;
+    if (!confirmLeaveActiveTool("Schließen")) return;
     setActiveTool(null);
   };
 
@@ -1195,7 +1181,6 @@ export function PlannerProjectWorkspace({
                       ["robotics", "Robotik & Greifer"],
                       ["simulation", "Simulation"],
                       ["report", "Palettierblatt"],
-                      ["legacy-rob", ".rob-Arbeitsbereich"],
                     ] as const
                   ).map(([tool, label]) => {
                     const gate = productionToolGate(
@@ -1356,7 +1341,7 @@ export function PlannerProjectWorkspace({
 
       <CaseDrawer
         open={activeTool !== null}
-        title={activeTool ? productionToolTitles[activeTool] : "Workspace"}
+        title={activeTool ? productionToolTitles[activeTool] : "Werkzeug"}
         onClose={closeProductionTool}
       >
         {activeToolGate && !activeToolGate.ready ? (
@@ -1468,10 +1453,6 @@ export function PlannerProjectWorkspace({
                 materialization={robotMaterialization}
                 previewData={robotPreviewData}
               />
-            ) : null}
-
-            {activeTool === "legacy-rob" ? (
-              <LegacyPlanWorkspace onUnsavedChange={setLegacyDirty} />
             ) : null}
           </>
         )}

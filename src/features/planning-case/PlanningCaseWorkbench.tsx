@@ -37,8 +37,7 @@ export type ProductionTool =
   | "editor"
   | "robotics"
   | "simulation"
-  | "report"
-  | "legacy-rob";
+  | "report";
 export type PlanningCaseWorkbenchProps = {
   project: Project | null;
   stackContent?: ReactNode;
@@ -354,13 +353,6 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
           <details className="ranking-note">
             <summary>Prüfungen und Originaldatei</summary>
             <ValidationLedger rows={p.ledgerRows} />
-
-            <button
-              className="ui-btn"
-              onClick={() => p.onOpenTool("legacy-rob")}
-            >
-              .rob-Arbeitsbereich öffnen
-            </button>
           </details>
         </>
       ) : (

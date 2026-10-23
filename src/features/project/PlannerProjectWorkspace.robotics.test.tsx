@@ -186,10 +186,9 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
 
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
+      within(
+        screen.getByRole("dialog", { name: "Robotik & Greifer" }),
+      ).getByRole("button", { name: "Schließen" }),
     );
     await waitFor(() => {
       expect(screen.queryByTestId("robotics-workspace")).toBeNull();
@@ -200,10 +199,9 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
 
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
+      within(
+        screen.getByRole("dialog", { name: "Robotik & Greifer" }),
+      ).getByRole("button", { name: "Schließen" }),
     );
     await waitFor(() => {
       expect(screen.queryByTestId("robotics-workspace")).toBeNull();

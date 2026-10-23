@@ -85,7 +85,7 @@ export function Drawer({
         <button
           type="button"
           tabIndex={-1}
-          aria-label={`Close ${title}`}
+          aria-label={`${title} schließen`}
           onClick={onClose}
           className="absolute inset-0 cursor-default"
         />
@@ -102,7 +102,7 @@ export function Drawer({
           <h2 className="text-body mr-auto truncate font-semibold">{title}</h2>
           {actions}
           <button type="button" onClick={onClose} className="ui-btn ui-btn-sm">
-            Close
+            Schließen
           </button>
         </header>
         <div className="scrollbar-thin min-h-0 overflow-auto">{children}</div>
