@@ -42,7 +42,10 @@ export function SheetPhotoImport({
   onBusyChange,
   onExtracted,
 }: SheetPhotoImportProps) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // Two inputs: `capture` forces the phone camera and skips the gallery,
+  // so the library picker needs an input without it.
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
   const abortRef = useRef<AbortController | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,7 +122,7 @@ export function SheetPhotoImport({
       </legend>
       <div className="flex flex-wrap items-center gap-3">
         <input
-          ref={inputRef}
+          ref={cameraInputRef}
           type="file"
           accept="image/*"
           capture="environment"
@@ -130,10 +133,21 @@ export function SheetPhotoImport({
             if (file) void read(file, "scan");
           }}
         />
+        <input
+          ref={libraryInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => {
+            const file = event.target.files?.[0];
+            event.target.value = "";
+            if (file) void read(file, "scan");
+          }}
+        />
         <button
           type="button"
           disabled={disabled || busy}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => cameraInputRef.current?.click()}
           className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
         >
           {busy
@@ -141,8 +155,16 @@ export function SheetPhotoImport({
               ? "Blatt wird zugeschnitten …"
               : "Blatt wird gelesen …"
             : photoUrl
-              ? "Weiteres Foto aufnehmen"
-              : "Foto aufnehmen oder wählen"}
+              ? "Neues Foto aufnehmen"
+              : "Foto aufnehmen"}
+        </button>
+        <button
+          type="button"
+          disabled={disabled || busy}
+          onClick={() => libraryInputRef.current?.click()}
+          className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
+        >
+          Aus Galerie wählen
         </button>
         <span className="fw-note">
           Wird lokal auf dem eigenen Server gelesen. Die Werte sind ein
