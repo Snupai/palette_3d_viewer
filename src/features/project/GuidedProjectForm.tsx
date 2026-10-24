@@ -38,6 +38,9 @@ import {
   type LabelEdge,
 } from "~/features/project/guidedProjectFormModel";
 import type { ProjectDialogSubmission } from "~/features/project/ProjectDialog";
+import { applySheetToFormValues } from "~/features/project/sheetImport";
+import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
+import type { PalletSheet } from "~/domain/sheetExtraction";
 import {
   buildProjectFromForm,
   palletTemplateFormValues,
@@ -435,6 +438,7 @@ export function GuidedProjectForm({
   const [saveErrors, setSaveErrors] = useState<ProjectFieldErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [readingSheet, setReadingSheet] = useState(false);
   const [stageExpanded, setStageExpanded] = useState(false);
   const saveGeneration = useRef(0);
   useEffect(() => {
@@ -456,6 +460,7 @@ export function GuidedProjectForm({
     setSaveErrors({});
     setFailure(null);
     setSaving(false);
+    setReadingSheet(false);
   }, [project]);
 
   const dirty =
@@ -542,6 +547,28 @@ export function GuidedProjectForm({
     setSaveErrors((current) =>
       Object.keys(current).length === 0 ? current : {},
     );
+  };
+
+  /** Pre-fills the form from a photographed pallet sheet; every value stays editable. */
+  const applySheet = (sheet: PalletSheet) => {
+    const patch = applySheetToFormValues(values, sheet);
+    const changedPaths = (
+      Object.keys(patch.values) as (keyof ProjectFormValues)[]
+    )
+      .filter((key) => patch.values[key] !== values[key])
+      .map((key) => fieldPathByValue[key])
+      .filter((path): path is string => path !== undefined);
+    const explicit = new Set(explicitStorage);
+    for (const path of changedPaths) explicit.add(path);
+    setValues(syncAutomaticStorage(patch.values, explicit));
+    setExactPackageCount(patch.exactPackageCount);
+    setEdited((current) => {
+      const next = new Set(current);
+      for (const path of changedPaths) next.add(path);
+      return next;
+    });
+    setSaveErrors({});
+    setFailure(null);
   };
 
   const reveal = (key: keyof ProjectFormValues) => () => {
@@ -747,6 +774,14 @@ export function GuidedProjectForm({
             <div role="alert" className="fw-alert">
               {failure}
             </div>
+          ) : null}
+
+          {creating ? (
+            <SheetPhotoImport
+              disabled={saving}
+              onBusyChange={setReadingSheet}
+              onExtracted={({ sheet }) => applySheet(sheet)}
+            />
           ) : null}
 
           <div className="fw-sections">
@@ -1246,7 +1281,7 @@ export function GuidedProjectForm({
               name="creationAction"
               value="create-only"
               className="ui-btn"
-              disabled={saving}
+              disabled={saving || readingSheet}
             >
               Nur speichern
             </button>
@@ -1256,7 +1291,7 @@ export function GuidedProjectForm({
             name="creationAction"
             value={creating ? "generate" : "save"}
             className="ui-btn-primary"
-            disabled={saving}
+            disabled={saving || readingSheet}
           >
             {saving
               ? "Wird gespeichert …"

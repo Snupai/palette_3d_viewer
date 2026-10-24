@@ -12,15 +12,15 @@ export type SheetPhotoImportProps = {
 };
 
 const severityClass: Record<SheetIssue["severity"], string> = {
-  error: "text-[var(--danger)]",
-  warning: "text-[var(--ink)]",
-  info: "text-[var(--muted)]",
+  error: "text-danger",
+  warning: "text-ink",
+  info: "text-muted",
 };
 
 const severityLabel: Record<SheetIssue["severity"], string> = {
-  error: "Fix",
-  warning: "Check",
-  info: "Note",
+  error: "Korrigieren",
+  warning: "Prüfen",
+  info: "Hinweis",
 };
 
 function dims(
@@ -34,7 +34,7 @@ function dims(
 
 /**
  * Reads a photographed pallet sheet with the local model and hands the result
- * to the dialog. Every value stays editable; issues tell the user what to verify.
+ * to the form. Every value stays editable; issues tell the user what to verify.
  */
 export function SheetPhotoImport({
   disabled = false,
@@ -90,9 +90,9 @@ export function SheetPhotoImport({
   const sheet = result?.sheet;
 
   return (
-    <fieldset className="grid gap-3 border border-[var(--line)] p-4">
-      <legend className="px-1 text-sm font-semibold text-[var(--ink)]">
-        From sheet photo
+    <fieldset className="border-line bg-surface grid gap-3 border p-4">
+      <legend className="text-ink px-1 text-sm font-semibold">
+        Aus Palettenblatt-Foto
       </legend>
       <div className="flex flex-wrap items-center gap-3">
         <input
@@ -114,14 +114,14 @@ export function SheetPhotoImport({
           className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
         >
           {busy
-            ? "Reading sheet…"
+            ? "Blatt wird gelesen …"
             : photoUrl
-              ? "Take another photo"
-              : "Take or choose photo"}
+              ? "Weiteres Foto aufnehmen"
+              : "Foto aufnehmen oder wählen"}
         </button>
-        <span className="text-xs text-[var(--muted)]">
-          Read locally on this machine. Values below are a suggestion — check
-          them against the sheet.
+        <span className="fw-note">
+          Wird lokal auf dem eigenen Server gelesen. Die Werte sind ein
+          Vorschlag und müssen mit dem Blatt abgeglichen werden.
         </span>
       </div>
 
@@ -131,42 +131,42 @@ export function SheetPhotoImport({
             // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
             <img
               src={photoUrl}
-              alt="Photographed pallet sheet"
-              className="max-h-56 w-full border border-[var(--line)] object-contain"
+              alt="Fotografiertes Palettenblatt"
+              className="border-line max-h-56 w-full border object-contain"
             />
           ) : null}
           <div className="grid content-start gap-2 text-sm">
             {error ? (
-              <div role="alert" className="text-[var(--danger)]">
+              <div role="alert" className="text-danger">
                 {error}
               </div>
             ) : null}
             {busy ? (
-              <div className="text-[var(--muted)]">
-                The local model is reading the sheet. This can take up to a
-                minute.
+              <div className="text-muted">
+                Das lokale Modell liest das Blatt. Das kann bis zu einer Minute
+                dauern.
               </div>
             ) : null}
             {sheet && result ? (
               <>
                 <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs">
-                  <dt className="text-[var(--muted)]">Product</dt>
+                  <dt className="text-muted">Produkt</dt>
                   <dd>
                     {[sheet.productName, sheet.productNumber, sheet.cartonId]
                       .filter(Boolean)
                       .join(" · ") || "—"}
                   </dd>
-                  <dt className="text-[var(--muted)]">Carton</dt>
+                  <dt className="text-muted">Karton</dt>
                   <dd>{dims(sheet.cartonMm)} mm</dd>
-                  <dt className="text-[var(--muted)]">Block</dt>
+                  <dt className="text-muted">Block</dt>
                   <dd>{dims(sheet.blockMm)} mm</dd>
-                  <dt className="text-[var(--muted)]">Pallet</dt>
+                  <dt className="text-muted">Palette</dt>
                   <dd>{dims(sheet.palletMm)} mm</dd>
-                  <dt className="text-[var(--muted)]">Layers</dt>
+                  <dt className="text-muted">Lagen</dt>
                   <dd>
-                    {sheet.cartonsPerLayer ?? "?"} per layer ×{" "}
-                    {sheet.layers ?? "?"} layers ={" "}
-                    {sheet.cartonsPerPallet ?? "?"} cartons
+                    {sheet.cartonsPerLayer ?? "?"} je Lage ×{" "}
+                    {sheet.layers ?? "?"} Lagen ={" "}
+                    {sheet.cartonsPerPallet ?? "?"} Kartons
                   </dd>
                 </dl>
                 {result.issues.length > 0 ? (
@@ -181,13 +181,13 @@ export function SheetPhotoImport({
                     ))}
                   </ul>
                 ) : (
-                  <div className="text-xs text-[var(--ok)]">
-                    All consistency checks passed.
+                  <div className="text-ok text-xs">
+                    Alle Plausibilitätsprüfungen bestanden.
                   </div>
                 )}
-                <div className="text-[11px] text-[var(--muted)]">
+                <div className="text-muted text-[11px]">
                   {result.model} · {(result.durationMs / 1000).toFixed(1)} s
-                  {result.attempts > 1 ? ` · ${result.attempts} attempts` : ""}
+                  {result.attempts > 1 ? ` · ${result.attempts} Versuche` : ""}
                 </div>
               </>
             ) : null}
