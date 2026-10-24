@@ -17,6 +17,7 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "preview": "next build && next start",
+    "sheet:eval": "bun run src/lib/sheetExtraction/evalCli.node.ts",
     "start": "next start",
     "test": "vitest",
     "test:corpus": "vitest run src/lib/parity/externalCorpus.node.test.ts",

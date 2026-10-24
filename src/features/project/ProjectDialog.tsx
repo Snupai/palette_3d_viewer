@@ -21,6 +21,8 @@ import {
   type ProjectFieldErrors,
   type ProjectFormValues,
 } from "~/features/project/projectForm";
+import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
+import { applySheetToFormValues } from "~/features/project/sheetImport";
 
 export type ProjectGenerationIntent = {
   exactPackageCount: number;
@@ -115,6 +117,8 @@ function ModalProjectDialog({
   const [fieldErrors, setFieldErrors] = useState<ProjectFieldErrors>({});
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [readingSheet, setReadingSheet] = useState(false);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -123,6 +127,7 @@ function ModalProjectDialog({
     setFieldErrors({});
     setFailure(null);
     setSaving(false);
+    setAdvancedOpen(false);
   }, [open, project]);
 
   useEffect(() => {
@@ -253,6 +258,22 @@ function ModalProjectDialog({
                 >
                   {failure}
                 </div>
+              ) : null}
+
+              {project === null && open ? (
+                <SheetPhotoImport
+                  disabled={saving}
+                  onBusyChange={setReadingSheet}
+                  onExtracted={({ sheet }) => {
+                    const patch = applySheetToFormValues(values, sheet);
+                    setValues(patch.values);
+                    setExactPackageCount(patch.exactPackageCount);
+                    setFieldErrors({});
+                    setFailure(null);
+                    // Show the filled overhang/underhang fields.
+                    setAdvancedOpen(true);
+                  }}
+                />
               ) : null}
 
               <fieldset className="border-line grid gap-3 border p-4">
@@ -482,7 +503,11 @@ function ModalProjectDialog({
                 </div>
               </fieldset>
 
-              <details className="border-line border p-4">
+              <details
+                open={advancedOpen}
+                onToggle={(event) => setAdvancedOpen(event.currentTarget.open)}
+                className="border-line border p-4"
+              >
                 <summary className="text-ink text-body cursor-pointer font-semibold">
                   Advanced settings
                 </summary>
@@ -687,7 +712,7 @@ function ModalProjectDialog({
                 type="submit"
                 name="creationAction"
                 value="create-only"
-                disabled={saving}
+                disabled={saving || readingSheet}
                 className="ui-btn text-body px-3 py-2 disabled:cursor-wait disabled:opacity-50"
               >
                 Save project
@@ -697,7 +722,7 @@ function ModalProjectDialog({
               type="submit"
               name="creationAction"
               value={project ? "save" : "generate"}
-              disabled={saving}
+              disabled={saving || readingSheet}
               className="ui-btn-primary text-body px-3 py-2 disabled:cursor-wait"
             >
               {saving
