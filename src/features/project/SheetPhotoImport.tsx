@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { SheetIssue } from "~/domain/sheetExtraction";
 import { requestSheetExtraction } from "~/features/project/sheetImport";
+import { scanDocument } from "~/lib/sheetExtraction/documentScan";
 import type { SheetExtractionResult } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
 export type SheetPhotoImportProps = {
@@ -47,6 +48,10 @@ export function SheetPhotoImport({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SheetExtractionResult | null>(null);
+  const [original, setOriginal] = useState<File | null>(null);
+  const [scan, setScan] = useState<"scanning" | "cut" | "uncut" | "raw" | null>(
+    null,
+  );
 
   useEffect(
     () => () => {
@@ -66,16 +71,34 @@ export function SheetPhotoImport({
     onBusyChange?.(next);
   };
 
-  const read = async (file: File) => {
+  /**
+   * Cuts the sheet out of the photo (perspective-corrected, scanner look)
+   * before sending it, unless the user asked for the untouched photo.
+   */
+  const read = async (file: File, mode: "scan" | "raw") => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
+    setOriginal(file);
     setPhotoUrl(URL.createObjectURL(file));
     setError(null);
     setResult(null);
+    setScan(mode === "scan" ? "scanning" : "raw");
     setBusyState(true);
     try {
-      const extracted = await requestSheetExtraction(file, controller.signal);
+      let upload = file;
+      if (mode === "scan") {
+        const scanned = await scanDocument(file);
+        if (controller.signal.aborted) return;
+        setScan(scanned.detected ? "cut" : "uncut");
+        if (scanned.detected) {
+          upload = new File([scanned.blob], "sheet.jpg", {
+            type: "image/jpeg",
+          });
+          setPhotoUrl(URL.createObjectURL(upload));
+        }
+      }
+      const extracted = await requestSheetExtraction(upload, controller.signal);
       if (controller.signal.aborted) return;
       setResult(extracted);
       onExtracted(extracted);
@@ -104,7 +127,7 @@ export function SheetPhotoImport({
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
-            if (file) void read(file);
+            if (file) void read(file, "scan");
           }}
         />
         <button
@@ -114,7 +137,9 @@ export function SheetPhotoImport({
           className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
         >
           {busy
-            ? "Blatt wird gelesen …"
+            ? scan === "scanning"
+              ? "Blatt wird zugeschnitten …"
+              : "Blatt wird gelesen …"
             : photoUrl
               ? "Weiteres Foto aufnehmen"
               : "Foto aufnehmen oder wählen"}
@@ -141,10 +166,32 @@ export function SheetPhotoImport({
                 {error}
               </div>
             ) : null}
-            {busy ? (
+            {busy && scan === "scanning" ? (
+              <div className="text-muted">
+                Das Blatt wird im Foto gesucht, zugeschnitten und begradigt.
+              </div>
+            ) : busy ? (
               <div className="text-muted">
                 Das lokale Modell liest das Blatt. Das kann bis zu einer Minute
                 dauern.
+              </div>
+            ) : null}
+            {!busy && scan === "uncut" ? (
+              <div className="text-muted text-xs">
+                Kein Blattrand erkannt, das Originalfoto wurde verwendet.
+              </div>
+            ) : null}
+            {!busy && scan === "cut" && original ? (
+              <div className="text-muted text-xs">
+                Zugeschnitten und begradigt. Falsch getroffen?{" "}
+                <button
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => void read(original, "raw")}
+                  className="text-ink cursor-pointer underline"
+                >
+                  Originalfoto lesen
+                </button>
               </div>
             ) : null}
             {sheet && result ? (
