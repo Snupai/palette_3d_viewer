@@ -1300,7 +1300,8 @@ describe("solver input and candidate validation", () => {
         expect(overlappingPairs).toEqual([]);
       }
     }
-  }, 30_000);
+    // Eight seeded solves take 18-26 s on the CI runner; keep a wide margin.
+  }, 120_000);
 });
 
 describe("candidate canonicalization and geometric deduplication", () => {
