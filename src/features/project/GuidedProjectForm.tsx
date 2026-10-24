@@ -483,6 +483,9 @@ export function GuidedProjectForm({
   );
 
   useEffect(() => {
+    // A new plan starts with the sheet-photo import above the sections; an
+    // auto-focused field would raise the phone keyboard and scroll past it.
+    if (creating) return;
     // Lands the cursor in the first field of the section that opened first.
     const body = document.getElementById(`${id(initialSection)}-body`);
     body?.querySelector<HTMLElement>("input, select, button")?.focus();

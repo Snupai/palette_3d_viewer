@@ -88,8 +88,9 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
 
   it("starts blank, keeps the same input node while typing, and shows errors only after edit and blur", () => {
     renderInline();
-    // The article step comes first; package dimensions are the second step.
-    expect(document.activeElement).toBe(screen.getByLabelText("Artikelnummer"));
+    // A new plan starts on the sheet-photo import, so no field steals focus
+    // (a focused input would raise the phone keyboard over the photo buttons).
+    expect(document.activeElement).toBe(document.body);
     const length = screen.getByLabelText<HTMLInputElement>("Länge");
     expect(length.value).toBe("");
 
