@@ -1,19 +1,28 @@
-import { Panel, StatusBadge, toneForReadiness } from "~/components/ui";
+import { toneForReadiness } from "~/components/ui";
 import type {
   RobotReadinessItem,
   RobotReadinessStatus,
 } from "~/features/robotics/robotWorkspaceModel";
 
-const readinessLabels: Record<RobotReadinessStatus, string> = {
-  complete: "Ready",
-  "needs-input": "Needs input",
-  engineering: "Engineering",
-  "not-checked": "Not checked",
-  warning: "Check",
-  blocked: "Blocked",
+const statusLabels: Record<RobotReadinessStatus, string> = {
+  complete: "Bereit",
+  "needs-input": "Eingabe nötig",
+  engineering: "Technik prüfen",
+  "not-checked": "Nicht geprüft",
+  warning: "Prüfen",
+  blocked: "Blockiert",
 };
 
-/** Step 3: one row per readiness check, with the evidence it is based on. */
+const itemLabels: Record<string, string> = {
+  plan: "Plan und Griffliste",
+  equipment: "Ausrüstung",
+  pickup: "Aufnahmepunkt",
+  workspace: "Arbeitsraum der Station",
+  obstacles: "Hindernisse",
+  export: "Export-Zuordnung",
+};
+
+/** One row per readiness check, with the evidence it is based on. */
 export function ReadinessPanel({
   readiness,
   cycleDataValid,
@@ -23,50 +32,38 @@ export function ReadinessPanel({
 }) {
   const allComplete = readiness.every((item) => item.status === "complete");
   return (
-    <Panel
-      title="3. Review readiness"
-      description="Each row states what this workspace actually checked."
-      actions={
-        <span
-          className={`text-xs ${
-            !cycleDataValid
-              ? "text-danger"
-              : allComplete
-                ? "text-ok"
-                : "text-caution"
-          }`}
-        >
+    <section className="ed-panel" aria-labelledby="rb-readiness-title">
+      <div className="ed-panel-head">
+        <h3 id="rb-readiness-title">Bereitschaft</h3>
+        <small>
           {!cycleDataValid
-            ? "Cycle data has blocking issues"
+            ? "Griffdaten blockiert"
             : allComplete
-              ? "Cycle data checks passed"
-              : "Available project data parsed"}
-        </span>
-      }
-    >
-      <ul className="bg-line grid gap-px md:grid-cols-2">
+              ? "alle Prüfungen bestanden"
+              : "Projektdaten geprüft"}
+        </small>
+      </div>
+      <ul className="ed-readiness">
         {readiness.map((item) => (
-          <li key={item.id} className="bg-surface flex gap-3 p-3">
-            <StatusBadge
-              tone={toneForReadiness(item.status)}
-              label={readinessLabels[item.status]}
-              framed
-              className="h-fit min-w-[82px] justify-center"
-            />
-            <div className="min-w-0">
-              <p className="text-ink text-xs font-semibold">{item.label}</p>
-              <p className="text-muted mt-1 text-xs leading-5">
-                {item.evidence}
-              </p>
-            </div>
+          <li key={item.id}>
+            <span
+              className="ed-badge"
+              data-tone={toneForReadiness(item.status)}
+            >
+              {statusLabels[item.status]}
+            </span>
+            <span>
+              <strong>{itemLabels[item.id] ?? item.label}</strong>
+              <small>{item.evidence}</small>
+            </span>
           </li>
         ))}
       </ul>
-      <div className="border-caution/40 bg-caution/5 text-ink border-t px-3 py-2 text-xs leading-5">
-        <strong>Production feasibility is not assessed.</strong> Confirm the
-        real gripper, station frame, robot program mapping, guarding, and full
-        collision model before production use.
-      </div>
-    </Panel>
+      <p className="ed-warn">
+        <strong>Produktionsfreigabe wird hier nicht bewertet.</strong> Greifer,
+        Stationsrahmen, Programmzuordnung, Schutzeinrichtungen und das
+        vollständige Kollisionsmodell vor dem Einsatz an der Anlage prüfen.
+      </p>
+    </section>
   );
 }

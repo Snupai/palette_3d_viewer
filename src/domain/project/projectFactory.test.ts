@@ -142,6 +142,84 @@ describe("project factories and updates", () => {
     expect(original.projectNumber).toBe("P-1");
   });
 
+  it("flags saved solutions only for placement-relevant changes", () => {
+    const base = createProject(
+      {
+        id: "flag",
+        pallet: "euro",
+        solutions: [
+          {
+            id: "solution-1",
+            name: "Saved",
+            origin: "calculated",
+            patterns: [
+              {
+                id: "pattern-1",
+                name: "Pattern 1",
+                grips: [],
+                placements: [
+                  {
+                    id: "placement-1",
+                    sequence: 0,
+                    positionMm: { x: 100, y: 50 },
+                    rotation: 0,
+                    gripId: null,
+                    labelSide: null,
+                  },
+                ],
+              },
+            ],
+            stack: {
+              interlayerThicknessMm: 3,
+              layers: [
+                { id: "layer-1", patternId: "pattern-1", interlayerBefore: 0 },
+              ],
+              trailingInterlayer: 0,
+            },
+            robotCycles: [],
+          },
+        ],
+      },
+      { createId: (kind) => `${kind}-flag`, now: () => 1 },
+    );
+    const flag = (project: ReturnType<typeof createProject>) =>
+      project.solutions[0]!.requiresGeometryReview ?? false;
+    const pallet = base.pallet!;
+    expect(
+      flag(
+        updateProject(base, {
+          pallet: {
+            ...pallet,
+            storageEnvelopeMm: { length: 1200, width: 800, height: 1600 },
+          },
+        }),
+      ),
+    ).toBe(false);
+    expect(
+      flag(updateProject(base, { package: { ...base.package, weightKg: 9 } })),
+    ).toBe(false);
+    expect(
+      flag(
+        updateProject(base, {
+          pallet: {
+            ...pallet,
+            dimensionsMm: { ...pallet.dimensionsMm, height: 150 },
+          },
+        }),
+      ),
+    ).toBe(true);
+    expect(
+      flag(
+        updateProject(base, {
+          package: {
+            ...base.package,
+            multiPickAllowed: !base.package.multiPickAllowed,
+          },
+        }),
+      ),
+    ).toBe(true);
+  });
+
   it("can still create the exact V2 compatibility contract", () => {
     const project = createProjectV2(
       { id: "v2" },

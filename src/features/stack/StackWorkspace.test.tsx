@@ -850,6 +850,34 @@ describe("StackWorkspace", () => {
     },
   );
 
+  it("keeps an explicitly cancelled replacement dirty without a success message", async () => {
+    const onSave = vi.fn(() => "cancelled" as const);
+    const onDirtyChange = vi.fn();
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Layer 1 transform"), {
+      target: { value: "mirror-x" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save stack and continue to Robotics",
+      }),
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+    expect(screen.getByText("Unsaved stack edits")).toBeTruthy();
+    expect(
+      screen.queryByText("Stack saved to the project repository."),
+    ).toBeNull();
+  });
+
   it("keeps newer edits dirty when an earlier async save finishes", async () => {
     let resolveSave!: () => void;
     const pendingSave = new Promise<void>((resolve) => {
@@ -902,5 +930,111 @@ describe("StackWorkspace", () => {
     expect(screen.getByRole("status").textContent).toMatch(
       /newer edits remain unsaved/i,
     );
+  });
+});
+
+describe("StackWorkspace guided", () => {
+  it("returns to composition when a different candidate becomes pattern A", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(
+      <StackWorkspace {...props} guided candidates={candidates} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        guided
+        candidates={[candidates[1]!, candidates[0]!]}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Stapel aufbauen" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeNull();
+  });
+
+  it("builds from capacity, inserts a sheet, reviews, returns with the same stack, and saves", async () => {
+    const onSave =
+      vi.fn<
+        (state: StackWorkspaceState, result: MaterializedStackResult) => void
+      >();
+    const onDirtyChange = vi.fn();
+    const onEditProject = vi.fn();
+    const onSubstepChange = vi.fn();
+    render(
+      <StackWorkspace
+        guided
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+        onBack={() => undefined}
+        onEditProject={onEditProject}
+        onSubstepChange={onSubstepChange}
+      />,
+    );
+
+    expect(screen.getByText("3 Schichten gestapelt")).toBeTruthy();
+    expect(screen.getByText("Bis zu 3 passen in 350 mm.")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Maximum (3)" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.queryByTestId("rob-viewer")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Eine Schicht mehr" }));
+    expect(screen.getByText("4 Schichten gestapelt")).toBeTruthy();
+    expect(
+      screen.getAllByText("Ladehöhe 400 mm liegt über der Lagerhöhe 350 mm.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+
+    fireEvent.click(screen.getByLabelText("Einzeln in der Schichtfolge"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Zwischenlage unter Schicht 2 einfügen",
+      }),
+    );
+    expect(screen.getByText("Zwischenlage 3 mm")).toBeTruthy();
+    expect(screen.getByText("Ablage-Z 203")).toBeTruthy();
+    expect(screen.getByText("Ablage-Z 403")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+    expect(onSubstepChange.mock.calls.at(-1)?.[0]).toBe("review");
+    expect(screen.getByText("Zwischenlage vor Schicht 2")).toBeTruthy();
+    // The sheet has no known weight, so gross weight stays unknown.
+    expect(
+      screen.getByText("4 Pakete, 403 mm, Bruttogewicht unbekannt"),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Paket ändern" }));
+    expect(onEditProject).toHaveBeenCalledWith("package");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stapel ändern" }));
+    expect(screen.getByText("4 Schichten gestapelt")).toBeTruthy();
+    expect(screen.getByText("Zwischenlage 3 mm")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plan speichern" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [savedState, savedResult] = onSave.mock.calls[0]!;
+    expect(savedState.layers).toHaveLength(4);
+    expect(savedState.individualBeforeLayer).toEqual({
+      "composed-layer-2": { enabled: true, thicknessMm: 3 },
+    });
+    expect(savedResult.metrics.height.loadStackHeightMm).toBe(403);
+    expect(await screen.findByText("Plan gespeichert.")).toBeTruthy();
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(false);
   });
 });

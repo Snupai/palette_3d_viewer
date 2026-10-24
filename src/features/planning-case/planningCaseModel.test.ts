@@ -290,8 +290,8 @@ describe("productionToolGate", () => {
     const gate = productionToolGate("editor", null, 0);
     expect(gate).toEqual({
       ready: false,
-      missing: "No project is selected.",
-      actionLabel: "Go to project inputs",
+      missing: "Kein Plan ausgewählt.",
+      actionLabel: "Zu den Eingaben",
       action: { kind: "stage", stage: "inputs" },
     });
   });
@@ -301,13 +301,13 @@ describe("productionToolGate", () => {
     for (const tool of ["editor", "robotics"]) {
       expect(productionToolGate(tool, project, 0)).toMatchObject({
         ready: false,
-        actionLabel: "Build the stack",
+        actionLabel: "Stapel aufbauen",
         action: { kind: "stage", stage: "stack" },
       });
     }
     expect(productionToolGate("simulation", project, 0)).toMatchObject({
       ready: false,
-      actionLabel: "Open Robotics preflight",
+      actionLabel: "Robotik-Prüfung öffnen",
       action: { kind: "tool", tool: "robotics" },
     });
     expect(productionToolGate("report", project, 0)).toEqual({ ready: true });

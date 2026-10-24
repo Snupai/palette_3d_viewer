@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
+import { PatternResults } from "~/features/planner/PatternResults";
 import { CandidateBrowser } from "~/features/candidates/CandidateBrowser";
 
 afterEach(cleanup);
@@ -185,5 +186,61 @@ describe("CandidateBrowser", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
     expect(screen.getByText(/3 of 3 layouts/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(3);
+  });
+});
+
+describe("guided pattern choice", () => {
+  function GuidedHarness() {
+    const [selected, setSelected] = useState(candidates[0]!.id);
+    return (
+      <>
+        <output data-testid="guided-selected">{selected}</output>
+        <PatternResults
+          candidates={candidates}
+          input={solverInput}
+          selectedId={selected}
+          onSelect={setSelected}
+        />
+      </>
+    );
+  }
+  it("keeps the chosen pattern while comparing until the alternative is explicitly accepted", () => {
+    render(<GuidedHarness />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Vergleichen" })[1]!);
+    expect(
+      screen.getByRole("heading", { name: "Gewählt gegen Muster 2" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("guided-selected").textContent).toBe(
+      "candidate-1",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Dieses Muster übernehmen" }),
+    );
+    expect(screen.getByTestId("guided-selected").textContent).toBe(
+      "candidate-2",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Vergleich schließen" }),
+    ).toBeNull();
+  });
+  it("does not discard the chosen pattern when a filter has no matches", () => {
+    render(<GuidedHarness />);
+    fireEvent.change(screen.getByLabelText("Genau Pakete je Lage"), {
+      target: { value: "99" },
+    });
+    expect(
+      screen.getByRole("heading", { name: "Kein Muster mit 99 Paketen" }),
+    ).toBeTruthy();
+    expect(screen.getByTestId("guided-selected").textContent).toBe(
+      "candidate-1",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Alle Muster anzeigen" }),
+    );
+    expect(
+      screen.getAllByRole("button", {
+        name: /Muster \d+ mit \d+ Paketen wählen/,
+      }),
+    ).toHaveLength(3);
   });
 });

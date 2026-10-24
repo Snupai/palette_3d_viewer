@@ -614,20 +614,20 @@ export function MeasuredPlanField({
     mode === "split" ? drawingBounds(reference, current) : undefined;
 
   return (
-    <section className="planning-plan-field grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border border-line bg-canvas">
-      <header className="flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b border-line px-3 py-1.5 text-xs">
-        <span className="font-semibold text-ink">Plan field</span>
+    <section className="planning-plan-field border-line bg-canvas grid h-full max-h-[32.5rem] min-h-0 grid-rows-[auto_minmax(0,1fr)] self-start border">
+      <header className="border-line text-micro flex min-h-9 flex-wrap items-center gap-x-4 gap-y-1 border-b px-3 py-1.5">
+        <span className="text-ink font-semibold">Plan field</span>
         {reference ? (
-          <span className="flex items-center gap-1.5 text-measure">
+          <span className="text-measure flex items-center gap-1.5">
             <span className="inline-block h-2.5 w-4 border border-dashed border-current" />
             {referenceLabel}
           </span>
         ) : null}
-        <span className="flex items-center gap-1.5 text-brand">
+        <span className="text-brand flex items-center gap-1.5">
           <span className="inline-block h-2.5 w-4 border border-current bg-current/20" />
           {currentLabel}
         </span>
-        <span className="ml-auto font-mono text-muted">
+        <span className="text-muted ml-auto font-mono">
           {comparisonText(comparison, current)}
         </span>
       </header>
@@ -635,8 +635,8 @@ export function MeasuredPlanField({
         className={`min-h-0 p-2 ${mode === "split" ? "overflow-auto" : "overflow-hidden"}`}
       >
         {mode === "split" ? (
-          <div className="grid min-h-[720px] gap-px bg-line 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
-            <div className="h-[360px] min-h-0 bg-canvas 2xl:h-auto">
+          <div className="bg-line grid min-h-[720px] gap-px 2xl:h-full 2xl:min-h-0 2xl:grid-cols-2">
+            <div className="bg-canvas h-[360px] min-h-0 2xl:h-auto">
               <MeasuredSvg
                 reference={reference}
                 current={null}
@@ -644,7 +644,7 @@ export function MeasuredPlanField({
                 drawingBoundsOverride={sharedSplitBounds}
               />
             </div>
-            <div className="h-[360px] min-h-0 bg-canvas 2xl:h-auto">
+            <div className="bg-canvas h-[360px] min-h-0 2xl:h-auto">
               <MeasuredSvg
                 reference={null}
                 current={current}

@@ -16,7 +16,7 @@ export function Field({
 }) {
   return (
     <label
-      className={`grid min-w-0 gap-1 text-micro font-medium text-muted ${className}`}
+      className={`text-micro text-muted grid min-w-0 gap-1 font-medium ${className}`}
     >
       <span>
         {label}
@@ -83,10 +83,10 @@ export function NumberField({
             onChange?.(raw);
             onValue?.(parseNumberInput(raw));
           }}
-          className={`ui-input min-w-0 font-mono ${touch ? "min-h-11 text-base" : "text-xs"}`}
+          className={`ui-input min-w-0 font-mono ${touch ? "min-h-11 text-base" : "text-micro"}`}
         />
         {unit ? (
-          <span className="flex items-center border border-l-0 border-line bg-surface px-2 font-mono text-micro text-muted">
+          <span className="border-line bg-surface text-micro text-muted flex items-center border border-l-0 px-2 font-mono">
             {unit}
           </span>
         ) : null}

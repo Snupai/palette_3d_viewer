@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Pallet 3D Viewer";
+export const alt = "Palettenplaner";
 export const size = {
   width: 1200,
   height: 630,
@@ -18,19 +18,19 @@ export default function Image() {
           flexDirection: "column",
           alignItems: "flex-start",
           justifyContent: "flex-end",
-          background: "#101013",
-          color: "#f4f4f5",
+          background: "#e7e9e4",
+          color: "#1d1b18",
           padding: 64,
           fontSize: 56,
           fontWeight: 700,
           letterSpacing: -1,
         }}
       >
-        <div style={{ opacity: 0.9 }}>Pallet 3D Viewer</div>
+        <div style={{ opacity: 0.9 }}>Palettenplaner</div>
         <div
           style={{ fontSize: 24, fontWeight: 500, opacity: 0.85, marginTop: 8 }}
         >
-          Visualize .rob pallet layouts in 3D
+          Neue Pläne erstellen. Vorhandene Pläne prüfen.
         </div>
       </div>
     ),

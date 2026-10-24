@@ -11,32 +11,32 @@ import {
 import { updateProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import type { RobotCycleMaterialization } from "~/domain/robotics";
+import { ArrangePanel } from "~/features/editor/ArrangePanel";
 import {
   createProjectEditorHistory,
   projectEditorCanReset,
   projectEditorHistoryDirty,
-  projectEditorHistoryPosition,
   projectEditorHistoryReducer,
 } from "~/features/editor/editorHistory";
+import { countLabel, describeDiagnostic } from "~/features/editor/editorLabels";
 import {
   activeEditorPattern,
   activeEditorSolution,
   projectEditorOrderModel,
+  suggestProjectEditorOrder,
   validateProjectEditor,
   type ProjectEditorCommand,
-  type ProjectEditorMode,
 } from "~/features/editor/editorModel";
-import { FlowMode } from "~/features/editor/FlowMode";
-import { OrderMode } from "~/features/editor/OrderMode";
-import { PatternMode } from "~/features/editor/PatternMode";
+import { InterlayerPanel } from "~/features/editor/InterlayerPanel";
+import { OrderPanel } from "~/features/editor/OrderPanel";
+import { PatternCanvas } from "~/features/editor/PatternCanvas";
 
-const buttonClass = "ui-btn h-7 px-2.5 text-xs";
-const inputClass = "ui-input";
+/** Editor views; the command `mode` of the model uses the same names. */
+type EditorView = "pattern" | "order";
 
-const modes: ReadonlyArray<readonly [ProjectEditorMode, string]> = [
-  ["pattern", "Pattern"],
-  ["order", "Order"],
-  ["flow", "Flow"],
+const views: ReadonlyArray<readonly [EditorView, string]> = [
+  ["pattern", "Anordnung"],
+  ["order", "Greifreihenfolge"],
 ];
 
 export type ProjectEditorWorkspaceProps = {
@@ -59,6 +59,11 @@ function sameProject(left: Project, right: Project): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+function positiveStep(value: string, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 export function ProjectEditorWorkspace({
   project,
   materialization,
@@ -71,16 +76,15 @@ export function ProjectEditorWorkspace({
     project,
     createProjectEditorHistory,
   );
-  const [mode, setMode] = useState<ProjectEditorMode>("pattern");
+  const [view, setView] = useState<EditorView>("pattern");
   const [selectedPatternId, setSelectedPatternId] = useState<string | null>(
     null,
   );
-  const [selectedPlacementIds, setSelectedPlacementIds] = useState<Set<string>>(
-    new Set(),
-  );
-  const [selectedGroupIds, setSelectedGroupIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [selectedPlacementIds, setSelectedPlacementIds] = useState<
+    ReadonlySet<string>
+  >(new Set());
+  const [fineStepDraft, setFineStepDraft] = useState("1");
+  const [coarseStepDraft, setCoarseStepDraft] = useState("10");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -101,10 +105,7 @@ export function ProjectEditorWorkspace({
       loadedProjectRef.current = project;
       return;
     }
-    if (
-      pendingSaveRef.current &&
-      pendingSaveRef.current.submitted.id === project.id
-    ) {
+    if (pendingSaveRef.current?.submitted.id === project.id) {
       loadedProjectRef.current = project;
       onDraftChange?.(historyRef.current.present);
       onDirtyChange?.(projectEditorHistoryDirty(historyRef.current));
@@ -114,7 +115,6 @@ export function ProjectEditorWorkspace({
     dispatch({ type: "replace", project });
     setSelectedPatternId(null);
     setSelectedPlacementIds(new Set());
-    setSelectedGroupIds(new Set());
     setSaveError(null);
     setStatus(null);
   }, [onDirtyChange, onDraftChange, project]);
@@ -152,7 +152,6 @@ export function ProjectEditorWorkspace({
   useEffect(() => {
     if (!pattern) {
       setSelectedPlacementIds(new Set());
-      setSelectedGroupIds(new Set());
       return;
     }
     const placementIds = new Set(pattern.placements.map(({ id }) => id));
@@ -168,17 +167,7 @@ export function ProjectEditorWorkspace({
         : null,
     [history.present, pattern, solution],
   );
-  useEffect(() => {
-    if (!orderModel) {
-      setSelectedGroupIds(new Set());
-      return;
-    }
-    const ids = new Set(orderModel.groups.map(({ id }) => id));
-    setSelectedGroupIds(
-      (current) => new Set([...current].filter((id) => ids.has(id))),
-    );
-  }, [orderModel]);
-  const editorDiagnostics = useMemo(
+  const diagnostics = useMemo(
     () =>
       validateProjectEditor(
         history.present,
@@ -187,16 +176,45 @@ export function ProjectEditorWorkspace({
       ),
     [history.present, pattern?.id, solution?.id],
   );
-  const resourceDiagnostics = materialization.diagnostics.filter(
-    ({ phase }) =>
-      phase === "resources" ||
-      phase === "compatibility" ||
-      phase === "reach" ||
-      phase === "envelope" ||
-      phase === "collision" ||
-      phase === "pose",
+  const robotDiagnostics = materialization.diagnostics.filter(({ phase }) =>
+    [
+      "resources",
+      "compatibility",
+      "reach",
+      "envelope",
+      "collision",
+      "pose",
+    ].includes(phase),
   );
-  const position = projectEditorHistoryPosition(history);
+
+  // A click on a package always selects its whole grip.
+  const effectiveSelection = useMemo(() => {
+    if (!pattern) return new Set<string>();
+    const next = new Set(selectedPlacementIds);
+    const gripIds = new Set(
+      pattern.placements.flatMap((placement) =>
+        next.has(placement.id) && placement.gripId ? [placement.gripId] : [],
+      ),
+    );
+    for (const placement of pattern.placements) {
+      if (placement.gripId && gripIds.has(placement.gripId)) {
+        next.add(placement.id);
+      }
+    }
+    return next;
+  }, [pattern, selectedPlacementIds]);
+  const selectedGripIds = useMemo(
+    () =>
+      new Set(
+        (pattern?.placements ?? []).flatMap((placement) =>
+          effectiveSelection.has(placement.id) && placement.gripId
+            ? [placement.gripId]
+            : [],
+        ),
+      ),
+    [effectiveSelection, pattern],
+  );
+
   const execute = (command: ProjectEditorCommand) => {
     dispatch({ type: "execute", command });
     setSaveError(null);
@@ -208,6 +226,97 @@ export function ProjectEditorWorkspace({
       globalThis.crypto?.randomUUID?.() ??
       `${Date.now().toString(36)}-${placementNumber.current}`
     }`;
+  };
+  const patternBase = () =>
+    solution && pattern
+      ? {
+          mode: "pattern" as const,
+          solutionId: solution.id,
+          patternId: pattern.id,
+        }
+      : null;
+  const orderBase = () =>
+    solution && pattern
+      ? {
+          mode: "order" as const,
+          solutionId: solution.id,
+          patternId: pattern.id,
+        }
+      : null;
+
+  const insert = (orientation: "longitudinal" | "transverse") => {
+    const base = patternBase();
+    if (!base) return;
+    const placementId = createPlacementId();
+    execute({ type: "insert-placement", ...base, placementId, orientation });
+    setSelectedPlacementIds(new Set([placementId]));
+  };
+  const move = (deltaMm: { x: number; y: number }, ids?: readonly string[]) => {
+    const base = patternBase();
+    const placementIds = ids ?? [...effectiveSelection];
+    if (!base || placementIds.length === 0) return;
+    execute({
+      type: "move-placements",
+      ...base,
+      placementIds: [...placementIds],
+      deltaMm,
+    });
+  };
+  const rotate = () => {
+    const base = patternBase();
+    if (!base || effectiveSelection.size === 0) return;
+    execute({
+      type: "rotate-placements",
+      ...base,
+      placementIds: [...effectiveSelection],
+    });
+  };
+  const center = () => {
+    const base = patternBase();
+    if (!base || effectiveSelection.size === 0) return;
+    execute({
+      type: "center-placements",
+      ...base,
+      placementIds: [...effectiveSelection],
+    });
+  };
+  const remove = () => {
+    const base = patternBase();
+    if (!base || effectiveSelection.size === 0) return;
+    execute({
+      type: "delete-placements",
+      ...base,
+      placementIds: [...effectiveSelection],
+    });
+    setSelectedPlacementIds(new Set());
+  };
+  const createGroup = () => {
+    const base = orderBase();
+    if (!base || effectiveSelection.size === 0) return;
+    execute({
+      type: "create-group",
+      ...base,
+      placementIds: [...effectiveSelection],
+    });
+  };
+  const mergeGroups = () => {
+    const base = orderBase();
+    if (!base || selectedGripIds.size < 2) return;
+    execute({ type: "merge-groups", ...base, gripIds: [...selectedGripIds] });
+  };
+  const applySuggestedOrder = () => {
+    const base = orderBase();
+    if (!base) return;
+    const suggestion = suggestProjectEditorOrder(
+      history.present,
+      base.solutionId,
+      base.patternId,
+    );
+    execute({
+      type: "apply-suggested-order",
+      ...base,
+      gripIds: suggestion.order,
+    });
   };
 
   const save = async () => {
@@ -222,10 +331,10 @@ export function ProjectEditorWorkspace({
       const saved = await onSaveProject(submitted);
       dispatch({ type: "mark-saved", project: saved, snapshot });
       loadedProjectRef.current = saved;
-      setStatus("Editor snapshot saved to the project repository.");
+      setStatus("Muster gespeichert.");
     } catch (cause) {
       setSaveError(
-        cause instanceof Error ? cause.message : "Project editor save failed.",
+        cause instanceof Error ? cause.message : "Speichern fehlgeschlagen.",
       );
     } finally {
       pendingSaveRef.current = null;
@@ -236,26 +345,26 @@ export function ProjectEditorWorkspace({
   const discard = () => {
     if (
       dirty &&
-      !window.confirm("Discard all unsaved project editor changes?")
+      !window.confirm("Alle ungespeicherten Änderungen verwerfen?")
     ) {
       return;
     }
     dispatch({ type: "discard" });
     setSelectedPlacementIds(new Set());
-    setSelectedGroupIds(new Set());
     setSaveError(null);
-    setStatus("Unsaved editor changes discarded.");
+    setStatus("Änderungen verworfen.");
   };
 
   const handleKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || isTextControl(event.target)) return;
     const modifier = event.ctrlKey || event.metaKey;
-    if (modifier && event.key.toLocaleLowerCase() === "z") {
+    const key = event.key.toLocaleLowerCase();
+    if (modifier && key === "z") {
       event.preventDefault();
       dispatch({ type: event.shiftKey ? "redo" : "undo" });
       return;
     }
-    if (modifier && event.key.toLocaleLowerCase() === "y") {
+    if (modifier && key === "y") {
       event.preventDefault();
       dispatch({ type: "redo" });
       return;
@@ -263,146 +372,65 @@ export function ProjectEditorWorkspace({
     if (event.key === "Escape") {
       event.preventDefault();
       setSelectedPlacementIds(new Set());
-      setSelectedGroupIds(new Set());
       dispatch({ type: "clear-error" });
       return;
     }
-    if (!solution || !pattern || mode !== "pattern") return;
-    const base = {
-      mode: "pattern" as const,
-      solutionId: solution.id,
-      patternId: pattern.id,
-    };
-    if (
-      (event.key === "Delete" || event.key === "Backspace") &&
-      selectedPlacementIds.size > 0
-    ) {
+    if (view !== "pattern") return;
+    if (event.key === "Delete" || event.key === "Backspace") {
+      if (effectiveSelection.size === 0) return;
       event.preventDefault();
-      execute({
-        type: "delete-placements",
-        ...base,
-        placementIds: [...selectedPlacementIds],
-      });
-      setSelectedPlacementIds(new Set());
+      remove();
       return;
     }
-    const shortcut = event.key.toLocaleLowerCase();
-    if (shortcut === "r" && selectedPlacementIds.size > 0) {
+    if (key === "r" && effectiveSelection.size > 0) {
       event.preventDefault();
-      execute({
-        type: "rotate-placements",
-        ...base,
-        placementIds: [...selectedPlacementIds],
-      });
-    } else if (shortcut === "c" && selectedPlacementIds.size > 0) {
+      rotate();
+    } else if (key === "c" && effectiveSelection.size > 0) {
       event.preventDefault();
-      execute({
-        type: "center-placements",
-        ...base,
-        placementIds: [...selectedPlacementIds],
-      });
-    } else if (shortcut === "l" || shortcut === "t") {
+      center();
+    } else if (key === "l" || key === "t") {
       event.preventDefault();
-      const placementId = createPlacementId();
-      execute({
-        type: "insert-placement",
-        ...base,
-        placementId,
-        orientation: shortcut === "l" ? "longitudinal" : "transverse",
-      });
-      setSelectedPlacementIds(new Set([placementId]));
+      insert(key === "l" ? "longitudinal" : "transverse");
     }
   };
+
+  const ready = Boolean(solution && pattern && orderModel);
+  const selectedCount = effectiveSelection.size;
+  const alerts = [history.error, saveError].filter((value): value is string =>
+    Boolean(value),
+  );
 
   return (
     <section
       data-testid="project-editor-workspace"
-      className="grid gap-3 bg-canvas p-3 text-ink"
+      className="ed"
       onKeyDown={handleKeyboard}
     >
-      <header className="border border-line bg-surface">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-3 py-2">
-          <div className="mr-auto">
-            <h2 className="text-body font-semibold text-ink">
-              Project layer editor
-            </h2>
-            <p className="mt-0.5 text-xs text-muted">
-              One command history covers package geometry, labels, groups,
-              execution order, and stack interlayers.
-            </p>
-          </div>
-          <span
-            role="status"
-            className={
-              dirty
-                ? "text-xs text-brand"
-                : "text-xs text-muted"
-            }
-          >
-            {dirty ? "Unsaved editor changes" : "Saved editor state"}
-          </span>
-          <button
-            type="button"
-            disabled={!dirty || saving}
-            onClick={() => void save()}
-            className="ui-btn-primary h-7 px-2.5 text-xs"
-          >
-            {saving ? "Saving…" : "Save"}
-          </button>
-          <button
-            type="button"
-            disabled={!dirty || saving}
-            onClick={discard}
-            className={buttonClass}
-          >
-            Discard
-          </button>
-          <button
-            type="button"
-            disabled={history.past.length === 0 || saving}
-            onClick={() => dispatch({ type: "undo" })}
-            className={buttonClass}
-          >
-            Undo
-          </button>
-          <button
-            type="button"
-            disabled={history.future.length === 0 || saving}
-            onClick={() => dispatch({ type: "redo" })}
-            className={buttonClass}
-          >
-            Redo
-          </button>
-          <button
-            type="button"
-            disabled={!projectEditorCanReset(history) || saving}
-            onClick={() => dispatch({ type: "reset-to-original" })}
-            className={`${buttonClass} text-danger`}
-          >
-            Reset original
-          </button>
-          <span className="border border-line bg-canvas px-2 py-1 font-mono text-micro text-muted">
-            History {position.position}/{position.length}
-          </span>
+      <div className="ed-bar">
+        <div className="ed-bar-title">
+          <h2>{pattern ? pattern.name : "Muster bearbeiten"}</h2>
+          <p>
+            {pattern
+              ? `${countLabel(pattern.placements.length, "Paket", "Pakete")} · ${countLabel(orderModel?.groups.length ?? 0, "Griff", "Griffe")}`
+              : "Kein Muster geladen"}
+          </p>
         </div>
-
-        <div className="flex flex-wrap items-end gap-3 p-3">
-          <label className="grid min-w-56 gap-1 text-xs text-muted">
-            Active solution
+        {history.present.solutions.length > 1 ? (
+          <label className="ed-bar-select">
+            Lösung
             <select
-              aria-label="Editor active solution"
+              aria-label="Aktive Lösung"
               value={solution?.id ?? ""}
               onChange={(event) => {
                 execute({
                   type: "set-active-solution",
-                  mode,
+                  mode: view,
                   solutionId: event.target.value,
                 });
                 setSelectedPatternId(null);
                 setSelectedPlacementIds(new Set());
-                setSelectedGroupIds(new Set());
               }}
-              className={inputClass}
+              className="ui-input"
             >
               {history.present.solutions.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
@@ -411,138 +439,292 @@ export function ProjectEditorWorkspace({
               ))}
             </select>
           </label>
-          <label className="grid min-w-56 gap-1 text-xs text-muted">
-            Active pattern
+        ) : null}
+        {solution && solution.patterns.length > 1 ? (
+          <label className="ed-bar-select">
+            Muster
             <select
-              aria-label="Editor active pattern"
+              aria-label="Aktives Muster"
               value={pattern?.id ?? ""}
-              disabled={!solution || solution.patterns.length === 0}
               onChange={(event) => {
                 setSelectedPatternId(event.target.value);
                 setSelectedPlacementIds(new Set());
-                setSelectedGroupIds(new Set());
               }}
-              className={`${inputClass} disabled:text-muted`}
+              className="ui-input"
             >
-              {solution?.patterns.map((candidate) => (
+              {solution.patterns.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} · {candidate.placements.length} packages
+                  {candidate.name} · {candidate.placements.length} Pakete
                 </option>
               ))}
             </select>
           </label>
-          <nav
-            aria-label="Project editor mode"
-            className="flex items-stretch border border-line"
+        ) : null}
+        <fieldset className="fw-seg-field">
+          <legend className="sr-only">Ansicht</legend>
+          <div className="fw-seg">
+            {views.map(([value, label]) => (
+              <label key={value}>
+                <input
+                  type="radio"
+                  name="editor-view"
+                  value={value}
+                  checked={view === value}
+                  onChange={() => setView(value)}
+                />
+                <span>{label}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <div className="ed-bar-actions">
+          <span role="status" className="ed-status" data-dirty={dirty}>
+            {dirty ? "Ungespeicherte Änderungen" : "Gespeichert"}
+          </span>
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={history.past.length === 0 || saving}
+            onClick={() => dispatch({ type: "undo" })}
           >
-            {modes.map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                aria-current={mode === value ? "page" : undefined}
-                onClick={() => setMode(value)}
-                className={`relative border-r border-line px-3 py-1.5 text-xs outline-none last:border-r-0 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
-                  mode === value
-                    ? "bg-canvas text-ink"
-                    : "text-muted hover:bg-surface-hover hover:text-ink"
-                }`}
-              >
-                {label}
-                {mode === value ? (
-                  <span className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />
-                ) : null}
-              </button>
-            ))}
-          </nav>
-          <p className="ml-auto max-w-md text-micro leading-5 text-muted">
-            Shortcuts outside form controls: Ctrl/Command+Z,
-            Shift+Ctrl/Command+Z or Ctrl/Command+Y, Delete, Escape, arrows, R
-            rotate, C center, L/T insert.
-          </p>
+            Rückgängig
+          </button>
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={history.future.length === 0 || saving}
+            onClick={() => dispatch({ type: "redo" })}
+          >
+            Wiederholen
+          </button>
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={!projectEditorCanReset(history) || saving}
+            onClick={() => dispatch({ type: "reset-to-original" })}
+          >
+            Original wiederherstellen
+          </button>
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={!dirty || saving}
+            onClick={discard}
+          >
+            Verwerfen
+          </button>
+          <button
+            type="button"
+            className="ui-btn-primary"
+            disabled={!dirty || saving}
+            onClick={() => void save()}
+          >
+            {saving ? "Speichert …" : "Speichern"}
+          </button>
         </div>
-      </header>
+      </div>
 
-      {history.error || saveError ? (
-        <div
-          role="alert"
-          className="border border-danger px-3 py-2 text-body text-danger"
-        >
-          {history.error ?? saveError}
-        </div>
-      ) : null}
-      {status ? (
-        <div
-          role="status"
-          className="border border-line bg-surface px-3 py-2 text-body text-ink"
-        >
-          {status}
-        </div>
-      ) : null}
+      <div className="ed-alerts">
+        {alerts.map((message) => (
+          <div key={message} role="alert" className="fw-alert">
+            {message}
+          </div>
+        ))}
+        {status ? (
+          <div role="status" className="fw-info">
+            {status}
+          </div>
+        ) : null}
+      </div>
 
-      {!solution || !pattern || !orderModel ? (
-        <div className="flex min-h-24 items-center justify-center border border-dashed border-line bg-surface px-4 text-center text-body text-muted">
-          Save or import a stack with at least one layer pattern before opening
-          the project editor.
+      {!ready || !solution || !pattern || !orderModel ? (
+        <div className="ed-empty">
+          Erst einen Stapel mit mindestens einem Muster speichern oder eine
+          .rob-Datei importieren, dann lässt sich das Muster bearbeiten.
         </div>
-      ) : mode === "pattern" ? (
-        <PatternMode
-          project={history.present}
-          solution={solution}
-          pattern={pattern}
-          orderModel={orderModel}
-          diagnostics={editorDiagnostics}
-          selectedPlacementIds={selectedPlacementIds}
-          onSelectionChange={(ids) => setSelectedPlacementIds(new Set(ids))}
-          execute={execute}
-          createPlacementId={createPlacementId}
-        />
-      ) : mode === "order" ? (
-        <OrderMode
-          project={history.present}
-          solution={solution}
-          pattern={pattern}
-          orderModel={orderModel}
-          diagnostics={editorDiagnostics}
-          selectedPlacementIds={selectedPlacementIds}
-          selectedGroupIds={selectedGroupIds}
-          onGroupSelectionChange={(ids) => setSelectedGroupIds(new Set(ids))}
-          execute={execute}
-        />
       ) : (
-        <FlowMode
-          project={history.present}
-          solution={solution}
-          pattern={pattern}
-          materialization={materialization}
-        />
-      )}
-
-      {resourceDiagnostics.length > 0 ? (
-        <details className="border border-line bg-surface">
-          <summary className="px-3 py-2 text-xs font-medium text-ink outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset">
-            Canonical robotics resource diagnostics (
-            {resourceDiagnostics.length})
-          </summary>
-          <ul className="grid gap-2 border-t border-line p-3">
-            {resourceDiagnostics.map((diagnostic, index) => (
-              <li
-                key={`${diagnostic.code}-${diagnostic.message}-${index}`}
-                className={
-                  diagnostic.severity === "error"
-                    ? "text-xs leading-5 text-danger"
-                    : "text-xs leading-5 text-brand"
-                }
-              >
-                <span className="font-mono text-micro text-muted">
-                  {diagnostic.phase}/{diagnostic.code}
+        <div className="ed-layout">
+          <div className="ed-stage">
+            {view === "pattern" ? (
+              <div className="ed-toolbar" role="toolbar" aria-label="Anordnung">
+                <button
+                  type="button"
+                  className="ui-btn"
+                  onClick={() => insert("longitudinal")}
+                >
+                  Paket längs einfügen
+                </button>
+                <button
+                  type="button"
+                  className="ui-btn"
+                  onClick={() => insert("transverse")}
+                >
+                  Paket quer einfügen
+                </button>
+                <span className="ed-toolbar-gap" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={selectedCount === 0}
+                  onClick={rotate}
+                >
+                  Drehen
+                </button>
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={selectedCount === 0}
+                  onClick={center}
+                >
+                  Zentrieren
+                </button>
+                <button
+                  type="button"
+                  className="ui-btn ui-btn-danger"
+                  disabled={selectedCount === 0}
+                  onClick={remove}
+                >
+                  Löschen
+                </button>
+                <span className="ed-toolbar-count">
+                  {selectedCount} ausgewählt
                 </span>
-                <br />
-                {diagnostic.message}
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+              </div>
+            ) : (
+              <div
+                className="ed-toolbar"
+                role="toolbar"
+                aria-label="Greifreihenfolge"
+              >
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={selectedCount === 0}
+                  onClick={createGroup}
+                >
+                  Griff aus Auswahl bilden ({selectedCount})
+                </button>
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={selectedGripIds.size < 2}
+                  onClick={mergeGroups}
+                >
+                  Griffe zusammenlegen ({selectedGripIds.size})
+                </button>
+                <span className="ed-toolbar-gap" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="ui-btn-primary"
+                  disabled={orderModel.groups.length === 0}
+                  onClick={applySuggestedOrder}
+                >
+                  Automatisch ordnen
+                </button>
+                <span className="ed-toolbar-count">
+                  {selectedCount} ausgewählt
+                </span>
+              </div>
+            )}
+            <PatternCanvas
+              interactionMode={view === "order" ? "select" : "edit"}
+              project={history.present}
+              pattern={pattern}
+              groups={orderModel.groups}
+              selectedPlacementIds={effectiveSelection}
+              fineStepMm={positiveStep(fineStepDraft, 1)}
+              coarseStepMm={positiveStep(coarseStepDraft, 10)}
+              onSelectionChange={(ids) => setSelectedPlacementIds(new Set(ids))}
+              onMoveSelection={(deltaMm, ids) => move(deltaMm, ids)}
+              onNudgeSelection={(deltaMm) => move(deltaMm)}
+              onDeleteSelection={remove}
+              onRotateSelection={rotate}
+            />
+            <p className="ed-canvas-hint">
+              {view === "pattern"
+                ? "Pakete ziehen oder mit den Pfeiltasten verschieben. Die Nummern zeigen die Griffe, die Pfeile die Ablagerichtung."
+                : "G1 wird zuerst gesetzt. Griff anklicken, um ihn auf der Palette zu sehen; Pakete auswählen, um daraus einen neuen Griff zu bilden."}
+            </p>
+          </div>
+
+          <aside className="ed-side">
+            {view === "pattern" ? (
+              <ArrangePanel
+                solution={solution}
+                pattern={pattern}
+                selectedPlacementIds={effectiveSelection}
+                fineStepDraft={fineStepDraft}
+                coarseStepDraft={coarseStepDraft}
+                onFineStepChange={setFineStepDraft}
+                onCoarseStepChange={setCoarseStepDraft}
+                execute={execute}
+              />
+            ) : (
+              <OrderPanel
+                solution={solution}
+                pattern={pattern}
+                orderModel={orderModel}
+                selectedPlacementIds={effectiveSelection}
+                onSelectionChange={setSelectedPlacementIds}
+                execute={execute}
+              />
+            )}
+
+            <section className="ed-panel" aria-labelledby="ed-check-title">
+              <div className="ed-panel-head">
+                <h3 id="ed-check-title">Prüfung</h3>
+                <small>
+                  {diagnostics.length === 0
+                    ? "keine Hinweise"
+                    : `${diagnostics.length} ${diagnostics.length === 1 ? "Hinweis" : "Hinweise"}`}
+                </small>
+              </div>
+              {diagnostics.length === 0 ? (
+                <p className="ed-ok">
+                  Anordnung, Griffe und Reihenfolge sind gültig.
+                </p>
+              ) : (
+                <ul className="ed-diag">
+                  {diagnostics.map((diagnostic, index) => (
+                    <li
+                      key={`${diagnostic.code}-${index}`}
+                      data-severity={diagnostic.severity}
+                    >
+                      {describeDiagnostic(
+                        diagnostic,
+                        pattern,
+                        orderModel.groups,
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <InterlayerPanel solution={solution} execute={execute} />
+
+            {robotDiagnostics.length > 0 ? (
+              <details className="ed-panel-details">
+                <summary>
+                  Roboterprüfung <small>{robotDiagnostics.length}</small>
+                </summary>
+                <div>
+                  <ul className="ed-diag">
+                    {robotDiagnostics.map((diagnostic, index) => (
+                      <li
+                        key={`${diagnostic.code}-${index}`}
+                        data-severity={diagnostic.severity}
+                      >
+                        {diagnostic.message}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </details>
+            ) : null}
+          </aside>
+        </div>
+      )}
     </section>
   );
 }

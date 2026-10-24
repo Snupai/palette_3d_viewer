@@ -134,7 +134,7 @@ export function StackSettingsPanel({
           >
             Build A/B sequence
           </button>
-          <span className="text-muted text-xs">
+          <span className="text-muted text-micro">
             Derived maximum layers:{" "}
             {capacity ? capacity.capacityLayers : "Unknown"}
             {capacity
@@ -184,7 +184,7 @@ export function StackSettingsPanel({
               />
             </label>
           ) : (
-            <p className="text-muted self-end text-xs sm:col-span-2">
+            <p className="text-muted text-micro self-end sm:col-span-2">
               {state.interlayerMode === "none"
                 ? "No sheets between layers."
                 : "Enable and size sheets directly in the layer sequence below."}
@@ -192,7 +192,7 @@ export function StackSettingsPanel({
           )}
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
-          <label className="text-ink grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1 text-xs">
+          <label className="text-ink text-micro grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
             <input
               type="checkbox"
               aria-label="Enable base sheet"
@@ -224,7 +224,7 @@ export function StackSettingsPanel({
               />
             </span>
           </label>
-          <label className="text-ink grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1 text-xs">
+          <label className="text-ink text-micro grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
             <input
               type="checkbox"
               aria-label="Enable deck sheet"
@@ -261,7 +261,7 @@ export function StackSettingsPanel({
 
       <fieldset className={stackFieldsetClass}>
         <legend className={stackLegendClass}>Special top candidate</legend>
-        <label className="text-ink flex items-center gap-2 text-xs">
+        <label className="text-ink text-micro flex items-center gap-2">
           <input
             type="checkbox"
             checked={state.specialTopEnabled}

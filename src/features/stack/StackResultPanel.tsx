@@ -29,7 +29,7 @@ export function StackResultPanel({
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       <div className="border-line overflow-hidden border">
-        <table className="w-full text-xs">
+        <table className="text-micro w-full">
           <caption className="border-line text-ink border-b px-3 py-2 text-left font-semibold">
             Stack metrics
           </caption>
@@ -58,12 +58,12 @@ export function StackResultPanel({
           </tbody>
         </table>
       </div>
-      <div className="border-line border p-3 text-xs">
+      <div className="border-line text-micro border p-3">
         <h3 className="text-ink font-semibold">Warnings ({warnings.length})</h3>
         {warnings.length === 0 ? (
           <p className="text-muted mt-2">No stack warnings.</p>
         ) : (
-          <ul className="scrollbar-thin text-muted mt-2 max-h-52 space-y-1 overflow-auto pr-2">
+          <ul className="text-muted scrollbar-thin mt-2 max-h-52 space-y-1 overflow-auto pr-2">
             {warnings.map((warning) => (
               <li key={warning.id} className="border-line border-b pb-1">
                 <span

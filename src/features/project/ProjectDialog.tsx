@@ -11,6 +11,8 @@ import {
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
 import { PackageLabelFacePicker } from "~/features/candidates/PackageLabelFacePicker";
+import { GuidedProjectForm } from "~/features/project/GuidedProjectForm";
+import type { GuidedSectionId } from "~/features/project/guidedProjectFormModel";
 import {
   buildProjectFromForm,
   palletTemplateFormValues,
@@ -33,7 +35,22 @@ export type ProjectDialogProps = {
   open: boolean;
   project: Project | null;
   onClose: () => void;
-  onSave: (submission: ProjectDialogSubmission) => Promise<void> | void;
+  onSave: (
+    submission: ProjectDialogSubmission,
+  ) => Promise<"cancelled" | void> | "cancelled" | void;
+  /**
+   * Renders the guided full-page form in the page flow instead of a modal.
+   * Submission semantics are identical: save-only, or save and generate with
+   * an exact package count (create mode only).
+   */
+  inline?: boolean;
+  /** Inline mode only: section opened first, e.g. when editing from review. */
+  initialSection?: GuidedSectionId;
+  /**
+   * Inline mode only: reports unsaved input changes (values or exact count);
+   * false after a successful save and when the form closes.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 };
 
 type FieldProps = {
@@ -44,7 +61,7 @@ type FieldProps = {
 
 function Field({ label, error, children }: FieldProps) {
   return (
-    <label className="grid min-w-0 gap-1 text-xs text-muted">
+    <label className="text-muted text-micro grid min-w-0 gap-1">
       <span>{label}</span>
       {children}
       {error ? <span className="text-danger">{error}</span> : null}
@@ -52,7 +69,7 @@ function Field({ label, error, children }: FieldProps) {
   );
 }
 
-const inputClass = "ui-input text-sm";
+const inputClass = "ui-input text-body";
 
 function errorFor(
   errors: ProjectFieldErrors,
@@ -62,11 +79,32 @@ function errorFor(
 }
 
 export function ProjectDialog({
+  inline = false,
+  initialSection,
+  onDirtyChange,
+  ...props
+}: ProjectDialogProps) {
+  if (!props.open) return null;
+  if (inline) {
+    return (
+      <GuidedProjectForm
+        project={props.project}
+        initialSection={initialSection}
+        onClose={props.onClose}
+        onSave={props.onSave}
+        onDirtyChange={onDirtyChange}
+      />
+    );
+  }
+  return <ModalProjectDialog {...props} />;
+}
+
+function ModalProjectDialog({
   open,
   project,
   onClose,
   onSave,
-}: ProjectDialogProps) {
+}: Omit<ProjectDialogProps, "inline" | "initialSection" | "onDirtyChange">) {
   const titleId = useId();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -106,7 +144,12 @@ export function ProjectDialog({
     key: Key,
     value: ProjectFormValues[Key],
   ) => {
-    setValues((current) => ({ ...current, [key]: value }));
+    setValues((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "storageLengthMm" ? { automaticStorageLength: false } : {}),
+      ...(key === "storageWidthMm" ? { automaticStorageWidth: false } : {}),
+    }));
     setFieldErrors((current) => {
       if (Object.keys(current).length === 0) return current;
       return {};
@@ -139,13 +182,13 @@ export function ProjectDialog({
       }
 
       const next = buildProjectFromForm(values, project);
-      await onSave({
+      const outcome = await onSave({
         project: next,
         generationIntent: shouldGenerate
           ? { exactPackageCount: packageCount }
           : null,
       });
-      onClose();
+      if (outcome !== "cancelled") onClose();
     } catch (cause) {
       if (cause instanceof z.ZodError) {
         setFieldErrors(zodFieldErrors(cause));
@@ -181,24 +224,21 @@ export function ProjectDialog({
         aria-modal="true"
         aria-labelledby={titleId}
         aria-busy={saving}
-        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden border border-line bg-surface shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+        className="border-line bg-surface flex max-h-[calc(100dvh-2rem)] w-full max-w-4xl flex-col overflow-hidden border shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
       >
         <form
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(event) => void submit(event)}
         >
-          <header className="flex shrink-0 items-center justify-between border-b border-line bg-surface px-5 py-4">
-            <h2
-              id={titleId}
-              className="text-base font-semibold text-ink"
-            >
+          <header className="border-line bg-surface flex shrink-0 items-center justify-between border-b px-5 py-4">
+            <h2 id={titleId} className="text-ink text-base font-semibold">
               {project ? "Edit project" : "Create project"}
             </h2>
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="ui-btn px-2.5 py-1.5 text-sm disabled:cursor-not-allowed disabled:opacity-50"
+              className="ui-btn text-body px-2.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
               Close
             </button>
@@ -209,14 +249,14 @@ export function ProjectDialog({
               {failure ? (
                 <div
                   role="alert"
-                  className="border border-danger bg-danger/10 px-3 py-2 text-sm text-danger"
+                  className="border-danger bg-danger/10 text-danger text-body border px-3 py-2"
                 >
                   {failure}
                 </div>
               ) : null}
 
-              <fieldset className="grid gap-3 border border-line p-4">
-                <legend className="px-1 text-sm font-semibold text-ink">
+              <fieldset className="border-line grid gap-3 border p-4">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Line and product
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -250,8 +290,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <fieldset className="grid gap-3 border border-line p-4">
-                <legend className="px-1 text-sm font-semibold text-ink">
+              <fieldset className="border-line grid gap-3 border p-4">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Cuboid package
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
@@ -337,8 +377,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <fieldset className="grid gap-3 border border-line p-4">
-                <legend className="px-1 text-sm font-semibold text-ink">
+              <fieldset className="border-line grid gap-3 border p-4">
+                <legend className="text-ink text-body px-1 font-semibold">
                   Pallet and load envelope
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -391,7 +431,7 @@ export function ProjectDialog({
                       value={values.palletId}
                       onChange={(event) => set("palletId", event.target.value)}
                       disabled={values.palletKind !== "custom"}
-                      className={`${inputClass} disabled:cursor-not-allowed disabled:text-muted`}
+                      className={`${inputClass} disabled:text-muted disabled:cursor-not-allowed`}
                       placeholder="Generated when saved"
                     />
                   </Field>
@@ -442,8 +482,8 @@ export function ProjectDialog({
                 </div>
               </fieldset>
 
-              <details className="border border-line p-4">
-                <summary className="cursor-pointer text-sm font-semibold text-ink">
+              <details className="border-line border p-4">
+                <summary className="text-ink text-body cursor-pointer font-semibold">
                   Advanced settings
                 </summary>
                 <div className="mt-3 grid gap-3">
@@ -465,7 +505,7 @@ export function ProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang length per side (mm)"
+                      label="Overhang / underhang length total (mm)"
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.length",
@@ -482,7 +522,7 @@ export function ProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang width per side (mm)"
+                      label="Overhang / underhang width total (mm)"
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.width",
@@ -529,14 +569,14 @@ export function ProjectDialog({
                       />
                     </Field>
                   </div>
-                  <label className="flex items-center gap-2 text-sm text-ink">
+                  <label className="text-ink text-body flex items-center gap-2">
                     <input
                       type="checkbox"
                       checked={values.hasStorageEnvelope}
                       onChange={(event) =>
                         set("hasStorageEnvelope", event.target.checked)
                       }
-                      className="h-4 w-4 accent-brand"
+                      className="accent-brand h-4 w-4"
                     />
                     Limit the load with a storage envelope
                   </label>
@@ -596,7 +636,7 @@ export function ProjectDialog({
                     </div>
                   ) : null}
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="grid min-w-0 gap-1 text-xs text-muted">
+                    <div className="text-muted text-micro grid min-w-0 gap-1">
                       <PackageLabelFacePicker
                         packageLengthMm={Number(values.packageLengthMm)}
                         packageWidthMm={Number(values.packageWidthMm)}
@@ -616,14 +656,14 @@ export function ProjectDialog({
                         </span>
                       ) : null}
                     </div>
-                    <label className="flex items-center gap-2 self-end border border-line px-3 py-2 text-sm text-ink">
+                    <label className="border-line text-ink text-body flex items-center gap-2 self-end border px-3 py-2">
                       <input
                         type="checkbox"
                         checked={values.multiPickAllowed}
                         onChange={(event) =>
                           set("multiPickAllowed", event.target.checked)
                         }
-                        className="h-4 w-4 accent-brand"
+                        className="accent-brand h-4 w-4"
                       />
                       Allow multipick
                     </label>
@@ -633,12 +673,12 @@ export function ProjectDialog({
             </div>
           </div>
 
-          <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-surface px-5 py-4">
+          <footer className="border-line bg-surface flex shrink-0 items-center justify-end gap-2 border-t px-5 py-4">
             <button
               type="button"
               onClick={onClose}
               disabled={saving}
-              className="ui-btn px-3 py-2 text-sm disabled:opacity-50"
+              className="ui-btn text-body px-3 py-2 disabled:opacity-50"
             >
               Cancel
             </button>
@@ -648,7 +688,7 @@ export function ProjectDialog({
                 name="creationAction"
                 value="create-only"
                 disabled={saving}
-                className="ui-btn px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
+                className="ui-btn text-body px-3 py-2 disabled:cursor-wait disabled:opacity-50"
               >
                 Save project
               </button>
@@ -658,7 +698,7 @@ export function ProjectDialog({
               name="creationAction"
               value={project ? "save" : "generate"}
               disabled={saving}
-              className="ui-btn-primary px-3 py-2 text-sm disabled:cursor-wait"
+              className="ui-btn-primary text-body px-3 py-2 disabled:cursor-wait"
             >
               {saving
                 ? "Saving…"

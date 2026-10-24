@@ -7,6 +7,12 @@ import { Notice, Panel } from "~/components/ui";
 import type { Project } from "~/domain/project/projectSchema";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import type { MaterializedStackResult } from "~/domain/stack";
+import type { GuidedSectionId } from "~/features/project/guidedProjectFormModel";
+import {
+  GuidedStackWorkspace,
+  type GuidedStackSubstep,
+} from "~/features/stack/GuidedStackWorkspace";
+import { createGuidedInitialState } from "~/features/stack/guidedStackModel";
 import { StackLayerSequence } from "~/features/stack/StackLayerSequence";
 import { StackResultPanel } from "~/features/stack/StackResultPanel";
 import { StackSettingsPanel } from "~/features/stack/StackSettingsPanel";
@@ -28,8 +34,19 @@ export type StackWorkspaceProps = {
   onSave: (
     state: StackWorkspaceState,
     materialized: MaterializedStackResult,
-  ) => Promise<void> | void;
+  ) => Promise<"saved" | "cancelled" | void> | "saved" | "cancelled" | void;
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Full-page guided composition (stack, then review/save) instead of the
+   * classic panel. Uses the same state, materialization, and save path.
+   */
+  guided?: boolean;
+  /** Guided mode: return to pattern selection. */
+  onBack?: () => void;
+  /** Guided mode: open the project inputs, optionally at a section. */
+  onEditProject?: (section?: GuidedSectionId) => void;
+  /** Guided mode: reports whether the stack or the review substep is shown. */
+  onSubstepChange?: (substep: GuidedStackSubstep) => void;
 };
 
 export function StackWorkspace({
@@ -38,11 +55,17 @@ export function StackWorkspace({
   solverInput,
   onSave,
   onDirtyChange,
+  guided = false,
+  onBack,
+  onEditProject,
+  onSubstepChange,
 }: StackWorkspaceProps) {
   const candidateSignature = candidates.map(({ id }) => id).join("|");
-  const [state, setState] = useState<StackWorkspaceState>(() =>
-    createInitialStackWorkspaceState(candidates),
-  );
+  const initialState = () =>
+    guided
+      ? createGuidedInitialState(project, candidates)
+      : createInitialStackWorkspaceState(candidates);
+  const [state, setState] = useState<StackWorkspaceState>(initialState);
   const [dirty, setDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
@@ -51,10 +74,12 @@ export function StackWorkspace({
 
   useEffect(() => {
     editRevision.current += 1;
-    setState(createInitialStackWorkspaceState(candidates));
+    setState(initialState());
     setDirty(false);
     setSaveFailure(null);
     setSaveMessage(null);
+    // `initialState` reads the same inputs listed here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candidateSignature, candidates, project.id]);
 
   useEffect(() => {
@@ -127,26 +152,63 @@ export function StackWorkspace({
     setSaveFailure(null);
     setSaveMessage(null);
     try {
-      await onSave(state, materialized.result);
+      const outcome = await onSave(state, materialized.result);
+      if (outcome === "cancelled") return;
       if (editRevision.current === revisionAtSaveStart) {
         setDirty(false);
-        setSaveMessage("Stack saved to the project repository.");
+        setSaveMessage(
+          guided
+            ? "Plan gespeichert."
+            : "Stack saved to the project repository.",
+        );
       } else {
         setSaveMessage(
-          "An earlier stack revision was saved. Newer edits remain unsaved.",
+          guided
+            ? "Ein früherer Stand wurde gespeichert. Neuere Änderungen sind noch nicht gespeichert."
+            : "An earlier stack revision was saved. Newer edits remain unsaved.",
         );
       }
     } catch (cause) {
       console.error("Failed to save stack", cause);
       setSaveFailure(
-        cause instanceof Error
-          ? `Stack save failed: ${cause.message}`
-          : "Stack save failed.",
+        guided
+          ? cause instanceof Error
+            ? `Speichern fehlgeschlagen: ${cause.message}`
+            : "Speichern fehlgeschlagen."
+          : cause instanceof Error
+            ? `Stack save failed: ${cause.message}`
+            : "Stack save failed.",
       );
     } finally {
       setSaving(false);
     }
   };
+
+  if (guided) {
+    return (
+      <GuidedStackWorkspace
+        key={`${project.id}:${candidateSignature}`}
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        state={state}
+        change={change}
+        result={materialized.result}
+        error={materialized.error}
+        previewData={previewData}
+        capacity={capacity}
+        candidateByRef={candidateByRef}
+        dirty={dirty}
+        saving={saving}
+        saveFailure={saveFailure}
+        saveMessage={saveMessage}
+        onSaveClick={() => void save()}
+        onBack={onBack}
+        onEditProject={onEditProject}
+        onSubstepChange={onSubstepChange}
+      />
+    );
+  }
 
   return (
     <Panel
@@ -154,7 +216,9 @@ export function StackWorkspace({
       description="Compose patterns A/B, edit the physical sequence, and materialize production metrics."
       actions={
         <>
-          <span className={`text-xs ${dirty ? "text-caution" : "text-muted"}`}>
+          <span
+            className={`text-micro ${dirty ? "text-caution" : "text-muted"}`}
+          >
             {dirty ? "Unsaved stack edits" : "Saved state"}
           </span>
           <button
@@ -163,7 +227,7 @@ export function StackWorkspace({
             disabled={
               saving || !materialized.result || state.layers.length === 0
             }
-            className="ui-btn-primary text-xs"
+            className="ui-btn-primary text-micro"
           >
             {saving ? "Saving…" : "Save stack and continue to Robotics"}
           </button>
@@ -213,7 +277,7 @@ export function StackWorkspace({
                   showSceneControls
                 />
               ) : (
-                <div className="text-viewport-ink/60 flex h-full min-h-[420px] items-center justify-center text-sm">
+                <div className="text-viewport-ink/60 text-body flex h-full min-h-[420px] items-center justify-center">
                   Build a stack to preview it in 3D.
                 </div>
               )}
@@ -227,12 +291,12 @@ export function StackWorkspace({
                     className="h-full min-h-[164px] w-full"
                   />
                 ) : (
-                  <div className="text-muted flex min-h-[164px] items-center justify-center text-xs">
+                  <div className="text-muted text-micro flex min-h-[164px] items-center justify-center">
                     No top layer
                   </div>
                 )}
               </div>
-              <p className="text-muted text-xs leading-5">
+              <p className="text-muted text-micro leading-5">
                 The 3D toolbar provides top, front, right-top, lifted-top, and
                 layer-label views.
               </p>

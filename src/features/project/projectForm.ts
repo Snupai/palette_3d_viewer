@@ -25,9 +25,12 @@ export type ProjectFormValues = {
   palletLengthMm: string;
   palletWidthMm: string;
   palletHeightMm: string;
+  /** Total overhang over both sides; the project stores half of it per side. */
   overhangLengthMm: string;
   overhangWidthMm: string;
   hasStorageEnvelope: boolean;
+  automaticStorageLength?: boolean;
+  automaticStorageWidth?: boolean;
   storageLengthMm: string;
   storageWidthMm: string;
   storageHeightMm: string;
@@ -67,9 +70,17 @@ export function projectToFormValues(
     palletLengthMm: String(pallet.dimensionsMm.length),
     palletWidthMm: String(pallet.dimensionsMm.width),
     palletHeightMm: String(pallet.dimensionsMm.height),
-    overhangLengthMm: String(pallet.allowedOverhangMm.length),
-    overhangWidthMm: String(pallet.allowedOverhangMm.width),
-    hasStorageEnvelope: pallet.storageEnvelopeMm !== null,
+    overhangLengthMm: String(pallet.allowedOverhangMm.length * 2),
+    overhangWidthMm: String(pallet.allowedOverhangMm.width * 2),
+    // New plans start with the 1800 mm storage height on so the guided stack
+    // can fill the pallet; opened projects keep whatever they saved.
+    hasStorageEnvelope: project ? pallet.storageEnvelopeMm !== null : true,
+    automaticStorageLength: project
+      ? (pallet.automaticStorageFootprint?.length ?? false)
+      : true,
+    automaticStorageWidth: project
+      ? (pallet.automaticStorageFootprint?.width ?? false)
+      : true,
     storageLengthMm: String(
       pallet.storageEnvelopeMm?.length ?? pallet.dimensionsMm.length,
     ),
@@ -95,8 +106,8 @@ export function palletTemplateFormValues(
     palletLengthMm: String(pallet.dimensionsMm.length),
     palletWidthMm: String(pallet.dimensionsMm.width),
     palletHeightMm: String(pallet.dimensionsMm.height),
-    overhangLengthMm: String(pallet.allowedOverhangMm.length),
-    overhangWidthMm: String(pallet.allowedOverhangMm.width),
+    overhangLengthMm: String(pallet.allowedOverhangMm.length * 2),
+    overhangWidthMm: String(pallet.allowedOverhangMm.width * 2),
     tareKg: text(pallet.tareKg),
     maxGrossKg: text(pallet.maxGrossKg),
     storageLengthMm: String(pallet.dimensionsMm.length),
@@ -152,6 +163,10 @@ export function buildProjectFromForm(
       width: requiredNumber(values.palletWidthMm),
       height: requiredNumber(values.palletHeightMm),
     },
+    automaticStorageFootprint: {
+      length: values.automaticStorageLength ?? false,
+      width: values.automaticStorageWidth ?? false,
+    },
     storageEnvelopeMm: values.hasStorageEnvelope
       ? {
           length: requiredNumber(values.storageLengthMm),
@@ -160,8 +175,8 @@ export function buildProjectFromForm(
         }
       : null,
     allowedOverhangMm: {
-      length: requiredNumber(values.overhangLengthMm),
-      width: requiredNumber(values.overhangWidthMm),
+      length: requiredNumber(values.overhangLengthMm) / 2,
+      width: requiredNumber(values.overhangWidthMm) / 2,
     },
     tareKg: optionalNumber(values.tareKg),
     maxGrossKg: optionalNumber(values.maxGrossKg),

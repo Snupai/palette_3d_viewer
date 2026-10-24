@@ -270,6 +270,16 @@ export function materializeRobotCycles(
   }
 
   const diagnostics: RobotDiagnostic[] = [];
+  if (solution.requiresGeometryReview) {
+    diagnostics.push({
+      severity: "error",
+      phase: "project",
+      code: "invalid-project",
+      message:
+        "Gespeicherte Geometrie ist nach Maß- oder Handhabungsänderungen ungeprüft. Stapel neu aufbauen.",
+      path: ["solutions", solution.id, "requiresGeometryReview"],
+    });
+  }
   if (!project.pallet) {
     diagnostics.push({
       severity: "error",

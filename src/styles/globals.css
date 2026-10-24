@@ -1,11 +1,14 @@
 @import "tailwindcss";
+@import "./fable.css";
+@import "./fable-workflow.css";
+@import "./fable-editor.css";
 
 @theme {
   --font-sans:
-    var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+    var(--font-barlow), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
   --font-mono:
-    var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    var(--font-barlow-condensed), ui-monospace, SFMono-Regular, Menlo, Monaco,
     Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* Type scale (docs/DESIGN.md): micro for captions/labels, body for chrome. */
@@ -42,26 +45,27 @@
 }
 
 :root {
-  /* Szaidel Cosmetic GmbH — light (see docs/DESIGN.md) */
-  --canvas: #f3f3f3;
-  --surface: #ffffff;
-  --surface-hover: #e8eef3;
-  --ink: #173159;
-  --muted: #5e5e5e;
-  --line: #d5dbe3;
+  /* Hallenboden: Fable production palette. */
+  --canvas: #e7e9e4;
+  --surface: #f8f8f5;
+  --surface-hover: #dddfd8;
+  --ink: #1d1b18;
+  --muted: #62625a;
+  --line: #c9ccc3;
+  /* Szaidel Cosmetics brand navy (szaidel-cosmetics.de). */
   --brand: #173159;
-  --brand-hover: #122744;
+  --brand-hover: #0c1f3c;
   --brand-on: #ffffff;
-  --accent: #8bb0c9;
-  --mist: #b8dde1;
+  --accent: #a66d2f;
+  --mist: #e4d0ad;
   --ok: #3d7a4e;
   --caution: #94630b;
   --danger: #dc143c;
   --info: #2f6a8f;
-  --focus: #8bb0c9;
-  --plan-fill: rgba(23, 49, 89, 0.14);
-  --plan-stroke: #173159;
-  --measure: #8bb0c9;
+  --focus: #173159;
+  --plan-fill: rgba(23, 49, 89, 0.1);
+  --plan-stroke: #9c6c31;
+  --measure: #a66d2f;
 
   /* The 3D/canvas stage stays dark in both schemes so geometry reads clearly. */
   --viewport: #111a26;
@@ -72,25 +76,26 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --canvas: #101820;
-    --surface: #162033;
-    --surface-hover: #1c2b40;
-    --ink: #e8eef4;
-    --muted: #9aadc0;
-    --line: #2c3d55;
+    --canvas: #1a1b19;
+    --surface: #242623;
+    --surface-hover: #30332d;
+    --ink: #ecebe6;
+    --muted: #b1b4a9;
+    --line: #41453b;
+    /* Szaidel steel blue keeps the navy family legible on dark surfaces. */
     --brand: #8bb0c9;
     --brand-hover: #b8dde1;
-    --brand-on: #101820;
-    --accent: #b8dde1;
-    --mist: #8bb0c9;
+    --brand-on: #0c1f3c;
+    --accent: #e4d0ad;
+    --mist: #a66d2f;
     --ok: #a9d4b2;
     --caution: #e2b45a;
     --danger: #f07178;
-    --info: #8bb0c9;
+    --info: #a66d2f;
     --focus: #8bb0c9;
-    --plan-fill: rgba(139, 176, 201, 0.18);
-    --plan-stroke: #8bb0c9;
-    --measure: #b8dde1;
+    --plan-fill: rgba(139, 176, 201, 0.14);
+    --plan-stroke: #dfb779;
+    --measure: #e4d0ad;
     color-scheme: dark;
   }
 }
@@ -318,7 +323,7 @@ summary {
 
   html,
   body {
-    background: #ffffff !important;
+    background: #f8f8f5 !important;
     color: #18181b !important;
   }
 
@@ -340,7 +345,7 @@ summary {
     min-width: 0 !important;
     min-height: 0 !important;
     overflow: visible !important;
-    background: #ffffff !important;
+    background: #f8f8f5 !important;
   }
 
   .planner-workspace-grid {
@@ -351,7 +356,7 @@ summary {
     display: block !important;
     border: 0 !important;
     padding: 0 !important;
-    background: #ffffff !important;
+    background: #f8f8f5 !important;
     color: #18181b !important;
   }
 
@@ -367,7 +372,7 @@ summary {
   .print-report td,
   .print-report figure {
     border-color: #d4d4d8 !important;
-    background: #ffffff !important;
+    background: #f8f8f5 !important;
     color: #18181b !important;
   }
 
@@ -407,7 +412,7 @@ summary {
   }
 
   .print-report [data-layer-pattern-id] > rect {
-    fill: #ffffff !important;
+    fill: #f8f8f5 !important;
     stroke: #52525b !important;
   }
 

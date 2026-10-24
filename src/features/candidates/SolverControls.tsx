@@ -43,6 +43,8 @@ export type GeneratorLaunchRequest = {
 
 export type SolverControlsProps = {
   project: Project;
+  guided?: boolean;
+  initialPackageCount?: number;
   launchRequest?: GeneratorLaunchRequest | null;
   onLaunchRequestConsumed?: (requestId: string) => void;
   onApplyPackageInputs: (inputs: GeneratorPackageInputs) => Promise<Project>;
@@ -74,7 +76,7 @@ type PreparedSolverInput = {
   error: string | null;
 };
 
-const inputClass = "ui-input min-w-0 font-mono text-xs";
+const inputClass = "ui-input min-w-0 font-mono text-micro";
 
 const labelFaceDescription: Record<Side, string> = {
   top: "+Y face — edge parallel to package length",
@@ -317,7 +319,7 @@ function DimensionInput({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className="grid min-w-0 gap-1 text-[10px] text-[var(--muted)]">
+    <label className="text-muted grid min-w-0 gap-1 text-[10px]">
       {label}
       <input
         type="number"
@@ -332,11 +334,7 @@ function DimensionInput({
   );
 }
 
-function SolverProgressPanel({
-  progress,
-}: {
-  progress: SolverProgress;
-}) {
+function SolverProgressPanel({ progress }: { progress: SolverProgress }) {
   const percent =
     progress.total && progress.total > 0
       ? Math.min(100, Math.round((progress.completed / progress.total) * 100))
@@ -346,11 +344,11 @@ function SolverProgressPanel({
   return createPortal(
     <div
       aria-live="polite"
-      className="fixed top-14 left-1/2 z-30 grid w-[min(440px,calc(100vw-32px))] -translate-x-1/2 gap-2 border border-brand border-l-4 bg-surface px-4 py-3 text-ink shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
+      className="border-brand bg-surface text-ink fixed top-14 left-1/2 z-30 grid w-[min(440px,calc(100vw-32px))] -translate-x-1/2 gap-2 border border-l-4 px-4 py-3 shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
     >
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-body font-semibold">Generating patterns…</span>
-        <span className="font-mono text-body font-semibold text-brand">
+        <span className="text-body text-brand font-mono font-semibold">
           {percent === null ? progress.completed : `${percent}%`}
         </span>
       </div>
@@ -360,21 +358,21 @@ function SolverProgressPanel({
         aria-valuemin={0}
         aria-valuemax={progress.total ?? undefined}
         aria-valuenow={progress.total === null ? undefined : progress.completed}
-        className="h-2.5 w-full overflow-hidden border border-line bg-surface"
+        className="border-line bg-surface h-2.5 w-full overflow-hidden border"
       >
         <div
-          className={`h-full bg-brand transition-[width] duration-200 ${
+          className={`bg-brand h-full transition-[width] duration-200 ${
             percent === null ? "w-1/3 animate-pulse" : ""
           }`}
           style={percent === null ? undefined : { width: `${percent}%` }}
         />
       </div>
-      <div className="flex items-center justify-between gap-3 text-micro">
+      <div className="text-micro flex items-center justify-between gap-3">
         <span className="truncate">
           {progress.phase}
           {progress.generator ? ` · ${progress.generator}` : ""}
         </span>
-        <span className="shrink-0 font-mono text-muted">
+        <span className="text-muted shrink-0 font-mono">
           {progress.completed}
           {progress.total === null ? "" : ` / ${progress.total}`}
         </span>
@@ -389,6 +387,8 @@ function SolverProgressPanel({
 
 export function SolverControls({
   project,
+  guided = false,
+  initialPackageCount,
   launchRequest = null,
   onLaunchRequestConsumed,
   onApplyPackageInputs,
@@ -411,7 +411,10 @@ export function SolverControls({
     JSON.stringify(project.package.labelSidesAtPickup),
   );
   const currentProjectKey = useMemo(() => solverProjectKey(project), [project]);
-  const [draft, setDraft] = useState<SolverDraft>(() => initialDraft(project));
+  const [draft, setDraft] = useState<SolverDraft>(() => ({
+    ...initialDraft(project),
+    packageCount: initialPackageCount ? String(initialPackageCount) : "",
+  }));
   const [allowMixedPackageOrientations, setAllowMixedPackageOrientations] =
     useState(true);
   const [includeSymmetryVariants, setIncludeSymmetryVariants] = useState(true);
@@ -432,6 +435,7 @@ export function SolverControls({
   );
   const runKeyRef = useRef(currentRunKey);
   const [status, setStatus] = useState<RunStatus>("idle");
+  const [showSearchSettings, setShowSearchSettings] = useState(false);
   const [progress, setProgress] = useState<SolverProgress | null>(null);
   const [resultSummary, setResultSummary] = useState<SolverResult | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
@@ -711,8 +715,7 @@ export function SolverControls({
 
   useEffect(() => {
     if (
-      !launchRequest ||
-      launchRequest.projectId !== project.id ||
+      launchRequest?.projectId !== project.id ||
       claimedLaunchRequestIdsRef.current.has(launchRequest.requestId)
     ) {
       return;
@@ -728,8 +731,7 @@ export function SolverControls({
 
   useEffect(() => {
     if (
-      !pendingLaunchRequest ||
-      pendingLaunchRequest.projectId !== project.id ||
+      pendingLaunchRequest?.projectId !== project.id ||
       draft.packageCount !== String(pendingLaunchRequest.exactPackageCount) ||
       !canSolve
     ) {
@@ -759,13 +761,249 @@ export function SolverControls({
 
   const inputsDisabled = status === "running";
 
+  if (guided)
+    return (
+      <section
+        className="fable-generator"
+        data-completed={Boolean(resultSummary) && !showSearchSettings}
+        aria-label="Mustersuche"
+      >
+        <div className="generator-heading">
+          <div>
+            <h2>
+              {status === "running"
+                ? "Passende Muster werden gesucht"
+                : resultSummary
+                  ? "Suche abgeschlossen"
+                  : "Muster berechnen"}
+            </h2>
+            <p>
+              {project.package.dimensionsMm.length} ×{" "}
+              {project.package.dimensionsMm.width} mm auf{" "}
+              {project.pallet?.name ?? "Palette"}
+            </p>
+          </div>
+          <span className="generator-state">
+            {status === "running"
+              ? "Berechnung läuft"
+              : status === "cancelled"
+                ? "Abgebrochen"
+                : resultSummary
+                  ? `${distinctCandidateLayoutCount} unterschiedliche Muster`
+                  : "Bereit"}
+          </span>
+        </div>
+        {progress && (
+          <div className="generator-progress" role="status" aria-live="polite">
+            <progress
+              aria-label="Fortschritt der Mustersuche"
+              value={progress.total ? progress.completed : undefined}
+              max={progress.total ?? 1}
+            />
+            <p>
+              {(
+                {
+                  generation: "Muster erzeugen",
+                  validation: "Geometrie prüfen",
+                  ranking: "Muster sortieren",
+                  complete: "Abgeschlossen",
+                  normalization: "Eingaben prüfen",
+                } as Record<string, string>
+              )[progress.phase] ?? "Muster berechnen"}
+              {progress.generator ? `: ${progress.generator}` : ""}{" "}
+              <span>
+                {progress.completed}
+                {progress.total ? ` / ${progress.total}` : ""}
+              </span>
+            </p>
+          </div>
+        )}
+        {resultSummary && !showSearchSettings && (
+          <button
+            type="button"
+            className="text-action"
+            onClick={() => setShowSearchSettings(true)}
+          >
+            Suche anpassen
+          </button>
+        )}
+        <div hidden={Boolean(resultSummary) && !showSearchSettings}>
+          <div className="generator-main">
+            <label>
+              Pakete je Lage
+              <input
+                className="ui-input"
+                type="number"
+                min="1"
+                step="1"
+                value={draft.packageCount}
+                disabled={inputsDisabled}
+                onChange={(e) => updateDraft({ packageCount: e.target.value })}
+              />
+            </label>
+            <button
+              type="button"
+              className={status === "running" ? "ui-btn" : "ui-btn-primary"}
+              disabled={status !== "running" && !canSolve}
+              onClick={() => (status === "running" ? cancel() : void start())}
+            >
+              {status === "running"
+                ? "Berechnung abbrechen"
+                : resultSummary
+                  ? "Neu berechnen"
+                  : "Muster erzeugen"}
+            </button>
+          </div>
+          <details className="generator-options">
+            <summary>Suchparameter anpassen</summary>
+            <div className="generator-option-fields">
+              <DimensionInput
+                label="Paketlänge (mm)"
+                value={draft.packageLength}
+                disabled={inputsDisabled}
+                onChange={(packageLength) => updateDraft({ packageLength })}
+              />
+              <DimensionInput
+                label="Paketbreite (mm)"
+                value={draft.packageWidth}
+                disabled={inputsDisabled}
+                onChange={(packageWidth) => updateDraft({ packageWidth })}
+              />
+              <DimensionInput
+                label="Pakethöhe (mm)"
+                value={draft.packageHeight}
+                disabled={inputsDisabled}
+                onChange={(packageHeight) => updateDraft({ packageHeight })}
+              />
+              <DimensionInput
+                label="Über-/Unterstand Länge gesamt (mm)"
+                value={draft.lengthAllowanceTotal}
+                signed
+                disabled={inputsDisabled}
+                onChange={(lengthAllowanceTotal) =>
+                  updateDraft({ lengthAllowanceTotal })
+                }
+              />
+              <DimensionInput
+                label="Über-/Unterstand Breite gesamt (mm)"
+                value={draft.widthAllowanceTotal}
+                signed
+                disabled={inputsDisabled}
+                onChange={(widthAllowanceTotal) =>
+                  updateDraft({ widthAllowanceTotal })
+                }
+              />
+              <label>
+                Max. Kandidaten je Generator
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="1"
+                  value={draft.maxCandidatesPerGenerator}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    updateDraft({ maxCandidatesPerGenerator: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Max. Pakete je Griff
+                <input
+                  className="ui-input"
+                  type="number"
+                  min="1"
+                  value={draft.provisionalPackagesPerCycle}
+                  disabled={inputsDisabled || !draft.multiPickAllowed}
+                  onChange={(e) =>
+                    updateDraft({ provisionalPackagesPerCycle: e.target.value })
+                  }
+                />
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={allowMixedPackageOrientations}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    setAllowMixedPackageOrientations(e.target.checked)
+                  }
+                />
+                Längs und quer kombinieren
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={draft.multiPickAllowed}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    updateDraft({ multiPickAllowed: e.target.checked })
+                  }
+                />
+                Mehrfachgriff erlauben
+              </label>
+              <label className="generator-check">
+                <input
+                  type="checkbox"
+                  checked={includeSymmetryVariants}
+                  disabled={inputsDisabled}
+                  onChange={(e) => setIncludeSymmetryVariants(e.target.checked)}
+                />
+                Gespiegelte Varianten einbeziehen
+              </label>
+            </div>
+            <p>
+              Der Über-/Unterstand wird gleichmäßig auf beide Seiten verteilt.
+              Die Suchparameter ändern die gespeicherte Palettenfreigabe nicht.
+            </p>
+            <PackageLabelFacePicker
+              packageLengthMm={Number(draft.packageLength)}
+              packageWidthMm={Number(draft.packageWidth)}
+              inletOrientation={draft.inletOrientation}
+              selectedPackageSide={draft.unrotatedPackageLabelSide || null}
+              disabled={inputsDisabled}
+              onInletOrientationChange={(inletOrientation) =>
+                updateDraft({ inletOrientation })
+              }
+              onPackageSideChange={(side) =>
+                updateDraft({ unrotatedPackageLabelSide: side ?? "" })
+              }
+            />
+          </details>
+        </div>
+        {preflightIssues.length > 0 && (
+          <p className="generator-hint">
+            {draft.packageCount.trim() === ""
+              ? "Geben Sie die gewünschte Anzahl Pakete je Lage ein."
+              : preflightIssues.join(" ")}
+          </p>
+        )}
+        {failure && (
+          <p role="alert" className="fable-notice">
+            {status === "cancelled"
+              ? "Berechnung abgebrochen. Es wurden keine unvollständigen Muster übernommen."
+              : failure}
+          </p>
+        )}
+        {staleNotice && (
+          <p role="status" className="generator-hint">
+            Die Suchparameter wurden geändert. Bitte berechnen Sie die Muster
+            erneut.
+          </p>
+        )}
+        {resultSummary?.candidates.length === 0 && (
+          <p role="status" className="fable-notice">
+            Kein passendes Muster gefunden. Ändern Sie die Paketanzahl oder die
+            Suchparameter.
+          </p>
+        )}
+      </section>
+    );
+
   return (
-    <section className="border border-[var(--line)] bg-[var(--surface)]">
-      <header className="border-b border-[var(--line)] p-3">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">
-          Layer solver
-        </h2>
-        <p className="mt-1 text-xs leading-4 text-[var(--muted)]">
+    <section className="border-line bg-surface border">
+      <header className="border-line border-b p-3">
+        <h2 className="text-body text-ink font-semibold">Layer solver</h2>
+        <p className="text-micro text-muted mt-1 leading-4">
           Enter the package, signed pallet allowance, and exact package count
           for this layer.
         </p>
@@ -773,7 +1011,7 @@ export function SolverControls({
 
       <div className="grid gap-3 p-3">
         <fieldset className="grid grid-cols-3 gap-2">
-          <legend className="col-span-3 mb-1 text-[10px] font-semibold text-[var(--muted)]">
+          <legend className="text-muted col-span-3 mb-1 text-[10px] font-semibold">
             Package dimensions · mm
           </legend>
           <DimensionInput
@@ -797,7 +1035,7 @@ export function SolverControls({
         </fieldset>
 
         <fieldset className="grid grid-cols-2 gap-2">
-          <legend className="col-span-2 mb-1 text-[10px] font-semibold text-[var(--muted)]">
+          <legend className="text-muted col-span-2 mb-1 text-[10px] font-semibold">
             Total pallet allowance · mm
           </legend>
           <DimensionInput
@@ -820,7 +1058,7 @@ export function SolverControls({
           />
           {prepared.input?.generationBoundsMm ? (
             <p
-              className="col-span-2 font-mono text-[11px] text-[var(--ink)]"
+              className="text-ink col-span-2 font-mono text-[11px]"
               aria-live="polite"
             >
               Effective frame:{" "}
@@ -832,7 +1070,7 @@ export function SolverControls({
               mm
             </p>
           ) : null}
-          <p className="col-span-2 text-[10px] leading-4 text-[var(--muted)]">
+          <p className="text-muted col-span-2 text-[10px] leading-4">
             The total is split equally between both sides (−38 mm means −19 mm
             per side). Zero on both axes creates a tight centered footprint. Any
             positive or negative value defines the requested frame and may
@@ -841,7 +1079,7 @@ export function SolverControls({
           </p>
         </fieldset>
 
-        <label className="grid gap-1 text-[10px] font-semibold text-[var(--muted)]">
+        <label className="text-muted grid gap-1 text-[10px] font-semibold">
           Packages per layer
           <input
             type="number"
@@ -872,7 +1110,7 @@ export function SolverControls({
             })
           }
         />
-        <p className="text-[10px] leading-4 text-[var(--muted)]">
+        <p className="text-muted text-[10px] leading-4">
           The infeed reference always runs left to right. Changing lengthwise or
           crosswise rotates only the package view and preserves the selected
           physical face. The solver keeps the generated footprint and rotates a
@@ -881,7 +1119,7 @@ export function SolverControls({
         </p>
         {draft.unrotatedPackageLabelSide &&
         project.selectedGripperId === null ? (
-          <p className="border border-[var(--brand)] bg-[var(--plan-fill)] px-2 py-1.5 text-[10px] leading-4 text-[var(--ink)]">
+          <p className="border-brand bg-plan-fill text-ink border px-2 py-1.5 text-[10px] leading-4">
             No gripper is selected, so all four orthogonal place yaws are
             provisionally available. Select a gripper to enforce its exact yaw
             limits.
@@ -889,7 +1127,7 @@ export function SolverControls({
         ) : null}
 
         <div className="grid grid-cols-2 gap-2">
-          <label className="flex min-h-9 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+          <label className="border-line text-micro text-ink flex min-h-9 items-center gap-2 border px-2.5">
             <input
               type="checkbox"
               checked={allowMixedPackageOrientations}
@@ -897,11 +1135,11 @@ export function SolverControls({
               onChange={(event) =>
                 setAllowMixedPackageOrientations(event.target.checked)
               }
-              className="h-4 w-4 accent-[var(--brand)]"
+              className="accent-brand h-4 w-4"
             />
             Allow mixed lengthwise / crosswise orientations
           </label>
-          <label className="flex min-h-9 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+          <label className="border-line text-micro text-ink flex min-h-9 items-center gap-2 border px-2.5">
             <input
               type="checkbox"
               checked={draft.multiPickAllowed}
@@ -911,23 +1149,23 @@ export function SolverControls({
                   multiPickAllowed: event.target.checked,
                 })
               }
-              className="h-4 w-4 accent-[var(--brand)]"
+              className="accent-brand h-4 w-4"
             />
             Allow multipick
           </label>
         </div>
-        <p className="text-[10px] leading-4 text-[var(--muted)]">
+        <p className="text-muted text-[10px] leading-4">
           Valid results may include compact rectangles, pinwheels, and mosaics.
           Multipick groups only equal-yaw packages that are directly adjacent
           along their package length; incompatible packages remain single picks.
         </p>
 
-        <details className="border-t border-[var(--line)] pt-2">
-          <summary className="cursor-pointer text-[10px] font-semibold text-[var(--muted)]">
+        <details className="border-line border-t pt-2">
+          <summary className="text-muted cursor-pointer text-[10px] font-semibold">
             Advanced generation
           </summary>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-[10px] text-[var(--muted)]">
+            <label className="text-muted grid gap-1 text-[10px]">
               Candidates / generator
               <input
                 type="number"
@@ -943,7 +1181,7 @@ export function SolverControls({
                 className={inputClass}
               />
             </label>
-            <label className="grid gap-1 text-[10px] text-[var(--muted)]">
+            <label className="text-muted grid gap-1 text-[10px]">
               Automatic group limit
               <input
                 type="number"
@@ -959,7 +1197,7 @@ export function SolverControls({
                 className={inputClass}
               />
             </label>
-            <label className="col-span-2 flex h-8 items-center gap-2 border border-[var(--line)] px-2.5 text-xs text-[var(--ink)]">
+            <label className="border-line text-micro text-ink col-span-2 flex h-8 items-center gap-2 border px-2.5">
               <input
                 type="checkbox"
                 checked={includeSymmetryVariants}
@@ -967,7 +1205,7 @@ export function SolverControls({
                 onChange={(event) =>
                   setIncludeSymmetryVariants(event.target.checked)
                 }
-                className="h-4 w-4 accent-[var(--brand)]"
+                className="accent-brand h-4 w-4"
               />
               Include block symmetries
             </label>
@@ -978,7 +1216,7 @@ export function SolverControls({
           <button
             type="button"
             onClick={cancel}
-            className="ui-btn h-9 border-[var(--danger)] px-3 text-xs font-medium text-[var(--danger)]"
+            className="ui-btn border-danger text-micro text-danger h-9 px-3 font-medium"
           >
             Cancel
           </button>
@@ -987,18 +1225,18 @@ export function SolverControls({
             type="button"
             onClick={() => void start()}
             disabled={!canSolve}
-            className="ui-btn-primary h-9 px-3 text-xs"
+            className="ui-btn-primary text-micro h-9 px-3"
           >
             Apply inputs & solve
           </button>
         )}
       </div>
 
-      <div className="grid gap-2 border-t border-[var(--line)] p-3 text-xs">
+      <div className="border-line text-micro grid gap-2 border-t p-3">
         {preflightIssues.length > 0 ? (
           <div
             role="alert"
-            className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-[var(--danger)]"
+            className="border-danger text-danger border bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2"
           >
             <strong className="font-semibold">Preflight failed.</strong>
             <ul className="mt-1 list-disc space-y-1 pl-4">
@@ -1008,7 +1246,7 @@ export function SolverControls({
             </ul>
           </div>
         ) : (
-          <p className="text-[var(--muted)]">
+          <p className="text-muted">
             Ready: {draft.packageLength} × {draft.packageWidth} ×{" "}
             {draft.packageHeight} mm package · {draft.inletOrientation} infeed
             left to right · L {draft.lengthAllowanceTotal}/W{" "}
@@ -1027,14 +1265,12 @@ export function SolverControls({
           </p>
         )}
 
-        {progress ? (
-          <SolverProgressPanel progress={progress} />
-        ) : null}
+        {progress ? <SolverProgressPanel progress={progress} /> : null}
 
         {resultSummary ? (
           <div
             role="status"
-            className="border border-[var(--line)] bg-[var(--canvas)] px-3 py-2 text-[var(--ink)]"
+            className="border-line bg-canvas text-ink border px-3 py-2"
           >
             {resultSummary.status === "completed" ? "Completed" : "Cancelled"}:{" "}
             {resultSummary.statistics.candidateCount} candidates (
@@ -1048,7 +1284,7 @@ export function SolverControls({
         {failure ? (
           <div
             role="alert"
-            className="border border-[var(--danger)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2 text-[var(--danger)]"
+            className="border-danger text-danger border bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] px-3 py-2"
           >
             {failure}
           </div>
@@ -1056,7 +1292,7 @@ export function SolverControls({
         {staleNotice ? (
           <div
             role="status"
-            className="border border-[var(--brand)] bg-[var(--plan-fill)] px-3 py-2 text-[var(--ink)]"
+            className="border-brand bg-plan-fill text-ink border px-3 py-2"
           >
             {staleNotice}
           </div>

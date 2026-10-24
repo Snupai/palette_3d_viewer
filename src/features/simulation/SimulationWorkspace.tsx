@@ -20,6 +20,8 @@ import {
   type RobotCycleMaterialization,
   type RobotTimelineConfig,
 } from "~/domain/robotics";
+import { countLabel } from "~/features/editor/editorLabels";
+import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
 import {
   advanceTimelineCursor,
   createSimulationFrame,
@@ -31,11 +33,6 @@ import {
   createViewerSimulationCycles,
   timelinePoseToViewerPose,
 } from "~/features/simulation/viewerSimulationPlan";
-import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
-import { Panel } from "~/components/ui";
-
-const buttonClass = "ui-btn ui-btn-sm";
-const inputClass = "ui-input text-xs";
 
 export type SimulationWorkspaceProps = {
   project: Project;
@@ -51,13 +48,27 @@ const defaultConfig: RobotTimelineConfig = {
   betweenCycleDwellMs: 0,
 };
 
+const timingFields: ReadonlyArray<
+  readonly [string, keyof RobotTimelineConfig]
+> = [
+  ["Bahngeschwindigkeit (mm/s)", "linearSpeedMmPerSec"],
+  ["Drehgeschwindigkeit (°/s)", "angularSpeedDegPerSec"],
+  ["Haltezeit Aufnahme (ms)", "pickDwellMs"],
+  ["Haltezeit Ablage (ms)", "placeDwellMs"],
+  ["Pause zwischen Griffen (ms)", "betweenCycleDwellMs"],
+];
+
 function formatTime(timeMs: number): string {
-  return `${(timeMs / 1_000).toFixed(3)} s`;
+  return `${(timeMs / 1_000).toFixed(1).replace(".", ",")} s`;
 }
 
 function numericInput(value: string, fallback: number): number {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function mm(value: number): string {
+  return value.toFixed(1).replace(".", ",");
 }
 
 export function SimulationWorkspace({
@@ -277,101 +288,104 @@ export function SimulationWorkspace({
     cursorRef.current = next;
     setCursorMs(next);
   };
+  const phaseText = sample ? timelinePhaseLabel(sample.segment.kind) : "–";
 
   return (
-    <div className="grid gap-3" data-testid="simulation-workspace">
-      <Panel
-        title="Robot simulation timeline"
-        description="Timeline interpolation is deterministic over the canonical RobotCycle array. Cell geometry and external-axis placement are visualization evidence, not verified robot kinematics."
-        bodyClassName="grid gap-3 p-3"
-      >
+    <div className="ed" data-testid="simulation-workspace">
+      <div className="ed-bar">
+        <div className="ed-bar-title">
+          <h2>Simulation</h2>
+          <p>
+            {timeline.cycles.length > 0
+              ? `${countLabel(timeline.cycles.length, "Griff", "Griffe")} · Dauer ${formatTime(timeline.durationMs)}`
+              : "Keine berechneten Griffe"}
+          </p>
+        </div>
         <div
-          className="flex flex-wrap items-center gap-2"
+          className="ed-bar-actions"
           role="toolbar"
-          aria-label="Simulation playback controls"
+          aria-label="Wiedergabe"
+          style={{ marginLeft: 0 }}
         >
           <button
             type="button"
+            className="ui-btn-primary"
             disabled={!canNavigate}
             onClick={() => setPlaying((current) => !current)}
-            className="ui-btn-primary ui-btn-sm"
           >
-            {playing ? "Stop" : "Start"}
+            {playing ? "Stopp" : "Start"}
           </button>
           <button
             type="button"
+            className="ui-btn"
             disabled={!canNavigate}
             onClick={() => setBoundary(0)}
-            className={buttonClass}
           >
-            Beginning
+            Anfang
           </button>
           <button
             type="button"
+            className="ui-btn"
             disabled={!canNavigate}
             onClick={() =>
               setBoundary(stepTimelineCursor(timeline, cursorMs, "reverse"))
             }
-            className={buttonClass}
           >
-            Previous
+            Zurück
           </button>
           <button
             type="button"
+            className="ui-btn"
             disabled={!canNavigate}
             onClick={() =>
               setBoundary(stepTimelineCursor(timeline, cursorMs, "forward"))
             }
-            className={buttonClass}
           >
-            Next
+            Weiter
           </button>
           <button
             type="button"
+            className="ui-btn"
             disabled={!canNavigate}
             onClick={() => setBoundary(timeline.durationMs)}
-            className={buttonClass}
           >
-            End
+            Ende
           </button>
-          <span className="bg-line mx-1 h-5 w-px" aria-hidden="true" />
-          <button
-            type="button"
-            aria-pressed={direction === "forward"}
-            onClick={() => {
-              setPlaying(false);
-              setDirection("forward");
-            }}
-            className={
-              direction === "forward"
-                ? `${buttonClass} border-brand! bg-brand/10! text-brand!`
-                : buttonClass
-            }
-          >
-            Forward
-          </button>
-          <button
-            type="button"
-            aria-pressed={direction === "reverse"}
-            onClick={() => {
-              setPlaying(false);
-              setDirection("reverse");
-            }}
-            className={
-              direction === "reverse"
-                ? `${buttonClass} border-brand! bg-brand/10! text-brand!`
-                : buttonClass
-            }
-          >
-            Reverse
-          </button>
-          <label className="text-muted ml-auto flex items-center gap-2 text-xs">
-            Speed
+        </div>
+        <div className="ed-bar-actions">
+          <fieldset className="fw-seg-field">
+            <legend className="sr-only">Richtung</legend>
+            <div className="fw-seg">
+              {(
+                [
+                  ["forward", "Vorwärts"],
+                  ["reverse", "Rückwärts"],
+                ] as const
+              ).map(([value, label]) => (
+                <label key={value}>
+                  <input
+                    type="radio"
+                    name="simulation-direction"
+                    value={value}
+                    checked={direction === value}
+                    onChange={() => {
+                      setPlaying(false);
+                      setDirection(value);
+                    }}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <label className="ed-bar-select">
+            Geschwindigkeit
             <select
-              aria-label="Playback speed"
+              aria-label="Geschwindigkeit"
               value={speed}
               onChange={(event) => setSpeed(Number(event.target.value))}
-              className={inputClass}
+              className="ui-input"
+              style={{ minWidth: 100 }}
             >
               {[0.25, 0.5, 1, 2, 4].map((value) => (
                 <option key={value} value={value}>
@@ -381,133 +395,85 @@ export function SimulationWorkspace({
             </select>
           </label>
         </div>
+      </div>
 
-        <div className="grid gap-1">
-          <div className="text-micro text-muted flex justify-between gap-3">
-            <span>{formatTime(cursorMs)}</span>
-            <span>{formatTime(timeline.durationMs)}</span>
-          </div>
-          <input
-            aria-label="Simulation seek"
-            type="range"
-            min={0}
-            max={Math.max(1, timeline.durationMs)}
-            step={1}
-            value={Math.min(cursorMs, Math.max(1, timeline.durationMs))}
-            disabled={!canNavigate}
-            onChange={(event) => setBoundary(Number(event.target.value))}
-            className="accent-brand w-full"
-          />
+      <div className="ed-alerts">
+        {timeline.diagnostics.map((diagnostic, index) => (
           <div
-            className="border-line bg-canvas flex h-2 overflow-hidden border"
-            aria-label="Deterministic timeline cursor"
+            key={`${diagnostic.code}-${index}`}
+            role="alert"
+            className="fw-alert"
           >
-            {timeline.segments.map((segment) => (
-              <span
-                key={segment.id}
-                title={`${timelinePhaseLabel(segment.kind)}: ${formatTime(segment.durationMs)}`}
-                className={
-                  segment.cycleIndex % 2 === 0 ? "bg-muted/60" : "bg-muted/30"
-                }
-                style={{ flexGrow: Math.max(segment.durationMs, 1) }}
-              />
-            ))}
+            {diagnostic.message}
           </div>
+        ))}
+      </div>
+
+      <div className="ed-layout">
+        <div className="ed-stage">
+          <div className="ed-toolbar">
+            <span className="ed-status">{formatTime(cursorMs)}</span>
+            <input
+              aria-label="Zeitposition"
+              type="range"
+              min={0}
+              max={Math.max(1, timeline.durationMs)}
+              step={1}
+              value={Math.min(cursorMs, Math.max(1, timeline.durationMs))}
+              disabled={!canNavigate}
+              onChange={(event) => setBoundary(Number(event.target.value))}
+              className="accent-brand"
+              style={{ flex: "1 1 240px" }}
+            />
+            <span className="ed-status">{formatTime(timeline.durationMs)}</span>
+            <span className="ed-toolbar-count">
+              {cycle
+                ? `Griff ${cycle.sequence + 1} / ${timeline.cycles.length} · ${phaseText}`
+                : "–"}
+            </span>
+          </div>
+          <div className="bg-viewport" style={{ minHeight: 560 }}>
+            {previewData && previewData.layer_count > 0 ? (
+              <RobViewer
+                data={previewData}
+                cameraResetKey={`simulation:${project.id}`}
+                visibleUpToLayer={previewData.layer_count}
+                showSceneControls
+                equipment={equipment}
+                liftCarriageMm={
+                  project.source.kind === "new" ? liftCarriageMm : null
+                }
+                simulationPose={simulationFrame.tcpPose}
+                simulationState={simulationFrame}
+                sceneCalibration={sceneCalibration ?? undefined}
+                temporaryCalibration={temporaryCalibration}
+              />
+            ) : (
+              <div className="ed-empty" style={{ minHeight: 560 }}>
+                Erst einen Stapel mit Lagen speichern, dann lässt sich die
+                Bewegung ansehen.
+              </div>
+            )}
+          </div>
+          <p className="ed-canvas-hint">
+            {project.source.kind === "new"
+              ? "Zelle, Förderband und Greifer sind Anschauungshilfen. Reichweite und Kollision gelten nur nach der Prüfung unter Robotik & Greifer."
+              : "Förderband, Greiferhüllraum, Palette und Arm sind Anschauungshilfen. Reichweite und Kollision gelten nur nach der Prüfung unter Robotik & Greifer."}
+          </p>
         </div>
 
-        <dl className="border-line grid auto-rows-[1.25rem] grid-cols-2 items-center gap-x-4 gap-y-1 border-t pt-3 text-xs md:grid-cols-5 xl:grid-cols-10">
-          <dt className="text-muted">Cycle</dt>
-          <dd className="text-ink font-mono">
-            {cycle ? `${cycle.sequence + 1} / ${timeline.cycles.length}` : "—"}
-          </dd>
-          <dt className="text-muted">Group</dt>
-          <dd className="text-ink truncate font-mono" title={cycle?.groupId}>
-            {cycle?.groupId ?? "—"}
-          </dd>
-          <dt className="text-muted">Phase</dt>
-          <dd
-            className="text-ink min-w-0 truncate whitespace-nowrap"
-            title={sample ? timelinePhaseLabel(sample.segment.kind) : undefined}
-          >
-            {sample ? timelinePhaseLabel(sample.segment.kind) : "—"}
-          </dd>
-          <dt className="text-muted">Direction</dt>
-          <dd className="text-ink">{direction}</dd>
-          <dt className="text-muted">Frame</dt>
-          <dd className="text-ink font-mono">{sample ? "viewer" : "—"}</dd>
-          <dt className="text-muted">X</dt>
-          <dd className="text-ink font-mono">
-            {sample?.pose.positionMm.x.toFixed(2) ?? "—"}
-          </dd>
-          <dt className="text-muted">Y</dt>
-          <dd className="text-ink font-mono">
-            {sample?.pose.positionMm.y.toFixed(2) ?? "—"}
-          </dd>
-          <dt className="text-muted">Z</dt>
-          <dd className="text-ink font-mono">
-            {sample?.pose.positionMm.z.toFixed(2) ?? "—"}
-          </dd>
-          <dt className="text-muted">Yaw</dt>
-          <dd className="text-ink font-mono">
-            {sample ? `${sample.pose.yawDeg.toFixed(2)}°` : "—"}
-          </dd>
-          <dt className="text-muted">Boundary</dt>
-          <dd className="text-ink">
-            {sample?.atBoundary ? "Exact" : "Interpolated"}
-          </dd>
-        </dl>
-      </Panel>
-
-      <section className="border-line bg-surface grid border xl:grid-cols-[280px_minmax(0,1fr)]">
-        <div className="border-line border-b p-3 xl:border-r xl:border-b-0">
-          <h2 className="text-body text-ink font-semibold">Motion timing</h2>
-          <div className="mt-3 grid gap-2">
-            {(
-              [
-                ["Linear speed (mm/s)", "linearSpeedMmPerSec"],
-                ["Angular speed (deg/s)", "angularSpeedDegPerSec"],
-                ["Pick dwell (ms)", "pickDwellMs"],
-                ["Place dwell (ms)", "placeDwellMs"],
-                ["Between cycles (ms)", "betweenCycleDwellMs"],
-              ] as const
-            ).map(([label, field]) => (
-              <label key={field} className="text-micro text-muted grid gap-1">
-                {label}
-                <input
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={config[field]}
-                  onChange={(event) =>
-                    setConfig({
-                      ...config,
-                      [field]: numericInput(event.target.value, config[field]),
-                    })
-                  }
-                  className={inputClass}
-                />
-              </label>
-            ))}
-          </div>
+        <aside className="ed-side">
           {project.source.kind === "new" ? (
-            <div className="border-line mt-4 grid gap-2 border-t pt-3">
-              <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor="lift-carriage-mm"
-                  className="text-ink text-xs font-medium"
-                >
-                  Ewellix lift visualization
-                </label>
-                <output
-                  htmlFor="lift-carriage-mm"
-                  className="text-brand font-mono text-xs"
-                >
+            <section className="ed-panel" aria-labelledby="sim-lift-title">
+              <div className="ed-panel-head">
+                <h3 id="sim-lift-title">Hub (Ewellix)</h3>
+                <output htmlFor="lift-carriage-mm" className="ed-status">
                   {liftCarriageMm} mm
                 </output>
               </div>
               <input
                 id="lift-carriage-mm"
-                aria-label="Ewellix lift position"
+                aria-label="Hubposition Ewellix"
                 type="range"
                 min={BUNDLED_ROBOT_CELL.liftTravelMm.min}
                 max={BUNDLED_ROBOT_CELL.liftTravelMm.max}
@@ -516,56 +482,103 @@ export function SimulationWorkspace({
                 onChange={(event) =>
                   setLiftCarriageMm(Number(event.target.value))
                 }
-                className="accent-brand w-full"
+                className="accent-brand"
               />
-              <div className="text-micro text-muted flex justify-between font-mono">
-                <span>0</span>
-                <span>450</span>
-                <span>900 mm</span>
-              </div>
-              <p className="text-micro text-muted leading-4">
-                {BUNDLED_ROBOT_CELL.evidence.lift}
+              <p className="ed-panel-note">
+                {BUNDLED_ROBOT_CELL.liftTravelMm.min} bis{" "}
+                {BUNDLED_ROBOT_CELL.liftTravelMm.max} mm. Der Hub bewegt nur die
+                Darstellung, nicht die berechneten Griffe.
+              </p>
+            </section>
+          ) : null}
+
+          <details className="ed-panel-details">
+            <summary>Bewegungszeiten</summary>
+            <div>
+              {timingFields.map(([label, field]) => (
+                <label key={field} className="ed-field">
+                  {label}
+                  <input
+                    type="number"
+                    min={0}
+                    step="any"
+                    value={config[field]}
+                    onChange={(event) =>
+                      setConfig({
+                        ...config,
+                        [field]: numericInput(
+                          event.target.value,
+                          config[field],
+                        ),
+                      })
+                    }
+                    className="ui-input"
+                  />
+                </label>
+              ))}
+              <p className="ed-panel-note">
+                Planwerte für die Zeitachse, keine Werte der realen Steuerung.
               </p>
             </div>
-          ) : null}
-          {timeline.diagnostics.length > 0 ? (
-            <ul className="text-danger mt-3 grid gap-1 text-xs">
-              {timeline.diagnostics.map((diagnostic, index) => (
-                <li key={`${diagnostic.code}-${index}`}>
-                  {diagnostic.message}
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          <p className="text-muted mt-3 text-xs leading-5">
-            {project.source.kind === "new"
-              ? `The CAD cell falls back to procedural scene aids if it cannot load. ${BUNDLED_ROBOT_CELL.evidence.limitations}`
-              : "Conveyor, gripper envelope, pallet, and articulated arm are scene aids. Reach and collision validity comes only from robotics diagnostics, not from the simplified arm drawing."}
-          </p>
-        </div>
-        <div className="bg-viewport min-h-[560px] overflow-hidden">
-          {previewData && previewData.layer_count > 0 ? (
-            <RobViewer
-              data={previewData}
-              cameraResetKey={`simulation:${project.id}`}
-              visibleUpToLayer={previewData.layer_count}
-              showSceneControls
-              equipment={equipment}
-              liftCarriageMm={
-                project.source.kind === "new" ? liftCarriageMm : null
-              }
-              simulationPose={simulationFrame.tcpPose}
-              simulationState={simulationFrame}
-              sceneCalibration={sceneCalibration ?? undefined}
-              temporaryCalibration={temporaryCalibration}
-            />
-          ) : (
-            <div className="text-viewport-ink flex min-h-[560px] items-center justify-center px-4 text-center text-sm">
-              Save a non-empty stack before running the simulation scene.
+          </details>
+
+          <details className="ed-panel-details">
+            <summary>Aktuelle Werkzeugposition</summary>
+            <div>
+              <table className="ed-table">
+                <tbody>
+                  <tr>
+                    <td>Griff</td>
+                    <td className="num">
+                      {cycle
+                        ? `${cycle.sequence + 1} / ${timeline.cycles.length}`
+                        : "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Phase</td>
+                    <td className="num">{phaseText}</td>
+                  </tr>
+                  <tr>
+                    <td>X</td>
+                    <td className="num">
+                      {sample ? mm(sample.pose.positionMm.x) : "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Y</td>
+                    <td className="num">
+                      {sample ? mm(sample.pose.positionMm.y) : "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Z</td>
+                    <td className="num">
+                      {sample ? mm(sample.pose.positionMm.z) : "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Drehung</td>
+                    <td className="num">
+                      {sample ? `${mm(sample.pose.yawDeg)}°` : "–"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td>Stützpunkt</td>
+                    <td className="num">
+                      {sample
+                        ? sample.atBoundary
+                          ? "exakt"
+                          : "interpoliert"
+                        : "–"}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-          )}
-        </div>
-      </section>
+          </details>
+        </aside>
+      </div>
     </div>
   );
 }

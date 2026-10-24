@@ -5,7 +5,6 @@ import {
   render,
   screen,
   waitFor,
-  within,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
@@ -44,7 +43,11 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       onSave,
       project,
       solverInput,
+      onDirtyChange,
+      onEditProject,
     }: {
+      onDirtyChange: (dirty: boolean) => void;
+      onEditProject: () => void;
       candidates: readonly SolverCandidate[];
       onSave: (
         state: StackWorkspaceState,
@@ -54,6 +57,8 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       solverInput: Parameters<typeof materializeStackWorkspace>[2];
     }) => (
       <>
+        <button onClick={() => onDirtyChange(true)}>Dirty stack draft</button>
+        <button onClick={() => onEditProject()}>Edit stack inputs</button>
         <output data-testid="stack-candidate-ids">
           {candidates.map(({ id }) => id).join("|")}
         </output>
@@ -309,247 +314,315 @@ afterEach(() => {
 });
 
 function fillNewProjectPackageDimensions() {
-  fireEvent.change(screen.getByLabelText("Length (mm)"), {
-    target: { value: "400" },
+  for (const [label, value] of [
+    ["Artikelnummer", "A-1"],
+    ["Länge", "400"],
+    ["Breite", "300"],
+    ["Höhe", "200"],
+  ])
+    fireEvent.change(screen.getByLabelText(label!), { target: { value } });
+}
+async function createAndGenerate(repository: ProjectRepository, count = "4") {
+  render(<PlannerProjectWorkspace repository={repository} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+  );
+  fillNewProjectPackageDimensions();
+  fireEvent.change(screen.getByLabelText("Genaue Anzahl"), {
+    target: { value: count },
   });
-  fireEvent.change(screen.getByLabelText("Width (mm)"), {
-    target: { value: "300" },
-  });
-  fireEvent.change(screen.getByLabelText("Height (mm)"), {
-    target: { value: "200" },
+  fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
+  await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+  await screen.findByRole("region", { name: "Muster auswählen" });
+}
+async function openFirst(repository: ProjectRepository) {
+  render(<PlannerProjectWorkspace repository={repository} />);
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+  );
+  fireEvent.click(
+    (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+  );
+  await screen.findByRole("button", { name: "Weiter zu den Mustern" });
+}
+async function solveExisting(repository: ProjectRepository) {
+  await openFirst(repository);
+  fireEvent.click(
+    screen.getByRole("button", { name: "Weiter zu den Mustern" }),
+  );
+  fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
+    target: { value: "4" },
   });
 }
 
-describe("PlannerProjectWorkspace generator integration", () => {
-  it("creates a project, opens Generate, solves once, and selects the first suggestion", async () => {
+describe("PlannerProjectWorkspace guided generation integration", () => {
+  it("does not let FIRST's pending save close or clean a new SECOND form", async () => {
     const repository = emptyRepository();
-
+    const persist = repository.saveProject.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const saveSpy = vi
+      .spyOn(repository, "saveProject")
+      .mockImplementationOnce(async (project) => {
+        await pending;
+        return persist(project);
+      });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<PlannerProjectWorkspace repository={repository} />);
-    const createButtons = await screen.findAllByRole(
-      "button",
-      { name: "Create pallet plan" },
-      { timeout: 5_000 },
-    );
-    fireEvent.click(createButtons[0]!);
-
-    fireEvent.change(screen.getByLabelText("Line number"), {
-      target: { value: "AUTO-GENERATE" },
-    });
-    fillNewProjectPackageDimensions();
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "4" },
-    });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
     );
-
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
-      timeout: 5_000,
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "FIRST" },
     });
-    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
-      constraints: {
-        minimumPackageCount: 4,
-        maximumPackageCount: 4,
-      },
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Neuen Plan/ }));
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "SECOND" },
     });
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "AUTO-GENERATE" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("heading", { name: "Generate patterns" }),
-    ).toBeTruthy();
-    expect(screen.getByText("2/3")).toBeTruthy();
-    const selectedSuggestion = await screen.findByRole("option", {
-      selected: true,
+    await act(async () => {
+      release();
+      await pending;
     });
-    expect(selectedSuggestion.textContent).toContain("#1");
-    expect(selectedSuggestion.textContent).toContain("Geometry OK");
-    expect(clientMocks.run).toHaveBeenCalledTimes(1);
-
-    const savedProjects = (await repository.listProjects()).projects;
-    expect(savedProjects).toHaveLength(1);
-    expect(savedProjects[0]?.solutions).toHaveLength(1);
-    expect(savedProjects[0]?.solutions[0]).toMatchObject({
-      origin: "manual",
-      patterns: [],
-      stack: { layers: [] },
-      robotCycles: [],
-    });
+    await waitFor(async () =>
+      expect(
+        (await repository.listProjects()).projects.map((p) => p.productNumber),
+      ).toEqual(["FIRST"]),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Artikelnummer").value).toBe(
+      "SECOND",
+    );
+    vi.mocked(window.confirm).mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(screen.getByLabelText<HTMLInputElement>("Artikelnummer").value).toBe(
+      "SECOND",
+    );
   });
 
-  it("deduplicates visible candidate lists while preserving raw stack variants", async () => {
+  it("preserves an in-flight search through the library and returns to its result", async () => {
+    const { repository } = await repositoryWithProject();
+    let complete!: (result: SolverResult) => void;
+    const pending = new Promise<SolverResult>((resolve) => {
+      complete = resolve;
+    });
+    clientMocks.run.mockReturnValueOnce({
+      runId: "pending-navigation",
+      cancel: clientMocks.cancel,
+      result: pending,
+    });
+    await solveExisting(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    const cancels = clientMocks.cancel.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(clientMocks.cancel).toHaveBeenCalledTimes(cancels);
+    await act(async () => {
+      complete(solverResult);
+      await pending;
+    });
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    await screen.findByRole("region", { name: "Muster auswählen" });
+    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks geometry loss before saving and closes metadata inputs without discarding the stack", async () => {
     const repository = emptyRepository();
+    await createAndGenerate(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dirty stack draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit stack inputs" }));
+    const save = vi.spyOn(repository, "saveProject");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "410" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "400" },
+    });
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "RENAMED" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("form", { name: "Paket und Palette" }),
+      ).toBeNull(),
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("stack-candidate-ids").textContent).toBe(
+      "candidate-exact-4",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("stack-candidate-ids")).toBeTruthy();
+  });
+
+  it("does not overwrite inputs opened while a stack save is pending", async () => {
+    const repository = emptyRepository();
+    await createAndGenerate(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    const persist = repository.saveProject.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProject")
+      .mockImplementationOnce(async (project) => {
+        await pending;
+        return persist(project);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Edit stack inputs" }));
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "410" },
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    await waitFor(async () =>
+      expect(
+        (await repository.listProjects()).projects[0]!.solutions[0]!.stack
+          .layers,
+      ).toHaveLength(10),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+  });
+
+  it("keeps unsaved inputs when leaving is dismissed and discards them only after confirmation", async () => {
+    render(<PlannerProjectWorkspace repository={emptyRepository()} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+    );
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "400" },
+    });
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Planliste öffnen: Ungespeicherte Änderungen verwerfen?",
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("400");
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(screen.getByRole("region", { name: "Planbibliothek" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "＋ Neuer Plan" }));
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("");
+  });
+
+  it("starts with the two explicit paths, saves inputs and solves exactly once", async () => {
+    const repository = emptyRepository();
+    await createAndGenerate(repository);
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      constraints: { minimumPackageCount: 4, maximumPackageCount: 4 },
+    });
+    expect(
+      screen
+        .getByRole("button", { name: "Muster 1 mit 4 Paketen wählen" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(
+      screen.getByRole("button", { name: "Stapel aufbauen" }),
+    ).toHaveProperty("disabled", false);
+    const saved = (await repository.listProjects()).projects;
+    expect(saved).toHaveLength(1);
+    expect(saved[0]?.solutions[0]?.stack.layers).toEqual([]);
+  });
+  it("deduplicates choices while passing all raw variants to the stack", async () => {
     const duplicate = candidateVariant(2, "candidate-duplicate", 180);
     const distinct = candidateVariant(3, "candidate-distinct", 0);
-    distinct.placements = distinct.placements.map((placement) => ({
-      ...placement,
+    distinct.placements = distinct.placements.map((x) => ({
+      ...x,
       positionMm: {
-        ...placement.positionMm,
-        x: placement.positionMm.x + (placement.sequence >= 2 ? 300 : 0),
+        ...x.positionMm,
+        x: x.positionMm.x + (x.sequence >= 2 ? 300 : 0),
       },
     }));
-    const resultWithVisualDuplicate: SolverResult = {
-      ...solverResult,
-      candidates: [solverResult.candidates[0]!, duplicate, distinct],
-      diagnostics: [
-        {
-          severity: "info",
-          phase: "deduplication",
-          code: "test-diagnostic",
-          message: "Candidate grouping integration fixture.",
-        },
-      ],
-      statistics: {
-        ...solverResult.statistics,
-        generatedDraftCount: 3,
-        validDraftCount: 3,
-        candidateCount: 3,
-      },
-    };
     clientMocks.run.mockReturnValueOnce({
-      runId: "workspace-visual-dedup-run",
+      runId: "dedup",
       cancel: clientMocks.cancel,
-      result: Promise.resolve(resultWithVisualDuplicate),
+      result: Promise.resolve({
+        ...solverResult,
+        candidates: [solverResult.candidates[0]!, duplicate, distinct],
+      }),
     });
-
-    render(<PlannerProjectWorkspace repository={repository} />);
-    const createButtons = await screen.findAllByRole(
-      "button",
-      { name: "Create pallet plan" },
-      { timeout: 5_000 },
-    );
-    fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Line number"), {
-      target: { value: "VISUAL-DEDUPE" },
-    });
-    fillNewProjectPackageDimensions();
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "4" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
-    );
-
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
-      timeout: 5_000,
-    });
-    const compactOptions = await screen.findAllByRole("option", undefined, {
-      timeout: 5_000,
-    });
+    await createAndGenerate(emptyRepository());
     expect(
-      compactOptions.map((option) => option.querySelector("td")?.textContent),
-    ).toEqual(["#1", "#3"]);
-    expect(
-      await screen.findByText(/3 candidates \(2 distinct layouts\)/),
-    ).toBeTruthy();
-
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open full diagnostics (1)" }),
-    );
-    const candidateDialog = await screen.findByRole("dialog", {
-      name: "Candidate browser",
-    });
-    expect(within(candidateDialog).getAllByRole("option")).toHaveLength(2);
-    fireEvent.click(
-      within(candidateDialog).getByRole("button", { name: "Close" }),
-    );
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open stack composer" }),
-    );
-    expect((await screen.findByTestId("stack-candidate-ids")).textContent).toBe(
+      screen.getAllByRole("button", {
+        name: /Muster \d+ mit 4 Paketen wählen/,
+      }),
+    ).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    expect(screen.getByTestId("stack-candidate-ids").textContent).toBe(
       "candidate-exact-4|candidate-duplicate|candidate-distinct",
     );
   });
-
-  it("creates without solving when Save project is chosen", async () => {
+  it("can save only the inputs without launching the worker", async () => {
     const repository = emptyRepository();
-
     render(<PlannerProjectWorkspace repository={repository} />);
-    const createButtons = await screen.findAllByRole(
-      "button",
-      { name: "Create pallet plan" },
-      { timeout: 5_000 },
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
     );
-    fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Line number"), {
-      target: { value: "MANUAL-ONLY" },
-    });
     fillNewProjectPackageDimensions();
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
-
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "MANUAL-ONLY" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await screen.findByRole("button", { name: "Weiter zu den Mustern" });
     expect(clientMocks.run).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("heading", { name: "Project inputs" }),
-    ).toBeTruthy();
-    expect(screen.getByText("1/3")).toBeTruthy();
-    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect((await repository.listProjects()).projects).toHaveLength(1);
   });
-
-  it("does not auto-run when reopening an imported ROB project", async () => {
+  it("reopens imported projects as plans and never starts generation", async () => {
     const repository = emptyRepository();
-    const importedProject = createProject(
-      {
-        id: "imported-generator-project",
-        projectNumber: "ROB-IMPORTED",
-        source: { kind: "rob-import", fileName: "fixture.rob" },
-      },
-      { now: () => 1, createId: (kind) => `${kind}-imported` },
+    await repository.saveProject(
+      createProject(
+        {
+          id: "imported",
+          projectNumber: "ROB-IMPORTED",
+          source: { kind: "rob-import", fileName: "fixture.rob" },
+        },
+        { now: () => 1, createId: (k) => `imported-${k}` },
+      ),
     );
-    await repository.saveProject(importedProject);
-
     render(<PlannerProjectWorkspace repository={repository} />);
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "ROB-IMPORTED" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
-    expect(clientMocks.run).not.toHaveBeenCalled();
-    expect(
-      screen.getByRole("heading", { name: "Imported .rob plan" }),
-    ).toBeTruthy();
-    expect(
-      screen.queryByRole("navigation", { name: "Planning workflow" }),
-    ).toBeNull();
-    expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
-    expect(screen.queryByRole("heading", { name: "Layer solver" })).toBeNull();
-  });
-
-  it("runs zero-allowance generation as compact without changing the saved pallet policy", async () => {
-    const { project, repository } = await repositoryWithProject();
-
-    render(<PlannerProjectWorkspace repository={repository} />);
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "M5-GENERATOR" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
-    expect(clientMocks.run).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "4" },
-    });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
     );
-
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("region", { name: "Planbibliothek" }),
+      ).toBeNull(),
+    );
+    expect(clientMocks.run).not.toHaveBeenCalled();
+    expect(screen.queryByRole("region", { name: "Mustersuche" })).toBeNull();
+    expect(screen.queryByRole("list", { name: "Planungsschritte" })).toBeNull();
+  });
+  it("keeps zero-allowance search compact without changing the saved pallet policy", async () => {
+    const { project, repository } = await repositoryWithProject();
+    await solveExisting(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
@@ -558,278 +631,137 @@ describe("PlannerProjectWorkspace generator integration", () => {
         requiredShape: "any",
       },
     });
-    await waitFor(async () => {
-      const saved = await repository.getProject(project.id);
-      expect(saved.project?.pallet?.allowedOverhangMm).toEqual({
-        length: 0,
-        width: 0,
-      });
-    });
-  });
-
-  it("persists package dimensions and multipick authorization before generating the requested layer", async () => {
-    const { project, repository } = await repositoryWithProject();
-
-    render(<PlannerProjectWorkspace repository={repository} />);
     expect(
-      await screen.findByRole(
-        "heading",
-        { name: "M5-GENERATOR" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    fireEvent.change(screen.getByLabelText("Package length"), {
-      target: { value: "100" },
-    });
-    fireEvent.change(screen.getByLabelText("Package width"), {
-      target: { value: "50" },
-    });
-    fireEvent.change(screen.getByLabelText("Package height"), {
-      target: { value: "40" },
-    });
-    fireEvent.click(screen.getByRole("radio", { name: "Crosswise" }));
+      (await repository.getProject(project.id)).project?.pallet
+        ?.allowedOverhangMm,
+    ).toEqual({ length: 0, width: 0 });
+  });
+  it("persists package and multipick changes before generation and keeps signed search allowance separate", async () => {
+    const { project, repository } = await repositoryWithProject();
+    await solveExisting(repository);
+    fireEvent.click(screen.getByText("Suchparameter anpassen"));
+    for (const [label, value] of [
+      ["Paketlänge (mm)", "100"],
+      ["Paketbreite (mm)", "50"],
+      ["Pakethöhe (mm)", "40"],
+      ["Über-/Unterstand Länge gesamt (mm)", "-100"],
+      ["Über-/Unterstand Breite gesamt (mm)", "-100"],
+    ])
+      fireEvent.change(screen.getByLabelText(label!), { target: { value } });
     fireEvent.click(
-      screen.getByRole("button", {
-        name: "Select label on displayed left edge",
-      }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     );
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(
-      screen.getByLabelText("Width total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "4" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
-    );
-
-    await waitFor(async () => {
-      const saved = await repository.getProject(project.id);
-      expect(saved.project?.package.dimensionsMm).toEqual({
-        length: 100,
-        width: 50,
-        height: 40,
-      });
-      expect(saved.project?.pallet?.allowedOverhangMm).toEqual({
-        length: 0,
-        width: 0,
-      });
-      expect(saved.project?.package.inletOrientation).toBe("crosswise");
-      expect(saved.project?.package.multiPickAllowed).toBe(true);
-      expect(saved.project?.package.labelSidesAtPickup).toEqual([]);
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       package: { dimensionsMm: { length: 100, width: 50 } },
-      physicalPalletBoundsMm: {
-        minX: 0,
-        minY: 0,
-        maxX: 400,
-        maxY: 300,
-      },
-      generationBoundsMm: {
-        minX: 50,
-        minY: 50,
-        maxX: 350,
-        maxY: 250,
-      },
+      generationBoundsMm: { minX: 50, minY: 50, maxX: 350, maxY: 250 },
       constraints: {
         minimumPackageCount: 4,
         maximumPackageCount: 4,
-        allowMixedPackageOrientations: true,
-        provisionalPackagesPerCycle: 2,
-        unrotatedPackageLabelSide: "top",
-        requiredShape: "any",
         rectangularBlockFootprintPolicy: "fill-generation-bounds",
       },
     });
-    expect(await screen.findByText("Geometry OK")).toBeTruthy();
-    expect(screen.getByText("200 × 100")).toBeTruthy();
+    const saved = (await repository.getProject(project.id)).project!;
+    expect(saved.package.dimensionsMm).toEqual({
+      length: 100,
+      width: 50,
+      height: 40,
+    });
+    expect(saved.package.multiPickAllowed).toBe(true);
+    expect(saved.pallet?.allowedOverhangMm).toEqual({ length: 0, width: 0 });
   });
-
-  it("preserves generated candidates when continuing to the stack stage", async () => {
-    const repository = emptyRepository();
+  it("keeps the selected candidate when composing the stack and changing filters", async () => {
     clientMocks.run.mockReturnValueOnce({
-      runId: "workspace-continue-run",
+      runId: "many",
       cancel: clientMocks.cancel,
       result: Promise.resolve(candidateListResult(20)),
     });
-
-    render(<PlannerProjectWorkspace repository={repository} />);
-    const createButtons = await screen.findAllByRole(
-      "button",
-      { name: "Create pallet plan" },
-      { timeout: 5_000 },
-    );
-    fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Line number"), {
-      target: { value: "CONTINUE-KEEPS-CANDIDATES" },
-    });
-    fillNewProjectPackageDimensions();
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "6" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
-    );
-
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
-      timeout: 5_000,
-    });
-    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
-      constraints: { minimumPackageCount: 6, maximumPackageCount: 6 },
-    });
-    const generatedOptions = await screen.findAllByRole("option", undefined, {
-      timeout: 5_000,
-    });
-    expect(generatedOptions).toHaveLength(1);
-    const selectedSuggestion = screen.getByRole("option", { selected: true });
-    expect(selectedSuggestion.textContent).toContain("#1");
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
+    await createAndGenerate(emptyRepository(), "6");
     expect(
-      screen.getByRole("heading", { name: "Compose the pallet sequence" }),
-    ).toBeTruthy();
-    expect(stackMetricValue("Generated candidates")).toBe("20");
-    expect(stackMetricValue("Selectable layouts")).toBe("1");
-    const openStackComposer = screen.getByRole("button", {
-      name: "Open stack composer",
+      screen.getAllByRole("button", {
+        name: /Muster \d+ mit 4 Paketen wählen/,
+      }),
+    ).toHaveLength(1);
+    fireEvent.change(screen.getByLabelText("Genau Pakete je Lage"), {
+      target: { value: "99" },
     });
-    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
-
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getAllByRole("option")).toHaveLength(1);
-    expect(screen.getByRole("option", { selected: true })).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Kein Muster mit 99 Paketen" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Stapel aufbauen" }),
+    ).toHaveProperty("disabled", false);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Alle Muster anzeigen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    expect(
+      screen.getByTestId("stack-candidate-ids").textContent?.split("|"),
+    ).toHaveLength(20);
+    expect(clientMocks.run).toHaveBeenCalledTimes(1);
   });
-
-  it("keeps solver candidates when the pre-solve project save lands while the run is in flight", async () => {
+  it("keeps candidates when a pre-solve project save lands before the in-flight worker result", async () => {
     const { repository } = await repositoryWithProject();
-    let resolveRun!: (result: SolverResult) => void;
+    let resolveRun!: (r: SolverResult) => void;
     clientMocks.run.mockReturnValue({
-      runId: "workspace-in-flight-save-run",
+      runId: "pending",
       cancel: clientMocks.cancel,
-      result: new Promise<SolverResult>((resolve) => {
-        resolveRun = resolve;
+      result: new Promise<SolverResult>((r) => {
+        resolveRun = r;
       }),
     });
-
-    render(<PlannerProjectWorkspace repository={repository} />);
-    expect(
-      await screen.findByRole(
-        "heading",
-        { name: "M5-GENERATOR" },
-        { timeout: 5_000 },
-      ),
-    ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-
-    fireEvent.change(screen.getByLabelText("Package length"), {
+    await solveExisting(repository);
+    fireEvent.click(screen.getByText("Suchparameter anpassen"));
+    fireEvent.change(screen.getByLabelText("Paketlänge (mm)"), {
       target: { value: "100" },
     });
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "4" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
-    );
-
-    // The changed package dimensions force a project save before the worker
-    // starts; wait until that save and the React effect flush after it have
-    // both landed, then let the worker finish (production ordering).
-    await waitFor(async () => {
-      const saved = await repository.getProject("generator-project");
-      expect(saved.project?.package.dimensionsMm.length).toBe(100);
-    });
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(
+      (await repository.getProject("generator-project")).project?.package
+        .dimensionsMm.length,
+    ).toBe(100);
     await act(async () => {
-      await Promise.resolve();
+      resolveRun(solverResult);
     });
-    resolveRun(solverResult);
-
     expect(
-      await screen.findAllByRole("option", undefined, { timeout: 5_000 }),
-    ).toHaveLength(1);
-
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(stackMetricValue("Generated candidates")).toBe("1");
-    expect(stackMetricValue("Selectable layouts")).toBe("1");
-    const openStackComposer = screen.getByRole("button", {
-      name: "Open stack composer",
-    });
-    expect((openStackComposer as HTMLButtonElement).disabled).toBe(false);
+      await screen.findByRole("button", {
+        name: "Muster 1 mit 4 Paketen wählen",
+      }),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    expect(screen.getByTestId("stack-candidate-ids").textContent).toBe(
+      "candidate-exact-4",
+    );
   });
-
-  it("shows the saved stack totals on the stack stage after the stack is persisted", async () => {
+  it("saves a stack with exact totals and opens its real viewer and download", async () => {
     const repository = emptyRepository();
-    clientMocks.run.mockReturnValueOnce({
-      runId: "workspace-stack-save-run",
-      cancel: clientMocks.cancel,
-      result: Promise.resolve(candidateListResult(20)),
-    });
-
-    render(<PlannerProjectWorkspace repository={repository} />);
-    const createButtons = await screen.findAllByRole(
-      "button",
-      { name: "Create pallet plan" },
-      { timeout: 5_000 },
-    );
-    fireEvent.click(createButtons[0]!);
-    fireEvent.change(screen.getByLabelText("Line number"), {
-      target: { value: "STACK-TOTALS" },
-    });
-    fillNewProjectPackageDimensions();
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
-      target: { value: "6" },
-    });
-    fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
-    );
-
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1), {
-      timeout: 5_000,
-    });
+    await createAndGenerate(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
     expect(
-      await screen.findAllByRole("option", undefined, { timeout: 5_000 }),
-    ).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    fireEvent.click(
-      screen.getByRole("button", { name: "Open stack composer" }),
-    );
-    fireEvent.click(
-      await screen.findByRole("button", { name: "Save stack draft" }),
-    );
-
-    await waitFor(() => {
-      expect(stackMetricValue("Visible layers")).toBe("10");
-      // The fixture candidates carry 4 packages per layer.
-      expect(stackMetricValue("Visible packages")).toBe("40");
-    });
-    expect(stackMetricValue("Generated candidates")).toBe("20");
-    expect(stackMetricValue("Selectable layouts")).toBe("1");
-    // Saving ends the normal flow: finished state with the .rob download,
-    // no robot workspace opened.
-    expect(screen.getByRole("region", { name: "Plan finished" })).toBeTruthy();
+      await screen.findByRole("heading", { name: "Plan im Überblick" }),
+    ).toBeTruthy();
+    expect(stackMetricValue("Lagen")).toBe("10");
+    expect(stackMetricValue("Pakete gesamt")).toBe("40");
     expect(
-      screen.getByRole<HTMLButtonElement>("button", { name: "Download .rob" })
-        .disabled,
-    ).toBe(false);
+      screen.getByRole("button", { name: ".rob herunterladen" }),
+    ).toHaveProperty("disabled", false);
+    const saved = (await repository.listProjects()).projects[0]!;
+    expect(saved.solutions[0]?.stack.layers).toHaveLength(10);
+    expect(saved.solutions[0]?.origin).toBe("calculated");
     expect(screen.queryByTestId("robotics-workspace")).toBeNull();
-    const editStack = screen.getByRole("button", { name: "Edit stack" });
-    expect((editStack as HTMLButtonElement).disabled).toBe(false);
-
-    const saved = await repository.getProject(
-      (await repository.listProjects()).projects[0]!.id,
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Muster erzeugen" }),
     );
-    expect(saved.project?.solutions[0]?.stack.layers).toHaveLength(10);
-    expect(saved.project?.solutions[0]?.origin).toBe("calculated");
+    expect(
+      screen
+        .getByRole("button", { name: "Muster 1 mit 4 Paketen wählen" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      screen.getByRole("button", { name: "Stapel aufbauen" }),
+    ).toHaveProperty("disabled", true);
   });
 });

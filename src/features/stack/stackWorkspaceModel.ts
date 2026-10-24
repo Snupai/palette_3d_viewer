@@ -441,6 +441,7 @@ export function projectWithPersistedStack(
   }
   const updatedSolution = {
     ...activeSolution,
+    requiresGeometryReview: false,
     origin: "calculated" as const,
     patterns,
     stack: {

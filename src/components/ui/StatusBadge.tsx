@@ -19,7 +19,7 @@ export function StatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex items-center gap-1 font-mono text-micro font-semibold whitespace-nowrap ${statusToneText[tone]} ${
+      className={`text-micro inline-flex items-center gap-1 font-mono font-semibold whitespace-nowrap ${statusToneText[tone]} ${
         framed ? `border px-1.5 py-px ${statusToneBorder[tone]}` : ""
       } ${className}`}
     >
@@ -42,7 +42,7 @@ export function Notice({
   return (
     <div
       role={tone === "blocked" ? "alert" : "status"}
-      className={`border-l-2 bg-canvas px-3 py-2 text-micro text-ink ${statusToneBorder[tone]} ${className}`}
+      className={`bg-canvas text-micro text-ink border-l-2 px-3 py-2 ${statusToneBorder[tone]} ${className}`}
     >
       {children}
     </div>

@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import type { ResourceTracker } from "~/components/rob-viewer/sceneResources";
-import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
+import { SCENE_THEME, hexToCss } from "~/components/rob-viewer/sceneTheme";
 
 const DIGIT_SEGMENTS: Readonly<Record<string, readonly string[]>> = {
   "0": ["a", "b", "c", "d", "e", "f"],
@@ -76,7 +76,9 @@ export function labelPositionBeside(
 ): { x: number; y: number } {
   const length = Math.hypot(right.x, right.y);
   const direction =
-    length < 1e-6 ? { x: 1, y: 0 } : { x: right.x / length, y: right.y / length };
+    length < 1e-6
+      ? { x: 1, y: 0 }
+      : { x: right.x / length, y: right.y / length };
   const halfX = (bounds.maxX - bounds.minX) / 2;
   const halfY = (bounds.maxY - bounds.minY) / 2;
   const extent = Math.abs(direction.x) * halfX + Math.abs(direction.y) * halfY;
@@ -88,11 +90,11 @@ export function labelPositionBeside(
   };
 }
 
-/** Label chip colours: brand navy with a steel rule and white text. */
+/** Label chip colours: stage line fill, steel rule and stage ink text. */
 const CHIP = {
-  fill: "#173159",
-  rule: "#8bb0c9",
-  text: "#ffffff",
+  fill: hexToCss(SCENE_THEME.line),
+  rule: hexToCss(SCENE_THEME.placeMarker),
+  text: hexToCss(SCENE_THEME.ink),
 } as const;
 
 /**

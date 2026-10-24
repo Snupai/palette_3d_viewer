@@ -1,0 +1,631 @@
+/*
+ * Muster-Editor (ProjectEditorWorkspace). Shares the Hallenboden tokens and
+ * the workflow primitives (.fw-seg, .fw-panel, .ui-btn); lives inside the
+ * wide tool drawer, so it sizes itself to the drawer and not to the page.
+ */
+.ed {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 12px;
+  min-height: 100%;
+  padding: 16px 20px 20px;
+  background: var(--canvas);
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+}
+.ed h2,
+.ed h3,
+.ed p {
+  margin: 0;
+}
+
+/* ---------- Top bar: what is edited, which view, save state ---------- */
+.ed-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.ed-bar-title {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ed-bar-title h2 {
+  font-family: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+  font-size: 22px;
+  line-height: 1.1;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ed-bar-title p {
+  color: var(--muted);
+  font-size: 14px;
+}
+.ed-bar-select {
+  display: grid;
+  gap: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.ed-bar-select select {
+  min-width: 220px;
+}
+.ed-bar .fw-seg span {
+  min-height: 40px;
+}
+.ed-bar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+.ed-status {
+  font-size: 14px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.ed-status[data-dirty="true"] {
+  color: var(--brand);
+  font-weight: 600;
+}
+.ed-bar-actions .ui-btn,
+.ed-bar-actions .ui-btn-primary {
+  min-height: 40px;
+  padding: 6px 14px;
+}
+
+/* ---------- Alerts ---------- */
+.ed-alerts:empty {
+  display: none;
+}
+.ed-alerts {
+  display: grid;
+  gap: 8px;
+}
+
+/* ---------- Stage + side panel ---------- */
+.ed-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 12px;
+  align-items: start;
+  min-height: 0;
+}
+.ed-stage {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ed-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.ed-toolbar .ui-btn,
+.ed-toolbar .ui-btn-primary {
+  min-height: 40px;
+  padding: 6px 14px;
+}
+.ed-toolbar-gap {
+  width: 1px;
+  height: 24px;
+  margin: 0 4px;
+  background: var(--line);
+}
+.ed-toolbar-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.ed-canvas {
+  padding: 16px;
+  background: var(--canvas);
+}
+.ed-canvas-wrap {
+  margin: 0 auto;
+  width: 100%;
+  /* Fit the drawer height: the aspect ratio comes from the pallet envelope. */
+  max-width: min(100%, calc((100dvh - 300px) * var(--ed-aspect, 1.5)));
+}
+.ed-canvas-hint {
+  padding: 8px 16px 12px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+.ed-side {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.ed-panel {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+.ed-panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ed-panel-head h3 {
+  font-family: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+.ed-panel-head small {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.ed-panel-note {
+  color: var(--muted);
+  font-size: 14px;
+}
+.ed-field {
+  display: grid;
+  gap: 4px;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.ed-field .ui-input {
+  min-height: 40px;
+  font-size: 15px;
+}
+.ed-grid2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ed-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ed-actions .ui-btn,
+.ed-actions .ui-btn-primary {
+  min-height: 36px;
+  padding: 4px 12px;
+  font-size: 14px;
+}
+
+/* Collapsible panels reuse the workflow summary chevron. */
+.ed-panel-details {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.ed-panel-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  font-family: var(--font-barlow-condensed), var(--font-barlow), sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+}
+.ed-panel-details > summary::-webkit-details-marker {
+  display: none;
+}
+.ed-panel-details > summary::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.ed-panel-details[open] > summary::before {
+  transform: rotate(45deg);
+}
+.ed-panel-details > summary small {
+  margin-left: auto;
+  color: var(--muted);
+  font-family: var(--font-barlow), sans-serif;
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.ed-panel-details > div {
+  display: grid;
+  gap: 10px;
+  padding: 0 16px 14px;
+}
+
+/* ---------- Tables (selection, interlayers) ---------- */
+.ed-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.ed-table th {
+  text-align: left;
+  font-weight: 500;
+  color: var(--muted);
+  padding: 4px 6px;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.ed-table td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: middle;
+}
+.ed-table td.num {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  text-align: right;
+}
+.ed-table .ui-input {
+  min-height: 34px;
+  padding: 4px 8px;
+  font-size: 14px;
+  text-align: right;
+}
+.ed-table-scroll {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--line);
+}
+.ed-table-scroll .ed-table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+}
+
+/* ---------- Grip list (order view) ---------- */
+.ed-grips {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-grip {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+}
+.ed-grip[data-selected="true"] {
+  border-color: var(--brand);
+  background: var(--plan-fill);
+}
+.ed-grip-pick {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 10px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  grid-column: 1 / 3;
+}
+.ed-grip-n {
+  display: inline-grid;
+  place-items: center;
+  min-width: 36px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 2px;
+  background: var(--ink);
+  color: var(--surface);
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 700;
+  font-size: 15px;
+}
+.ed-grip[data-selected="true"] .ed-grip-n {
+  background: var(--brand);
+  color: var(--brand-on);
+}
+.ed-grip-text {
+  display: grid;
+  min-width: 0;
+}
+.ed-grip-text small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.ed-grip-tools {
+  display: flex;
+  gap: 4px;
+}
+.ed-grip-tools .ui-btn {
+  min-height: 30px;
+  min-width: 30px;
+  padding: 0 8px;
+  font-size: 13px;
+}
+.ed-grip-tools .ui-btn[data-danger="true"] {
+  color: var(--danger);
+}
+
+.ed-deps {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-dep {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+}
+.ed-dep-text {
+  margin-right: auto;
+}
+.ed-dep small {
+  color: var(--muted);
+  font-size: 13px;
+}
+.ed-dep-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+.ed-dep-form .ed-field .ui-input {
+  min-height: 36px;
+  font-size: 14px;
+}
+.ed-dep-form > span {
+  padding-bottom: 9px;
+  color: var(--muted);
+  font-size: 13.5px;
+}
+
+/* ---------- Diagnostics ---------- */
+.ed-diag {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-diag li {
+  padding: 8px 10px;
+  border-left: 3px solid var(--caution);
+  background: color-mix(in srgb, var(--caution) 10%, var(--surface));
+  font-size: 14px;
+}
+.ed-diag li[data-severity="error"] {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
+.ed-ok {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ok);
+  font-size: 14px;
+}
+
+.ed-shortcuts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13.5px;
+  color: var(--muted);
+}
+.ed-shortcuts dt {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.ed-shortcuts dd {
+  margin: 0;
+}
+
+.ed-empty {
+  display: grid;
+  place-items: center;
+  min-height: 200px;
+  padding: 24px;
+  border: 1px dashed var(--line);
+  color: var(--muted);
+  text-align: center;
+}
+
+@media (max-width: 1100px) {
+  .ed-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ed-canvas-wrap {
+    max-width: 100%;
+  }
+}
+
+/* ---------- Shared by the other tool drawers (robotics, simulation) ---------- */
+.ed-main {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.ed-facts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ed-fact {
+  display: grid;
+  gap: 2px;
+  padding: 10px 14px;
+  background: var(--surface);
+}
+.ed-fact dt {
+  color: var(--muted);
+  font-size: 13.5px;
+}
+.ed-fact dd {
+  margin: 0;
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 20px;
+  font-weight: 600;
+}
+.ed-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 92px;
+  min-height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.ed-badge[data-tone="pass"] {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+.ed-badge[data-tone="caution"] {
+  color: var(--caution);
+  border-color: var(--caution);
+}
+.ed-badge[data-tone="blocked"] {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+.ed-badge[data-tone="observed"] {
+  color: var(--measure);
+  border-color: var(--measure);
+}
+.ed-readiness {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ed-readiness li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 8px 0;
+  border-top: 1px solid var(--line);
+}
+.ed-readiness li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.ed-readiness strong {
+  display: block;
+  font-weight: 600;
+}
+.ed-readiness small {
+  display: block;
+  color: var(--muted);
+  font-size: 13.5px;
+  line-height: 1.4;
+}
+.ed-sub-details {
+  border: 1px solid var(--line);
+  border-radius: 2px;
+}
+.ed-sub-details > summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+.ed-sub-details > summary::-webkit-details-marker {
+  display: none;
+}
+.ed-sub-details > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+}
+.ed-sub-details[open] > summary::before {
+  transform: rotate(45deg);
+}
+.ed-sub-details > summary small {
+  margin-left: auto;
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 13.5px;
+}
+.ed-sub-details > div {
+  display: grid;
+  gap: 10px;
+  padding: 0 14px 14px;
+}
+.ed-grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+.ed-grid4 {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.ed-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+.ed-warn {
+  padding: 10px 12px;
+  border-left: 3px solid var(--caution);
+  background: color-mix(in srgb, var(--caution) 10%, var(--surface));
+  font-size: 14px;
+}
+.ed-table-wide {
+  overflow: auto;
+  border: 1px solid var(--line);
+}
+.ed-table-wide .ed-table {
+  min-width: 1100px;
+}
+.ed-table-wide .ed-table td {
+  white-space: nowrap;
+}

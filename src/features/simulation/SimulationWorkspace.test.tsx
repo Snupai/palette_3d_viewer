@@ -83,7 +83,7 @@ describe("SimulationWorkspace robot cell integration", () => {
     );
 
     const lift = screen.getByRole<HTMLInputElement>("slider", {
-      name: "Ewellix lift position",
+      name: "Hubposition Ewellix",
     });
     expect(lift.min).toBe("0");
     expect(lift.max).toBe("900");
@@ -132,7 +132,7 @@ describe("SimulationWorkspace robot cell integration", () => {
     );
 
     expect(
-      screen.queryByRole("slider", { name: "Ewellix lift position" }),
+      screen.queryByRole("slider", { name: "Hubposition Ewellix" }),
     ).toBeNull();
     expect(latestViewerProps().equipment?.robotCell).toBeNull();
     expect(latestViewerProps().liftCarriageMm).toBeNull();

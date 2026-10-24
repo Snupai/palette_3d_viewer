@@ -144,11 +144,25 @@ async function repositoryWithProjects() {
   return { repository };
 }
 
+async function openSavedPlan(name: string) {
+  fireEvent.click(
+    screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: `${name} öffnen` }),
+  );
+}
+function openRobotics() {
+  const summary = screen.getByText("Bearbeiten & prüfen");
+  if (!summary.closest("details")!.open) fireEvent.click(summary);
+  fireEvent.click(screen.getByRole("button", { name: "Robotik & Greifer" }));
+}
 describe("PlannerProjectWorkspace robotics integration", () => {
   it("keeps session settings for the same project and resets them after switching projects", async () => {
     const { repository } = await repositoryWithProjects();
 
     render(<PlannerProjectWorkspace repository={repository} />);
+    await openSavedPlan("M5-ROBOT-B-BOX");
 
     expect(
       await screen.findByRole(
@@ -163,7 +177,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(
       screen.getByText("Robot readiness").closest("summary")?.textContent,
     ).toContain("observed Multipack equipment profile");
-    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
+    openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("X (mm)"), {
@@ -172,34 +186,34 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
 
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
+      within(
+        screen.getByRole("dialog", { name: "Robotik & Greifer" }),
+      ).getByRole("button", { name: "Schließen" }),
     );
     await waitFor(() => {
       expect(screen.queryByTestId("robotics-workspace")).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
+    openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("321");
 
     fireEvent.click(
-      within(screen.getByRole("dialog", { name: "Robotics" })).getByRole(
-        "button",
-        { name: "Close" },
-      ),
+      within(
+        screen.getByRole("dialog", { name: "Robotik & Greifer" }),
+      ).getByRole("button", { name: "Schließen" }),
     );
     await waitFor(() => {
       expect(screen.queryByTestId("robotics-workspace")).toBeNull();
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Projects" }));
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
     expect(
-      await screen.findByRole("dialog", { name: "Planner projects" }),
+      await screen.findByRole("region", { name: "Planbibliothek" }),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: /M5-ROBOT-A/ }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "M5-ROBOT-A-BOX öffnen" }),
+    );
 
     expect(
       await screen.findByRole(
@@ -208,7 +222,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
+    openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("");
   });
@@ -222,6 +236,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     await repository.saveProject(plannerProjectWithStack());
 
     render(<PlannerProjectWorkspace repository={repository} />);
+    await openSavedPlan("M5-ROBOT-PROFILE");
 
     expect(
       await screen.findByRole(
@@ -231,10 +246,9 @@ describe("PlannerProjectWorkspace robotics integration", () => {
       ),
     ).toBeTruthy();
     expect(
-      screen.getByRole("heading", { name: "Compose the pallet sequence" }),
+      screen.getByRole("heading", { name: "Plan im Überblick" }),
     ).toBeTruthy();
-    expect(screen.getByText("3/3")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Robotics" }));
+    openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("X (mm)"), {

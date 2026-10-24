@@ -143,18 +143,18 @@ export function CandidateBrowser({
   };
 
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(240px,1fr)_auto] border border-line bg-surface">
-      <header className="flex flex-wrap items-end gap-2 border-b border-line p-3">
+    <section className="border-line bg-surface grid min-h-0 grid-rows-[auto_minmax(240px,1fr)_auto] border">
+      <header className="border-line flex flex-wrap items-end gap-2 border-b p-3">
         <div className="mr-auto">
-          <h2 className="text-body font-semibold text-ink">
+          <h2 className="text-body text-ink font-semibold">
             Selectable layouts
           </h2>
-          <p className="text-xs text-muted" aria-live="polite">
+          <p className="text-micro text-muted" aria-live="polite">
             {filteredCandidates.length} of {candidates.length} layouts ·{" "}
             {generatedCandidateCount} generated candidates
           </p>
         </div>
-        <label className="grid gap-1 text-micro text-muted">
+        <label className="text-micro text-muted grid gap-1">
           Exact count
           <input
             type="number"
@@ -164,15 +164,15 @@ export function CandidateBrowser({
             disabled={maximumOnly}
             onChange={(event) => setExactCount(event.target.value)}
             aria-label="Exact package count"
-            className="ui-input w-24 px-2 py-1.5 font-mono text-xs"
+            className="ui-input text-micro w-24 px-2 py-1.5 font-mono"
           />
         </label>
-        <label className="flex h-8 cursor-pointer items-center gap-2 border border-line px-2.5 text-xs text-ink">
+        <label className="border-line text-micro text-ink flex h-8 cursor-pointer items-center gap-2 border px-2.5">
           <input
             type="checkbox"
             checked={maximumOnly}
             onChange={(event) => setMaximumOnly(event.target.checked)}
-            className="h-4 w-4 accent-brand"
+            className="accent-brand h-4 w-4"
           />
           Maximum ({maximumCount})
         </label>
@@ -182,7 +182,7 @@ export function CandidateBrowser({
             setExactCount("");
             setMaximumOnly(false);
           }}
-          className="ui-btn text-xs"
+          className="ui-btn text-micro"
         >
           Reset filters
         </button>
@@ -197,13 +197,13 @@ export function CandidateBrowser({
         }
         tabIndex={0}
         onKeyDown={onKeyDown}
-        className="scrollbar-thin min-h-0 overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset"
+        className="focus-visible:ring-focus scrollbar-thin min-h-0 overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
       >
         <table
           role="presentation"
-          className="ui-table min-w-[650px] text-xs"
+          className="ui-table text-micro min-w-[650px]"
         >
-          <thead className="text-left text-muted">
+          <thead className="text-muted text-left">
             <tr>
               <th className="px-2 py-2 font-medium">Nr.</th>
               <th className="px-2 py-2 font-medium">Count</th>
@@ -242,7 +242,7 @@ export function CandidateBrowser({
                     {candidate.validation.valid ? "Geometry OK" : "Rejected"}
                   </td>
                   <td
-                    className="px-2 py-2 text-muted"
+                    className="text-muted px-2 py-2"
                     title="The legacy MultiPack Blocks value has not been verified and is not inferred."
                   >
                     Unknown
@@ -262,14 +262,14 @@ export function CandidateBrowser({
           </tbody>
         </table>
         {filteredCandidates.length === 0 ? (
-          <p className="p-4 text-body text-muted">
+          <p className="text-body text-muted p-4">
             No candidate matches the current filters.
           </p>
         ) : null}
       </div>
 
-      <div className="grid gap-3 border-t border-line p-3 lg:grid-cols-[220px_minmax(0,1fr)]">
-        <div className="min-h-[160px] overflow-hidden border border-line bg-canvas p-2">
+      <div className="border-line grid gap-3 border-t p-3 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <div className="border-line bg-canvas min-h-[160px] overflow-hidden border p-2">
           {selectedPreview ? (
             <LayerPattern
               preview={selectedPreview}
@@ -277,25 +277,25 @@ export function CandidateBrowser({
               className="h-full min-h-[144px] w-full"
             />
           ) : (
-            <div className="flex h-full min-h-[144px] items-center justify-center text-xs text-muted">
+            <div className="text-micro text-muted flex h-full min-h-[144px] items-center justify-center">
               Select a candidate
             </div>
           )}
         </div>
-        <div className="min-w-0 text-xs text-muted">
+        <div className="text-micro text-muted min-w-0">
           {selectedCandidate ? (
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
               <dt>Score</dt>
-              <dd className="font-mono text-ink">
+              <dd className="text-ink font-mono">
                 {selectedCandidate.score.value}
               </dd>
               <dt>Utilization</dt>
-              <dd className="font-mono text-ink">
+              <dd className="text-ink font-mono">
                 {selectedCandidate.metrics.utilizationPercent.toFixed(2)}%
               </dd>
               <dt>Geometry</dt>
               <dd
-                className="truncate font-mono text-ink"
+                className="text-ink truncate font-mono"
                 title={selectedCandidate.geometryId}
               >
                 {selectedCandidate.geometryId}
@@ -310,8 +310,8 @@ export function CandidateBrowser({
           ) : (
             <p>No active candidate diagnostics.</p>
           )}
-          <details className="mt-3 border-t border-line pt-2">
-            <summary className="cursor-pointer text-ink">
+          <details className="border-line mt-3 border-t pt-2">
+            <summary className="text-ink cursor-pointer">
               Solver diagnostics ({diagnostics.length}) and exclusions (
               {exclusions.length})
             </summary>

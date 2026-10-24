@@ -1,8 +1,3 @@
-import {
-  fieldLabelClass,
-  inputClass,
-} from "~/features/robotics/roboticsStyles";
-
 /** Number input that keeps the raw draft string (settings store strings). */
 export function NumericDraftField({
   label,
@@ -14,14 +9,14 @@ export function NumericDraftField({
   onChange: (value: string) => void;
 }) {
   return (
-    <label className={fieldLabelClass}>
+    <label className="ed-field">
       {label}
       <input
         type="number"
         step="any"
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className={`${inputClass} font-mono`}
+        className="ui-input"
       />
     </label>
   );

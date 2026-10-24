@@ -105,22 +105,22 @@ export function PlanningCandidateIndex({
   };
 
   return (
-    <section className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-line">
+    <section className="border-line grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border">
       <div>
-        <header className="flex items-center justify-between border-b border-line px-2.5 py-2">
-          <h3 className="text-body font-semibold text-ink">
+        <header className="border-line flex items-center justify-between border-b px-2.5 py-2">
+          <h3 className="text-body text-ink font-semibold">
             Candidate layouts
           </h3>
-          <span className="font-mono text-micro text-muted">
+          <span className="text-micro text-muted font-mono">
             {rows.length}/{candidates.length}
           </span>
         </header>
         {selectedCandidate && selectedRankReason ? (
           <p
             aria-live="polite"
-            className="border-b border-line px-2.5 py-1.5 text-micro leading-4 text-muted"
+            className="border-line text-micro text-muted border-b px-2.5 py-1.5 leading-4"
           >
-            <span className="font-semibold text-ink">
+            <span className="text-ink font-semibold">
               #{selectedCandidate.rank}
               {followingCandidate
                 ? ` ahead of #${followingCandidate.rank}`
@@ -136,9 +136,9 @@ export function PlanningCandidateIndex({
         aria-label="Generated pattern layouts"
         className="scrollbar-thin min-h-0 overflow-auto"
       >
-        <table className="w-full border-collapse text-micro whitespace-nowrap">
-          <thead className="sticky top-0 z-10 bg-surface text-left text-micro text-muted">
-            <tr className="border-b border-line">
+        <table className="text-micro w-full border-collapse whitespace-nowrap">
+          <thead className="bg-surface text-micro text-muted sticky top-0 z-10 text-left">
+            <tr className="border-line border-b">
               <th className="px-2 py-1.5 font-medium">Rank</th>
               <th className="px-2 py-1.5 font-medium">Pkgs</th>
               <th className="px-2 py-1.5 text-right font-medium">Util</th>
@@ -168,10 +168,10 @@ export function PlanningCandidateIndex({
                   tabIndex={index === tabStopIndex ? 0 : -1}
                   onClick={() => selectAt(index)}
                   onKeyDown={(event) => onCandidateKeyDown(event, index)}
-                  className={`cursor-pointer border-b border-line outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
+                  className={`border-line focus-visible:ring-focus cursor-pointer border-b outline-none focus-visible:ring-2 focus-visible:ring-inset ${
                     selected
-                      ? "border-l-2 border-l-brand bg-plan-fill text-ink"
-                      : "border-l-2 border-l-transparent text-ink hover:bg-surface-hover"
+                      ? "border-l-brand bg-plan-fill text-ink border-l-2"
+                      : "text-ink hover:bg-surface-hover border-l-2 border-l-transparent"
                   }`}
                 >
                   <td className="px-2 py-1.5 font-mono">#{candidate.rank}</td>
@@ -202,7 +202,7 @@ export function PlanningCandidateIndex({
                       {candidate.validation.valid ? "Geometry OK" : "Rejected"}
                     </span>
                   </td>
-                  <td className="px-2 py-1.5 text-right font-mono text-micro text-muted">
+                  <td className="text-micro text-muted px-2 py-1.5 text-right font-mono">
                     {candidate.metrics.boundingBlockLengthMm} ×{" "}
                     {candidate.metrics.boundingBlockWidthMm}
                   </td>
@@ -212,12 +212,12 @@ export function PlanningCandidateIndex({
           </tbody>
         </table>
         {rows.length === 0 ? (
-          <p className="p-3 text-xs leading-5 text-muted">
+          <p className="text-micro text-muted p-3 leading-5">
             Generate patterns to populate the candidate layouts.
           </p>
         ) : null}
         {candidates.length > rowLimit ? (
-          <div className="grid gap-2 border-t border-line p-2 text-micro text-muted">
+          <div className="border-line text-micro text-muted grid gap-2 border-t p-2">
             <p>
               {selectedOutsideTopRows
                 ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
@@ -225,7 +225,7 @@ export function PlanningCandidateIndex({
             </p>
             <button
               type="button"
-              className="ui-btn cursor-pointer text-xs"
+              className="ui-btn text-micro cursor-pointer"
               onClick={() =>
                 setExpandedList({
                   candidates,
@@ -258,13 +258,11 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
   return (
     <aside
       aria-label="Inspection ledger"
-      className="planning-ledger app-chrome grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border border-line bg-surface"
+      className="planning-ledger app-chrome border-line bg-surface grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border"
     >
-      <header className="border-b border-line px-3 py-2">
-        <h2 className="text-body font-semibold text-ink">
-          Inspection ledger
-        </h2>
-        <p className="mt-0.5 text-micro text-muted">
+      <header className="border-line border-b px-3 py-2">
+        <h2 className="text-body text-ink font-semibold">Inspection ledger</h2>
+        <p className="text-micro text-muted mt-0.5">
           G generated · O observed · ? unknown
         </p>
       </header>
@@ -272,9 +270,9 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
         {rows.map((row) => (
           <details
             key={row.id}
-            className="group border-b border-line last:border-b-0"
+            className="group border-line border-b last:border-b-0"
           >
-            <summary className="grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 text-micro marker:hidden hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-focus focus-visible:outline-none">
+            <summary className="text-micro hover:bg-surface-hover focus-visible:ring-focus grid cursor-pointer list-none grid-cols-[12px_68px_18px_minmax(0,1fr)] items-start gap-1.5 px-2.5 py-2 marker:hidden focus-visible:ring-2 focus-visible:outline-none">
               <span
                 aria-hidden="true"
                 className={`font-mono ${statusClass(row.status)}`}
@@ -286,20 +284,18 @@ export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
               >
                 {row.status}
               </span>
-              <span className="font-mono text-muted">
-                {row.evidence}
-              </span>
+              <span className="text-muted font-mono">{row.evidence}</span>
               <span>
-                <strong className="block font-semibold text-ink">
+                <strong className="text-ink block font-semibold">
                   {row.label}
                 </strong>
-                <span className="mt-0.5 block leading-4 text-muted">
+                <span className="text-muted mt-0.5 block leading-4">
                   {row.claim}
                 </span>
               </span>
             </summary>
             {row.detail ? (
-              <p className="border-t border-line bg-canvas px-3 py-2 font-mono text-micro leading-4 whitespace-pre-wrap text-muted">
+              <p className="border-line bg-canvas text-micro text-muted border-t px-3 py-2 font-mono leading-4 whitespace-pre-wrap">
                 {row.detail}
               </p>
             ) : null}
@@ -352,13 +348,13 @@ function StripRow({
   onSelect: (index: number) => void;
 }) {
   return (
-    <div className="grid grid-cols-[76px_minmax(0,1fr)] border-b border-line last:border-b-0">
-      <div className="flex items-center border-r border-line px-2 text-micro font-semibold text-muted">
+    <div className="border-line grid grid-cols-[76px_minmax(0,1fr)] border-b last:border-b-0">
+      <div className="border-line text-micro text-muted flex items-center border-r px-2 font-semibold">
         {label}
       </div>
       <div className="scrollbar-thin flex min-w-0 overflow-x-auto">
         {items.length === 0 ? (
-          <span className="px-3 py-2 text-micro text-muted">
+          <span className="text-micro text-muted px-3 py-2">
             No layer sequence
           </span>
         ) : (
@@ -374,14 +370,14 @@ function StripRow({
                 type="button"
                 title={`${item.label} · ${item.pattern}`}
                 onClick={() => onSelect(index)}
-                className={`min-w-14 border-r border-line px-2 py-1 text-left font-mono text-micro outline-none focus-visible:ring-2 focus-visible:ring-focus focus-visible:ring-inset ${
+                className={`border-line text-micro focus-visible:ring-focus min-w-14 border-r px-2 py-1 text-left font-mono outline-none focus-visible:ring-2 focus-visible:ring-inset ${
                   selectedIndex === index
                     ? "bg-plan-fill text-brand"
                     : "text-ink hover:bg-surface-hover"
                 }`}
               >
                 <span className="block">{item.label}</span>
-                <span className="block max-w-24 truncate text-muted">
+                <span className="text-muted block max-w-24 truncate">
                   {item.pattern}
                 </span>
               </button>
@@ -411,7 +407,7 @@ export function LayerStrips({
   return (
     <section
       aria-label="Layer sequences"
-      className="app-chrome border border-line bg-surface"
+      className="app-chrome border-line bg-surface border"
     >
       {reference ? (
         <StripRow

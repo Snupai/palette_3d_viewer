@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Notice, Panel } from "~/components/ui";
 import { pickOffsetForCount } from "~/domain/palletGeometry";
 import {
   getMultipackEquipmentProfile,
@@ -27,6 +26,7 @@ import {
   getRetainedRawRobDownload,
   type RobotCycleMaterialization,
 } from "~/domain/robotics";
+import { countLabel } from "~/features/editor/editorLabels";
 import { DiagnosticsPanel } from "~/features/robotics/DiagnosticsPanel";
 import { ExportMappingPanel } from "~/features/robotics/ExportMappingPanel";
 import { GeneratedPickupTable } from "~/features/robotics/GeneratedPickupTable";
@@ -42,14 +42,6 @@ import {
   ResourceLibraryPanel,
 } from "~/features/robotics/ResourceLibraryPanel";
 import { uniqueDiagnostics } from "~/features/robotics/robotDiagnostics";
-import {
-  buttonClass,
-  cautionNoteClass,
-  disclosureSummaryClass,
-  fieldLabelClass,
-  inputClass,
-  sectionClass,
-} from "~/features/robotics/roboticsStyles";
 import {
   createEditableGripperCopy,
   createEditableStationCopy,
@@ -104,6 +96,12 @@ function resourceStations(
       resource.kind === "pallet-station",
   );
 }
+
+const gripperTypeLabels: Record<Gripper["settings"]["type"], string> = {
+  suction: "Sauggreifer",
+  clamp: "Klammergreifer",
+  fork: "Gabelgreifer",
+};
 
 export function RoboticsWorkspace({
   project,
@@ -160,7 +158,9 @@ export function RoboticsWorkspace({
   useEffect(() => {
     void refreshLibrary().catch((cause: unknown) => {
       setError(
-        cause instanceof Error ? cause.message : "Resource library failed.",
+        cause instanceof Error
+          ? cause.message
+          : "Die Vorlagenbibliothek konnte nicht geladen werden.",
       );
     });
     // Repository identity is stable for the workspace lifetime.
@@ -241,7 +241,7 @@ export function RoboticsWorkspace({
       setStatus(message);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Project update failed.",
+        cause instanceof Error ? cause.message : "Speichern fehlgeschlagen.",
       );
     }
   };
@@ -249,19 +249,19 @@ export function RoboticsWorkspace({
   const selectGripper = (id: string) =>
     saveProjectChange(
       updateProject(project, { selectedGripperId: id || null }),
-      id ? "Gripper selected." : "Gripper selection cleared.",
+      id ? "Greifer übernommen." : "Greiferauswahl entfernt.",
     );
   const selectStation = (id: string) =>
     saveProjectChange(
       updateProject(project, { selectedPalletStationId: id || null }),
-      id ? "Pallet station selected." : "Pallet station selection cleared.",
+      id ? "Palettenstation übernommen." : "Stationsauswahl entfernt.",
     );
 
   const saveGripper = async () => {
     if (!gripperDraft) return;
     if (isMultipackProfileGripper(gripperDraft)) {
       setError(
-        "The built-in Multipack gripper is read-only. Create an editable copy before changing project equipment.",
+        "Der mitgelieferte Multipack-Greifer ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
       );
       return;
     }
@@ -276,7 +276,7 @@ export function RoboticsWorkspace({
     }
     await saveProjectChange(
       projectWithGripper(project, parsed.data),
-      `Gripper "${parsed.data.name}" saved to the project.`,
+      `Greifer „${parsed.data.name}“ im Plan gespeichert.`,
     );
   };
 
@@ -284,7 +284,7 @@ export function RoboticsWorkspace({
     if (!stationDraft) return;
     if (isMultipackProfileStation(stationDraft)) {
       setError(
-        "The built-in Multipack station is read-only. Create an editable copy before changing project equipment.",
+        "Die mitgelieferte Multipack-Station ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
       );
       return;
     }
@@ -299,7 +299,7 @@ export function RoboticsWorkspace({
     }
     await saveProjectChange(
       projectWithStation(project, parsed.data),
-      `Pallet station "${parsed.data.name}" saved to the project.`,
+      `Palettenstation „${parsed.data.name}“ im Plan gespeichert.`,
     );
   };
 
@@ -307,7 +307,7 @@ export function RoboticsWorkspace({
     if (!gripperDraft) return;
     if (isMultipackProfileGripper(gripperDraft)) {
       setError(
-        "Built-in profile resources are not added to the reusable library. Create an editable copy first.",
+        "Mitgelieferte Profile werden nicht in die Bibliothek übernommen. Zuerst eine bearbeitbare Kopie anlegen.",
       );
       return;
     }
@@ -318,7 +318,7 @@ export function RoboticsWorkspace({
       : createProjectResource({ kind: "gripper", value });
     await repository.saveResource(resource);
     setLibraryGripperId(resource.id);
-    setStatus(`Gripper template "${resource.name}" saved.`);
+    setStatus(`Greifervorlage „${resource.name}“ gespeichert.`);
     await refreshLibrary();
   };
 
@@ -326,7 +326,7 @@ export function RoboticsWorkspace({
     if (!stationDraft) return;
     if (isMultipackProfileStation(stationDraft)) {
       setError(
-        "Built-in profile resources are not added to the reusable library. Create an editable copy first.",
+        "Mitgelieferte Profile werden nicht in die Bibliothek übernommen. Zuerst eine bearbeitbare Kopie anlegen.",
       );
       return;
     }
@@ -337,7 +337,7 @@ export function RoboticsWorkspace({
       : createProjectResource({ kind: "pallet-station", value });
     await repository.saveResource(resource);
     setLibraryStationId(resource.id);
-    setStatus(`Pallet station template "${resource.name}" saved.`);
+    setStatus(`Stationsvorlage „${resource.name}“ gespeichert.`);
     await refreshLibrary();
   };
 
@@ -347,7 +347,7 @@ export function RoboticsWorkspace({
     setGripperDraft(resource.value);
     await saveProjectChange(
       projectWithGripper(project, resource.value),
-      `Gripper template "${resource.name}" applied to the project.`,
+      `Greifervorlage „${resource.name}“ in den Plan übernommen.`,
     );
   };
 
@@ -357,7 +357,7 @@ export function RoboticsWorkspace({
     setStationDraft(resource.value);
     await saveProjectChange(
       projectWithStation(project, resource.value),
-      `Pallet station template "${resource.name}" applied to the project.`,
+      `Stationsvorlage „${resource.name}“ in den Plan übernommen.`,
     );
   };
 
@@ -368,7 +368,7 @@ export function RoboticsWorkspace({
     if (kind === "gripper") setLibraryGripperId("");
     else setLibraryStationId("");
     setStatus(
-      "Template removed from the reusable library; project copies were retained.",
+      "Vorlage aus der Bibliothek entfernt; die Kopie im Plan bleibt erhalten.",
     );
     await refreshLibrary();
   };
@@ -380,9 +380,7 @@ export function RoboticsWorkspace({
       return;
     }
     downloadText(result.text, robDownloadFileName(project));
-    setStatus(
-      "Project-derived .rob exported after parser roundtrip verification.",
-    );
+    setStatus(".rob-Datei exportiert und per Parser-Rücklauf geprüft.");
   };
 
   const downloadRetained = (variant: "original" | "edited") => {
@@ -396,437 +394,412 @@ export function RoboticsWorkspace({
 
   const retainedOriginal = getRetainedRawRobDownload(project, "original");
   const retainedEdited = getRetainedRawRobDownload(project, "edited");
+  const box = project.package.dimensionsMm;
 
   return (
-    <div className="grid gap-3" data-testid="robotics-workspace">
-      {error ? (
-        <Notice tone="blocked" className="text-body whitespace-pre-line">
-          {error}
-        </Notice>
-      ) : null}
-      {status ? (
-        <Notice tone="info" className="text-body">
-          {status}
-        </Notice>
-      ) : null}
-
-      <section className="border-brand/30 bg-surface border">
-        <header className="border-brand/20 border-b px-3 py-3">
-          <p className="text-micro text-brand font-mono tracking-[0.18em] uppercase">
-            Operator view
+    <div className="ed" data-testid="robotics-workspace">
+      <div className="ed-bar">
+        <div className="ed-bar-title">
+          <h2>Robotik & Greifer</h2>
+          <p>
+            {activeSolution
+              ? `${countLabel(activeSolution.stack.layers.length, "Lage", "Lagen")} · ${countLabel(plannedPackageCount, "Paket", "Pakete")} · ${countLabel(materialization.cycles.length, "Griff", "Griffe")} berechnet`
+              : "Kein gespeicherter Stapel"}
           </p>
-          <h2 className="text-ink mt-1 text-base font-semibold">Robot setup</h2>
-          <p className="text-muted mt-1 max-w-3xl text-xs leading-5">
-            Choose the equipment, review the derived pickup, and check
-            readiness. Detailed equipment and export settings stay closed until
-            needed.
-          </p>
-        </header>
-        <div className="bg-line grid gap-px sm:grid-cols-3">
-          <div className="bg-surface p-3">
-            <p className="text-micro text-muted tracking-wide uppercase">
-              Package
-            </p>
-            <p className="text-ink mt-1 font-mono text-sm">
-              {project.package.dimensionsMm.length} ×{" "}
-              {project.package.dimensionsMm.width} ×{" "}
-              {project.package.dimensionsMm.height} mm
-            </p>
-          </div>
-          <div className="bg-surface p-3">
-            <p className="text-micro text-muted tracking-wide uppercase">
-              Pallet plan
-            </p>
-            <p className="text-ink mt-1 text-sm">
-              {activeSolution
-                ? `${activeSolution.stack.layers.length} layer${activeSolution.stack.layers.length === 1 ? "" : "s"} · ${plannedPackageCount} package${plannedPackageCount === 1 ? "" : "s"}`
-                : "No active plan"}
-            </p>
-          </div>
-          <div className="bg-surface p-3">
-            <p className="text-micro text-muted tracking-wide uppercase">
-              Calculated output
-            </p>
-            <p className="text-ink mt-1 text-sm">
-              {materialization.cycles.length} pickup
-              {materialization.cycles.length === 1 ? "" : "s"}
-            </p>
-          </div>
         </div>
-      </section>
+        <div className="ed-bar-actions">
+          <span
+            className="ed-status"
+            data-dirty={exportGate.enabled ? undefined : "true"}
+          >
+            {exportGate.enabled
+              ? "Export freigegeben"
+              : `${countLabel(exportBlockingIssues, "offener Punkt", "offene Punkte")} unter Technik`}
+          </span>
+          <button
+            type="button"
+            className="ui-btn"
+            disabled={!onPreviewMotion || materialization.cycles.length === 0}
+            onClick={onPreviewMotion}
+          >
+            Bewegung ansehen
+          </button>
+          <button
+            type="button"
+            className="ui-btn-primary"
+            disabled={!exportGate.enabled}
+            onClick={exportGenerated}
+          >
+            .rob exportieren
+          </button>
+        </div>
+      </div>
 
-      <Panel
-        title="1. Select equipment"
-        description={
-          selectedProfile
-            ? `Multipack Roboter observed defaults v${selectedProfile.version} are preselected for this project.`
-            : project.source.kind === "rob-import"
-              ? "Imported .rob files do not select or infer equipment."
-              : "Select equipment that has been checked against the real cell."
-        }
-        bodyClassName="grid gap-3 p-3 md:grid-cols-2"
-      >
-        <label className="text-muted grid gap-1 text-xs">
-          Gripper
-          <select
-            aria-label="Selected project gripper"
-            value={project.selectedGripperId ?? ""}
-            onChange={(event) => void selectGripper(event.target.value)}
-            className={inputClass}
+      <div className="ed-alerts">
+        {error ? (
+          <div
+            role="alert"
+            className="fw-alert"
+            style={{ whiteSpace: "pre-line" }}
           >
-            <option value="">Select a gripper…</option>
-            {project.grippers.map((gripper) => (
-              <option key={gripper.id} value={gripper.id}>
-                {gripper.name} ({gripper.settings.type})
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="text-muted grid gap-1 text-xs">
-          Pallet station
-          <select
-            aria-label="Selected project station"
-            value={project.selectedPalletStationId ?? ""}
-            onChange={(event) => void selectStation(event.target.value)}
-            className={inputClass}
-          >
-            <option value="">Select a pallet station…</option>
-            {project.palletStations.map((station) => (
-              <option key={station.id} value={station.id}>
-                {station.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        {selectedProfile ? (
-          <p className={`${cautionNoteClass} md:col-span-2`}>
-            Observed in Multipack für Roboter{" "}
-            {selectedProfile.provenance.applicationVersion} and corroborated
-            against the active local plan database. This is documented
-            configuration evidence, not a station survey or production
-            calibration. Radial reach remains uncalibrated.
-          </p>
+            {error}
+          </div>
         ) : null}
-      </Panel>
+        {status ? (
+          <div role="status" className="fw-info">
+            {status}
+          </div>
+        ) : null}
+      </div>
 
-      <Panel
-        title="2. Pickup point"
-        description="Pickup is the top-center of each box group. X/Y come from package size and count; Z is the top of the packages. A surveyed conveyor origin is not required."
-        bodyClassName="grid gap-3 p-3"
-      >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-5">
-          <NumericDraftField
-            label="Packages per pickup"
-            value={settings.maxPackagesPerPick}
-            onChange={(value) =>
-              onSettingsChange({ ...settings, maxPackagesPerPick: value })
-            }
-          />
-        </div>
-        {derivedPickup ? (
-          <p className="text-micro text-muted leading-5">
-            Derived pickup for this package: 1-pack {singlePickOffset.x} ×{" "}
-            {singlePickOffset.y} mm
-            {project.package.multiPickAllowed
-              ? `; ${groupedPickCount}-pack ${groupedPickOffset.x} × ${groupedPickOffset.y} mm`
-              : ""}
-            . Z {project.package.dimensionsMm.height} mm, yaw {pickYawDeg}°.
-          </p>
-        ) : (
-          <p className="text-micro text-muted leading-5">
-            Using the surveyed pickup coordinates entered under Advanced
-            engineering.
-          </p>
-        )}
-        <p className="text-micro text-muted leading-5">
-          Planning values start at{" "}
-          {project.package.multiPickAllowed ? "2" : "1"} package
-          {project.package.multiPickAllowed ? "s" : ""} per calculated pickup
-          and 200 mm travel clearance. These are editable internal planning
-          values, not imported equipment or production defaults.
-        </p>
-      </Panel>
-
-      <ReadinessPanel
-        readiness={readiness}
-        cycleDataValid={materialization.valid}
-      />
-
-      <Panel
-        title="Output"
-        description="Preview the calculated motion or export only after the internal preflight is ready."
-        bodyClassName="flex flex-wrap items-center gap-3 p-3"
-      >
-        <button
-          type="button"
-          disabled={!onPreviewMotion || materialization.cycles.length === 0}
-          onClick={onPreviewMotion}
-          className="ui-btn"
-        >
-          Preview calculated motion
-        </button>
-        <button
-          type="button"
-          disabled={!exportGate.enabled}
-          onClick={exportGenerated}
-          className="ui-btn-primary"
-        >
-          Export project-derived .rob
-        </button>
-        <span
-          className={
-            exportGate.enabled ? "text-ok text-xs" : "text-muted text-xs"
-          }
-        >
-          {exportGate.enabled
-            ? "Internal export preflight passed."
-            : `${exportBlockingIssues} blocking issue${exportBlockingIssues === 1 ? "" : "s"}; review Advanced engineering.`}
-        </span>
-      </Panel>
-
-      <details className={sectionClass} data-testid="generated-pickup-list">
-        <summary className={disclosureSummaryClass}>
-          Generated pickup list ({materialization.cycles.length})
-        </summary>
-        <p className="border-line text-muted border-t px-3 py-2 text-xs leading-5">
-          These canonical coordinates are shared with motion preview, reports,
-          and project-derived export.
-        </p>
-        <GeneratedPickupTable materialization={materialization} />
-      </details>
-
-      <details className={sectionClass} data-testid="robotics-advanced">
-        <summary className={disclosureSummaryClass}>
-          Advanced engineering
-        </summary>
-        <div className="border-line bg-canvas grid gap-3 border-t p-3">
-          <p className={cautionNoteClass}>
-            Equipment drafts and entered mappings are unverified engineering
-            data. Check them against the real cell before use.
-          </p>
-
-          <details className={sectionClass}>
-            <summary className={disclosureSummaryClass}>
-              Motion values and pickup evidence
-            </summary>
-            <div className="border-line grid gap-3 border-t p-3">
-              <p className="text-muted text-xs leading-5">
-                Leave X, Y, and Z blank to keep the derived box-group
-                top-center. Entering all four values treats pickup as a surveyed
-                station pose.
-              </p>
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-4">
-                {(
-                  [
-                    ["X (mm)", "pickX"],
-                    ["Y (mm)", "pickY"],
-                    ["Z (mm)", "pickZ"],
-                    ["Yaw (deg)", "pickYaw"],
-                  ] as const
-                ).map(([label, field]) => (
-                  <NumericDraftField
-                    key={field}
-                    label={label}
-                    value={settings[field]}
-                    onChange={(value) =>
-                      onSettingsChange({ ...settings, [field]: value })
-                    }
-                  />
-                ))}
-              </div>
-              <div className="grid gap-2 md:grid-cols-2">
-                <NumericDraftField
-                  label="Travel clearance (mm)"
-                  value={settings.transferClearanceMm}
-                  onChange={(value) =>
-                    onSettingsChange({
-                      ...settings,
-                      transferClearanceMm: value,
-                    })
-                  }
-                />
-                <label className={fieldLabelClass}>
-                  Pickup point state
-                  <select
-                    value={settings.pickReferenceStatus}
-                    onChange={(event) =>
-                      onSettingsChange({
-                        ...settings,
-                        pickReferenceStatus: event.target.value as
-                          | "verified"
-                          | "unverified",
-                      })
-                    }
-                    className={inputClass}
-                  >
-                    <option value="unverified">Not checked</option>
-                    <option value="verified">
-                      Checked against stated source
+      <div className="ed-layout">
+        <div className="ed-main">
+          <section className="ed-panel" aria-labelledby="rb-equipment-title">
+            <div className="ed-panel-head">
+              <h3 id="rb-equipment-title">Ausrüstung</h3>
+              <small>
+                {selectedProfile
+                  ? `Multipack-Profil v${selectedProfile.version}`
+                  : project.source.kind === "rob-import"
+                    ? "aus .rob-Import nicht ableitbar"
+                    : "gegen die reale Zelle prüfen"}
+              </small>
+            </div>
+            <div className="ed-grid2">
+              <label className="ed-field">
+                Greifer
+                <select
+                  aria-label="Greifer des Plans"
+                  value={project.selectedGripperId ?? ""}
+                  onChange={(event) => void selectGripper(event.target.value)}
+                  className="ui-input"
+                >
+                  <option value="">Greifer wählen …</option>
+                  {project.grippers.map((gripper) => (
+                    <option key={gripper.id} value={gripper.id}>
+                      {gripper.name} ({gripperTypeLabels[gripper.settings.type]}
+                      )
                     </option>
-                  </select>
-                </label>
-              </div>
-              <label className={fieldLabelClass}>
-                Pickup point evidence
-                <input
-                  value={settings.pickReferenceSource}
-                  onChange={(event) =>
-                    onSettingsChange({
-                      ...settings,
-                      pickReferenceSource: event.target.value,
-                    })
-                  }
-                  className={inputClass}
-                />
+                  ))}
+                </select>
+              </label>
+              <label className="ed-field">
+                Palettenstation
+                <select
+                  aria-label="Palettenstation des Plans"
+                  value={project.selectedPalletStationId ?? ""}
+                  onChange={(event) => void selectStation(event.target.value)}
+                  className="ui-input"
+                >
+                  <option value="">Station wählen …</option>
+                  {project.palletStations.map((station) => (
+                    <option key={station.id} value={station.id}>
+                      {station.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
-          </details>
+            {selectedProfile ? (
+              <p className="ed-panel-note">
+                Die Werte stammen aus „Multipack für Roboter“{" "}
+                {selectedProfile.provenance.applicationVersion} und sind mit der
+                lokalen Plandatenbank abgeglichen. Das ist dokumentierte
+                Konfiguration, keine Stationsvermessung. Die Reichweite ist
+                nicht kalibriert.
+              </p>
+            ) : null}
+          </section>
 
-          <details className={sectionClass}>
-            <summary className={disclosureSummaryClass}>
-              Fixed obstacles ({settings.obstacles.length})
-            </summary>
-            <div className="border-line border-t p-3">
-              <ObstacleEditor
-                obstacles={settings.obstacles}
-                onChange={(obstacles) =>
-                  onSettingsChange({ ...settings, obstacles })
+          <section className="ed-panel" aria-labelledby="rb-pickup-title">
+            <div className="ed-panel-head">
+              <h3 id="rb-pickup-title">Aufnahme</h3>
+              <small>
+                {derivedPickup
+                  ? "Oberkante Mitte der Paketgruppe"
+                  : "vermessener Aufnahmepunkt"}
+              </small>
+            </div>
+            <div className="ed-grid2">
+              <NumericDraftField
+                label="Pakete je Griff"
+                value={settings.maxPackagesPerPick}
+                onChange={(value) =>
+                  onSettingsChange({ ...settings, maxPackagesPerPick: value })
                 }
               />
             </div>
+            <p className="ed-panel-note">
+              {derivedPickup
+                ? `Aufnahme für ${box.length} × ${box.width} × ${box.height} mm: einzeln ${singlePickOffset.x} / ${singlePickOffset.y} mm${
+                    project.package.multiPickAllowed
+                      ? `, ${groupedPickCount}er-Griff ${groupedPickOffset.x} / ${groupedPickOffset.y} mm`
+                      : ""
+                  }. Z ${box.height} mm, Drehung ${pickYawDeg}°.`
+                : "Es gelten die unter Technik eingetragenen vermessenen Koordinaten."}
+            </p>
+          </section>
+
+          <details
+            className="ed-panel-details"
+            data-testid="generated-pickup-list"
+          >
+            <summary>
+              Berechnete Griffe <small>{materialization.cycles.length}</small>
+            </summary>
+            <div>
+              <p className="ed-panel-note">
+                Dieselben Koordinaten gehen in Simulation, Palettierblatt und
+                Export.
+              </p>
+              <GeneratedPickupTable materialization={materialization} />
+            </div>
           </details>
 
-          <ResourceLibraryPanel
-            title="Gripper library and editor"
-            libraryAriaLabel="Gripper template library"
-            libraryPlaceholder="Choose reusable gripper template…"
-            libraryOptions={gripperLibrary}
-            libraryId={libraryGripperId}
-            onLibraryIdChange={setLibraryGripperId}
-            onApplyTemplate={() => void applyGripperTemplate()}
-            onRemoveTemplate={() => void removeTemplate("gripper")}
-            createDraftLabel="Create unverified suction draft"
-            onCreateDraft={() =>
-              setGripperDraft(createSuctionGripperDraft(project))
-            }
-            hasDraft={gripperDraft !== null}
-            draftIsBuiltIn={gripperDraftIsBuiltIn}
-            onCreateEditableCopy={() => {
-              if (gripperDraft) {
-                setGripperDraft(createEditableGripperCopy(gripperDraft));
-              }
-            }}
-            onSaveToProject={() => void saveGripper()}
-            onSaveTemplate={() => void saveGripperTemplate()}
-            builtInNote={
-              <>
-                <BuiltInProfileNotice version={multipackProfile.version} />
-                <p>
-                  Maximum pickup length: 450 mm. Package limits: lengthwise
-                  50–500 × 50–420 mm; crosswise 50–500 × 50–300 mm; height
-                  50–400 mm.
-                </p>
-              </>
-            }
-            editor={
-              gripperDraft ? (
-                <GripperEditor
-                  value={gripperDraft}
-                  onChange={setGripperDraft}
-                />
-              ) : null
-            }
-            emptyText="Select or create a gripper to edit it."
-          />
+          <details className="ed-panel-details" data-testid="robotics-advanced">
+            <summary>
+              Technik{" "}
+              <small>
+                {exportBlockingIssues === 0
+                  ? "keine offenen Punkte"
+                  : countLabel(
+                      exportBlockingIssues,
+                      "offener Punkt",
+                      "offene Punkte",
+                    )}
+              </small>
+            </summary>
+            <div>
+              <p className="ed-warn">
+                Greiferentwürfe und Zuordnungen sind ungeprüfte Technikdaten.
+                Vor dem Einsatz gegen die reale Zelle prüfen.
+              </p>
 
-          <ResourceLibraryPanel
-            title="Pallet station library and editor"
-            libraryAriaLabel="Station template library"
-            libraryPlaceholder="Choose reusable station template…"
-            libraryOptions={stationLibrary}
-            libraryId={libraryStationId}
-            onLibraryIdChange={setLibraryStationId}
-            onApplyTemplate={() => void applyStationTemplate()}
-            onRemoveTemplate={() => void removeTemplate("station")}
-            createDraftLabel="Create unverified station draft"
-            onCreateDraft={() =>
-              setStationDraft(createPalletStationDraft(project))
-            }
-            hasDraft={stationDraft !== null}
-            draftIsBuiltIn={stationDraftIsBuiltIn}
-            onCreateEditableCopy={() => {
-              if (stationDraft) {
-                setStationDraft(createEditableStationCopy(stationDraft));
-              }
-            }}
-            onSaveToProject={() => void saveStation()}
-            onSaveTemplate={() => void saveStationTemplate()}
-            builtInNote={
-              <>
-                <BuiltInProfileNotice version={multipackProfile.version} />
-                <p>
-                  Pallet origin: right / bottom. TCP envelope: ±2000 mm.
-                  Free-space contour: ±1500 mm. Robot radius 0 / 0 is retained
-                  as an uncalibrated legacy sentinel, so radial reach is not
-                  checked.
-                </p>
-              </>
-            }
-            editor={
-              stationDraft ? (
-                <StationEditor
-                  value={stationDraft}
-                  onChange={setStationDraft}
-                />
-              ) : null
-            }
-            emptyText="Select or create a pallet station to edit it."
-          />
+              <details className="ed-sub-details">
+                <summary>Aufnahmepunkt und Nachweis</summary>
+                <div>
+                  <p className="ed-panel-note">
+                    X, Y und Z leer lassen, um die berechnete Oberkante Mitte zu
+                    verwenden. Alle vier Werte zusammen gelten als vermessener
+                    Stationspunkt.
+                  </p>
+                  <div className="ed-grid4">
+                    {(
+                      [
+                        ["X (mm)", "pickX"],
+                        ["Y (mm)", "pickY"],
+                        ["Z (mm)", "pickZ"],
+                        ["Drehung (°)", "pickYaw"],
+                      ] as const
+                    ).map(([label, field]) => (
+                      <NumericDraftField
+                        key={field}
+                        label={label}
+                        value={settings[field]}
+                        onChange={(value) =>
+                          onSettingsChange({ ...settings, [field]: value })
+                        }
+                      />
+                    ))}
+                  </div>
+                  <div className="ed-grid2">
+                    <NumericDraftField
+                      label="Fahrhöhe über dem Stapel (mm)"
+                      value={settings.transferClearanceMm}
+                      onChange={(value) =>
+                        onSettingsChange({
+                          ...settings,
+                          transferClearanceMm: value,
+                        })
+                      }
+                    />
+                    <label className="ed-field">
+                      Stand des Aufnahmepunkts
+                      <select
+                        value={settings.pickReferenceStatus}
+                        onChange={(event) =>
+                          onSettingsChange({
+                            ...settings,
+                            pickReferenceStatus: event.target.value as
+                              | "verified"
+                              | "unverified",
+                          })
+                        }
+                        className="ui-input"
+                      >
+                        <option value="unverified">Nicht geprüft</option>
+                        <option value="verified">
+                          Gegen die angegebene Quelle geprüft
+                        </option>
+                      </select>
+                    </label>
+                  </div>
+                  <label className="ed-field">
+                    Quelle des Aufnahmepunkts
+                    <input
+                      value={settings.pickReferenceSource}
+                      onChange={(event) =>
+                        onSettingsChange({
+                          ...settings,
+                          pickReferenceSource: event.target.value,
+                        })
+                      }
+                      className="ui-input"
+                    />
+                  </label>
+                </div>
+              </details>
 
-          <DiagnosticsPanel
-            diagnostics={diagnostics}
-            obstacleCount={settings.obstacles.length}
-          />
+              <details className="ed-sub-details">
+                <summary>
+                  Feste Hindernisse <small>{settings.obstacles.length}</small>
+                </summary>
+                <div>
+                  <ObstacleEditor
+                    obstacles={settings.obstacles}
+                    onChange={(obstacles) =>
+                      onSettingsChange({ ...settings, obstacles })
+                    }
+                  />
+                </div>
+              </details>
 
-          <ExportMappingPanel
-            exportSettings={exportSettings}
-            onChange={setExportSettings}
-          />
-        </div>
-      </details>
+              <ResourceLibraryPanel
+                title="Greifer: Bibliothek und Editor"
+                libraryAriaLabel="Greifervorlagen"
+                libraryPlaceholder="Greifervorlage wählen …"
+                libraryOptions={gripperLibrary}
+                libraryId={libraryGripperId}
+                onLibraryIdChange={setLibraryGripperId}
+                onApplyTemplate={() => void applyGripperTemplate()}
+                onRemoveTemplate={() => void removeTemplate("gripper")}
+                createDraftLabel="Neuen Sauggreifer anlegen (ungeprüft)"
+                onCreateDraft={() =>
+                  setGripperDraft(createSuctionGripperDraft(project))
+                }
+                hasDraft={gripperDraft !== null}
+                draftIsBuiltIn={gripperDraftIsBuiltIn}
+                onCreateEditableCopy={() => {
+                  if (gripperDraft) {
+                    setGripperDraft(createEditableGripperCopy(gripperDraft));
+                  }
+                }}
+                onSaveToProject={() => void saveGripper()}
+                onSaveTemplate={() => void saveGripperTemplate()}
+                builtInNote={
+                  <>
+                    <BuiltInProfileNotice version={multipackProfile.version} />
+                    <p>
+                      Maximale Grifflänge 450 mm. Paketgrenzen: längs 50–500 ×
+                      50–420 mm, quer 50–500 × 50–300 mm, Höhe 50–400 mm.
+                    </p>
+                  </>
+                }
+                editor={
+                  gripperDraft ? (
+                    <GripperEditor
+                      value={gripperDraft}
+                      onChange={setGripperDraft}
+                    />
+                  ) : null
+                }
+                emptyText="Greifer wählen oder anlegen, um ihn zu bearbeiten."
+              />
 
-      {retainedOriginal || retainedEdited ? (
-        <details className="border-measure/50 bg-surface border">
-          <summary className={disclosureSummaryClass}>
-            Imported source-file downloads
-          </summary>
-          <div className="border-measure/40 grid gap-3 border-t p-3">
-            <p className="text-muted text-xs leading-5">
-              These downloads return retained imported text. They are not
-              project-derived output and make no compatibility or production
-              claim.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={!retainedOriginal}
-                onClick={() => downloadRetained("original")}
-                className={buttonClass}
-              >
-                Download retained original .rob
-              </button>
-              <button
-                type="button"
-                disabled={!retainedEdited}
-                onClick={() => downloadRetained("edited")}
-                className={buttonClass}
-              >
-                Download retained edited .rob
-              </button>
+              <ResourceLibraryPanel
+                title="Palettenstation: Bibliothek und Editor"
+                libraryAriaLabel="Stationsvorlagen"
+                libraryPlaceholder="Stationsvorlage wählen …"
+                libraryOptions={stationLibrary}
+                libraryId={libraryStationId}
+                onLibraryIdChange={setLibraryStationId}
+                onApplyTemplate={() => void applyStationTemplate()}
+                onRemoveTemplate={() => void removeTemplate("station")}
+                createDraftLabel="Neue Station anlegen (ungeprüft)"
+                onCreateDraft={() =>
+                  setStationDraft(createPalletStationDraft(project))
+                }
+                hasDraft={stationDraft !== null}
+                draftIsBuiltIn={stationDraftIsBuiltIn}
+                onCreateEditableCopy={() => {
+                  if (stationDraft) {
+                    setStationDraft(createEditableStationCopy(stationDraft));
+                  }
+                }}
+                onSaveToProject={() => void saveStation()}
+                onSaveTemplate={() => void saveStationTemplate()}
+                builtInNote={
+                  <>
+                    <BuiltInProfileNotice version={multipackProfile.version} />
+                    <p>
+                      Palettenursprung rechts / unten. TCP-Hüllraum ±2000 mm,
+                      Freiraumkontur ±1500 mm. Radius 0 / 0 bleibt als
+                      unkalibrierter Platzhalter erhalten, die Reichweite wird
+                      nicht geprüft.
+                    </p>
+                  </>
+                }
+                editor={
+                  stationDraft ? (
+                    <StationEditor
+                      value={stationDraft}
+                      onChange={setStationDraft}
+                    />
+                  ) : null
+                }
+                emptyText="Station wählen oder anlegen, um sie zu bearbeiten."
+              />
+
+              <DiagnosticsPanel
+                diagnostics={diagnostics}
+                obstacleCount={settings.obstacles.length}
+              />
+
+              <ExportMappingPanel
+                exportSettings={exportSettings}
+                onChange={setExportSettings}
+              />
+
+              {retainedOriginal || retainedEdited ? (
+                <details className="ed-sub-details">
+                  <summary>Importierte Originaldatei</summary>
+                  <div>
+                    <p className="ed-panel-note">
+                      Gibt den importierten Text unverändert zurück. Das ist
+                      kein berechneter Export.
+                    </p>
+                    <div className="ed-actions">
+                      <button
+                        type="button"
+                        disabled={!retainedOriginal}
+                        onClick={() => downloadRetained("original")}
+                        className="ui-btn ui-btn-sm"
+                      >
+                        Original .rob herunterladen
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!retainedEdited}
+                        onClick={() => downloadRetained("edited")}
+                        className="ui-btn ui-btn-sm"
+                      >
+                        Bearbeitete .rob herunterladen
+                      </button>
+                    </div>
+                  </div>
+                </details>
+              ) : null}
             </div>
-          </div>
-        </details>
-      ) : null}
+          </details>
+        </div>
+
+        <aside className="ed-side">
+          <ReadinessPanel
+            readiness={readiness}
+            cycleDataValid={materialization.valid}
+          />
+        </aside>
+      </div>
     </div>
   );
 }

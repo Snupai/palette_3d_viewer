@@ -20,8 +20,8 @@ everything in a Three.js viewer.
 
 ## Design
 
-Corporate chrome follows Szaidel Cosmetic GmbH (navy `#173159`, steel `#8bb0c9`,
-system light/dark). Tokens, workflow rules, and banned patterns live in
+The UI follows the approved Fable v2 “Hallenboden” design (epoxy grey, kraft/wood,
+robot orange `#f25316`, Barlow, system light/dark). Tokens and workflow rules live in
 `docs/DESIGN.md`. Do not restore skippable planning tabs, a Tools catalog, or a
 `.rob` “reference” overlay when the file is already the plan. Open a finished
 project on its last completed step, not on Inputs. Editor, Robotics, and

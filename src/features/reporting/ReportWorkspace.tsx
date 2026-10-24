@@ -200,14 +200,14 @@ export function ReportWorkspace({
             className="border-line mx-auto block aspect-[210/297] w-full max-w-[760px] border shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
           />
         ) : (
-          <p className="text-muted text-xs">
+          <p className="text-muted text-micro">
             Save a stack to create the pallet sheet.
           </p>
         )}
       </section>
 
       <details className="border-line bg-surface border">
-        <summary className="text-muted cursor-pointer px-4 py-2.5 text-xs font-semibold">
+        <summary className="text-muted text-micro cursor-pointer px-4 py-2.5 font-semibold">
           Technical report (validation, robotics, provenance)
         </summary>
         <div className="print-report report-sheet border-line bg-surface text-ink grid gap-4 border-t p-4">
@@ -254,11 +254,11 @@ export function ReportWorkspace({
             <h1 className="text-ink text-xl font-semibold">
               Pallet planner report
             </h1>
-            <p className="text-muted mt-1 text-sm">
+            <p className="text-muted text-body mt-1">
               Product {report.project.productNumber || "not set"} · Line{" "}
               {report.project.projectNumber || "not set"}
             </p>
-            <p className="text-muted mt-1 text-xs">
+            <p className="text-muted text-micro mt-1">
               Project schema {report.project.schemaVersion} · Last updated{" "}
               {new Date(report.project.updatedAt).toLocaleString()} ·{" "}
               {report.project.source}
@@ -266,7 +266,7 @@ export function ReportWorkspace({
           </header>
 
           <section id="report-summary" className="report-section scroll-mt-4">
-            <h2 className="text-ink text-sm font-semibold">
+            <h2 className="text-ink text-body font-semibold">
               Line and product data
             </h2>
             <div className="border-line mt-2 overflow-hidden border">
@@ -335,10 +335,10 @@ export function ReportWorkspace({
               id="report-geometry"
               className="report-section scroll-mt-4"
             >
-              <summary className="text-ink cursor-pointer text-sm font-semibold">
+              <summary className="text-ink text-body cursor-pointer font-semibold">
                 Geometry — no layers available yet
               </summary>
-              <p className="text-muted mt-2 text-xs">
+              <p className="text-muted text-micro mt-2">
                 Finish the stack to render the 2D drawings and the 3D capture.
               </p>
             </details>
@@ -348,10 +348,10 @@ export function ReportWorkspace({
               className="report-section grid scroll-mt-4 gap-3 xl:grid-cols-2"
             >
               <div>
-                <h2 className="text-ink text-sm font-semibold">
+                <h2 className="text-ink text-body font-semibold">
                   Deterministic 2D SVG
                 </h2>
-                <p className="text-muted mt-1 text-xs">
+                <p className="text-muted text-micro mt-1">
                   Read-only layer geometry rendered without canvas or WebGL.
                 </p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -367,13 +367,13 @@ export function ReportWorkspace({
                         showGroupLabels
                         showLabelSides
                       />
-                      <figcaption className="text-muted mt-2 text-xs">
+                      <figcaption className="text-muted text-micro mt-2">
                         {preview.label}
                       </figcaption>
                     </figure>
                   ))}
                   {uniquePatterns.length === 0 ? (
-                    <p className="border-line text-muted border border-dashed p-3 text-xs">
+                    <p className="border-line text-muted text-micro border border-dashed p-3">
                       No physical layer is available for a 2D report drawing.
                     </p>
                   ) : null}
@@ -381,10 +381,10 @@ export function ReportWorkspace({
               </div>
 
               <div>
-                <h2 className="text-ink text-sm font-semibold">
+                <h2 className="text-ink text-body font-semibold">
                   Fixed-view 3D capture
                 </h2>
-                <p className="text-muted mt-1 text-xs">
+                <p className="text-muted text-micro mt-1">
                   Fixed right-top preset. A deterministic 2D SVG is used when
                   capture is unavailable.
                 </p>
@@ -400,7 +400,7 @@ export function ReportWorkspace({
                       showLayerLabels
                     />
                   ) : (
-                    <div className="text-viewport-ink/60 flex min-h-[360px] items-center justify-center p-4 text-center text-xs">
+                    <div className="text-viewport-ink/60 text-micro flex min-h-[360px] items-center justify-center p-4 text-center">
                       No stack is available for 3D capture.
                     </div>
                   )}
@@ -424,12 +424,12 @@ export function ReportWorkspace({
                         showGroupLabels
                         showLabelSides
                       />
-                      <p className="text-caution mt-2 text-xs">
+                      <p className="text-caution text-micro mt-2">
                         3D fallback: {report.fixedView3d.message}
                       </p>
                     </div>
                   ) : (
-                    <p className="text-muted p-3 text-xs">
+                    <p className="text-muted text-micro p-3">
                       No 3D or 2D fallback image is available.
                     </p>
                   )}
@@ -444,7 +444,7 @@ export function ReportWorkspace({
           )}
 
           <section id="report-metrics" className="report-section scroll-mt-4">
-            <h2 className="text-ink text-sm font-semibold">
+            <h2 className="text-ink text-body font-semibold">
               Metrics and provenance
             </h2>
             <div className="border-line mt-2 overflow-auto border">
@@ -483,11 +483,11 @@ export function ReportWorkspace({
           </section>
 
           <section id="report-warnings" className="report-section scroll-mt-4">
-            <h2 className="text-ink text-sm font-semibold">
+            <h2 className="text-ink text-body font-semibold">
               Warnings and validation
             </h2>
             {report.warnings.length === 0 ? (
-              <p className="text-muted mt-2 text-xs">
+              <p className="text-muted text-micro mt-2">
                 No stack or robotics diagnostics were emitted.
               </p>
             ) : (
@@ -532,7 +532,7 @@ export function ReportWorkspace({
           </section>
 
           <section id="report-layers" className="report-section scroll-mt-4">
-            <h2 className="text-ink text-sm font-semibold">Layer sequence</h2>
+            <h2 className="text-ink text-body font-semibold">Layer sequence</h2>
             <div className="border-line mt-2 overflow-auto border">
               <table className="report-table ui-table w-full min-w-[760px] text-left">
                 <thead className="text-muted">
@@ -582,10 +582,10 @@ export function ReportWorkspace({
               id="report-robotics"
               className="report-section scroll-mt-4"
             >
-              <summary className="text-ink cursor-pointer text-sm font-semibold">
+              <summary className="text-ink text-body cursor-pointer font-semibold">
                 Robot cycles — none calculated yet
               </summary>
-              <p className="text-muted mt-2 text-xs">
+              <p className="text-muted text-micro mt-2">
                 Complete the stack and the Robotics preflight to calculate
                 pickup cycles.
               </p>
@@ -595,8 +595,8 @@ export function ReportWorkspace({
               id="report-robotics"
               className="report-section scroll-mt-4"
             >
-              <h2 className="text-ink text-sm font-semibold">Robot cycles</h2>
-              <p className="text-muted mt-1 text-xs">
+              <h2 className="text-ink text-body font-semibold">Robot cycles</h2>
+              <p className="text-muted text-micro mt-1">
                 {report.robotCycles.cycleCount} cycles ·{" "}
                 {report.robotCycles.singleCount} single ·{" "}
                 {report.robotCycles.doubleCount} double ·{" "}
@@ -662,8 +662,10 @@ export function ReportWorkspace({
             id="report-provenance"
             className="report-footer border-line scroll-mt-4 border-t pt-3"
           >
-            <h2 className="text-ink text-sm font-semibold">Provenance notes</h2>
-            <ul className="text-muted mt-2 list-disc space-y-1 pl-5 text-xs leading-5">
+            <h2 className="text-ink text-body font-semibold">
+              Provenance notes
+            </h2>
+            <ul className="text-muted text-micro mt-2 list-disc space-y-1 pl-5 leading-5">
               {report.provenanceNotes.map((note) => (
                 <li key={note}>{note}</li>
               ))}

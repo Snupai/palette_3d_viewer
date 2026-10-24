@@ -10,13 +10,13 @@ export type ResourceDiagnosticCategory =
   | "export";
 
 export const categoryLabels: Record<ResourceDiagnosticCategory, string> = {
-  package: "Plan and groups",
-  gripper: "Gripper",
-  station: "Pallet station",
-  reach: "Robot reach",
-  envelope: "Entered envelopes",
-  collision: "Fixed obstacles",
-  export: "Internal export",
+  package: "Plan und Griffe",
+  gripper: "Greifer",
+  station: "Palettenstation",
+  reach: "Reichweite",
+  envelope: "Eingetragene Hüllräume",
+  collision: "Hindernisse",
+  export: "Export",
 };
 
 export function diagnosticCategory(

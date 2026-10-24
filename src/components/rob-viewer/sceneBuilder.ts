@@ -224,11 +224,18 @@ export function buildViewerScene(
   root.add(directional);
 
   const faceColorSet: FaceColors = {
-    green: new THREE.Color("#00ff88"),
-    white: new THREE.Color("#eeeeee"),
-    red: new THREE.Color("#ff3355"),
-    blue: new THREE.Color("#3388ff"),
+    green: new THREE.Color("#e0b576"),
+    white: new THREE.Color("#d5aa6b"),
+    red: new THREE.Color("#ba8b4d"),
+    blue: new THREE.Color("#c39759"),
   };
+  const tapeMaterial = resources.trackMaterial(
+    new THREE.MeshPhongMaterial({
+      color: 0xf2d6a3,
+      shininess: 0,
+      side: THREE.DoubleSide,
+    }),
+  );
   const solidMaterial = resources.trackMaterial(
     new THREE.MeshPhongMaterial({
       vertexColors: true,
@@ -245,8 +252,8 @@ export function buildViewerScene(
 
   const solidEdgeMaterial = resources.trackMaterial(
     new THREE.LineBasicMaterial({
-      color: 0x18181b,
-      opacity: 0.85,
+      color: 0x795b35,
+      opacity: 0.55,
       transparent: true,
       depthTest: true,
       depthWrite: false,
@@ -532,6 +539,52 @@ export function buildViewerScene(
     const solidMesh = new THREE.Mesh(geometry, solidMaterial);
     solidMesh.name = `layer-${layerIndex + 1}-boxes`;
     root.add(solidMesh);
+
+    // Decorative carton tape is separate from the pick geometry: the twelve
+    // canonical faces per box, grip selection and visibility stay unchanged.
+    const tapeVertices: number[] = [];
+    for (const box of layer.boxes) {
+      const size = footprintSize(box);
+      const crosswise = box.rotation === 90 || box.rotation === 270;
+      const halfX = crosswise
+        ? Math.min(size.width * 0.06, 18)
+        : size.width / 2;
+      const halfY = crosswise
+        ? size.length / 2
+        : Math.min(size.length * 0.06, 18);
+      const x = box.rect.x,
+        y = box.rect.y,
+        z = zBottom + box.height + 0.6;
+      tapeVertices.push(
+        x - halfX,
+        y - halfY,
+        z,
+        x + halfX,
+        y - halfY,
+        z,
+        x + halfX,
+        y + halfY,
+        z,
+        x - halfX,
+        y - halfY,
+        z,
+        x + halfX,
+        y + halfY,
+        z,
+        x - halfX,
+        y + halfY,
+        z,
+      );
+    }
+    const tapeGeometry = resources.trackGeometry(new THREE.BufferGeometry());
+    tapeGeometry.setAttribute(
+      "position",
+      new THREE.Float32BufferAttribute(tapeVertices, 3),
+    );
+    tapeGeometry.computeVertexNormals();
+    const tapeMesh = new THREE.Mesh(tapeGeometry, tapeMaterial);
+    tapeMesh.name = `layer-${layerIndex + 1}-carton-tape`;
+    solidMesh.add(tapeMesh);
 
     const edgeGeometry = resources.trackGeometry(new THREE.BufferGeometry());
     edgeGeometry.setAttribute(
