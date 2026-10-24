@@ -21,7 +21,7 @@ everything in a Three.js viewer.
 ## Design
 
 Production chrome follows the Hallenboden/Fable v2 scheme (epoxy-grey canvas,
-kraft/wood pallet material, one robot-orange `--brand` accent, system light/dark);
+kraft/wood pallet material, one Szaidel-navy `--brand` accent (`#173159`), system light/dark);
 the former navy/steel corporate chrome is superseded. Tokens, workflow rules, and
 banned patterns live in `docs/DESIGN.md`. Do not restore skippable planning tabs, a Tools catalog, or a
 `.rob` “reference” overlay when the file is already the plan. Open a finished

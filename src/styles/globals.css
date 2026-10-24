@@ -52,17 +52,18 @@
   --ink: #1d1b18;
   --muted: #62625a;
   --line: #c9ccc3;
-  --brand: #f25316;
-  --brand-hover: #db4409;
-  --brand-on: #1d1b18;
+  /* Szaidel Cosmetics brand navy (szaidel-cosmetics.de). */
+  --brand: #173159;
+  --brand-hover: #0c1f3c;
+  --brand-on: #ffffff;
   --accent: #a66d2f;
   --mist: #e4d0ad;
   --ok: #3d7a4e;
   --caution: #94630b;
   --danger: #dc143c;
   --info: #2f6a8f;
-  --focus: #f25316;
-  --plan-fill: rgba(242, 83, 22, 0.1);
+  --focus: #173159;
+  --plan-fill: rgba(23, 49, 89, 0.1);
   --plan-stroke: #9c6c31;
   --measure: #a66d2f;
 
@@ -81,17 +82,18 @@
     --ink: #ecebe6;
     --muted: #b1b4a9;
     --line: #41453b;
-    --brand: #ff6a2e;
-    --brand-hover: #ff854f;
-    --brand-on: #1d1b18;
+    /* Szaidel steel blue keeps the navy family legible on dark surfaces. */
+    --brand: #8bb0c9;
+    --brand-hover: #b8dde1;
+    --brand-on: #0c1f3c;
     --accent: #e4d0ad;
     --mist: #a66d2f;
     --ok: #a9d4b2;
     --caution: #e2b45a;
     --danger: #f07178;
     --info: #a66d2f;
-    --focus: #f25316;
-    --plan-fill: rgba(255, 106, 46, 0.14);
+    --focus: #8bb0c9;
+    --plan-fill: rgba(139, 176, 201, 0.14);
     --plan-stroke: #dfb779;
     --measure: #e4d0ad;
     color-scheme: dark;

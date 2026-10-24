@@ -26,7 +26,7 @@ export type PalletSheetInput = {
 };
 
 const COMPANY = "Szaidel Cosmetic GmbH";
-const BRAND = "#f25316";
+const BRAND = "#173159";
 const CARTON_TOP = "#e0b576";
 const CARTON_LEFT = "#c39759";
 const CARTON_RIGHT = "#ac7f45";
