@@ -22,8 +22,11 @@ import {
   PlanningCaseWorkbench,
   type ProductionTool,
 } from "~/features/planning-case/PlanningCaseWorkbench";
+import { geometryReviewSignature } from "~/domain/project/geometryReview";
 import {
   clampPlanningStage,
+  projectNeedsGeometryReview,
+  GEOMETRY_REVIEW_MESSAGE,
   productionToolGate,
   planningStageForProject,
   type PlanningStage,
@@ -180,6 +183,8 @@ export function PlannerProjectWorkspace({
   repositoryRef.current ??= providedRepository ?? createProjectRepository();
   const repository = repositoryRef.current;
 
+  const navigationGeneration = useRef(0);
+  const [formGeneration, setFormGeneration] = useState(0);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -386,7 +391,9 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
+    const generation = navigationGeneration.current;
     const saved = await repository.saveProject(project);
+    if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = saved.id;
     setSelectedId(saved.id);
     setSelectedProject(saved);
@@ -421,6 +428,8 @@ export function PlannerProjectWorkspace({
   };
 
   const discardUnsavedPlannerChanges = (): void => {
+    navigationGeneration.current += 1;
+    setFormGeneration((generation) => generation + 1);
     markInputsDirty(false);
     setWorkbenchEpoch((epoch) => epoch + 1);
     setStackDirty(false);
@@ -447,12 +456,6 @@ export function PlannerProjectWorkspace({
     if (id === selectedId) {
       setShowWelcome(false);
       setProjectDrawerOpen(false);
-      // The library can open before the selected project finishes loading.
-      // In that case the loader chooses its furthest completed stage.
-      if (selectedProject) {
-        setActiveStage(planningStageForProject(selectedProject));
-      }
-      setSelectedCandidateId(null);
       return;
     }
     if (!confirmDiscardUnsaved("Switch projects")) return;
@@ -478,6 +481,7 @@ export function PlannerProjectWorkspace({
   const pendingEditIdRef = useRef<string | null>(null);
 
   const editProject = (id: string) => {
+    navigationGeneration.current += 1;
     setInputSection("meta");
     if (id === selectedId) {
       setProjectDrawerOpen(false);
@@ -501,12 +505,14 @@ export function PlannerProjectWorkspace({
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
     if (!confirmLeaveActiveTool(`${productionToolTitles[tool]} öffnen`)) return;
+    navigationGeneration.current += 1;
     setProjectDrawerOpen(false);
     setActiveTool(tool);
   };
 
   const closeProductionTool = () => {
     if (!confirmLeaveActiveTool("Schließen")) return;
+    navigationGeneration.current += 1;
     setActiveTool(null);
   };
 
@@ -918,7 +924,9 @@ export function PlannerProjectWorkspace({
     selectedCandidate,
     solverInput,
   ]);
-  const importedRob = workspaceProject?.source.kind === "rob-import";
+  const importedRob =
+    workspaceProject?.source.kind === "rob-import" &&
+    !projectNeedsGeometryReview(workspaceProject);
   const resolvedStage = clampPlanningStage(activeStage, Boolean(importedRob));
   useEffect(() => {
     document.scrollingElement?.scrollTo?.({ top: 0, behavior: "auto" });
@@ -1069,7 +1077,8 @@ export function PlannerProjectWorkspace({
     state: StackWorkspaceState,
     materialized: Parameters<typeof materializedStackToPalletData>[0],
   ) => {
-    if (!workspaceProject || !solverInput) return;
+    setStatusMessage(null);
+    if (!workspaceProject || !solverInput) return "cancelled" as const;
     if (editorDirty) {
       throw new Error(
         "Save or discard project editor changes before replacing the active solution stack.",
@@ -1082,11 +1091,12 @@ export function PlannerProjectWorkspace({
     if (
       existingLayerCount > 0 &&
       !window.confirm(
-        `Replace the saved stack (${existingLayerCount} layers) with the current composition (${materialized.packageLayers.length} layers)?`,
+        `Gespeicherten Stapel (${existingLayerCount} Lagen) durch den aktuellen Entwurf (${materialized.packageLayers.length} Lagen) ersetzen?`,
       )
     ) {
-      return;
+      return "cancelled" as const;
     }
+    const generation = navigationGeneration.current;
     const updated = projectWithPersistedStack(
       workspaceProject,
       solverResult?.candidates ?? [],
@@ -1094,6 +1104,8 @@ export function PlannerProjectWorkspace({
       state,
     );
     const saved = await repository.saveProject(updated);
+    if (generation !== navigationGeneration.current)
+      return "cancelled" as const;
     setSelectedProject(saved);
     setEditorDraftProject(null);
     setEditorDirty(false);
@@ -1105,9 +1117,13 @@ export function PlannerProjectWorkspace({
       `Stapel gespeichert: ${materialized.metrics.packages.totalPackageCount} Pakete auf ${materialized.packageLayers.length} Lagen.`,
     );
     await refreshProjects();
+    if (generation !== navigationGeneration.current)
+      return "cancelled" as const;
+    setStackDirty(false);
     // A saved stack opens in the plan viewer; robot setup is a secondary surface.
     setActiveTool(null);
     setActiveStage("stack");
+    return "saved" as const;
   };
 
   const createNew = () => {
@@ -1119,12 +1135,14 @@ export function PlannerProjectWorkspace({
     setDialogMode("create");
   };
   const openInputs = (section: GuidedSectionId = "package") => {
+    navigationGeneration.current += 1;
     setInputSection(section);
     setDialogMode("edit");
   };
   const browsePlans = () => {
     if (!confirmDiscardUnsaved("Planliste öffnen")) return;
-    discardUnsavedPlannerChanges();
+    if (hasUnsavedChanges) discardUnsavedPlannerChanges();
+    else navigationGeneration.current += 1;
     setShowWelcome(false);
     setProjectDrawerOpen(true);
     setDialogMode("closed");
@@ -1136,7 +1154,8 @@ export function PlannerProjectWorkspace({
           className="fable-logo"
           onClick={() => {
             if (!confirmDiscardUnsaved("Startseite öffnen")) return;
-            discardUnsavedPlannerChanges();
+            if (hasUnsavedChanges) discardUnsavedPlannerChanges();
+            else navigationGeneration.current += 1;
             setShowWelcome(true);
             setProjectDrawerOpen(false);
             setDialogMode("closed");
@@ -1199,7 +1218,12 @@ export function PlannerProjectWorkspace({
                         }}
                       >
                         {label}
-                        <span>{gate.ready ? "" : "▲"}</span>
+                        {gate.ready ? null : (
+                          <span>
+                            <span aria-hidden="true">Gesperrt</span>
+                            <span className="sr-only">{gate.missing}</span>
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -1223,10 +1247,12 @@ export function PlannerProjectWorkspace({
           }
         />
       ) : null}
-      {!showWelcome && !projectDrawerOpen ? (
-        <div hidden={dialogMode !== "closed"}>
+      {
+        <div
+          hidden={showWelcome || projectDrawerOpen || dialogMode !== "closed"}
+        >
           <PlanningCaseWorkbench
-            key={workbenchEpoch}
+            key={`${selectedId}:${workbenchEpoch}`}
             project={workspaceProject}
             stackContent={
               workspaceProject &&
@@ -1262,7 +1288,11 @@ export function PlannerProjectWorkspace({
             }
             loadingProject={loadingProject}
             error={error}
-            statusMessage={statusMessage}
+            statusMessage={
+              projectNeedsGeometryReview(workspaceProject)
+                ? GEOMETRY_REVIEW_MESSAGE
+                : statusMessage
+            }
             activeStage={resolvedStage}
             onStageChange={(stage) =>
               setActiveStage(clampPlanningStage(stage, Boolean(importedRob)))
@@ -1294,7 +1324,7 @@ export function PlannerProjectWorkspace({
             robotCycleCount={robotCycleCount}
           />
         </div>
-      ) : null}
+      }
       {!showWelcome && projectDrawerOpen && dialogMode === "closed" ? (
         <>
           {error && (
@@ -1476,21 +1506,44 @@ export function PlannerProjectWorkspace({
           </ol>
         )}
         <ProjectDialog
+          key={formGeneration}
           inline
           initialSection={inputSection}
           {...{ onDirtyChange: markInputsDirty }}
           open={dialogMode !== "closed"}
           project={dialogMode === "edit" ? workspaceProject : null}
           onClose={() => {
-            if (confirmDiscardUnsaved("Eingaben schließen"))
+            if (
+              !inputsDirtyRef.current ||
+              window.confirm(
+                "Eingaben schließen: Ungespeicherte Eingaben verwerfen?",
+              )
+            ) {
+              navigationGeneration.current += 1;
               setDialogMode("closed");
+            }
           }}
           onSave={async ({
             project,
             generationIntent,
           }: ProjectDialogSubmission) => {
             const previous = selectedProject;
+            const changesGeometry =
+              previous?.id === project.id &&
+              geometryReviewSignature(previous) !==
+                geometryReviewSignature(project);
+            if (
+              changesGeometry &&
+              (stackDirty || editorDirty) &&
+              !window.confirm(
+                "Geänderte Maße: Ungespeicherte Stapel- und Editoränderungen verwerfen?",
+              )
+            ) {
+              return "cancelled";
+            }
+            const generation = navigationGeneration.current;
             const saved = await saveProject(project);
+            if (generation !== navigationGeneration.current) return "cancelled";
             markInputsDirty(false);
             if (
               previous?.id === saved.id &&
@@ -1499,6 +1552,13 @@ export function PlannerProjectWorkspace({
               // Editing in place keeps `selectedId` stable, so the project-switch
               // reset never runs and stale candidates would outlive their input.
               resetSolver();
+            }
+            if (
+              previous?.id === saved.id &&
+              geometryReviewSignature(previous) !==
+                geometryReviewSignature(saved)
+            ) {
+              setActiveStage(planningStageForProject(saved));
             }
             if (!generationIntent) {
               setGeneratorLaunchRequest(null);

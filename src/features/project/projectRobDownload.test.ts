@@ -1,10 +1,21 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { createProject } from "~/domain/project/projectFactory";
+import { createProject, updateProject } from "~/domain/project/projectFactory";
 import {
   hasRobPlan,
   libraryRobDownload,
 } from "~/features/project/projectRobDownload";
+
+import {
+  planningStageForProject,
+  productionToolGate,
+} from "~/features/planning-case/planningCaseModel";
+
+import {
+  projectToProjectV2,
+  migrateProject,
+} from "~/domain/project/projectMigration";
+import { materializeRobotCycles } from "~/domain/robotics";
 
 const ids = { now: () => 1, createId: (kind: string) => `${kind}-rob` };
 
@@ -80,6 +91,54 @@ describe("hasRobPlan", () => {
 });
 
 describe("libraryRobDownload", () => {
+  it("preserves old solutions but blocks changed geometry until the stack is rebuilt", () => {
+    const original = stacked(2);
+    const changed = updateProject(original, {
+      package: {
+        ...original.package,
+        dimensionsMm: { length: 800, width: 600, height: 200 },
+      },
+    });
+    expect(changed.solutions[0]!.requiresGeometryReview).toBe(true);
+    expect(
+      migrateProject(projectToProjectV2(changed)).solutions[0]!
+        .requiresGeometryReview,
+    ).toBe(true);
+    expect(
+      materializeRobotCycles(changed).diagnostics.some((d) =>
+        d.path?.includes("requiresGeometryReview"),
+      ),
+    ).toBe(true);
+    expect(changed.solutions[0]!.patterns).toEqual(
+      original.solutions[0]!.patterns,
+    );
+    expect(changed.solutions[0]!.stack).toEqual(original.solutions[0]!.stack);
+    expect(planningStageForProject(changed)).toBe("generate");
+    expect(productionToolGate("robotics", changed, 3).ready).toBe(false);
+    expect(productionToolGate("simulation", changed, 3).ready).toBe(false);
+    expect(libraryRobDownload(changed).ok).toBe(false);
+    const metadata = updateProject(original, {
+      productNumber: "New name",
+      package: { ...original.package, weightKg: 5 },
+    });
+    expect(metadata.solutions).toEqual(original.solutions);
+    const source = {
+      kind: "rob-import" as const,
+      fileName: "original.rob",
+      rawRobText: robText,
+    };
+    const importedChanged = updateProject(
+      { ...original, source },
+      { package: changed.package },
+    );
+    expect(importedChanged.source).toEqual(source);
+    expect(libraryRobDownload(importedChanged)).toEqual({
+      ok: true,
+      fileName: "original.rob",
+      text: robText,
+    });
+  });
+
   it("returns the imported file verbatim under its original name", () => {
     expect(libraryRobDownload(imported(robText))).toEqual({
       ok: true,

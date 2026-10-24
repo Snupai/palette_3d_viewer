@@ -15,7 +15,9 @@ import type { Project } from "~/domain/project/projectSchema";
 import { PlanRender } from "~/features/planner/PlanRender";
 import {
   EXACT_COUNT_PATH,
+  syncAutomaticStorage,
   displayedEdgeForPackageSide,
+  geometryReviewChanges,
   fieldPathByValue,
   firstSectionWithError,
   formatNumber,
@@ -50,7 +52,9 @@ export type GuidedProjectFormProps = {
   /** Section opened first; defaults to the package section. */
   initialSection?: GuidedSectionId;
   onClose: () => void;
-  onSave: (submission: ProjectDialogSubmission) => Promise<void> | void;
+  onSave: (
+    submission: ProjectDialogSubmission,
+  ) => Promise<"cancelled" | void> | "cancelled" | void;
   /**
    * True while the inputs differ from the opened project (or the blank new
    * form) or an exact count is entered; false after a successful save and on
@@ -432,6 +436,13 @@ export function GuidedProjectForm({
   const [failure, setFailure] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [stageExpanded, setStageExpanded] = useState(false);
+  const saveGeneration = useRef(0);
+  useEffect(() => {
+    saveGeneration.current += 1;
+    return () => {
+      saveGeneration.current += 1;
+    };
+  }, [project?.id]);
   const pendingFocus = useRef<string | null>(null);
 
   useEffect(() => {
@@ -498,12 +509,31 @@ export function GuidedProjectForm({
     return message ? germanFieldError(message) : undefined;
   };
 
+  const explicitStorage = new Set(edited);
+  if (!values.automaticStorageLength)
+    explicitStorage.add("pallet.storageEnvelopeMm.length");
+  if (!values.automaticStorageWidth)
+    explicitStorage.add("pallet.storageEnvelopeMm.width");
   const set = <Key extends keyof ProjectFormValues>(
     key: Key,
     value: ProjectFormValues[Key],
   ) => {
-    setValues((current) => ({ ...current, [key]: value }));
     const path = fieldPathByValue[key];
+    const explicit = new Set(explicitStorage);
+    if (path) explicit.add(path);
+    setValues((current) =>
+      syncAutomaticStorage(
+        {
+          ...current,
+          [key]: value,
+          ...(key === "storageLengthMm"
+            ? { automaticStorageLength: false }
+            : {}),
+          ...(key === "storageWidthMm" ? { automaticStorageWidth: false } : {}),
+        },
+        explicit,
+      ),
+    );
     if (path) {
       setEdited((current) =>
         current.has(path) ? current : new Set(current).add(path),
@@ -605,15 +635,18 @@ export function GuidedProjectForm({
     }
 
     setSaving(true);
+    const generation = saveGeneration.current;
     try {
       const next = buildProjectFromForm(values, project);
-      await onSave({
+      const outcome = await onSave({
         project: next,
         generationIntent:
           shouldGenerate && parsedCount !== null
             ? { exactPackageCount: parsedCount }
             : null,
       });
+      if (outcome === "cancelled" || generation !== saveGeneration.current)
+        return;
       // Saved: report clean before the caller closes and guards navigation.
       setBaseline(values);
       setExactPackageCount("");
@@ -623,6 +656,7 @@ export function GuidedProjectForm({
       }
       onClose();
     } catch (cause) {
+      if (generation !== saveGeneration.current) return;
       if (cause instanceof z.ZodError) {
         const errors = zodFieldErrors(cause);
         setSaveErrors(errors);
@@ -638,7 +672,7 @@ export function GuidedProjectForm({
         );
       }
     } finally {
-      setSaving(false);
+      if (generation === saveGeneration.current) setSaving(false);
     }
   };
 
@@ -649,13 +683,19 @@ export function GuidedProjectForm({
   const palletLength = Number(values.palletLengthMm);
   const palletWidth = Number(values.palletWidthMm);
   const changesPatterns = project ? solverInputChanges(project, values) : null;
+  const changesGeometry = project
+    ? geometryReviewChanges(project, values)
+    : null;
   const openErrorCount = Object.keys(schemaErrors).length;
 
   const footerHint = (() => {
     if (failure) return null;
     if (!creating) {
       if (changesPatterns === true) {
-        return "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden beim Speichern verworfen.";
+        return "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden verworfen. Gespeicherte Lösungen bleiben zur Prüfung erhalten und sind bis zum Neuaufbau für Robotik und Export gesperrt.";
+      }
+      if (changesPatterns === false && changesGeometry === true) {
+        return "Geänderte Höhe oder Handhabung: Muster bleiben erhalten. Gespeicherte Lösungen sind bis zum Neuaufbau für Robotik und Export gesperrt.";
       }
       if (changesPatterns === false) {
         return "Diese Änderungen betreffen die Muster nicht; sie bleiben erhalten.";
@@ -854,7 +894,14 @@ export function GuidedProjectForm({
                           }));
                         } else {
                           setValues((current) =>
-                            palletTemplateFormValues(kind, current),
+                            syncAutomaticStorage(
+                              {
+                                ...palletTemplateFormValues(kind, current),
+                                storageLengthMm: current.storageLengthMm,
+                                storageWidthMm: current.storageWidthMm,
+                              },
+                              explicitStorage,
+                            ),
                           );
                         }
                         setSaveErrors({});
@@ -952,7 +999,7 @@ export function GuidedProjectForm({
                     set("hasStorageEnvelope", event.target.checked)
                   }
                 />
-                Lagerhöhe begrenzen
+                Lagermaße begrenzen (Länge, Breite, Höhe)
               </label>
               {values.hasStorageEnvelope ? (
                 <>

@@ -1,4 +1,5 @@
 "use client";
+import { projectNeedsGeometryReview } from "~/features/planning-case/planningCaseModel";
 import dynamic from "next/dynamic";
 import { useState, type ReactNode } from "react";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
@@ -84,8 +85,13 @@ export type PlanningCaseWorkbenchProps = {
 
 export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
   const { project, activeStage: stage } = p;
-  const imported = project?.source.kind === "rob-import";
-  const stackSaved = project !== null && stackLayerCount(project) > 0;
+  const imported =
+    project?.source.kind === "rob-import" &&
+    !projectNeedsGeometryReview(project);
+  const stackSaved =
+    project !== null &&
+    !projectNeedsGeometryReview(project) &&
+    stackLayerCount(project) > 0;
   const d = project?.package.dimensionsMm;
   const physicalBounds = project?.pallet
     ? {

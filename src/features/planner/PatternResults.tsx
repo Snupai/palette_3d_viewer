@@ -37,7 +37,8 @@ export function PatternResults({
     [exact, setExact] = useState(""),
     [compareId, setCompareId] = useState<string | null>(null),
     [limit, setLimit] = useState(12);
-  const selected = candidates.find((c) => c.id === selectedId) ?? candidates[0];
+  const selection = candidates.find((c) => c.id === selectedId);
+  const selected = selection ?? candidates[0];
   const compare = candidates.find(
     (c) => c.id === compareId && c.id !== selected?.id,
   );
@@ -98,7 +99,12 @@ export function PatternResults({
     );
   return (
     <section className="pattern-results" aria-label="Muster auswählen">
-      {compare ? (
+      {!selection && (
+        <p role="status">
+          Noch kein Muster ausgewählt. Bitte ein Muster übernehmen.
+        </p>
+      )}
+      {compare && selection ? (
         <div className="pattern-comparison">
           <header>
             <div>
@@ -161,6 +167,14 @@ export function PatternResults({
                   ] ?? null,
                 ) ?? "Dieses Muster passt zu den vorgegebenen Maßen."}
               </p>
+              {!selection && (
+                <button
+                  className="ui-btn-primary"
+                  onClick={() => onSelect(selected.id)}
+                >
+                  Dieses Muster übernehmen
+                </button>
+              )}
               {selected.id !== candidates[0]?.id && (
                 <button
                   className="text-action"
@@ -234,18 +248,18 @@ export function PatternResults({
           {shown.slice(0, limit).map((c) => (
             <article
               key={c.id}
-              className={`pattern-card ${selected.id === c.id ? "is-selected" : ""}`}
+              className={`pattern-card ${selectedId === c.id ? "is-selected" : ""}`}
             >
               <button
                 className="pattern-pick"
                 onClick={() => onSelect(c.id)}
-                aria-pressed={selected.id === c.id}
+                aria-pressed={selectedId === c.id}
                 aria-label={`Muster ${c.rank} mit ${c.metrics.packageCount} Paketen wählen`}
               >
                 <div className="pattern-card-heading">
                   <h3>Muster {c.rank}</h3>
                   <span>
-                    {selected.id === c.id
+                    {selectedId === c.id
                       ? "✓ Gewählt"
                       : `${c.metrics.packageCount} Pakete`}
                   </span>
@@ -260,13 +274,15 @@ export function PatternResults({
               </button>
               <footer>
                 <span>
-                  {c.id === selected.id
+                  {c.id === selectedId
                     ? "Aktuelles Muster"
-                    : `${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount > 0 ? "+" : ""}${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount} Zyklen zur Auswahl`}
+                    : !selection
+                      ? "Noch keine Auswahl"
+                      : `${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount > 0 ? "+" : ""}${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount} Zyklen zur Auswahl`}
                 </span>
                 <button
                   className="text-action"
-                  disabled={c.id === selected.id}
+                  disabled={!selection || c.id === selectedId}
                   onClick={() => setCompareId(c.id)}
                 >
                   Vergleichen

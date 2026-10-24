@@ -850,6 +850,34 @@ describe("StackWorkspace", () => {
     },
   );
 
+  it("keeps an explicitly cancelled replacement dirty without a success message", async () => {
+    const onSave = vi.fn(() => "cancelled" as const);
+    const onDirtyChange = vi.fn();
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Layer 1 transform"), {
+      target: { value: "mirror-x" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Save stack and continue to Robotics",
+      }),
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+    expect(screen.getByText("Unsaved stack edits")).toBeTruthy();
+    expect(
+      screen.queryByText("Stack saved to the project repository."),
+    ).toBeNull();
+  });
+
   it("keeps newer edits dirty when an earlier async save finishes", async () => {
     let resolveSave!: () => void;
     const pendingSave = new Promise<void>((resolve) => {
@@ -906,6 +934,30 @@ describe("StackWorkspace", () => {
 });
 
 describe("StackWorkspace guided", () => {
+  it("returns to composition when a different candidate becomes pattern A", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(
+      <StackWorkspace {...props} guided candidates={candidates} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        guided
+        candidates={[candidates[1]!, candidates[0]!]}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Stapel aufbauen" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeNull();
+  });
+
   it("builds from capacity, inserts a sheet, reviews, returns with the same stack, and saves", async () => {
     const onSave =
       vi.fn<

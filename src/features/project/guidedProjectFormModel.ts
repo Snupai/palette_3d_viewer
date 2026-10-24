@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
+import { geometryReviewSignature } from "~/domain/project/geometryReview";
 import { createLayerSolverInputFromProject } from "~/domain/solver/projectInput";
 import {
   buildProjectFromForm,
@@ -354,6 +355,23 @@ export function solverInputChanges(
   }
 }
 
+/**
+ * Whether saving these values marks saved solutions for geometry review. Uses
+ * the same canonical signature as `updateProject`, so the footer hint and the
+ * persisted flag can never disagree. Null when the values are not valid yet.
+ */
+export function geometryReviewChanges(
+  project: Project,
+  values: ProjectFormValues,
+): boolean | null {
+  try {
+    const next = buildProjectFromForm(values, project, validationDependencies);
+    return geometryReviewSignature(project) !== geometryReviewSignature(next);
+  } catch {
+    return null;
+  }
+}
+
 export type LabelEdge = "top" | "right" | "bottom" | "left";
 
 /** Package side shown at each edge of the infeed view (matches the label picker). */
@@ -380,4 +398,22 @@ export function displayedEdgeForPackageSide(
   return edges.find(
     (edge) => packageSideByDisplayedEdge[orientation][edge] === side,
   )!;
+}
+
+/** Keep automatic footprint limits in step with the allowed load area. */
+export function syncAutomaticStorage(
+  values: ProjectFormValues,
+  explicit: ReadonlySet<string>,
+): ProjectFormValues {
+  const area = loadAreaMm(values);
+  if (!area) return values;
+  return {
+    ...values,
+    storageLengthMm: explicit.has("pallet.storageEnvelopeMm.length")
+      ? values.storageLengthMm
+      : String(area.length),
+    storageWidthMm: explicit.has("pallet.storageEnvelopeMm.width")
+      ? values.storageWidthMm
+      : String(area.width),
+  };
 }

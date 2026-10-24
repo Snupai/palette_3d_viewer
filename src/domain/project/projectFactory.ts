@@ -1,3 +1,4 @@
+import { geometryReviewSignature } from "./geometryReview";
 import {
   migrateProject,
   projectToProjectV2,
@@ -200,6 +201,8 @@ export function updateProject(
     typeof update === "function"
       ? update(projectSchema.parse(current))
       : { ...current, ...update };
+  const geometryChanged =
+    geometryReviewSignature(current) !== geometryReviewSignature(candidate);
   const updatedAt = Math.max(
     current.updatedAt,
     dependencies(factoryDependencies).now(),
@@ -207,6 +210,13 @@ export function updateProject(
 
   return projectSchema.parse({
     ...candidate,
+    solutions: geometryChanged
+      ? candidate.solutions.map((solution) =>
+          solution.patterns.length
+            ? { ...solution, requiresGeometryReview: true }
+            : solution,
+        )
+      : candidate.solutions,
     schemaVersion: current.schemaVersion,
     id: current.id,
     createdAt: current.createdAt,

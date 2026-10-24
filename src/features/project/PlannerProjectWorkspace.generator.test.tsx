@@ -43,7 +43,11 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       onSave,
       project,
       solverInput,
+      onDirtyChange,
+      onEditProject,
     }: {
+      onDirtyChange: (dirty: boolean) => void;
+      onEditProject: () => void;
       candidates: readonly SolverCandidate[];
       onSave: (
         state: StackWorkspaceState,
@@ -53,6 +57,8 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       solverInput: Parameters<typeof materializeStackWorkspace>[2];
     }) => (
       <>
+        <button onClick={() => onDirtyChange(true)}>Dirty stack draft</button>
+        <button onClick={() => onEditProject()}>Edit stack inputs</button>
         <output data-testid="stack-candidate-ids">
           {candidates.map(({ id }) => id).join("|")}
         </output>
@@ -350,6 +356,161 @@ async function solveExisting(repository: ProjectRepository) {
 }
 
 describe("PlannerProjectWorkspace guided generation integration", () => {
+  it("does not let FIRST's pending save close or clean a new SECOND form", async () => {
+    const repository = emptyRepository();
+    const persist = repository.saveProject.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const saveSpy = vi
+      .spyOn(repository, "saveProject")
+      .mockImplementationOnce(async (project) => {
+        await pending;
+        return persist(project);
+      });
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    render(<PlannerProjectWorkspace repository={repository} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+    );
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "FIRST" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await waitFor(() => expect(saveSpy).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Neuen Plan/ }));
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "SECOND" },
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    await waitFor(async () =>
+      expect(
+        (await repository.listProjects()).projects.map((p) => p.productNumber),
+      ).toEqual(["FIRST"]),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Artikelnummer").value).toBe(
+      "SECOND",
+    );
+    vi.mocked(window.confirm).mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(screen.getByLabelText<HTMLInputElement>("Artikelnummer").value).toBe(
+      "SECOND",
+    );
+  });
+
+  it("preserves an in-flight search through the library and returns to its result", async () => {
+    const { repository } = await repositoryWithProject();
+    let complete!: (result: SolverResult) => void;
+    const pending = new Promise<SolverResult>((resolve) => {
+      complete = resolve;
+    });
+    clientMocks.run.mockReturnValueOnce({
+      runId: "pending-navigation",
+      cancel: clientMocks.cancel,
+      result: pending,
+    });
+    await solveExisting(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    const cancels = clientMocks.cancel.mock.calls.length;
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(clientMocks.cancel).toHaveBeenCalledTimes(cancels);
+    await act(async () => {
+      complete(solverResult);
+      await pending;
+    });
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    await screen.findByRole("region", { name: "Muster auswählen" });
+    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+  });
+
+  it("checks geometry loss before saving and closes metadata inputs without discarding the stack", async () => {
+    const repository = emptyRepository();
+    await createAndGenerate(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dirty stack draft" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit stack inputs" }));
+    const save = vi.spyOn(repository, "saveProject");
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "410" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() => expect(confirm).toHaveBeenCalledTimes(1));
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "400" },
+    });
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "RENAMED" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("form", { name: "Paket und Palette" }),
+      ).toBeNull(),
+    );
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("stack-candidate-ids").textContent).toBe(
+      "candidate-exact-4",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("stack-candidate-ids")).toBeTruthy();
+  });
+
+  it("does not overwrite inputs opened while a stack save is pending", async () => {
+    const repository = emptyRepository();
+    await createAndGenerate(repository);
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    const persist = repository.saveProject.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProject")
+      .mockImplementationOnce(async (project) => {
+        await pending;
+        return persist(project);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByRole("button", { name: "Edit stack inputs" }));
+    fireEvent.change(screen.getByLabelText("Länge"), {
+      target: { value: "410" },
+    });
+    await act(async () => {
+      release();
+      await pending;
+    });
+    await waitFor(async () =>
+      expect(
+        (await repository.listProjects()).projects[0]!.solutions[0]!.stack
+          .layers,
+      ).toHaveLength(10),
+    );
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+    vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+  });
+
   it("keeps unsaved inputs when leaving is dismissed and discards them only after confirmation", async () => {
     render(<PlannerProjectWorkspace repository={emptyRepository()} />);
     fireEvent.click(
@@ -591,5 +752,16 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     expect(saved.solutions[0]?.stack.layers).toHaveLength(10);
     expect(saved.solutions[0]?.origin).toBe("calculated");
     expect(screen.queryByTestId("robotics-workspace")).toBeNull();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Muster erzeugen" }),
+    );
+    expect(
+      screen
+        .getByRole("button", { name: "Muster 1 mit 4 Paketen wählen" })
+        .getAttribute("aria-pressed"),
+    ).toBe("false");
+    expect(
+      screen.getByRole("button", { name: "Stapel aufbauen" }),
+    ).toHaveProperty("disabled", true);
   });
 });

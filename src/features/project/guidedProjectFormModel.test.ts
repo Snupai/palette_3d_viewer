@@ -5,6 +5,7 @@ import {
 } from "~/features/project/projectForm";
 import {
   firstSectionWithError,
+  geometryReviewChanges,
   germanFieldError,
   labelSideLabel,
   loadAreaMm,
@@ -136,5 +137,19 @@ describe("guided project form model", () => {
     expect(
       solverInputChanges(project, { ...values, packageLengthMm: "" }),
     ).toBeNull();
+  });
+
+  it("keeps the footer hint and the persisted review flag on one signature", () => {
+    const project = buildProjectFromForm(filled(), null, deps);
+    const values = projectToFormValues(project);
+    const storageOnly = { ...values, storageHeightMm: "1600" };
+    expect(solverInputChanges(project, storageOnly)).toBe(false);
+    expect(geometryReviewChanges(project, storageOnly)).toBe(false);
+    const palletHeight = { ...values, palletHeightMm: "150" };
+    expect(solverInputChanges(project, palletHeight)).toBe(false);
+    expect(geometryReviewChanges(project, palletHeight)).toBe(true);
+    const packageLength = { ...values, packageLengthMm: "410" };
+    expect(solverInputChanges(project, packageLength)).toBe(true);
+    expect(geometryReviewChanges(project, packageLength)).toBe(true);
   });
 });

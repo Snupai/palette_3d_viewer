@@ -35,7 +35,9 @@ export type ProjectDialogProps = {
   open: boolean;
   project: Project | null;
   onClose: () => void;
-  onSave: (submission: ProjectDialogSubmission) => Promise<void> | void;
+  onSave: (
+    submission: ProjectDialogSubmission,
+  ) => Promise<"cancelled" | void> | "cancelled" | void;
   /**
    * Renders the guided full-page form in the page flow instead of a modal.
    * Submission semantics are identical: save-only, or save and generate with
@@ -142,7 +144,12 @@ function ModalProjectDialog({
     key: Key,
     value: ProjectFormValues[Key],
   ) => {
-    setValues((current) => ({ ...current, [key]: value }));
+    setValues((current) => ({
+      ...current,
+      [key]: value,
+      ...(key === "storageLengthMm" ? { automaticStorageLength: false } : {}),
+      ...(key === "storageWidthMm" ? { automaticStorageWidth: false } : {}),
+    }));
     setFieldErrors((current) => {
       if (Object.keys(current).length === 0) return current;
       return {};
@@ -175,13 +182,13 @@ function ModalProjectDialog({
       }
 
       const next = buildProjectFromForm(values, project);
-      await onSave({
+      const outcome = await onSave({
         project: next,
         generationIntent: shouldGenerate
           ? { exactPackageCount: packageCount }
           : null,
       });
-      onClose();
+      if (outcome !== "cancelled") onClose();
     } catch (cause) {
       if (cause instanceof z.ZodError) {
         setFieldErrors(zodFieldErrors(cause));

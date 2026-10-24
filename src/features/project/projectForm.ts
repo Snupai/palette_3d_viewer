@@ -29,6 +29,8 @@ export type ProjectFormValues = {
   overhangLengthMm: string;
   overhangWidthMm: string;
   hasStorageEnvelope: boolean;
+  automaticStorageLength?: boolean;
+  automaticStorageWidth?: boolean;
   storageLengthMm: string;
   storageWidthMm: string;
   storageHeightMm: string;
@@ -73,6 +75,12 @@ export function projectToFormValues(
     // New plans start with the 1800 mm storage height on so the guided stack
     // can fill the pallet; opened projects keep whatever they saved.
     hasStorageEnvelope: project ? pallet.storageEnvelopeMm !== null : true,
+    automaticStorageLength: project
+      ? (pallet.automaticStorageFootprint?.length ?? false)
+      : true,
+    automaticStorageWidth: project
+      ? (pallet.automaticStorageFootprint?.width ?? false)
+      : true,
     storageLengthMm: String(
       pallet.storageEnvelopeMm?.length ?? pallet.dimensionsMm.length,
     ),
@@ -154,6 +162,10 @@ export function buildProjectFromForm(
       length: requiredNumber(values.palletLengthMm),
       width: requiredNumber(values.palletWidthMm),
       height: requiredNumber(values.palletHeightMm),
+    },
+    automaticStorageFootprint: {
+      length: values.automaticStorageLength ?? false,
+      width: values.automaticStorageWidth ?? false,
     },
     storageEnvelopeMm: values.hasStorageEnvelope
       ? {

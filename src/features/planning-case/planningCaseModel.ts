@@ -39,10 +39,21 @@ export function clampPlanningStage(
   return stages.find(([id]) => id === stage)?.[0] ?? stages[0]![0];
 }
 
+export const GEOMETRY_REVIEW_MESSAGE =
+  "Maße oder Handhabung wurden geändert. Gespeicherte Lösungen bleiben erhalten, müssen aber vor Robotik und Export neu aufgebaut und geprüft werden.";
+
+export function projectNeedsGeometryReview(project: Project | null): boolean {
+  const solution =
+    project?.solutions.find((entry) => entry.id === project.activeSolutionId) ??
+    project?.solutions[0];
+  return solution?.requiresGeometryReview === true;
+}
+
 export function planningStageForProject(
   project: Project | null,
 ): PlanningStage {
   if (!project) return "inputs";
+  if (projectNeedsGeometryReview(project)) return "generate";
   if (project.source.kind === "rob-import") return "inputs";
   const solution =
     project.solutions.find((entry) => entry.id === project.activeSolutionId) ??
@@ -85,10 +96,21 @@ export function productionToolGate(
 ): ProductionToolGate {
   const noProjectGate: ProductionToolGate = {
     ready: false,
-    missing: "No project is selected.",
-    actionLabel: "Go to project inputs",
+    missing: "Kein Plan ausgewählt.",
+    actionLabel: "Zu den Eingaben",
     action: { kind: "stage", stage: "inputs" },
   };
+  if (
+    projectNeedsGeometryReview(project) &&
+    ["robotics", "simulation", "report"].includes(tool)
+  ) {
+    return {
+      ready: false,
+      missing: GEOMETRY_REVIEW_MESSAGE,
+      actionLabel: "Muster neu berechnen",
+      action: { kind: "stage", stage: "generate" },
+    };
+  }
   switch (tool) {
     case "editor":
       if (!project) return noProjectGate;
@@ -97,8 +119,8 @@ export function productionToolGate(
         : {
             ready: false,
             missing:
-              "The pattern editor needs a materialized stack with at least one layer.",
-            actionLabel: "Build the stack",
+              "Der Muster-Editor benötigt einen gespeicherten Stapel mit mindestens einer Lage.",
+            actionLabel: "Stapel aufbauen",
             action: { kind: "stage", stage: "stack" },
           };
     case "robotics":
@@ -108,8 +130,8 @@ export function productionToolGate(
         : {
             ready: false,
             missing:
-              "Robotics calculates pickup cycles from the materialized stack; the project has no stack layers yet.",
-            actionLabel: "Build the stack",
+              "Die Robotik benötigt einen gespeicherten Stapel. Dieser Plan hat noch keine Lagen.",
+            actionLabel: "Stapel aufbauen",
             action: { kind: "stage", stage: "stack" },
           };
     case "simulation":
@@ -119,8 +141,8 @@ export function productionToolGate(
         : {
             ready: false,
             missing:
-              "Simulation needs at least one calculated robot cycle from Robotics.",
-            actionLabel: "Open Robotics preflight",
+              "Die Simulation benötigt mindestens einen berechneten Robotik-Zyklus.",
+            actionLabel: "Robotik-Prüfung öffnen",
             action: { kind: "tool", tool: "robotics" },
           };
     default:

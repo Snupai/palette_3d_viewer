@@ -174,6 +174,76 @@ function firePointerEvent(
 }
 
 describe("PatternCanvas", () => {
+  it("selects grips in order mode without accepting geometric pointer or keyboard edits", () => {
+    const project = projectFixture();
+    const callbacks = {
+      onSelectionChange: vi.fn<(ids: ReadonlySet<string>) => void>(),
+      onMoveSelection: vi.fn(),
+      onNudgeSelection: vi.fn(),
+      onDeleteSelection: vi.fn(),
+      onRotateSelection: vi.fn(),
+    };
+    const props = {
+      project,
+      pattern: project.solutions[0]!.patterns[0]!,
+      groups,
+      selectedPlacementIds: new Set(["p1", "p2"]),
+      fineStepMm: 1,
+      coarseStepMm: 10,
+      ...callbacks,
+    };
+    const view = render(<PatternCanvas {...props} interactionMode="select" />);
+    const svg = screen.getByRole("application");
+    Object.defineProperty(svg, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({ left: 0, top: 0, width: 400, height: 300 }),
+    });
+    const first = screen.getAllByRole("button")[0]!;
+    firePointerEvent(first, "pointerdown", {
+      pointerId: 1,
+      clientX: 50,
+      clientY: 50,
+    });
+    firePointerEvent(first, "pointerup", {
+      pointerId: 1,
+      clientX: 80,
+      clientY: 50,
+    });
+    fireEvent.keyDown(first, { key: "Enter" });
+    expect([...callbacks.onSelectionChange.mock.calls.at(-1)![0]]).toEqual([
+      "p1",
+      "p2",
+    ]);
+    for (const key of [
+      "Delete",
+      "Backspace",
+      "r",
+      "ArrowLeft",
+      "ArrowRight",
+      "ArrowUp",
+      "ArrowDown",
+    ])
+      fireEvent.keyDown(svg, { key });
+    expect(callbacks.onMoveSelection).not.toHaveBeenCalled();
+    expect(callbacks.onNudgeSelection).not.toHaveBeenCalled();
+    expect(callbacks.onDeleteSelection).not.toHaveBeenCalled();
+    expect(callbacks.onRotateSelection).not.toHaveBeenCalled();
+    view.rerender(<PatternCanvas {...props} interactionMode="edit" />);
+    firePointerEvent(first, "pointerdown", {
+      pointerId: 2,
+      clientX: 50,
+      clientY: 50,
+    });
+    firePointerEvent(first, "pointerup", {
+      pointerId: 2,
+      clientX: 52,
+      clientY: 51,
+    });
+    expect(callbacks.onMoveSelection).not.toHaveBeenCalled();
+    fireEvent.keyDown(svg, { key: "ArrowRight" });
+    expect(callbacks.onNudgeSelection).toHaveBeenCalledWith({ x: 1, y: 0 });
+  });
+
   it("renders and edits a multipackage grip as one unit", () => {
     const project = projectFixture();
     const pattern = project.solutions[0]!.patterns[0]!;

@@ -34,7 +34,7 @@ export type StackWorkspaceProps = {
   onSave: (
     state: StackWorkspaceState,
     materialized: MaterializedStackResult,
-  ) => Promise<void> | void;
+  ) => Promise<"saved" | "cancelled" | void> | "saved" | "cancelled" | void;
   onDirtyChange?: (dirty: boolean) => void;
   /**
    * Full-page guided composition (stack, then review/save) instead of the
@@ -152,7 +152,8 @@ export function StackWorkspace({
     setSaveFailure(null);
     setSaveMessage(null);
     try {
-      await onSave(state, materialized.result);
+      const outcome = await onSave(state, materialized.result);
+      if (outcome === "cancelled") return;
       if (editRevision.current === revisionAtSaveStart) {
         setDirty(false);
         setSaveMessage(
@@ -186,6 +187,7 @@ export function StackWorkspace({
   if (guided) {
     return (
       <GuidedStackWorkspace
+        key={`${project.id}:${candidateSignature}`}
         project={project}
         candidates={candidates}
         solverInput={solverInput}

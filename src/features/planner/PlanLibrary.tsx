@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ProjectLibraryProps } from "~/features/project/ProjectLibrary";
+import { projectNeedsGeometryReview } from "~/features/planning-case/planningCaseModel";
 import { hasRobPlan } from "~/features/project/projectRobDownload";
 import { PlanRender } from "./PlanRender";
 import {
@@ -257,11 +258,13 @@ export function PlanLibrary(
                           <h2>{title}</h2>
                         </button>
                         <span className="plan-origin">
-                          {pr.source.kind === "rob-import"
-                            ? ".rob"
-                            : layerCount
-                              ? "Stapel"
-                              : "Entwurf"}
+                          {projectNeedsGeometryReview(pr)
+                            ? "Geometrie prüfen"
+                            : pr.source.kind === "rob-import"
+                              ? ".rob"
+                              : layerCount
+                                ? "Stapel"
+                                : "Entwurf"}
                         </span>
                       </div>
                       <p className="plan-subtitle">

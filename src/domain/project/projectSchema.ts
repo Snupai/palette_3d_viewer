@@ -83,6 +83,11 @@ export const palletSpecSchema = z
     kind: z.enum(["euro", "industrial", "custom"]),
     dimensionsMm: dimensionsMmSchema,
     storageEnvelopeMm: dimensionsMmSchema.nullable(),
+    /** Absent on older plans: stored limits remain explicit. */
+    automaticStorageFootprint: z
+      .object({ length: z.boolean(), width: z.boolean() })
+      .strict()
+      .optional(),
     /** Signed allowance per side: positive is overhang, negative is underhang. */
     allowedOverhangMm: z
       .object({
@@ -366,6 +371,7 @@ export const layerStackSchema = z
 
 export const projectSolutionSchema = z
   .object({
+    requiresGeometryReview: z.boolean().optional(),
     id: projectIdSchema,
     name: z.string().trim().min(1).max(200),
     origin: z.enum(["imported", "calculated", "manual"]),
@@ -704,6 +710,7 @@ export const robotCycleSchema = z
 
 export const planningSolutionSchema = z
   .object({
+    requiresGeometryReview: z.boolean().optional(),
     id: projectIdSchema,
     name: z.string().trim().min(1).max(200),
     origin: z.enum(["imported", "calculated", "manual"]),

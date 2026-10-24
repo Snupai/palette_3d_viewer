@@ -31,6 +31,8 @@ type PointerState =
     }
   | {
       kind: "drag";
+      startClient: { x: number; y: number };
+      moved: boolean;
       pointerId: number;
       start: { x: number; y: number };
       current: { x: number; y: number };
@@ -38,6 +40,7 @@ type PointerState =
     };
 
 export type PatternCanvasProps = {
+  interactionMode?: "edit" | "select";
   project: Project;
   pattern: LayerPattern;
   groups: readonly ProjectEditorGroup[];
@@ -68,6 +71,7 @@ function toggleSelectionUnit(
 }
 
 export function PatternCanvas({
+  interactionMode = "edit",
   project,
   pattern,
   groups,
@@ -184,11 +188,14 @@ export function PatternCanvas({
       ? new Set(selectedPlacementIds)
       : new Set(unit);
     if (!unitSelected) onSelectionChange(selection);
+    if (interactionMode === "select") return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
     capture(event);
     setPointer({
       kind: "drag",
+      startClient: { x: event.clientX, y: event.clientY },
+      moved: false,
       pointerId: event.pointerId,
       start: point,
       current: point,
@@ -213,7 +220,24 @@ export function PatternCanvas({
     if (!pointer || pointer.pointerId !== event.pointerId) return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
-    setPointer((current) => (current ? { ...current, current: point } : null));
+    setPointer((current) =>
+      current
+        ? {
+            ...current,
+            current: point,
+            ...(current.kind === "drag"
+              ? {
+                  moved:
+                    current.moved ||
+                    Math.hypot(
+                      event.clientX - current.startClient.x,
+                      event.clientY - current.startClient.y,
+                    ) >= 4,
+                }
+              : {}),
+          }
+        : null,
+    );
   };
 
   const finishPointer = (
@@ -235,7 +259,14 @@ export function PatternCanvas({
           ...selected.flatMap((placementId) => selectionUnit(placementId)),
         ]),
       );
-    } else {
+    } else if (
+      interactionMode === "edit" &&
+      (pointer.moved ||
+        Math.hypot(
+          event.clientX - pointer.startClient.x,
+          event.clientY - pointer.startClient.y,
+        ) >= 4)
+    ) {
       const deltaMm = {
         x: Math.round((point.x - pointer.start.x) * 10) / 10,
         y: Math.round((point.y - pointer.start.y) * 10) / 10,
@@ -255,6 +286,7 @@ export function PatternCanvas({
       setPointer(null);
       return;
     }
+    if (interactionMode === "select") return;
     if (event.key === "Delete" || event.key === "Backspace") {
       if (selectedPlacementIds.size === 0) return;
       event.preventDefault();
@@ -284,7 +316,7 @@ export function PatternCanvas({
   };
 
   const dragDelta =
-    pointer?.kind === "drag"
+    pointer?.kind === "drag" && pointer.moved
       ? {
           x: pointer.current.x - pointer.start.x,
           y: pointer.current.y - pointer.start.y,
@@ -308,8 +340,10 @@ export function PatternCanvas({
       <p className="sr-only" id="project-pattern-editor-instructions">
         Paket anklicken, um es auszuwählen. Strg- oder Cmd-Klick wählt mehrere
         Pakete, Shift-Ziehen auf freier Fläche zieht einen Auswahlrahmen.
-        Pfeiltasten verschieben die Auswahl, mit Shift im groben Schritt. R
-        dreht, Entf löscht, Escape hebt die Auswahl auf.
+        {interactionMode === "edit"
+          ? "Pfeiltasten verschieben die Auswahl, mit Shift im groben Schritt. R dreht, Entf löscht."
+          : "In der Greifreihenfolge bleibt die Geometrie unverändert."}
+        Escape hebt die Auswahl auf.
       </p>
       <div
         className="ed-canvas-wrap"
@@ -322,7 +356,7 @@ export function PatternCanvas({
           viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="application"
-          aria-label={`Draufsicht von ${pattern.name}, bearbeitbar`}
+          aria-label={`Draufsicht von ${pattern.name}, ${interactionMode === "select" ? "Greifauswahl" : "bearbeitbar"}`}
           aria-describedby="project-pattern-editor-instructions"
           tabIndex={0}
           data-testid="project-pattern-canvas"
@@ -449,7 +483,7 @@ export function PatternCanvas({
                   stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
                   strokeWidth={isSelected ? 3 : 1.5}
                   vectorEffect="non-scaling-stroke"
-                  className="focus-visible:stroke-brand cursor-grab focus:outline-none active:cursor-grabbing"
+                  className={`focus-visible:stroke-brand focus:outline-none ${interactionMode === "select" ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`}
                   onPointerDown={(event) => startPlacement(event, placement.id)}
                   onClick={(event) => clickPlacement(event, placement.id)}
                   onPointerMove={updatePointer}

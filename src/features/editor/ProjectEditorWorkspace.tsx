@@ -627,6 +627,7 @@ export function ProjectEditorWorkspace({
               </div>
             )}
             <PatternCanvas
+              interactionMode={view === "order" ? "select" : "edit"}
               project={history.present}
               pattern={pattern}
               groups={orderModel.groups}

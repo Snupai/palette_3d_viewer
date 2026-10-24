@@ -1,5 +1,9 @@
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
-import { layerZBottom } from "~/domain/palletGeometry";
+import {
+  layerZBottom,
+  layerInterlayerHeightMm,
+  trailingInterlayerHeightMm,
+} from "~/domain/palletGeometry";
 import type { PalletData } from "~/domain/palletTypes";
 import { palletLayerToPatternPreview } from "~/lib/previewAdapters";
 
@@ -73,6 +77,49 @@ export function PlanRender({
       },
     });
   }
+  const sheets: { z: number; height: number; length: number; width: number }[] =
+    [];
+  const appendSheets = (
+    z: number,
+    height: number,
+    exact: number[] | undefined,
+    dimensions: { width: number; length: number } | undefined,
+  ) => {
+    const footprint = dimensions ?? data?.interlayer ?? { width: L, length: W };
+    const thicknesses =
+      exact?.length && exact.every((h) => Number.isFinite(h) && h >= 0)
+        ? exact
+        : height > 0
+          ? [height]
+          : [];
+    for (const thickness of thicknesses) {
+      if (thickness > 0)
+        sheets.push({
+          z,
+          height: thickness,
+          length: footprint.width,
+          width: footprint.length,
+        });
+      z += thickness;
+    }
+  };
+  if (data) {
+    data.layers.forEach((layer, index) => {
+      const height = layerInterlayerHeightMm(layer);
+      appendSheets(
+        layers[index]!.z - height,
+        height,
+        layer.interlayerThicknessesMm,
+        layer.interlayerDimensions,
+      );
+    });
+    appendSheets(
+      layers.length ? layers[layers.length - 1]!.z + ph : H,
+      trailingInterlayerHeightMm(data),
+      data.trailingInterlayerThicknessesMm,
+      data.trailingInterlayerDimensions,
+    );
+  }
   const point = (x: number, y: number, z: number) =>
     [(x - y) * 0.866, (x + y) * 0.5 - z] as const;
   const points = (coords: readonly (readonly [number, number, number])[]) =>
@@ -87,12 +134,25 @@ export function PlanRender({
     key: string,
     wood = false,
     rotation = 0,
+    sheet = false,
   ) => {
     const top = z + h;
     return (
-      <g key={key} stroke="var(--carton-edge)" strokeWidth={0.8}>
+      <g
+        key={key}
+        data-sheet-z={sheet ? z : undefined}
+        data-sheet-thickness={sheet ? h : undefined}
+        stroke="var(--carton-edge)"
+        strokeWidth={0.8}
+      >
         <polygon
-          fill={wood ? "var(--wood-left)" : "var(--carton-left)"}
+          fill={
+            sheet
+              ? "var(--wood-left)"
+              : wood
+                ? "var(--wood-left)"
+                : "var(--carton-left)"
+          }
           points={points([
             [x, y + w, z],
             [x + l, y + w, z],
@@ -101,7 +161,13 @@ export function PlanRender({
           ])}
         />
         <polygon
-          fill={wood ? "var(--wood-right)" : "var(--carton-right)"}
+          fill={
+            sheet
+              ? "var(--wood-right)"
+              : wood
+                ? "var(--wood-right)"
+                : "var(--carton-right)"
+          }
           points={points([
             [x + l, y, z],
             [x + l, y + w, z],
@@ -110,7 +176,13 @@ export function PlanRender({
           ])}
         />
         <polygon
-          fill={wood ? "var(--wood-top)" : "var(--carton-top)"}
+          fill={
+            sheet
+              ? "var(--wood-top)"
+              : wood
+                ? "var(--wood-top)"
+                : "var(--carton-top)"
+          }
           points={points([
             [x, y, top],
             [x + l, y, top],
@@ -118,7 +190,7 @@ export function PlanRender({
             [x, y + w, top],
           ])}
         />
-        {!wood && (
+        {!wood && !sheet && (
           <polygon
             stroke="none"
             fill="var(--carton-tape)"
@@ -167,6 +239,14 @@ export function PlanRender({
           point(x1, y1, z),
         ];
       }),
+    ),
+    ...sheets.flatMap((sheet) =>
+      [sheet.z, sheet.z + sheet.height].flatMap((z) => [
+        point((L - sheet.length) / 2, (W - sheet.width) / 2, z),
+        point((L + sheet.length) / 2, (W - sheet.width) / 2, z),
+        point((L - sheet.length) / 2, (W + sheet.width) / 2, z),
+        point((L + sheet.length) / 2, (W + sheet.width) / 2, z),
+      ]),
     ),
     point(0, 0, topZ),
   ];
@@ -219,29 +299,53 @@ export function PlanRender({
           true,
         ),
       )}
-      {layers.map((layer, li) => (
-        <g key={li}>
-          {[...layer.preview.items]
-            .sort(
-              (a, b) =>
-                a.centerMm.x + a.centerMm.y - (b.centerMm.x + b.centerMm.y) ||
-                a.centerMm.x - b.centerMm.x,
-            )
-            .map((item) =>
-              cuboid(
-                item.centerMm.x - item.sizeMm.x / 2,
-                item.centerMm.y - item.sizeMm.y / 2,
-                layer.z,
-                item.sizeMm.x - 1,
-                item.sizeMm.y - 1,
-                ph,
-                item.id,
-                false,
-                item.rotation,
-              ),
-            )}
-        </g>
-      ))}
+      {[
+        ...sheets.map((sheet, index) => ({
+          z: sheet.z,
+          node: cuboid(
+            (L - sheet.length) / 2,
+            (W - sheet.width) / 2,
+            sheet.z,
+            sheet.length,
+            sheet.width,
+            sheet.height,
+            `sheet-${index}`,
+            false,
+            0,
+            true,
+          ),
+        })),
+        ...layers.map((layer, li) => ({
+          z: layer.z,
+          node: (
+            <g key={li}>
+              {[...layer.preview.items]
+                .sort(
+                  (a, b) =>
+                    a.centerMm.x +
+                      a.centerMm.y -
+                      (b.centerMm.x + b.centerMm.y) ||
+                    a.centerMm.x - b.centerMm.x,
+                )
+                .map((item) =>
+                  cuboid(
+                    item.centerMm.x - item.sizeMm.x / 2,
+                    item.centerMm.y - item.sizeMm.y / 2,
+                    layer.z,
+                    item.sizeMm.x - 1,
+                    item.sizeMm.y - 1,
+                    ph,
+                    item.id,
+                    false,
+                    item.rotation,
+                  ),
+                )}
+            </g>
+          ),
+        })),
+      ]
+        .sort((a, b) => a.z - b.z)
+        .map(({ node }) => node)}
     </svg>
   );
 }

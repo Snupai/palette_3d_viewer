@@ -1,6 +1,10 @@
 import type { Project } from "~/domain/project/projectSchema";
 import { getRetainedRawRobDownload } from "~/domain/robotics/robExport";
-import { stackLayerCount } from "~/features/planning-case/planningCaseModel";
+import {
+  stackLayerCount,
+  projectNeedsGeometryReview,
+  GEOMETRY_REVIEW_MESSAGE,
+} from "~/features/planning-case/planningCaseModel";
 import { exportProjectRobDownload } from "~/features/robotics/robotWorkspaceModel";
 
 export type LibraryRobDownload =
@@ -29,6 +33,8 @@ export function libraryRobDownload(project: Project): LibraryRobDownload {
       ? { ok: true, fileName: retained.fileName, text: retained.text }
       : { ok: false, message: "This project keeps no .rob file text." };
   }
+  if (projectNeedsGeometryReview(project))
+    return { ok: false, message: GEOMETRY_REVIEW_MESSAGE };
   if (stackLayerCount(project) === 0) {
     return {
       ok: false,

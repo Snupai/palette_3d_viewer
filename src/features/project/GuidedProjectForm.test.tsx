@@ -37,6 +37,55 @@ function type(label: string, value: string) {
 }
 
 describe("GuidedProjectForm (inline ProjectDialog)", () => {
+  it("expands automatic storage for overhang but validates an explicit smaller limit", async () => {
+    const { onSave } = renderInline();
+    type("Artikelnummer", "OVERHANG");
+    type("Länge", "400");
+    type("Breite", "300");
+    type("Höhe", "200");
+    type("Überstand Länge", "40");
+    expect(screen.getByLabelText<HTMLInputElement>("Lagerlänge").value).toBe(
+      "1240",
+    );
+    type("Lagerlänge", "1200");
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    expect(onSave).not.toHaveBeenCalled();
+    expect(
+      await screen.findByText(
+        "Muss die zulässige Ladelänge (Palette plus Überstand) aufnehmen.",
+      ),
+    ).toBeTruthy();
+    type("Lagerlänge", "1240");
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onSave.mock.calls[0]?.[0]).toMatchObject({
+      project: { pallet: { storageEnvelopeMm: { length: 1240 } } },
+    });
+  });
+
+  it("preserves automatic storage axes when reopening a saved guided plan", () => {
+    const project = buildProjectFromForm(
+      {
+        ...projectToFormValues(null),
+        productNumber: "AUTO",
+        packageLengthMm: "400",
+        packageWidthMm: "300",
+        packageHeightMm: "200",
+      },
+      null,
+    );
+    renderInline({ project });
+    type("Überstand Länge", "40");
+    expect(screen.getByLabelText<HTMLInputElement>("Lagerlänge").value).toBe(
+      "1240",
+    );
+    type("Lagerbreite", "850");
+    type("Überstand Breite", "20");
+    expect(screen.getByLabelText<HTMLInputElement>("Lagerbreite").value).toBe(
+      "850",
+    );
+  });
+
   it("starts blank, keeps the same input node while typing, and shows errors only after edit and blur", () => {
     renderInline();
     // The article step comes first; package dimensions are the second step.
@@ -173,7 +222,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
     type("Länge", "410");
     expect(
       screen.getByText(
-        "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden beim Speichern verworfen.",
+        "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden verworfen. Gespeicherte Lösungen bleiben zur Prüfung erhalten und sind bis zum Neuaufbau für Robotik und Export gesperrt.",
       ),
     ).toBeTruthy();
 
