@@ -1,0 +1,665 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-08-06T08:32:27.896Z",
+  "digestPrefixLength": 16,
+  "privacy": {
+    "absolutePathsStored": false,
+    "sourceTextStored": false,
+    "fileNamesStored": false
+  },
+  "corpus": {
+    "files": 63,
+    "distinctBytePayloads": 58
+  },
+  "selection": {
+    "caseCount": 14,
+    "stableIdentity": "sha256-byte-digest",
+    "requiredCoverage": [
+      "all-byte-duplicate-families",
+      "two-identical-source-blocks",
+      "non-alternating-stack",
+      "crosswise-input",
+      "custom-pallet",
+      "triple-picks",
+      "all-interlayer-families",
+      "maximum-physical-layer-count",
+      "high-packages-per-layer",
+      "top-bottom-test-variants"
+    ]
+  },
+  "cases": [
+    {
+      "byteDigestPrefix": "bda9b7b51515cf0d",
+      "semanticDigestPrefix": "bbb77641654369b3",
+      "coverageTags": [
+        "byte-duplicate-group-size-3",
+        "two-identical-source-blocks",
+        "no-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 3,
+        "semanticDuplicateGroupSize": 3,
+        "packageDimensionsMm": {
+          "length": 223,
+          "width": 223,
+          "height": 273
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 3,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 15,
+          "maximum": 15
+        },
+        "maximumPackagesPerGrip": 1,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "af13f8a402043bf4",
+      "semanticDigestPrefix": "2d5d961436a027c0",
+      "coverageTags": [
+        "byte-duplicate-group-size-2",
+        "triple-picks",
+        "no-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 2,
+        "semanticDuplicateGroupSize": 2,
+        "packageDimensionsMm": {
+          "length": 132,
+          "width": 110,
+          "height": 185
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 4,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 61,
+          "maximum": 61
+        },
+        "maximumPackagesPerGrip": 3,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "bc70c3ea8e121cd9",
+      "semanticDigestPrefix": "e7c32e6264d2669c",
+      "coverageTags": [
+        "byte-duplicate-group-size-3",
+        "low-packages-per-layer",
+        "no-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 3,
+        "semanticDuplicateGroupSize": 3,
+        "packageDimensionsMm": {
+          "length": 308,
+          "width": 220,
+          "height": 188
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 6,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 11,
+          "maximum": 11
+        },
+        "maximumPackagesPerGrip": 1,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "95e21ef3783739da",
+      "semanticDigestPrefix": "fc29bd8d5045ac18",
+      "coverageTags": [
+        "crosswise-input",
+        "non-alternating-stack",
+        "high-packages-per-layer"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 136,
+          "width": 94,
+          "height": 151
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 1,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 6,
+        "stackPattern": "non-alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 72,
+          "maximum": 72
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "c8bcae0726e945d3",
+      "semanticDigestPrefix": "c9a7be5070efaa0c",
+      "coverageTags": [
+        "custom-pallet",
+        "no-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 205,
+          "width": 98,
+          "height": 155
+        },
+        "palletDimensionsMm": {
+          "length": 1180,
+          "width": 770,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 10,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 41,
+          "maximum": 41
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 0,
+          "nominal-rob-integer-compatible": 2,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "628560e82e46417d",
+      "semanticDigestPrefix": "f3a3b0fa2068dc39",
+      "coverageTags": [
+        "base-and-alternating-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 217,
+          "width": 172,
+          "height": 154
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 11,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 24,
+          "maximum": 24
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "base-and-alternating",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 0,
+          "nominal-rob-integer-compatible": 2,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "f3704dc7079107e7",
+      "semanticDigestPrefix": "b381ffcae1f8bc2f",
+      "coverageTags": [
+        "between-every-layer-interlayers",
+        "maximum-packages-per-layer",
+        "triple-picks",
+        "two-identical-source-blocks"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 109,
+          "width": 109,
+          "height": 124
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 7,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 77,
+          "maximum": 77
+        },
+        "maximumPackagesPerGrip": 3,
+        "interlayerFamily": "between-every-layer",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 0,
+          "nominal-rob-integer-compatible": 2,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "f1d6be2bda9ce524",
+      "semanticDigestPrefix": "d734ca2fd4674380",
+      "coverageTags": [
+        "maximum-physical-layer-count",
+        "no-interlayers"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 232,
+          "width": 155,
+          "height": 67
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 25,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 25,
+          "maximum": 25
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 0,
+          "nominal-rob-integer-compatible": 2,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "1a978c7667ba0d94",
+      "semanticDigestPrefix": "468c2c06aa2bd1e3",
+      "coverageTags": [
+        "top-variant",
+        "two-identical-source-blocks"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 232,
+          "width": 155,
+          "height": 67
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 21,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 25,
+          "maximum": 25
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "582e32e1866ab483",
+      "semanticDigestPrefix": "cbf1a49a8f4c128d",
+      "coverageTags": [
+        "baseline-for-top-variant",
+        "two-identical-source-blocks"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 232,
+          "width": 155,
+          "height": 67
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 21,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 25,
+          "maximum": 25
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "55a556a17fee29ba",
+      "semanticDigestPrefix": "1d6449a93ef5d7ad",
+      "coverageTags": [
+        "test-top-variant",
+        "two-identical-source-blocks"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 251,
+          "width": 163,
+          "height": 284
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 5,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 21,
+          "maximum": 21
+        },
+        "maximumPackagesPerGrip": 1,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "7b4e98dd58c0d284",
+      "semanticDigestPrefix": "2555c115d0239039",
+      "coverageTags": [
+        "test-bottom-variant",
+        "two-identical-source-blocks"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 251,
+          "width": 163,
+          "height": 284
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 1,
+        "physicalLayerCount": 5,
+        "stackPattern": "single-geometry",
+        "packagesPerPhysicalLayer": {
+          "minimum": 21,
+          "maximum": 21
+        },
+        "maximumPackagesPerGrip": 1,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 2,
+          "nominal-rob-integer-compatible": 0,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "2031a345efb7f04f",
+      "semanticDigestPrefix": "2e83f4703021684f",
+      "coverageTags": [
+        "test-variant"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 209,
+          "width": 154,
+          "height": 126
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 7,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 26,
+          "maximum": 26
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 1,
+          "nominal-rob-integer-compatible": 1,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    },
+    {
+      "byteDigestPrefix": "cda364e05275cd17",
+      "semanticDigestPrefix": "9a0d6a1d30a3f98d",
+      "coverageTags": [
+        "baseline-for-test-variant"
+      ],
+      "characteristics": {
+        "byteDuplicateGroupSize": 1,
+        "semanticDuplicateGroupSize": 1,
+        "packageDimensionsMm": {
+          "length": 209,
+          "width": 154,
+          "height": 126
+        },
+        "palletDimensionsMm": {
+          "length": 1200,
+          "width": 800,
+          "height": 145
+        },
+        "inputDirection": {
+          "value": 0,
+          "explicit": true
+        },
+        "sourcePatternBlockCount": 2,
+        "geometricallyDistinctPatternCount": 2,
+        "physicalLayerCount": 7,
+        "stackPattern": "alternating",
+        "packagesPerPhysicalLayer": {
+          "minimum": 26,
+          "maximum": 26
+        },
+        "maximumPackagesPerGrip": 2,
+        "interlayerFamily": "none",
+        "trailingInterlayerCount": 0,
+        "sourceGeometryProfileCounts": {
+          "nominal-strict": 0,
+          "nominal-rob-integer-compatible": 2,
+          "observed-strict-only": 0,
+          "observed-rob-integer-compatible-only": 0,
+          "invalid-source-geometry": 0,
+          "unavailable": 0
+        }
+      }
+    }
+  ]
+}
