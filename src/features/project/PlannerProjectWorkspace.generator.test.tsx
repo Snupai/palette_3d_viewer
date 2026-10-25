@@ -539,7 +539,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     fireEvent.click(
       screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
     );
-    expect(window.location.pathname).toBe("/neu");
+    expect(window.location.pathname).toBe("/new");
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(
       screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
@@ -555,7 +555,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
     await screen.findByRole("region", { name: "Muster auswählen" });
     const savedId = (await repository.listProjects()).projects[0]!.id;
-    expect(window.location.pathname).toBe(`/plan/${savedId}/muster`);
+    expect(window.location.pathname).toBe(`/plan/${savedId}/patterns`);
   });
 
   it("starts with the two explicit paths, saves inputs and solves exactly once", async () => {

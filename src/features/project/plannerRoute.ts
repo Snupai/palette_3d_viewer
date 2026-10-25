@@ -3,8 +3,10 @@ import type { PlanningStage } from "~/features/planning-case/planningCaseModel";
 
 /**
  * URL ⇄ planner shell state. Paths are flat so a reload lands on the same
- * screen: `/`, `/plaene`, `/neu`, `/plan/<id>/<stage>[/<tool>]`,
- * `/plan/<id>/bearbeiten`.
+ * screen: `/`, `/plans`, `/new`, `/plan/<id>/<stage>[/<tool>]`,
+ * `/plan/<id>/edit`.
+ *
+ * Slugs are English and independent of the UI language.
  */
 export type PlannerRoute =
   | { kind: "welcome" }
@@ -18,9 +20,9 @@ export type PlannerRoute =
     };
 
 const STAGE_SLUGS: Record<PlanningStage, string> = {
-  inputs: "eingaben",
-  generate: "muster",
-  stack: "stapel",
+  inputs: "inputs",
+  generate: "patterns",
+  stack: "build",
 };
 
 const PRODUCTION_TOOLS: readonly ProductionTool[] = [
@@ -52,12 +54,12 @@ export function parsePlannerRoute(pathname: string): PlannerRoute {
       }
     });
   if (segments.length === 0) return { kind: "welcome" };
-  if (segments[0] === "plaene") return { kind: "library" };
-  if (segments[0] === "neu") return { kind: "create" };
+  if (segments[0] === "plans") return { kind: "library" };
+  if (segments[0] === "new") return { kind: "create" };
   if (segments[0] === "plan" && segments[1]) {
     const id = segments[1];
     const second = segments[2];
-    if (second === "bearbeiten") {
+    if (second === "edit") {
       return { kind: "plan", id, stage: null, view: "edit" };
     }
     const stage = second ? (stageBySlug.get(second) ?? null) : null;
@@ -76,12 +78,12 @@ export function plannerRoutePath(route: PlannerRoute): string {
     case "welcome":
       return "/";
     case "library":
-      return "/plaene";
+      return "/plans";
     case "create":
-      return "/neu";
+      return "/new";
     case "plan": {
       const base = `/plan/${encodeURIComponent(route.id)}`;
-      if (route.view === "edit") return `${base}/bearbeiten`;
+      if (route.view === "edit") return `${base}/edit`;
       const stage = route.stage ? `/${STAGE_SLUGS[route.stage]}` : "";
       const tool = route.view ? `/${route.view}` : "";
       return `${base}${stage}${tool}`;
