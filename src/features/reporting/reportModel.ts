@@ -1,3 +1,4 @@
+import type { Translate } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { PalletData } from "~/domain/palletTypes";
 import type { Project } from "~/domain/project/projectSchema";
@@ -98,43 +99,41 @@ export type PlanningReportModel = {
   provenanceNotes: readonly string[];
 };
 
-const derivedStackProvenance: MetricProvenance = {
-  status: "derived",
-  source: "materialized-stack-arithmetic",
-  detail: "Calculated from the exact materialized physical stack sequence.",
-};
-
-const canonicalCycleProvenance: MetricProvenance = {
-  status: "derived",
-  source: "canonical-robot-cycle-array",
-  detail:
-    "Counted from the same canonical RobotCycle array consumed by simulation and project-derived export.",
-};
-
 function reportMetrics(
   stack: MaterializedStackResult | null,
   cycleCount: number,
+  t: Translate,
 ) {
   if (!stack) return [];
+  const derivedStackProvenance: MetricProvenance = {
+    status: "derived",
+    source: "materialized-stack-arithmetic",
+    detail: t("reporting.model.derivedDetail"),
+  };
+  const canonicalCycleProvenance: MetricProvenance = {
+    status: "derived",
+    source: "canonical-robot-cycle-array",
+    detail: t("reporting.model.cycleDetail"),
+  };
   const metrics = stack.metrics;
   return [
     {
       id: "packages",
-      label: "Packages",
+      label: t("reporting.model.packages"),
       value: metrics.packages.totalPackageCount,
-      unit: "packages",
+      unit: t("reporting.model.packagesUnit"),
       provenance: derivedStackProvenance,
     },
     {
       id: "cycles",
-      label: "Robot cycles",
+      label: t("reporting.model.cycles"),
       value: cycleCount,
-      unit: "cycles",
+      unit: t("reporting.model.cyclesUnit"),
       provenance: canonicalCycleProvenance,
     },
     {
       id: "load-height",
-      label: "Load stack height",
+      label: t("reporting.model.loadHeight"),
       value: metrics.height.loadStackHeightMm,
       unit: "mm",
       provenance: derivedStackProvenance,
@@ -143,7 +142,7 @@ function reportMetrics(
     },
     {
       id: "palletized-height",
-      label: "Palletized height",
+      label: t("reporting.model.palletizedHeight"),
       value: metrics.height.palletizedStackHeightMm,
       unit: "mm",
       provenance:
@@ -151,13 +150,13 @@ function reportMetrics(
           ? {
               status: "unknown" as const,
               source: "missing-pallet-height",
-              detail: "A pallet height is required for palletized height.",
+              detail: t("reporting.model.missingPalletHeightDetail"),
             }
           : derivedStackProvenance,
     },
     {
       id: "area-utilization",
-      label: "Area utilization",
+      label: t("reporting.model.areaUtilization"),
       value: metrics.area.utilization.percent,
       unit: "%",
       provenance: metrics.area.utilization.provenance,
@@ -166,7 +165,7 @@ function reportMetrics(
     },
     {
       id: "volume-utilization",
-      label: "Volume utilization",
+      label: t("reporting.model.volumeUtilization"),
       value: metrics.volume.utilization.percent,
       unit: "%",
       provenance: metrics.volume.utilization.provenance,
@@ -175,7 +174,7 @@ function reportMetrics(
     },
     {
       id: "gross-weight",
-      label: "Gross weight",
+      label: t("reporting.model.grossWeight"),
       value: metrics.weight.grossWeightKg,
       unit: "kg",
       provenance: metrics.weight.provenance,
@@ -184,7 +183,7 @@ function reportMetrics(
     },
     {
       id: "block-length",
-      label: "Block length",
+      label: t("reporting.model.blockLength"),
       value: metrics.block.lengthMm,
       unit: "mm",
       provenance: metrics.block.lengthUtilization.provenance,
@@ -192,7 +191,7 @@ function reportMetrics(
     },
     {
       id: "block-width",
-      label: "Block width",
+      label: t("reporting.model.blockWidth"),
       value: metrics.block.widthMm,
       unit: "mm",
       provenance: metrics.block.widthUtilization.provenance,
@@ -228,6 +227,7 @@ function robotReportWarning(
 
 function reportWarnings(
   materialization: RobotCycleMaterialization,
+  t: Translate,
 ): PlanningReportWarning[] {
   const warnings = [
     ...(materialization.stack?.warnings.map(stackReportWarning) ?? []),
@@ -243,12 +243,11 @@ function reportWarnings(
       severity: "warning",
       source: "report",
       code: "unverified-sign-convention",
-      message:
-        "At least one robot cycle retains an unverified coordinate/sign convention; the report does not claim external robot compatibility.",
+      message: t("reporting.model.signMessage"),
       provenance: {
         status: "unverified",
         source: "robot-cycle-provenance",
-        detail: "Cycle signConventionStatus is unverified.",
+        detail: t("reporting.model.signDetail"),
       },
     });
   }
@@ -262,13 +261,11 @@ function reportWarnings(
       severity: "warning",
       source: "report",
       code: "unknown-legacy-fields",
-      message:
-        "Imported final .rob fields are retained, but their external semantics remain explicitly unknown/unverified.",
+      message: t("reporting.model.legacyMessage"),
       provenance: {
         status: "unverified",
         source: "retained-legacy-rob-fields",
-        detail:
-          "Repository dx/dy interpretation is not an external format claim.",
+        detail: t("reporting.model.legacyDetail"),
       },
     });
   }
@@ -314,8 +311,9 @@ export function createPlanningReportModel(input: {
   materialization: RobotCycleMaterialization;
   previewData: PalletData | null;
   capture?: PlanningReportCapture;
+  t: Translate;
 }): PlanningReportModel {
-  const { project, materialization, previewData } = input;
+  const { project, materialization, previewData, t } = input;
   const robotCycles = createRobotCycleReport(materialization);
   const selectedGripper = materialization.gripper;
   const selectedStation = materialization.station;
@@ -330,8 +328,8 @@ export function createPlanningReportModel(input: {
       updatedAt: project.updatedAt,
       source:
         project.source.kind === "rob-import"
-          ? `retained .rob import: ${project.source.fileName}`
-          : "native project",
+          ? t("reporting.header.sourceRob", { name: project.source.fileName })
+          : t("reporting.header.sourceNative"),
     },
     product: {
       shape: project.package.shape,
@@ -356,19 +354,18 @@ export function createPlanningReportModel(input: {
     fixedView3d: input.capture ?? {
       status: "fallback",
       reason: "capture-not-attempted",
-      message:
-        "A fixed right-top 3D frame has not been captured; the deterministic 2D SVG remains the report fallback.",
+      message: t("reporting.capture.notAttempted"),
       fallbackLayerIndex,
     },
-    metrics: reportMetrics(materialization.stack, robotCycles.cycleCount),
-    warnings: reportWarnings(materialization),
+    metrics: reportMetrics(materialization.stack, robotCycles.cycleCount, t),
+    warnings: reportWarnings(materialization, t),
     layerSequence: layerSequence(materialization),
     robotCycles,
     provenanceNotes: [
-      "2D drawings are deterministic SVG projections from the report PalletData adapter.",
-      "3D images use the viewer's fixed right-top preset when canvas capture is available; otherwise the 2D SVG fallback is printed.",
-      "Robot cycles are the canonical materialized RobotCycle rows shared with simulation and project-derived export.",
-      "Unknown formulas, proprietary fields, sign conventions, and kinematics remain labelled unknown, internal, or unverified.",
+      t("reporting.model.note.svg"),
+      t("reporting.model.note.capture"),
+      t("reporting.model.note.cycles"),
+      t("reporting.model.note.unknown"),
     ],
   };
 }

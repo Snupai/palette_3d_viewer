@@ -1,3 +1,5 @@
+import { useT } from "~/i18n";
+
 /** Determinate progress readout for long runs (solver, exports). */
 export function ProgressBlock({
   label,
@@ -5,7 +7,7 @@ export function ProgressBlock({
   total,
   detail,
   onCancel,
-  cancelLabel = "Cancel",
+  cancelLabel,
 }: {
   label: string;
   completed: number;
@@ -14,6 +16,7 @@ export function ProgressBlock({
   onCancel?: () => void;
   cancelLabel?: string;
 }) {
+  const t = useT();
   const safeTotal = Math.max(0, total);
   const safeCompleted = Math.min(Math.max(0, completed), safeTotal);
   return (
@@ -29,7 +32,7 @@ export function ProgressBlock({
             className="ui-btn ui-btn-sm ui-btn-ghost"
             onClick={onCancel}
           >
-            {cancelLabel}
+            {cancelLabel ?? t("components.progress.cancel")}
           </button>
         ) : null}
       </div>

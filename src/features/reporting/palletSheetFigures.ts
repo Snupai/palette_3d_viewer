@@ -148,7 +148,15 @@ export function palletSheetFigures(input: {
   };
 }
 
-/** German number format used on the printed sheet: 308,0 */
-export function formatSheetNumber(value: number, digits = 1): string {
-  return value.toFixed(digits).replace(".", ",");
+/** Number format of the printed sheet (German by default): 308,0 */
+export function formatSheetNumber(
+  value: number,
+  digits = 1,
+  tag = "de-DE",
+): string {
+  return new Intl.NumberFormat(tag, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+    useGrouping: false,
+  }).format(value);
 }

@@ -26,7 +26,6 @@ import { geometryReviewSignature } from "~/domain/project/geometryReview";
 import {
   clampPlanningStage,
   projectNeedsGeometryReview,
-  GEOMETRY_REVIEW_MESSAGE,
   productionToolGate,
   planningStageForProject,
   type PlanningStage,
@@ -73,6 +72,8 @@ import {
   palletLayerToPatternPreview,
   solverCandidateToPatternPreview,
 } from "~/lib/previewAdapters";
+import { LanguageSwitcher } from "~/i18n/LanguageSwitcher";
+import { useT, type Translate } from "~/i18n";
 import { parseRobText } from "~/lib/robParser";
 import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
 import {
@@ -131,18 +132,22 @@ export type PlannerProjectWorkspaceProps = {
 
 type DialogMode = "closed" | "create" | "edit";
 
-const productionToolTitles: Record<ProductionTool, string> = {
-  "candidate-browser": "Candidate browser",
-  "candidate-3d": "Candidate 3D inspection",
-  stack: "Stack composer",
-  editor: "Muster-Editor",
-  robotics: "Robotik & Greifer",
-  simulation: "Simulation",
-  report: "Palettierblatt",
-};
+function productionToolTitles(t: Translate): Record<ProductionTool, string> {
+  return {
+    "candidate-browser": t("project.tool.candidateBrowser"),
+    "candidate-3d": t("project.tool.candidate3d"),
+    stack: t("project.tool.stack"),
+    editor: t("project.tool.editor"),
+    robotics: t("project.tool.robotics"),
+    simulation: t("project.tool.simulation"),
+    report: t("project.tool.report"),
+  };
+}
 
-function projectLabel(project: Project): string {
-  return project.productNumber || project.projectNumber || "Unbenannter Plan";
+function projectLabel(project: Project, t: Translate): string {
+  return (
+    project.productNumber || project.projectNumber || t("project.untitledPlan")
+  );
 }
 
 /**
@@ -184,6 +189,12 @@ export function PlannerProjectWorkspace({
   repository: providedRepository,
   onUnsavedChange,
 }: PlannerProjectWorkspaceProps) {
+  const t = useT();
+  // Effects and callbacks that must not re-run on a language switch read `t`
+  // through this ref; the message is translated when the error is produced.
+  const tRef = useRef(t);
+  tRef.current = t;
+  const toolTitles = productionToolTitles(t);
   const repositoryRef = useRef<ProjectRepository | null>(null);
   repositoryRef.current ??= providedRepository ?? createProjectRepository();
   const repository = repositoryRef.current;
@@ -317,8 +328,10 @@ export function PlannerProjectWorkspace({
       console.error("Failed to load project library", cause);
       setError(
         cause instanceof Error
-          ? `Project library failed: ${cause.message}`
-          : "Project library failed.",
+          ? tRef.current("project.error.libraryFailed", {
+              message: cause.message,
+            })
+          : tRef.current("project.error.libraryFailedGeneric"),
       );
     } finally {
       if (request === listRequest.current) setLoadingLibrary(false);
@@ -352,11 +365,14 @@ export function PlannerProjectWorkspace({
         }
         if (result.migratedCount > 0) {
           setStatusMessage(
-            `Imported ${result.migratedCount} legacy .rob librar${
-              result.migratedCount === 1 ? "y entry" : "y entries"
-            } as non-destructive planner project${
-              result.migratedCount === 1 ? "" : "s"
-            }.`,
+            tRef.current(
+              result.migratedCount === 1
+                ? "project.status.legacyImported_one"
+                : "project.status.legacyImported_other",
+              {
+                count: result.migratedCount,
+              },
+            ),
           );
         }
       })
@@ -365,8 +381,10 @@ export function PlannerProjectWorkspace({
         console.error("Failed to migrate legacy pallet library", cause);
         setError(
           cause instanceof Error
-            ? `Legacy library migration failed: ${cause.message}`
-            : "Legacy library migration failed.",
+            ? tRef.current("project.error.migrationFailed", {
+                message: cause.message,
+              })
+            : tRef.current("project.error.migrationFailedGeneric"),
         );
       })
       .finally(() => {
@@ -407,7 +425,8 @@ export function PlannerProjectWorkspace({
           setSelectedProject(null);
           const diagnostic = diagnosticText(result.diagnostics);
           setError(
-            diagnostic || `Project "${selectedId}" could not be reopened.`,
+            diagnostic ||
+              tRef.current("project.error.reopenMissing", { id: selectedId }),
           );
           return;
         }
@@ -431,8 +450,10 @@ export function PlannerProjectWorkspace({
         setSelectedProject(null);
         setError(
           cause instanceof Error
-            ? `Project reopen failed: ${cause.message}`
-            : "Project reopen failed.",
+            ? tRef.current("project.error.reopenFailed", {
+                message: cause.message,
+              })
+            : tRef.current("project.error.reopenFailedGeneric"),
         );
       })
       .finally(() => {
@@ -458,7 +479,9 @@ export function PlannerProjectWorkspace({
       setActiveStage(planningStageForProject(saved));
       setActiveTool(null);
     }
-    setStatusMessage(`Plan „${projectLabel(saved)}“ gespeichert.`);
+    setStatusMessage(
+      t("project.status.planSaved", { name: projectLabel(saved, t) }),
+    );
     await refreshProjects();
     return saved;
   };
@@ -466,7 +489,7 @@ export function PlannerProjectWorkspace({
   const hasUnsavedChanges = stackDirty || editorDirty || inputsDirty;
   const confirmDiscardUnsaved = (action: string): boolean =>
     !(stackDirty || editorDirty || inputsDirtyRef.current) ||
-    window.confirm(`${action}: Ungespeicherte Änderungen verwerfen?`);
+    window.confirm(t("project.confirm.discardUnsaved", { action }));
 
   const productionToolIsDirty = (tool: ProductionTool): boolean => {
     if (tool === "stack") return stackDirty;
@@ -498,7 +521,10 @@ export function PlannerProjectWorkspace({
     if (
       productionToolIsDirty(activeTool) &&
       !window.confirm(
-        `${action}: Ungespeicherte Änderungen in „${productionToolTitles[activeTool]}“ verwerfen?`,
+        t("project.confirm.discardInTool", {
+          action,
+          tool: toolTitles[activeTool],
+        }),
       )
     ) {
       return false;
@@ -513,7 +539,7 @@ export function PlannerProjectWorkspace({
       setProjectDrawerOpen(false);
       return;
     }
-    if (!confirmDiscardUnsaved("Switch projects")) return;
+    if (!confirmDiscardUnsaved(t("project.action.switchProjects"))) return;
     discardUnsavedPlannerChanges();
     setGeneratorLaunchRequest(null);
     selectedProjectIdRef.current = id;
@@ -557,21 +583,26 @@ export function PlannerProjectWorkspace({
 
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
-    if (!confirmLeaveActiveTool(`${productionToolTitles[tool]} öffnen`)) return;
+    if (
+      !confirmLeaveActiveTool(
+        t("project.action.openTool", { tool: toolTitles[tool] }),
+      )
+    )
+      return;
     navigationGeneration.current += 1;
     setProjectDrawerOpen(false);
     setActiveTool(tool);
   };
 
   const closeProductionTool = () => {
-    if (!confirmLeaveActiveTool("Schließen")) return;
+    if (!confirmLeaveActiveTool(t("project.action.close"))) return;
     navigationGeneration.current += 1;
     setActiveTool(null);
   };
 
   const duplicate = async (id: string) => {
     const source = libraryProject(id);
-    if (!source || !confirmDiscardUnsaved("Duplicate this project")) {
+    if (!source || !confirmDiscardUnsaved(t("project.action.duplicate"))) {
       return;
     }
     setError(null);
@@ -579,13 +610,13 @@ export function PlannerProjectWorkspace({
     try {
       const result = await repository.duplicateProject(source.id, {
         projectNumber: source.projectNumber
-          ? `${source.projectNumber} copy`
-          : "Copy",
+          ? t("project.copySuffix", { number: source.projectNumber })
+          : t("project.copy"),
       });
       if (!result.project) {
         throw new Error(
           diagnosticText(result.diagnostics) ||
-            "The source project is missing.",
+            t("project.error.sourceMissing"),
         );
       }
       discardUnsavedPlannerChanges();
@@ -595,31 +626,35 @@ export function PlannerProjectWorkspace({
       setSelectedProject(result.project);
       setActiveStage(planningStageForProject(result.project));
       setStatusMessage(
-        `Project duplicated as "${projectLabel(result.project)}".`,
+        t("project.status.duplicated", {
+          name: projectLabel(result.project, t),
+        }),
       );
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to duplicate project", cause);
       setError(
         cause instanceof Error
-          ? `Duplicate failed: ${cause.message}`
-          : "Duplicate failed.",
+          ? t("project.error.duplicateFailed", { message: cause.message })
+          : t("project.error.duplicateFailedGeneric"),
       );
     }
   };
 
   const saveAs = async (id: string) => {
     const source = libraryProject(id);
-    if (!source || !confirmDiscardUnsaved("Save this project as a copy")) {
+    if (!source || !confirmDiscardUnsaved(t("project.action.saveAs"))) {
       return;
     }
     const projectNumber = window.prompt(
-      "Line number for the new copy",
-      source.projectNumber ? `${source.projectNumber} copy` : "New line",
+      t("project.prompt.lineNumber"),
+      source.projectNumber
+        ? t("project.copySuffix", { number: source.projectNumber })
+        : t("project.newLine"),
     );
     if (projectNumber === null) return;
     const productNumber = window.prompt(
-      "Product number for the new copy",
+      t("project.prompt.productNumber"),
       source.productNumber,
     );
     if (productNumber === null) return;
@@ -636,14 +671,16 @@ export function PlannerProjectWorkspace({
       setSelectedId(saved.id);
       setSelectedProject(saved);
       setActiveStage(planningStageForProject(saved));
-      setStatusMessage(`Project saved as "${projectLabel(saved)}".`);
+      setStatusMessage(
+        t("project.status.savedAs", { name: projectLabel(saved, t) }),
+      );
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to save project as", cause);
       setError(
         cause instanceof Error
-          ? `Save as failed: ${cause.message}`
-          : "Save as failed.",
+          ? t("project.error.saveAsFailed", { message: cause.message })
+          : t("project.error.saveAsFailedGeneric"),
       );
     }
   };
@@ -658,7 +695,7 @@ export function PlannerProjectWorkspace({
       isOpen &&
       hasUnsavedChanges &&
       !window.confirm(
-        `Delete "${projectLabel(target)}" and discard unsaved planner changes?`,
+        t("project.confirm.deleteOpen", { name: projectLabel(target, t) }),
       )
     ) {
       return;
@@ -667,7 +704,7 @@ export function PlannerProjectWorkspace({
     setStatusMessage(null);
     try {
       const deleted = await repository.deleteProject(target.id);
-      if (!deleted) throw new Error("The project no longer exists.");
+      if (!deleted) throw new Error(t("project.error.projectGone"));
       if (isOpen) {
         discardUnsavedPlannerChanges();
         setGeneratorLaunchRequest(null);
@@ -675,14 +712,16 @@ export function PlannerProjectWorkspace({
         setSelectedProject(null);
         setSelectedId(null);
       }
-      setStatusMessage(`Project "${projectLabel(target)}" deleted.`);
+      setStatusMessage(
+        t("project.status.deleted", { name: projectLabel(target, t) }),
+      );
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to delete project", cause);
       setError(
         cause instanceof Error
-          ? `Delete failed: ${cause.message}`
-          : "Delete failed.",
+          ? t("project.error.deleteFailed", { message: cause.message })
+          : t("project.error.deleteFailedGeneric"),
       );
     }
   };
@@ -692,13 +731,17 @@ export function PlannerProjectWorkspace({
     if (!target) return;
     setError(null);
     setStatusMessage(null);
-    const result = libraryRobDownload(target);
+    const result = libraryRobDownload(target, t);
     if (!result.ok) {
-      setError(`.rob download failed: ${result.message}`);
+      setError(
+        t("project.error.robDownloadFailed", { message: result.message }),
+      );
       return;
     }
     downloadText(result.text, result.fileName);
-    setStatusMessage(`Downloaded ${result.fileName}.`);
+    setStatusMessage(
+      t("project.status.downloaded", { fileName: result.fileName }),
+    );
   };
 
   const exportProjects = async (
@@ -723,21 +766,21 @@ export function PlannerProjectWorkspace({
       }
       downloadJson(
         selection === "selected"
-          ? `${selectedProject ? projectLabel(selectedProject) : "project"}.planner.json`
+          ? `${selectedProject ? projectLabel(selectedProject, t) : t("project.fallbackName")}.planner.json`
           : "planner-projects.json",
         result.json,
       );
       setStatusMessage(
         selection === "selected"
-          ? "Selected project and reusable resource library exported."
-          : "Project and reusable resource libraries exported.",
+          ? t("project.status.exportedSelected")
+          : t("project.status.exportedAll"),
       );
     } catch (cause) {
       console.error("Failed to export projects", cause);
       setError(
         cause instanceof Error
-          ? `Export failed: ${cause.message}`
-          : "Export failed.",
+          ? t("project.error.exportFailed", { message: cause.message })
+          : t("project.error.exportFailedGeneric"),
       );
     }
   };
@@ -764,7 +807,12 @@ export function PlannerProjectWorkspace({
       }
       if (result.projects.length > 0 || errors.length === 0) {
         setStatusMessage(
-          `Imported ${result.projects.length} project(s) and ${result.resources.length} resource(s); skipped ${result.skippedProjects} project(s) and ${result.skippedResources} resource(s).`,
+          t("project.status.imported", {
+            projects: result.projects.length,
+            resources: result.resources.length,
+            skippedProjects: result.skippedProjects,
+            skippedResources: result.skippedResources,
+          }),
         );
       }
       if (result.projects[0] && !hasUnsavedChanges) {
@@ -786,14 +834,14 @@ export function PlannerProjectWorkspace({
       console.error("Failed to import project package", cause);
       setError(
         cause instanceof Error
-          ? `Import failed: ${cause.message}`
-          : "Import failed.",
+          ? t("project.error.importFailed", { message: cause.message })
+          : t("project.error.importFailedGeneric"),
       );
     }
   };
 
   const importRobAsProject = async (file: File) => {
-    if (!confirmDiscardUnsaved("Open the .rob file as a project")) return;
+    if (!confirmDiscardUnsaved(t("project.action.openRob"))) return;
     discardUnsavedPlannerChanges();
     setError(null);
     setStatusMessage(null);
@@ -812,14 +860,19 @@ export function PlannerProjectWorkspace({
       const saved = await saveProject(project);
       setActiveStage(planningStageForProject(saved));
       setStatusMessage(
-        `Opened "${saved.source.kind === "rob-import" ? saved.source.fileName : file.name}" as the current plan.`,
+        t("project.status.robOpened", {
+          name:
+            saved.source.kind === "rob-import"
+              ? saved.source.fileName
+              : file.name,
+        }),
       );
     } catch (cause) {
       console.error("Failed to open .rob file", cause);
       setError(
         cause instanceof Error
-          ? `.rob import failed: ${cause.message}`
-          : ".rob import failed.",
+          ? t("project.error.robImportFailed", { message: cause.message })
+          : t("project.error.robImportFailedGeneric"),
       );
     }
   };
@@ -830,12 +883,10 @@ export function PlannerProjectWorkspace({
     multiPickAllowed,
   }: GeneratorPackageInputs): Promise<Project> => {
     if (!selectedProject) {
-      throw new Error("A current project is required before generation.");
+      throw new Error(t("project.error.projectRequired"));
     }
     if (editorDirty) {
-      throw new Error(
-        "Save or discard project editor changes before applying generator inputs.",
-      );
+      throw new Error(t("project.error.editorDirtyBeforeInputs"));
     }
     const current = selectedProject.package;
     if (
@@ -857,7 +908,15 @@ export function PlannerProjectWorkspace({
     });
     const saved = await saveProject(updated);
     setStatusMessage(
-      `Generator package inputs applied: ${dimensionsMm.length} × ${dimensionsMm.width} × ${dimensionsMm.height} mm · ${inletOrientation} infeed left to right · automatic multipick grouping ${multiPickAllowed ? "enabled" : "disabled"}.`,
+      t("project.status.generatorInputsApplied", {
+        length: dimensionsMm.length,
+        width: dimensionsMm.width,
+        height: dimensionsMm.height,
+        orientation: inletOrientation,
+        multipick: multiPickAllowed
+          ? t("project.enabled")
+          : t("project.disabled"),
+      }),
     );
     return saved;
   };
@@ -955,7 +1014,7 @@ export function PlannerProjectWorkspace({
   }, [robotMaterialization]);
   const robotCycleCount = robotMaterialization?.cycles.length ?? 0;
   const activeToolGate = activeTool
-    ? productionToolGate(activeTool, workspaceProject, robotCycleCount)
+    ? productionToolGate(activeTool, workspaceProject, robotCycleCount, t)
     : null;
   const savedCurrentPalletData = useMemo(() => {
     if (!workspaceProject) return null;
@@ -1048,6 +1107,7 @@ export function PlannerProjectWorkspace({
             resolvedRobotSettings,
             false,
             0,
+            t,
           ).filter(({ id }) => id !== "export")
         : [];
     const robotReadinessBlocked =
@@ -1089,14 +1149,16 @@ export function PlannerProjectWorkspace({
         ? [
             {
               id: "imported-plan",
-              label: "Imported plan",
+              label: t("project.ledger.importedPlan"),
               status: "OBSERVED" as const,
               evidence: "O" as const,
-              claim:
-                "The current geometry comes from the imported .rob file; a second reference plan is not required.",
+              claim: t("project.ledger.importedClaim"),
               detail: `${importedSource.fileName}${
                 currentPalletData
-                  ? `\n${currentPalletData.layer_count} layers · ${currentPalletData.total_boxes} packages`
+                  ? `\n${t("project.ledger.importedDetail", {
+                      layers: currentPalletData.layer_count,
+                      packages: currentPalletData.total_boxes,
+                    })}`
                   : ""
               }`,
             },
@@ -1104,28 +1166,31 @@ export function PlannerProjectWorkspace({
         : []),
       {
         id: "current-geometry",
-        label: "Current geometry",
+        label: t("project.ledger.currentGeometry"),
         status: currentGeometryStatus,
         evidence: selectedCandidate ? "G" : currentPreview ? "O" : "?",
         claim: selectedCandidate
           ? selectedCandidate.validation.valid
-            ? "The selected solver candidate passed internal geometry checks."
-            : "The selected solver candidate failed internal geometry checks."
+            ? t("project.ledger.candidatePassed")
+            : t("project.ledger.candidateFailed")
           : currentPreview
             ? importedSource
-              ? "The imported layer geometry is shown as the current plan."
-              : "A saved current layer is observable; solver validation was not rerun."
-            : "No current layer geometry is available.",
+              ? t("project.ledger.importedLayerShown")
+              : t("project.ledger.savedLayerObservable")
+            : t("project.ledger.noGeometry"),
         detail: selectedCandidate
           ? selectedCandidate.validation.issues
               .map(({ message }) => message)
               .join("\n") ||
-            `Candidate ${selectedCandidate.rank} · ${selectedCandidate.metrics.packageCount} packages`
+            t("project.ledger.candidateDetail", {
+              rank: selectedCandidate.rank,
+              packages: selectedCandidate.metrics.packageCount,
+            })
           : undefined,
       },
       {
         id: "robot-readiness",
-        label: "Robot readiness",
+        label: t("project.ledger.robotReadiness"),
         status: robotReadinessStatus,
         evidence:
           robotReadinessStatus === "PASS"
@@ -1135,23 +1200,22 @@ export function PlannerProjectWorkspace({
               : "?",
         claim:
           robotReadinessStatus === "PASS"
-            ? "Plan, equipment, pickup point, station workspace, and modeled obstacles passed the available internal checks."
+            ? t("project.ledger.robotPass")
             : robotReadinessStatus === "OBSERVED"
               ? observedEquipmentSelected
-                ? "The observed Multipack equipment profile is selected; current checks do not establish calibrated production readiness."
-                : "Robot checks completed with unverified or uncalibrated limitations."
+                ? t("project.ledger.robotObservedEquipment")
+                : t("project.ledger.robotObserved")
               : robotReadinessStatus === "SKIPPED"
-                ? "No robot-readiness pass is claimed because at least one workspace check was not run."
-                : "Complete the plan, equipment, pickup point, and station workspace checks before robot readiness can pass.",
+                ? t("project.ledger.robotSkipped")
+                : t("project.ledger.robotBlocked"),
         detail: robotReadinessDetail || undefined,
       },
       {
         id: "export-readiness",
-        label: "Export readiness",
+        label: t("project.ledger.exportReadiness"),
         status: "BLOCKED",
         evidence: "?",
-        claim:
-          "Production coordinate mapping, quantization, and unknown .rob fields require explicit review in Robotics.",
+        claim: t("project.ledger.exportClaim"),
       },
     ];
   }, [
@@ -1160,6 +1224,7 @@ export function PlannerProjectWorkspace({
     resolvedRobotSettings,
     robotMaterialization,
     selectedCandidate,
+    t,
     workspaceProject,
   ]);
 
@@ -1170,9 +1235,7 @@ export function PlannerProjectWorkspace({
     setStatusMessage(null);
     if (!workspaceProject || !solverInput) return "cancelled" as const;
     if (editorDirty) {
-      throw new Error(
-        "Save or discard project editor changes before replacing the active solution stack.",
-      );
+      throw new Error(t("project.error.editorDirtyBeforeStack"));
     }
     const activeSolution = workspaceProject.solutions.find(
       ({ id }) => id === workspaceProject.activeSolutionId,
@@ -1181,7 +1244,10 @@ export function PlannerProjectWorkspace({
     if (
       existingLayerCount > 0 &&
       !window.confirm(
-        `Gespeicherten Stapel (${existingLayerCount} Lagen) durch den aktuellen Entwurf (${materialized.packageLayers.length} Lagen) ersetzen?`,
+        t("project.confirm.replaceStack", {
+          existing: existingLayerCount,
+          draft: materialized.packageLayers.length,
+        }),
       )
     ) {
       return "cancelled" as const;
@@ -1204,7 +1270,10 @@ export function PlannerProjectWorkspace({
     setSelectedCandidateId(null);
     setCurrentLayerIndex(0);
     setStatusMessage(
-      `Stapel gespeichert: ${materialized.metrics.packages.totalPackageCount} Pakete auf ${materialized.packageLayers.length} Lagen.`,
+      t("project.status.stackSaved", {
+        packages: materialized.metrics.packages.totalPackageCount,
+        layers: materialized.packageLayers.length,
+      }),
     );
     await refreshProjects();
     if (generation !== navigationGeneration.current)
@@ -1217,7 +1286,7 @@ export function PlannerProjectWorkspace({
   };
 
   const createNew = () => {
-    if (!confirmDiscardUnsaved("Neuen Plan erstellen")) return;
+    if (!confirmDiscardUnsaved(t("project.action.createPlan"))) return;
     discardUnsavedPlannerChanges();
     createOriginRef.current = {
       screen: showWelcome
@@ -1238,7 +1307,7 @@ export function PlannerProjectWorkspace({
     setDialogMode("edit");
   };
   const browsePlans = () => {
-    if (!confirmDiscardUnsaved("Planliste öffnen")) return;
+    if (!confirmDiscardUnsaved(t("project.action.openPlanList"))) return;
     if (hasUnsavedChanges) discardUnsavedPlannerChanges();
     else navigationGeneration.current += 1;
     setShowWelcome(false);
@@ -1251,14 +1320,14 @@ export function PlannerProjectWorkspace({
         <button
           className="fable-logo"
           onClick={() => {
-            if (!confirmDiscardUnsaved("Startseite öffnen")) return;
+            if (!confirmDiscardUnsaved(t("project.action.openHome"))) return;
             if (hasUnsavedChanges) discardUnsavedPlannerChanges();
             else navigationGeneration.current += 1;
             setShowWelcome(true);
             setProjectDrawerOpen(false);
             setDialogMode("closed");
           }}
-          aria-label="Palettenplaner Startseite"
+          aria-label={t("shell.home")}
         >
           <svg viewBox="0 0 32 32" aria-hidden="true">
             <path d="M16 2 29 9 16 17 3 9Z" fill="var(--carton-top)" />
@@ -1266,23 +1335,23 @@ export function PlannerProjectWorkspace({
             <path d="M29 9 16 17 16 31 29 23Z" fill="var(--carton-right)" />
             <path d="M9 6 22 14" stroke="var(--carton-tape)" strokeWidth="3" />
           </svg>
-          Palettenplaner
+          {t("shell.appName")}
         </button>
         <span className="header-context">
           {showWelcome
             ? ""
             : projectDrawerOpen
-              ? "Planbibliothek"
+              ? t("shell.planLibrary")
               : dialogMode === "create"
-                ? "Neuer Plan"
+                ? t("shell.newPlan")
                 : workspaceProject
-                  ? projectLabel(workspaceProject)
-                  : "Neuer Plan"}
+                  ? projectLabel(workspaceProject, t)
+                  : t("shell.newPlan")}
         </span>
         <div className="header-actions">
           {!showWelcome && (
             <button className="text-action" onClick={browsePlans}>
-              Pläne
+              {t("shell.plans")}
             </button>
           )}
           {!showWelcome &&
@@ -1290,20 +1359,21 @@ export function PlannerProjectWorkspace({
             dialogMode === "closed" &&
             workspaceProject && (
               <details className="fable-tool-menu">
-                <summary>Bearbeiten & prüfen</summary>
+                <summary>{t("shell.editAndCheck")}</summary>
                 <div>
                   {(
                     [
-                      ["editor", "Muster-Editor"],
-                      ["robotics", "Robotik & Greifer"],
-                      ["simulation", "Simulation"],
-                      ["report", "Palettierblatt"],
+                      ["editor", t("shell.tool.editor")],
+                      ["robotics", t("shell.tool.robotics")],
+                      ["simulation", t("shell.tool.simulation")],
+                      ["report", t("shell.tool.report")],
                     ] as const
                   ).map(([tool, label]) => {
                     const gate = productionToolGate(
                       tool,
                       workspaceProject,
                       robotCycleCount,
+                      t,
                     );
                     return (
                       <button
@@ -1318,7 +1388,7 @@ export function PlannerProjectWorkspace({
                         {label}
                         {gate.ready ? null : (
                           <span>
-                            <span aria-hidden="true">Gesperrt</span>
+                            <span aria-hidden="true">{t("shell.locked")}</span>
                             <span className="sr-only">{gate.missing}</span>
                           </span>
                         )}
@@ -1328,6 +1398,7 @@ export function PlannerProjectWorkspace({
                 </div>
               </details>
             )}
+          <LanguageSwitcher />
         </div>
       </header>
       {routeReady && showWelcome && dialogMode === "closed" ? (
@@ -1362,9 +1433,7 @@ export function PlannerProjectWorkspace({
                   onBack={() => {
                     if (
                       stackDirty &&
-                      !window.confirm(
-                        "Anderes Muster wählen: Ungespeicherte Stapeländerungen gehen verloren, wenn Sie ein anderes Muster auswählen. Fortfahren?",
-                      )
+                      !window.confirm(t("project.confirm.changePattern"))
                     ) {
                       return;
                     }
@@ -1388,7 +1457,7 @@ export function PlannerProjectWorkspace({
             error={error}
             statusMessage={
               projectNeedsGeometryReview(workspaceProject)
-                ? GEOMETRY_REVIEW_MESSAGE
+                ? t("project.geometryReview")
                 : statusMessage
             }
             activeStage={resolvedStage}
@@ -1469,7 +1538,7 @@ export function PlannerProjectWorkspace({
 
       <CaseDrawer
         open={activeTool !== null}
-        title={activeTool ? productionToolTitles[activeTool] : "Werkzeug"}
+        title={activeTool ? toolTitles[activeTool] : t("project.tool.fallback")}
         onClose={closeProductionTool}
       >
         {activeToolGate && !activeToolGate.ready ? (
@@ -1588,18 +1657,22 @@ export function PlannerProjectWorkspace({
 
       <div className={dialogMode !== "closed" ? "fable-page" : undefined}>
         {dialogMode === "create" && (
-          <ol className="fable-steps" aria-label="Planungsschritte">
+          <ol className="fable-steps" aria-label={t("project.steps.label")}>
             <li aria-current="step">
               <span className="step-number">1</span>
-              <span className="step-name">Paket & Palette</span>
+              <span className="step-name">
+                {t("project.steps.packagePallet")}
+              </span>
             </li>
             <li>
               <span className="step-number">2</span>
-              <span className="step-name">Muster auswählen</span>
+              <span className="step-name">
+                {t("project.steps.pickPattern")}
+              </span>
             </li>
             <li>
               <span className="step-number">3</span>
-              <span className="step-name">Stapel aufbauen</span>
+              <span className="step-name">{t("project.steps.buildStack")}</span>
             </li>
           </ol>
         )}
@@ -1613,9 +1686,7 @@ export function PlannerProjectWorkspace({
           onClose={() => {
             if (
               !inputsDirtyRef.current ||
-              window.confirm(
-                "Eingaben schließen: Ungespeicherte Eingaben verwerfen?",
-              )
+              window.confirm(t("project.confirm.closeInputs"))
             ) {
               navigationGeneration.current += 1;
               setDialogMode("closed");
@@ -1644,9 +1715,7 @@ export function PlannerProjectWorkspace({
             if (
               changesGeometry &&
               (stackDirty || editorDirty) &&
-              !window.confirm(
-                "Geänderte Maße: Ungespeicherte Stapel- und Editoränderungen verwerfen?",
-              )
+              !window.confirm(t("project.confirm.changedDimensions"))
             ) {
               return "cancelled";
             }

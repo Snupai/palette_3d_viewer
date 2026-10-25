@@ -40,14 +40,14 @@ describe("PackageLabelFacePicker", () => {
   it("keeps the left-to-right infeed fixed while rotating the selected physical face", () => {
     render(<ControlledPicker />);
 
-    expect(screen.getByRole("radio", { name: "Lengthwise" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "Längs" })).toHaveProperty(
       "checked",
       true,
     );
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed top edge",
+          name: "Etikett am angezeigten Rand oben wählen",
         })
         .querySelector("span")
         ?.classList.contains("bg-brand"),
@@ -55,36 +55,36 @@ describe("PackageLabelFacePicker", () => {
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed bottom edge",
+          name: "Etikett am angezeigten Rand unten wählen",
         })
         .querySelector("span")
         ?.classList.contains("bg-brand"),
     ).toBe(false);
     expect(
       screen
-        .getByLabelText("Infeed direction: left to right")
+        .getByLabelText("Einlaufrichtung: von links nach rechts")
         .getAttribute("data-infeed-direction"),
     ).toBe("left-to-right");
 
-    fireEvent.click(screen.getByRole("radio", { name: "Crosswise" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Quer" }));
 
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed left edge",
+          name: "Etikett am angezeigten Rand links wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("true");
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed top edge",
+          name: "Etikett am angezeigten Rand oben wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("false");
     expect(
       screen
-        .getByLabelText("Infeed direction: left to right")
+        .getByLabelText("Einlaufrichtung: von links nach rechts")
         .getAttribute("data-infeed-direction"),
     ).toBe("left-to-right");
   });
@@ -104,22 +104,22 @@ describe("PackageLabelFacePicker", () => {
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed top edge",
+        name: "Etikett am angezeigten Rand oben wählen",
       }),
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed right edge",
+        name: "Etikett am angezeigten Rand rechts wählen",
       }),
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed bottom edge",
+        name: "Etikett am angezeigten Rand unten wählen",
       }),
     );
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed left edge",
+        name: "Etikett am angezeigten Rand links wählen",
       }),
     );
 
@@ -134,14 +134,16 @@ describe("PackageLabelFacePicker", () => {
     render(<ControlledPicker initialSide="right" />);
 
     expect(screen.queryByRole("combobox")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "No label" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kein Etikett" }));
 
     expect(
       screen
-        .getByRole("button", { name: "No label" })
+        .getByRole("button", { name: "Kein Etikett" })
         .getAttribute("aria-pressed"),
     ).toBe("true");
-    expect(screen.getByText("No nearest-edge label preference")).toBeTruthy();
+    expect(
+      screen.getByText("Keine Etikett-Präferenz für die nächste Kante"),
+    ).toBeTruthy();
   });
 
   it("uses native disabled radios and buttons while inputs are locked", () => {
@@ -169,32 +171,32 @@ describe("PackageLabelFacePicker", () => {
     render(<ControlledPicker />);
 
     const topButton = screen.getByRole("button", {
-      name: "Select label on displayed top edge",
+      name: "Etikett am angezeigten Rand oben wählen",
     });
     expect(topButton.className).toContain("h-11");
     expect(topButton.className).toContain("cursor-pointer");
     const rightButton = screen.getByRole("button", {
-      name: "Select label on displayed right edge",
+      name: "Etikett am angezeigten Rand rechts wählen",
     });
     expect(rightButton.className).toContain("w-11");
 
-    expect(screen.getByText("Top")).toBeTruthy();
-    expect(screen.getByText("Right")).toBeTruthy();
-    expect(screen.getByText("Bottom")).toBeTruthy();
-    expect(screen.getByText("Left")).toBeTruthy();
+    expect(screen.getByText("Oben")).toBeTruthy();
+    expect(screen.getByText("Rechts")).toBeTruthy();
+    expect(screen.getByText("Unten")).toBeTruthy();
+    expect(screen.getByText("Links")).toBeTruthy();
   });
 
   it("keeps orientation and face position distinguishable for square packages", () => {
     render(<ControlledPicker packageLengthMm={300} packageWidthMm={300} />);
 
-    fireEvent.click(screen.getByRole("radio", { name: "Crosswise" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Quer" }));
 
-    expect(screen.getByText("W →")).toBeTruthy();
+    expect(screen.getByText("B →")).toBeTruthy();
     expect(screen.getByText("L ↕")).toBeTruthy();
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed left edge",
+          name: "Etikett am angezeigten Rand links wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("true");

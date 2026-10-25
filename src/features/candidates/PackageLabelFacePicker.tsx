@@ -3,6 +3,7 @@
 import { useId } from "react";
 import type { Project } from "~/domain/project/projectSchema";
 import type { Side } from "~/domain/palletTypes";
+import { useT } from "~/i18n";
 
 export type PackageInletOrientation = Project["package"]["inletOrientation"];
 
@@ -71,25 +72,11 @@ const edgeLabelPositionClass: Record<Side, string> = {
   left: "top-1/2 -left-9 -translate-y-1/2",
 };
 
-const edgeLabelText: Record<Side, string> = {
-  top: "Top",
-  right: "Right",
-  bottom: "Bottom",
-  left: "Left",
-};
-
 const selectedEdgeInset: Record<Side, string> = {
   top: "inset 0 8px 0 var(--brand)",
   right: "inset -8px 0 0 var(--brand)",
   bottom: "inset 0 -8px 0 var(--brand)",
   left: "inset 8px 0 0 var(--brand)",
-};
-
-const physicalSideLabel: Record<Side, string> = {
-  top: "0° top face (+Y)",
-  right: "0° right face (+X)",
-  bottom: "0° bottom face (−Y)",
-  left: "0° left face (−X)",
 };
 
 function displayedEdgeForPackageSide(
@@ -132,6 +119,7 @@ export function PackageLabelFacePicker({
   onInletOrientationChange,
   onPackageSideChange,
 }: PackageLabelFacePickerProps) {
+  const t = useT();
   const radioName = useId();
   const packageSize = fittedPackageSize(
     packageLengthMm,
@@ -146,7 +134,7 @@ export function PackageLabelFacePicker({
     <div className="border-line bg-canvas grid gap-2 border p-2.5">
       <fieldset disabled={disabled} className="grid gap-1.5">
         <legend className="text-micro text-muted font-semibold">
-          Infeed orientation
+          {t("candidates.picker.infeedOrientation")}
         </legend>
         <div className="border-line bg-line grid grid-cols-2 gap-px overflow-hidden border">
           {(["lengthwise", "crosswise"] as const).map((orientation) => (
@@ -164,7 +152,9 @@ export function PackageLabelFacePicker({
                 className="peer sr-only"
               />
               <span className="peer-focus-visible:ring-focus block px-2 py-2 outline-none peer-focus-visible:ring-2 peer-focus-visible:ring-inset">
-                {orientation === "lengthwise" ? "Lengthwise" : "Crosswise"}
+                {orientation === "lengthwise"
+                  ? t("candidates.picker.lengthwise")
+                  : t("candidates.picker.crosswise")}
               </span>
             </label>
           ))}
@@ -173,7 +163,7 @@ export function PackageLabelFacePicker({
 
       <fieldset disabled={disabled} className="grid gap-2">
         <legend className="text-micro text-muted font-semibold">
-          Physical label face
+          {t("candidates.picker.physicalFace")}
         </legend>
         <div className="border-line bg-canvas relative flex h-40 items-center justify-center overflow-hidden border">
           <div
@@ -203,8 +193,16 @@ export function PackageLabelFacePicker({
               aria-hidden="true"
               className="text-micro text-muted grid place-items-center gap-0.5 font-mono leading-none"
             >
-              <span>{inletOrientation === "lengthwise" ? "L →" : "W →"}</span>
-              <span>{inletOrientation === "lengthwise" ? "W ↕" : "L ↕"}</span>
+              <span>
+                {inletOrientation === "lengthwise"
+                  ? t("candidates.picker.infeedLength")
+                  : t("candidates.picker.infeedWidth")}
+              </span>
+              <span>
+                {inletOrientation === "lengthwise"
+                  ? t("candidates.picker.acrossWidth")
+                  : t("candidates.picker.acrossLength")}
+              </span>
             </div>
 
             {displayedEdges.map((displayedEdge) => {
@@ -219,14 +217,18 @@ export function PackageLabelFacePicker({
                       selected ? "text-ink font-bold" : "text-muted"
                     }`}
                   >
-                    {edgeLabelText[displayedEdge]}
+                    {t(`candidates.picker.edgeLabel.${displayedEdge}`)}
                   </span>
                   <button
                     type="button"
                     disabled={disabled}
-                    aria-label={`Select label on displayed ${displayedEdge} edge`}
+                    aria-label={t("candidates.picker.selectEdge", {
+                      edge: t(`candidates.picker.edgeName.${displayedEdge}`),
+                    })}
                     aria-pressed={selected}
-                    title={`Physical package face: ${physicalSideLabel[packageSide]}`}
+                    title={t("candidates.picker.faceTitle", {
+                      face: t(`candidates.picker.physicalSide.${packageSide}`),
+                    })}
                     onClick={() => onPackageSideChange(packageSide)}
                     className={`${edgePositionClass[displayedEdge]} group focus-visible:ring-focus absolute z-10 cursor-pointer outline-none focus-visible:ring-2 disabled:cursor-not-allowed`}
                   >
@@ -245,12 +247,12 @@ export function PackageLabelFacePicker({
           </div>
 
           <div
-            aria-label="Infeed direction: left to right"
+            aria-label={t("candidates.picker.infeedDirectionAria")}
             data-infeed-direction="left-to-right"
             className="text-micro text-muted absolute right-2 bottom-1.5 left-2 flex items-center justify-between font-mono"
           >
-            <span>Infeed</span>
-            <span aria-hidden="true">Left → right</span>
+            <span>{t("candidates.picker.infeed")}</span>
+            <span aria-hidden="true">{t("candidates.picker.leftToRight")}</span>
           </div>
         </div>
 
@@ -262,8 +264,15 @@ export function PackageLabelFacePicker({
             }`}
           >
             {selectedPackageSide && selectedDisplayedEdge
-              ? `${physicalSideLabel[selectedPackageSide]} · shown on ${selectedDisplayedEdge} edge`
-              : "No nearest-edge label preference"}
+              ? t("candidates.picker.selectedSummary", {
+                  face: t(
+                    `candidates.picker.physicalSide.${selectedPackageSide}`,
+                  ),
+                  edge: t(
+                    `candidates.picker.edgeName.${selectedDisplayedEdge}`,
+                  ),
+                })
+              : t("candidates.picker.noPreference")}
           </p>
           <button
             type="button"
@@ -274,7 +283,7 @@ export function PackageLabelFacePicker({
               selectedPackageSide === null ? "ui-btn-primary" : "ui-btn"
             } text-micro min-h-7 px-2`}
           >
-            No label
+            {t("candidates.picker.noLabel")}
           </button>
         </div>
       </fieldset>

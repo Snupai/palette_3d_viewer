@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { z } from "zod";
+import { useT } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
 import { PackageLabelFacePicker } from "~/features/candidates/PackageLabelFacePicker";
 import { GuidedProjectForm } from "~/features/project/GuidedProjectForm";
@@ -107,6 +108,7 @@ function ModalProjectDialog({
   onClose,
   onSave,
 }: Omit<ProjectDialogProps, "inline" | "initialSection" | "onDirtyChange">) {
+  const t = useT();
   const titleId = useId();
   const firstInputRef = useRef<HTMLInputElement>(null);
   const previouslyFocusedRef = useRef<HTMLElement | null>(null);
@@ -178,11 +180,9 @@ function ModalProjectDialog({
         (!Number.isInteger(packageCount) || packageCount <= 0)
       ) {
         setFieldErrors({
-          exactPackageCount: "Enter a positive whole number.",
+          exactPackageCount: t("projectForm.dialog.positiveWholeNumber"),
         });
-        setFailure(
-          "Enter the exact packages per layer, or choose Save project.",
-        );
+        setFailure(t("projectForm.dialog.enterExactCount"));
         return;
       }
 
@@ -197,13 +197,15 @@ function ModalProjectDialog({
     } catch (cause) {
       if (cause instanceof z.ZodError) {
         setFieldErrors(zodFieldErrors(cause));
-        setFailure("Correct the marked project fields before saving.");
+        setFailure(t("projectForm.dialog.correctFields"));
       } else {
         console.error("Failed to save planner project", cause);
         setFailure(
           cause instanceof Error
-            ? `Project save failed: ${cause.message}`
-            : "Project save failed.",
+            ? t("projectForm.dialog.saveFailedWithReason", {
+                reason: cause.message,
+              })
+            : t("projectForm.dialog.saveFailed"),
         );
       }
     } finally {
@@ -237,7 +239,9 @@ function ModalProjectDialog({
         >
           <header className="border-line bg-surface flex shrink-0 items-center justify-between border-b px-5 py-4">
             <h2 id={titleId} className="text-ink text-base font-semibold">
-              {project ? "Edit project" : "Create project"}
+              {project
+                ? t("projectForm.dialog.editProject")
+                : t("projectForm.dialog.createProject")}
             </h2>
             <button
               type="button"
@@ -245,7 +249,7 @@ function ModalProjectDialog({
               disabled={saving}
               className="ui-btn text-body px-2.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              Close
+              {t("projectForm.dialog.close")}
             </button>
           </header>
 
@@ -278,11 +282,11 @@ function ModalProjectDialog({
 
               <fieldset className="border-line grid gap-3 border p-4">
                 <legend className="text-ink text-body px-1 font-semibold">
-                  Line and product
+                  {t("projectForm.dialog.legendLineProduct")}
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field
-                    label="Product number"
+                    label={t("projectForm.dialog.productNumber")}
                     error={errorFor(fieldErrors, "productNumber")}
                   >
                     <input
@@ -292,11 +296,11 @@ function ModalProjectDialog({
                         set("productNumber", event.target.value)
                       }
                       className={inputClass}
-                      placeholder="1329-00004"
+                      placeholder={t("projectForm.dialog.productPlaceholder")}
                     />
                   </Field>
                   <Field
-                    label="Line number"
+                    label={t("projectForm.dialog.lineNumber")}
                     error={errorFor(fieldErrors, "projectNumber")}
                   >
                     <input
@@ -305,7 +309,7 @@ function ModalProjectDialog({
                         set("projectNumber", event.target.value)
                       }
                       className={inputClass}
-                      placeholder="AP-5006"
+                      placeholder={t("projectForm.dialog.linePlaceholder")}
                     />
                   </Field>
                 </div>
@@ -313,11 +317,11 @@ function ModalProjectDialog({
 
               <fieldset className="border-line grid gap-3 border p-4">
                 <legend className="text-ink text-body px-1 font-semibold">
-                  Cuboid package
+                  {t("projectForm.dialog.legendCuboid")}
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
                   <Field
-                    label="Length (mm)"
+                    label={t("projectForm.dialog.lengthMm")}
                     error={errorFor(fieldErrors, "package.dimensionsMm.length")}
                   >
                     <input
@@ -332,7 +336,7 @@ function ModalProjectDialog({
                     />
                   </Field>
                   <Field
-                    label="Width (mm)"
+                    label={t("projectForm.dialog.widthMm")}
                     error={errorFor(fieldErrors, "package.dimensionsMm.width")}
                   >
                     <input
@@ -347,7 +351,7 @@ function ModalProjectDialog({
                     />
                   </Field>
                   <Field
-                    label="Height (mm)"
+                    label={t("projectForm.dialog.heightMm")}
                     error={errorFor(fieldErrors, "package.dimensionsMm.height")}
                   >
                     <input
@@ -363,7 +367,7 @@ function ModalProjectDialog({
                   </Field>
                   {project === null ? (
                     <Field
-                      label="Packages per layer"
+                      label={t("projectForm.dialog.packagesPerLayer")}
                       error={errorFor(fieldErrors, "exactPackageCount")}
                     >
                       <input
@@ -376,12 +380,12 @@ function ModalProjectDialog({
                           setFieldErrors({});
                         }}
                         className={inputClass}
-                        placeholder="Required to generate"
+                        placeholder={t("projectForm.dialog.requiredToGenerate")}
                       />
                     </Field>
                   ) : null}
                   <Field
-                    label="Clearance (mm)"
+                    label={t("projectForm.dialog.clearanceMm")}
                     error={errorFor(fieldErrors, "package.clearanceMm")}
                   >
                     <input
@@ -400,10 +404,10 @@ function ModalProjectDialog({
 
               <fieldset className="border-line grid gap-3 border p-4">
                 <legend className="text-ink text-body px-1 font-semibold">
-                  Pallet and load envelope
+                  {t("projectForm.dialog.legendPallet")}
                 </legend>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  <Field label="Pallet template">
+                  <Field label={t("projectForm.dialog.palletTemplate")}>
                     <select
                       value={values.palletKind}
                       onChange={(event) => {
@@ -416,7 +420,9 @@ function ModalProjectDialog({
                             palletId: current.palletId.startsWith("pallet-")
                               ? ""
                               : current.palletId,
-                            palletName: current.palletName || "Custom pallet",
+                            palletName:
+                              current.palletName ||
+                              t("projectForm.dialog.customPallet"),
                           }));
                         } else {
                           setValues((current) =>
@@ -427,13 +433,19 @@ function ModalProjectDialog({
                       }}
                       className={inputClass}
                     >
-                      <option value="euro">EURO pallet</option>
-                      <option value="industrial">Industrial pallet</option>
-                      <option value="custom">Custom pallet</option>
+                      <option value="euro">
+                        {t("projectForm.dialog.euroPallet")}
+                      </option>
+                      <option value="industrial">
+                        {t("projectForm.dialog.industrialPallet")}
+                      </option>
+                      <option value="custom">
+                        {t("projectForm.dialog.customPallet")}
+                      </option>
                     </select>
                   </Field>
                   <Field
-                    label="Pallet name"
+                    label={t("projectForm.dialog.palletName")}
                     error={errorFor(fieldErrors, "pallet.name")}
                   >
                     <input
@@ -445,7 +457,7 @@ function ModalProjectDialog({
                     />
                   </Field>
                   <Field
-                    label="Pallet ID"
+                    label={t("projectForm.dialog.palletId")}
                     error={errorFor(fieldErrors, "pallet.id")}
                   >
                     <input
@@ -453,13 +465,13 @@ function ModalProjectDialog({
                       onChange={(event) => set("palletId", event.target.value)}
                       disabled={values.palletKind !== "custom"}
                       className={`${inputClass} disabled:text-muted disabled:cursor-not-allowed`}
-                      placeholder="Generated when saved"
+                      placeholder={t("projectForm.dialog.generatedWhenSaved")}
                     />
                   </Field>
                 </div>
                 <div className="grid gap-3 sm:grid-cols-3">
                   <Field
-                    label="Pallet length (mm)"
+                    label={t("projectForm.dialog.palletLengthMm")}
                     error={errorFor(fieldErrors, "pallet.dimensionsMm.length")}
                   >
                     <input
@@ -473,7 +485,7 @@ function ModalProjectDialog({
                     />
                   </Field>
                   <Field
-                    label="Pallet width (mm)"
+                    label={t("projectForm.dialog.palletWidthMm")}
                     error={errorFor(fieldErrors, "pallet.dimensionsMm.width")}
                   >
                     <input
@@ -487,7 +499,7 @@ function ModalProjectDialog({
                     />
                   </Field>
                   <Field
-                    label="Pallet height (mm)"
+                    label={t("projectForm.dialog.palletHeightMm")}
                     error={errorFor(fieldErrors, "pallet.dimensionsMm.height")}
                   >
                     <input
@@ -509,12 +521,12 @@ function ModalProjectDialog({
                 className="border-line border p-4"
               >
                 <summary className="text-ink text-body cursor-pointer font-semibold">
-                  Advanced settings
+                  {t("projectForm.dialog.advanced")}
                 </summary>
                 <div className="mt-3 grid gap-3">
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <Field
-                      label="Weight (kg)"
+                      label={t("projectForm.dialog.weightKg")}
                       error={errorFor(fieldErrors, "package.weightKg")}
                     >
                       <input
@@ -526,11 +538,11 @@ function ModalProjectDialog({
                           set("packageWeightKg", event.target.value)
                         }
                         className={inputClass}
-                        placeholder="Unknown"
+                        placeholder={t("projectForm.dialog.unknown")}
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang length total (mm)"
+                      label={t("projectForm.dialog.overhangLengthTotalMm")}
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.length",
@@ -547,7 +559,7 @@ function ModalProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Overhang / underhang width total (mm)"
+                      label={t("projectForm.dialog.overhangWidthTotalMm")}
                       error={errorFor(
                         fieldErrors,
                         "pallet.allowedOverhangMm.width",
@@ -564,7 +576,7 @@ function ModalProjectDialog({
                       />
                     </Field>
                     <Field
-                      label="Pallet tare (kg)"
+                      label={t("projectForm.dialog.tareKg")}
                       error={errorFor(fieldErrors, "pallet.tareKg")}
                     >
                       <input
@@ -574,11 +586,11 @@ function ModalProjectDialog({
                         value={values.tareKg}
                         onChange={(event) => set("tareKg", event.target.value)}
                         className={inputClass}
-                        placeholder="Unknown"
+                        placeholder={t("projectForm.dialog.unknown")}
                       />
                     </Field>
                     <Field
-                      label="Maximum gross (kg)"
+                      label={t("projectForm.dialog.maxGrossKg")}
                       error={errorFor(fieldErrors, "pallet.maxGrossKg")}
                     >
                       <input
@@ -590,7 +602,7 @@ function ModalProjectDialog({
                           set("maxGrossKg", event.target.value)
                         }
                         className={inputClass}
-                        placeholder="Unknown"
+                        placeholder={t("projectForm.dialog.unknown")}
                       />
                     </Field>
                   </div>
@@ -603,12 +615,12 @@ function ModalProjectDialog({
                       }
                       className="accent-brand h-4 w-4"
                     />
-                    Limit the load with a storage envelope
+                    {t("projectForm.dialog.limitEnvelope")}
                   </label>
                   {values.hasStorageEnvelope ? (
                     <div className="grid gap-3 sm:grid-cols-3">
                       <Field
-                        label="Envelope length (mm)"
+                        label={t("projectForm.dialog.envelopeLengthMm")}
                         error={errorFor(
                           fieldErrors,
                           "pallet.storageEnvelopeMm.length",
@@ -625,7 +637,7 @@ function ModalProjectDialog({
                         />
                       </Field>
                       <Field
-                        label="Envelope width (mm)"
+                        label={t("projectForm.dialog.envelopeWidthMm")}
                         error={errorFor(
                           fieldErrors,
                           "pallet.storageEnvelopeMm.width",
@@ -642,7 +654,7 @@ function ModalProjectDialog({
                         />
                       </Field>
                       <Field
-                        label="Envelope height (mm)"
+                        label={t("projectForm.dialog.envelopeHeightMm")}
                         error={errorFor(
                           fieldErrors,
                           "pallet.storageEnvelopeMm.height",
@@ -690,7 +702,7 @@ function ModalProjectDialog({
                         }
                         className="accent-brand h-4 w-4"
                       />
-                      Allow multipick
+                      {t("projectForm.dialog.allowMultipick")}
                     </label>
                   </div>
                 </div>
@@ -705,7 +717,7 @@ function ModalProjectDialog({
               disabled={saving}
               className="ui-btn text-body px-3 py-2 disabled:opacity-50"
             >
-              Cancel
+              {t("projectForm.dialog.cancel")}
             </button>
             {project === null ? (
               <button
@@ -715,7 +727,7 @@ function ModalProjectDialog({
                 disabled={saving || readingSheet}
                 className="ui-btn text-body px-3 py-2 disabled:cursor-wait disabled:opacity-50"
               >
-                Save project
+                {t("projectForm.dialog.saveProject")}
               </button>
             ) : null}
             <button
@@ -726,10 +738,10 @@ function ModalProjectDialog({
               className="ui-btn-primary text-body px-3 py-2 disabled:cursor-wait"
             >
               {saving
-                ? "Saving…"
+                ? t("projectForm.dialog.saving")
                 : project
-                  ? "Save project"
-                  : "Save and generate patterns"}
+                  ? t("projectForm.dialog.saveProject")
+                  : t("projectForm.dialog.saveAndGenerate")}
             </button>
           </footer>
         </form>

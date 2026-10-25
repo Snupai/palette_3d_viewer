@@ -1,4 +1,5 @@
 import type { PalletData } from "~/domain/palletTypes";
+import { useT } from "~/i18n";
 import { PlanRender } from "./PlanRender";
 
 /** Entry illustration only; saved-plan thumbnails always use repository data. */
@@ -44,49 +45,50 @@ export function PlannerWelcome({
   onResume?: () => void;
   planCount: number;
 }) {
+  const t = useT();
   return (
     <div className="fable-page fable-welcome">
       <header className="page-intro">
-        <h1>Womit möchten Sie beginnen?</h1>
+        <h1>{t("planner.welcome.title")}</h1>
       </header>
       <div className="welcome-doors">
         <button className="welcome-door" onClick={onCreate}>
           <div>
-            <h2>Neuen Plan erstellen</h2>
+            <h2>{t("planner.welcome.createTitle")}</h2>
           </div>
           <PlanRender
             emptyPackage={{ length: 400, width: 300, height: 260 }}
-            title="Ein Paket auf einer leeren Palette"
+            title={t("planner.welcome.createIllustration")}
           />
           <span className="door-foot">
-            <span>Schritt für Schritt zum Plan</span>
-            <strong className="primary-label">＋ Starten</strong>
+            <span>{t("planner.welcome.stepByStep")}</span>
+            <strong className="primary-label">
+              {t("planner.welcome.start")}
+            </strong>
           </span>
         </button>
         <button className="welcome-door" onClick={onBrowse}>
           <div>
-            <h2>Vorhandene Pläne ansehen</h2>
+            <h2>{t("planner.welcome.browseTitle")}</h2>
           </div>
           <div className="welcome-pallets">
             {illustrationStacks.map((data, i) => (
               <PlanRender
                 key={i}
                 data={data}
-                title="Illustration eines Palettenstapels"
+                title={t("planner.welcome.stackIllustration")}
               />
             ))}
           </div>
           <span className="door-foot">
-            <span>
-              {planCount} {planCount === 1 ? "Plan" : "Pläne"} lokal gespeichert
-            </span>
-            <strong>Öffnen</strong>
+            <span>{t("planner.welcome.plansSaved", { count: planCount })}</span>
+            <strong>{t("planner.open")}</strong>
           </span>
         </button>
       </div>
       {onResume && (
         <button className="text-action" onClick={onResume}>
-          Zum geöffneten Plan zurück
+          {t("planner.welcome.resume")}
         </button>
       )}
     </div>

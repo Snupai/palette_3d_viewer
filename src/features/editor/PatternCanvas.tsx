@@ -21,6 +21,7 @@ import {
   projectEditorEnvelope,
   type ProjectEditorGroup,
 } from "~/features/editor/editorModel";
+import { useT } from "~/i18n";
 
 type PointerState =
   | {
@@ -84,6 +85,7 @@ export function PatternCanvas({
   onDeleteSelection,
   onRotateSelection,
 }: PatternCanvasProps) {
+  const t = useT();
   const svgRef = useRef<SVGSVGElement>(null);
   const deltaArrowMarkerId = `pattern-grip-delta-arrow-${useId().replaceAll(":", "")}`;
   const [pointer, setPointer] = useState<PointerState | null>(null);
@@ -338,12 +340,11 @@ export function PatternCanvas({
   return (
     <div className="ed-canvas">
       <p className="sr-only" id="project-pattern-editor-instructions">
-        Paket anklicken, um es auszuwählen. Strg- oder Cmd-Klick wählt mehrere
-        Pakete, Shift-Ziehen auf freier Fläche zieht einen Auswahlrahmen.
+        {t("editor.canvas.instructions1")}
         {interactionMode === "edit"
-          ? "Pfeiltasten verschieben die Auswahl, mit Shift im groben Schritt. R dreht, Entf löscht."
-          : "In der Greifreihenfolge bleibt die Geometrie unverändert."}
-        Escape hebt die Auswahl auf.
+          ? t("editor.canvas.instructionsEdit")
+          : t("editor.canvas.instructionsSelect")}
+        {t("editor.canvas.instructionsEscape")}
       </p>
       <div
         className="ed-canvas-wrap"
@@ -356,7 +357,13 @@ export function PatternCanvas({
           viewBox={`${envelope.minX} ${envelope.minY} ${width} ${height}`}
           preserveAspectRatio="xMidYMid meet"
           role="application"
-          aria-label={`Draufsicht von ${pattern.name}, ${interactionMode === "select" ? "Greifauswahl" : "bearbeitbar"}`}
+          aria-label={t("editor.canvas.topView", {
+            name: pattern.name,
+            mode:
+              interactionMode === "select"
+                ? t("editor.canvas.modeSelect")
+                : t("editor.canvas.modeEdit"),
+          })}
           aria-describedby="project-pattern-editor-instructions"
           tabIndex={0}
           data-testid="project-pattern-canvas"
@@ -478,7 +485,17 @@ export function PatternCanvas({
                   role="button"
                   tabIndex={0}
                   aria-pressed={isSelected}
-                  aria-label={`Package ${placement.sequence + 1}, X ${placement.positionMm.x}, Y ${placement.positionMm.y}${group ? `, grip G${group.orderIndex + 1}` : ", ungrouped"}`}
+                  aria-label={t(
+                    group
+                      ? "editor.canvas.packageLabel"
+                      : "editor.canvas.packageLabelUngrouped",
+                    {
+                      n: placement.sequence + 1,
+                      x: placement.positionMm.x,
+                      y: placement.positionMm.y,
+                      grip: group ? group.orderIndex + 1 : "",
+                    },
+                  )}
                   fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
                   stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
                   strokeWidth={isSelected ? 3 : 1.5}

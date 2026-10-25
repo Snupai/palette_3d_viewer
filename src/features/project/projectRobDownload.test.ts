@@ -1,5 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
+import { translateDe } from "~/i18n";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
 import {
   hasRobPlan,
@@ -116,7 +117,7 @@ describe("libraryRobDownload", () => {
     expect(planningStageForProject(changed)).toBe("generate");
     expect(productionToolGate("robotics", changed, 3).ready).toBe(false);
     expect(productionToolGate("simulation", changed, 3).ready).toBe(false);
-    expect(libraryRobDownload(changed).ok).toBe(false);
+    expect(libraryRobDownload(changed, translateDe).ok).toBe(false);
     const metadata = updateProject(original, {
       productNumber: "New name",
       package: { ...original.package, weightKg: 5 },
@@ -132,7 +133,7 @@ describe("libraryRobDownload", () => {
       { package: changed.package },
     );
     expect(importedChanged.source).toEqual(source);
-    expect(libraryRobDownload(importedChanged)).toEqual({
+    expect(libraryRobDownload(importedChanged, translateDe)).toEqual({
       ok: true,
       fileName: "original.rob",
       text: robText,
@@ -140,7 +141,7 @@ describe("libraryRobDownload", () => {
   });
 
   it("returns the imported file verbatim under its original name", () => {
-    expect(libraryRobDownload(imported(robText))).toEqual({
+    expect(libraryRobDownload(imported(robText), translateDe)).toEqual({
       ok: true,
       fileName: "line-7.rob",
       text: robText,
@@ -148,13 +149,14 @@ describe("libraryRobDownload", () => {
   });
 
   it("explains why nothing can be downloaded", () => {
-    expect(libraryRobDownload(imported())).toEqual({
+    expect(libraryRobDownload(imported(), translateDe)).toEqual({
       ok: false,
-      message: "This project keeps no .rob file text.",
+      message: "Dieses Projekt enthält keinen .rob-Dateitext.",
     });
-    expect(libraryRobDownload(stacked(0))).toEqual({
+    expect(libraryRobDownload(stacked(0), translateDe)).toEqual({
       ok: false,
-      message: "Save a stack for this project before downloading a .rob plan.",
+      message:
+        "Speichern Sie einen Stapel für dieses Projekt, bevor Sie einen .rob-Plan herunterladen.",
     });
   });
 });

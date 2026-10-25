@@ -1,0 +1,104 @@
+/** Namespace `planningCase` — German source strings. */
+export const planningCaseDe = {
+  // Workbench
+  "planningCase.loading3d": "3D-Ansicht wird geladen …",
+  "planningCase.yourLayer": "Ihre Lage",
+  "planningCase.packageAndPallet": "Paket & Palette",
+  "planningCase.previewTitle": "Vorschau des aktuellen Plans",
+  "planningCase.packagesPerLayerShort": "Pakete / Lage",
+  "planningCase.length": "Länge",
+  "planningCase.area": "Fläche",
+  "planningCase.width": "Breite",
+  "planningCase.cycles": "Zyklen",
+  "planningCase.height": "Höhe",
+  "planningCase.opening": "Plan wird geöffnet …",
+  "planningCase.stepsLabel": "Planungsschritte",
+  "planningCase.stepSelectPattern": "Muster auswählen",
+  "planningCase.stepFinishedPlan": "Fertiger Plan",
+  "planningCase.buildStack": "Stapel aufbauen",
+  "planningCase.diagnosticsSummary": "Diagnosen und weitere Ansichten",
+  "planningCase.searchDiagnostics": "Suchdiagnosen",
+  "planningCase.viewLayer3d": "Lage in 3D ansehen",
+  "planningCase.firstLayerPattern":
+    "Muster {rank} wird die erste Lage Ihres Stapels.",
+  "planningCase.selectAfterCalc":
+    "Wählen Sie nach der Berechnung ein Muster aus.",
+  "planningCase.viewSavedPlan": "Gespeicherten Plan ansehen",
+  "planningCase.changeInputs": "Eingaben ändern",
+  "planningCase.yourPalletPlan": "Ihr Palettenplan",
+  "planningCase.importedPlan": "Importierter Plan",
+  "planningCase.stackSaved": "Stapel gespeichert",
+  "planningCase.downloadRob": ".rob herunterladen",
+  "planningCase.overview": "Plan im Überblick",
+  "planningCase.packageLwh": "Paket L × B × H",
+  "planningCase.pallet": "Palette",
+  "planningCase.layers": "Lagen",
+  "planningCase.packagesTotal": "Pakete gesamt",
+  "planningCase.packagesPerLayer": "Pakete je Lage",
+  "planningCase.origin": "Herkunft",
+  "planningCase.robFile": ".rob-Datei",
+  "planningCase.planning": "Planung",
+  "planningCase.editPattern": "Muster bearbeiten",
+  "planningCase.viewPalletSheet": "Palettierblatt ansehen",
+  "planningCase.morePatterns": "Weitere Muster erzeugen",
+  "planningCase.editPlanData": "Planangaben bearbeiten",
+  "planningCase.checksSummary": "Prüfungen und Originaldatei",
+  "planningCase.newPalletPlan": "Neuer Palettenplan",
+  "planningCase.package": "Paket",
+  "planningCase.editDetails": "Angaben bearbeiten",
+  "planningCase.createNewPlan": "Neuen Plan erstellen",
+  "planningCase.continueToPatterns": "Weiter zu den Mustern",
+  // Finished stack 3D
+  "planningCase.finished3dLabel": "Fertige Palette in 3D",
+  "planningCase.pickLayerGrip": "Lage {layer} · Griff {grip}",
+  "planningCase.pickPackages": "{count} Pakete",
+  "planningCase.pickPackages_one": "{count} Pakete",
+  "planningCase.pickPackages_other": "{count} Pakete",
+  "planningCase.pickPlace": "Ablage X {x} / Y {y} / Z {z} mm",
+  "planningCase.pickEmpty":
+    "Paket auswählen, um Griff und Ablagekoordinaten zu prüfen.",
+  // Tool gates (model)
+  "planningCase.gate.noPlan": "Kein Plan ausgewählt.",
+  "planningCase.gate.toInputs": "Zu den Eingaben",
+  "planningCase.gate.geometryReview":
+    "Maße oder Handhabung wurden geändert. Gespeicherte Lösungen bleiben erhalten, müssen aber vor Robotik und Export neu aufgebaut und geprüft werden.",
+  "planningCase.gate.recalcPatterns": "Muster neu berechnen",
+  "planningCase.gate.editorNeedsStack":
+    "Der Muster-Editor benötigt einen gespeicherten Stapel mit mindestens einer Lage.",
+  "planningCase.gate.buildStack": "Stapel aufbauen",
+  "planningCase.gate.roboticsNeedsStack":
+    "Die Robotik benötigt einen gespeicherten Stapel. Dieser Plan hat noch keine Lagen.",
+  "planningCase.gate.simulationNeedsCycle":
+    "Die Simulation benötigt mindestens einen berechneten Robotik-Zyklus.",
+  "planningCase.gate.openRobotics": "Robotik-Prüfung öffnen",
+  // Chrome: candidate index
+  "planningCase.chrome.candidateLayouts": "Kandidaten-Layouts",
+  "planningCase.chrome.aheadOf": " vor #{rank}",
+  "planningCase.chrome.generatedLayouts": "Erzeugte Musterlayouts",
+  "planningCase.chrome.rank": "Rang",
+  "planningCase.chrome.pkgs": "Pkte",
+  "planningCase.chrome.util": "Nutzung",
+  "planningCase.chrome.cycles": "Zyklen",
+  "planningCase.chrome.geoCheck": "Geometrieprüfung",
+  "planningCase.chrome.geo": "Geo",
+  "planningCase.chrome.boundsMm": "Ausn. mm",
+  "planningCase.chrome.geometryOk": "Geometrie OK",
+  "planningCase.chrome.rejected": "Verworfen",
+  "planningCase.chrome.generateHint":
+    "Erzeugen Sie Muster, um die Kandidaten-Layouts zu füllen.",
+  "planningCase.chrome.showingSelectedPlusFirst":
+    "Zeigt den ausgewählten Kandidaten und die ersten {count} Kandidaten der Rangliste.",
+  "planningCase.chrome.showingFirst":
+    "Zeigt die ersten {count} Kandidaten der Rangliste.",
+  "planningCase.chrome.showMore": "Weitere Layouts anzeigen ({count})",
+  // Chrome: ledger
+  "planningCase.chrome.ledgerLabel": "Prüfprotokoll",
+  "planningCase.chrome.ledgerLegend":
+    "G generiert · O beobachtet · ? unbekannt",
+  // Chrome: layer strips
+  "planningCase.chrome.noLayerSequence": "Keine Lagenfolge",
+  "planningCase.chrome.interlayerBefore": "Zwischenlage davor",
+  "planningCase.chrome.layerSequences": "Lagenfolgen",
+  "planningCase.chrome.reference": "Referenz",
+  "planningCase.chrome.layers": "Lagen",
+} as const;

@@ -9,15 +9,15 @@ export type ResourceDiagnosticCategory =
   | "collision"
   | "export";
 
-export const categoryLabels: Record<ResourceDiagnosticCategory, string> = {
-  package: "Plan und Griffe",
-  gripper: "Greifer",
-  station: "Palettenstation",
-  reach: "Reichweite",
-  envelope: "Eingetragene Hüllräume",
-  collision: "Hindernisse",
-  export: "Export",
-};
+export const diagnosticCategories: readonly ResourceDiagnosticCategory[] = [
+  "package",
+  "gripper",
+  "station",
+  "reach",
+  "envelope",
+  "collision",
+  "export",
+];
 
 export function diagnosticCategory(
   diagnostic: RobotDiagnostic,

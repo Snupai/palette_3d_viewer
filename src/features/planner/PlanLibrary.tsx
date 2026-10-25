@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useLocale } from "~/i18n";
 import type { ProjectLibraryProps } from "~/features/project/ProjectLibrary";
 import { projectNeedsGeometryReview } from "~/features/planning-case/planningCaseModel";
 import { hasRobPlan } from "~/features/project/projectRobDownload";
@@ -14,6 +15,7 @@ import {
 export function PlanLibrary(
   p: ProjectLibraryProps & { onImportRob: (file: File) => void },
 ) {
+  const { t, tag } = useLocale();
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
@@ -51,22 +53,26 @@ export function PlanLibrary(
         {unit ? ` (${unit})` : ""}
       </legend>
       <label>
-        <span className="sr-only">{label} mindestens</span>
+        <span className="sr-only">
+          {t("planner.library.minimum", { label })}
+        </span>
         <input
           type="number"
           min="0"
-          placeholder="Von"
+          placeholder={t("planner.library.from")}
           value={filters[min]}
           onChange={(e) => set(min, e.target.value)}
         />
       </label>
       <span>–</span>
       <label>
-        <span className="sr-only">{label} höchstens</span>
+        <span className="sr-only">
+          {t("planner.library.maximum", { label })}
+        </span>
         <input
           type="number"
           min="0"
-          placeholder="Bis"
+          placeholder={t("planner.library.to")}
           value={filters[max]}
           onChange={(e) => set(max, e.target.value)}
         />
@@ -83,17 +89,20 @@ export function PlanLibrary(
     p.onProductNumberFilterChange("");
   };
   return (
-    <section className="fable-page plan-library" aria-label="Planbibliothek">
+    <section
+      className="fable-page plan-library"
+      aria-label={t("planner.library.label")}
+    >
       <header className="page-intro library-intro">
         <div>
-          <h1>Vorhandene Pläne</h1>
+          <h1>{t("planner.library.title")}</h1>
         </div>
         <div className="button-row">
           <button className="ui-btn" onClick={() => robInput.current?.click()}>
-            .rob öffnen
+            {t("planner.library.openRob")}
           </button>
           <button className="ui-btn-primary" onClick={p.onCreate}>
-            ＋ Neuer Plan
+            {t("planner.library.newPlan")}
           </button>
         </div>
       </header>
@@ -102,7 +111,7 @@ export function PlanLibrary(
         ref={robInput}
         type="file"
         accept=".rob,text/plain"
-        aria-label=".rob-Datei importieren"
+        aria-label={t("planner.library.importRobAria")}
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = "";
@@ -114,14 +123,14 @@ export function PlanLibrary(
           <span aria-hidden="true">⌕</span>
           <input
             type="search"
-            aria-label="Pläne durchsuchen"
-            placeholder="Artikel, Auftrag oder Dateiname suchen"
+            aria-label={t("planner.library.searchAria")}
+            placeholder={t("planner.library.searchPlaceholder")}
             value={p.search}
             onChange={(e) => p.onSearchChange(e.target.value)}
           />
         </label>
         <label className="sort-field">
-          <span className="sr-only">Sortieren</span>
+          <span className="sr-only">{t("planner.library.sort")}</span>
           <select
             value={`${p.sortBy}:${p.sortDirection}`}
             onChange={(e) => {
@@ -132,11 +141,21 @@ export function PlanLibrary(
               );
             }}
           >
-            <option value="updatedAt:desc">Zuletzt geändert</option>
-            <option value="createdAt:desc">Zuletzt erstellt</option>
-            <option value="productNumber:asc">Artikel A–Z</option>
-            <option value="projectNumber:asc">Auftrag A–Z</option>
-            <option value="updatedAt:asc">Älteste zuerst</option>
+            <option value="updatedAt:desc">
+              {t("planner.library.sortUpdated")}
+            </option>
+            <option value="createdAt:desc">
+              {t("planner.library.sortCreated")}
+            </option>
+            <option value="productNumber:asc">
+              {t("planner.library.sortProduct")}
+            </option>
+            <option value="projectNumber:asc">
+              {t("planner.library.sortProject")}
+            </option>
+            <option value="updatedAt:asc">
+              {t("planner.library.sortOldest")}
+            </option>
           </select>
         </label>
       </div>
@@ -146,40 +165,68 @@ export function PlanLibrary(
           open={filtersOpen}
           onToggle={(e) => setFiltersOpen(e.currentTarget.open)}
         >
-          <summary>Filter {filterCount ? `(${filterCount})` : ""}</summary>
+          <summary>
+            {t("planner.library.filter")}{" "}
+            {filterCount ? `(${filterCount})` : ""}
+          </summary>
           <div className="filter-content">
-            {range("Paketlänge", "lengthMin", "lengthMax", "mm")}
-            {range("Paketbreite", "widthMin", "widthMax", "mm")}
-            {range("Pakethöhe", "heightMin", "heightMax", "mm")}
-            {range("Lagen", "layersMin", "layersMax")}
-            {range("Pakete je Lage", "boxesMin", "boxesMax")}
+            {range(
+              t("planner.library.packageLength"),
+              "lengthMin",
+              "lengthMax",
+              "mm",
+            )}
+            {range(
+              t("planner.library.packageWidth"),
+              "widthMin",
+              "widthMax",
+              "mm",
+            )}
+            {range(
+              t("planner.library.packageHeight"),
+              "heightMin",
+              "heightMax",
+              "mm",
+            )}
+            {range(t("planner.library.layers"), "layersMin", "layersMax")}
+            {range(
+              t("planner.library.packagesPerLayer"),
+              "boxesMin",
+              "boxesMax",
+            )}
             <label>
-              Palette
+              {t("planner.library.pallet")}
               <select
                 value={filters.pallet}
                 onChange={(e) => set("pallet", e.target.value)}
               >
-                <option value="all">Alle Paletten</option>
-                <option value="euro">Euro</option>
-                <option value="industrial">Industrie</option>
-                <option value="custom">Eigene</option>
+                <option value="all">{t("planner.library.allPallets")}</option>
+                <option value="euro">{t("planner.library.palletEuro")}</option>
+                <option value="industrial">
+                  {t("planner.library.palletIndustrial")}
+                </option>
+                <option value="custom">
+                  {t("planner.library.palletCustom")}
+                </option>
               </select>
             </label>
             <label>
-              Herkunft
+              {t("planner.library.origin")}
               <select
                 value={filters.source}
                 onChange={(e) => set("source", e.target.value)}
               >
-                <option value="all">Alle Pläne</option>
-                <option value="new">Neu geplant</option>
-                <option value="rob-import">.rob importiert</option>
+                <option value="all">{t("planner.library.allPlans")}</option>
+                <option value="new">{t("planner.library.sourceNew")}</option>
+                <option value="rob-import">
+                  {t("planner.library.sourceRob")}
+                </option>
               </select>
             </label>
             <details className="library-extra">
-              <summary>Artikel und Auftrag</summary>
+              <summary>{t("planner.library.extraSummary")}</summary>
               <label>
-                Artikel
+                {t("planner.library.article")}
                 <input
                   value={p.productNumberFilter}
                   onChange={(e) =>
@@ -188,7 +235,7 @@ export function PlanLibrary(
                 />
               </label>
               <label>
-                Auftrag
+                {t("planner.library.order")}
                 <input
                   value={p.projectNumberFilter}
                   onChange={(e) =>
@@ -198,57 +245,62 @@ export function PlanLibrary(
               </label>
             </details>
             <button className="text-action" onClick={reset}>
-              Filter zurücksetzen
+              {t("planner.library.resetFilters")}
             </button>
           </div>
         </details>
         <div className="library-results">
           <p className="results-count" aria-live="polite">
             {p.loading
-              ? "Pläne werden geladen …"
-              : `${shown.length} ${shown.length === 1 ? "Plan" : "Pläne"}`}
+              ? t("planner.library.loading")
+              : t("planner.library.count", { count: shown.length })}
           </p>
           {!p.loading && shown.length === 0 && (
             <div className="library-empty">
               <PlanRender />
               <h2>
                 {p.projects.length || hasSearch
-                  ? "Kein passender Plan"
-                  : "Hier finden Ihre Pläne Platz"}
+                  ? t("planner.library.noMatch")
+                  : t("planner.library.emptyTitle")}
               </h2>
               <p>
                 {p.projects.length || hasSearch
-                  ? "Passen Sie die Filter an oder suchen Sie nach einem anderen Artikel."
-                  : "Erstellen Sie einen Plan oder öffnen Sie eine vorhandene .rob-Datei."}
+                  ? t("planner.library.noMatchText")
+                  : t("planner.library.emptyText")}
               </p>
               <button
                 className="ui-btn"
                 onClick={p.projects.length || hasSearch ? reset : p.onCreate}
               >
                 {p.projects.length || hasSearch
-                  ? "Alle Pläne anzeigen"
-                  : "Neuen Plan erstellen"}
+                  ? t("planner.library.showAll")
+                  : t("planner.library.createPlan")}
               </button>
             </div>
           )}
-          <div role="list" aria-label="Gespeicherte Pläne">
+          <div role="list" aria-label={t("planner.library.savedPlans")}>
             {shown.map(
               ({ project: pr, data, layerCount, total, perLayerLabel }) => {
                 const d = pr.package.dimensionsMm;
                 const title =
-                  pr.productNumber || pr.projectNumber || "Unbenannter Plan";
+                  pr.productNumber ||
+                  pr.projectNumber ||
+                  t("planner.library.untitled");
                 return (
                   <article key={pr.id} role="listitem" className="plan-row">
                     <button
                       className="plan-thumb"
                       onClick={() => p.onSelect(pr.id)}
-                      aria-label={`${title} öffnen`}
+                      aria-label={t("planner.library.openTitle", { title })}
                     >
                       <PlanRender
                         data={data}
                         emptyPackage={d}
                         palletSize={pr.pallet?.dimensionsMm}
-                        title={`${title}, ${layerCount} Lagen`}
+                        title={t("planner.library.thumbTitle", {
+                          title,
+                          count: layerCount,
+                        })}
                       />
                     </button>
                     <div className="plan-row-content">
@@ -258,42 +310,42 @@ export function PlanLibrary(
                         </button>
                         <span className="plan-origin">
                           {projectNeedsGeometryReview(pr)
-                            ? "Geometrie prüfen"
+                            ? t("planner.library.badgeReview")
                             : pr.source.kind === "rob-import"
-                              ? ".rob"
+                              ? t("planner.library.badgeRob")
                               : layerCount
-                                ? "Stapel"
-                                : "Entwurf"}
+                                ? t("planner.library.badgeStack")
+                                : t("planner.library.badgeDraft")}
                         </span>
                       </div>
                       <p className="plan-subtitle">
-                        {pr.projectNumber || "Ohne Auftrag"}
+                        {pr.projectNumber || t("planner.library.noOrder")}
                         {pr.source.kind === "rob-import"
                           ? ` · ${pr.source.fileName}`
                           : ""}
                       </p>
                       <dl className="plan-facts">
                         <div>
-                          <dt>Paket · L × B × H</dt>
+                          <dt>{t("planner.library.factPackage")}</dt>
                           <dd>
                             {d.length} × {d.width} × {d.height}{" "}
                             <small>mm</small>
                           </dd>
                         </div>
                         <div>
-                          <dt>Lagen</dt>
+                          <dt>{t("planner.library.layers")}</dt>
                           <dd>{layerCount || "–"}</dd>
                         </div>
                         <div>
-                          <dt>Pakete / Lage</dt>
+                          <dt>{t("planner.library.factPackagesPerLayer")}</dt>
                           <dd>{perLayerLabel}</dd>
                         </div>
                         <div>
-                          <dt>Gesamt</dt>
+                          <dt>{t("planner.library.factTotal")}</dt>
                           <dd>{total || "–"}</dd>
                         </div>
                         <div>
-                          <dt>Palette</dt>
+                          <dt>{t("planner.library.pallet")}</dt>
                           <dd>
                             {pr.pallet
                               ? `${pr.pallet.dimensionsMm.length} × ${pr.pallet.dimensionsMm.width}`
@@ -304,28 +356,28 @@ export function PlanLibrary(
                       </dl>
                       <div className="plan-row-bottom">
                         <span>
-                          {new Date(pr.updatedAt).toLocaleDateString("de-DE")}
+                          {new Date(pr.updatedAt).toLocaleDateString(tag)}
                         </span>
                         <details className="plan-actions">
-                          <summary>Weitere Aktionen</summary>
+                          <summary>{t("planner.library.moreActions")}</summary>
                           <div>
                             <button onClick={() => p.onEdit(pr.id)}>
-                              Angaben bearbeiten
+                              {t("planner.library.editDetails")}
                             </button>
                             <button onClick={() => p.onDuplicate(pr.id)}>
-                              Duplizieren
+                              {t("planner.library.duplicate")}
                             </button>
                             <button onClick={() => p.onSaveAs(pr.id)}>
-                              Als Kopie speichern
+                              {t("planner.library.saveCopy")}
                             </button>
                             <button onClick={() => p.onExportSelected(pr.id)}>
-                              Projekt exportieren
+                              {t("planner.library.exportProject")}
                             </button>
                             <button
                               className="text-danger"
                               onClick={() => setPendingDelete(pr.id)}
                             >
-                              Löschen
+                              {t("planner.library.delete")}
                             </button>
                           </div>
                         </details>
@@ -334,19 +386,21 @@ export function PlanLibrary(
                             className="ui-btn"
                             onClick={() => p.onDownloadRob(pr.id)}
                           >
-                            .rob herunterladen
+                            {t("planner.library.downloadRob")}
                           </button>
                         )}
                         <button
                           className="ui-btn-primary"
                           onClick={() => p.onSelect(pr.id)}
                         >
-                          Öffnen
+                          {t("planner.open")}
                         </button>
                       </div>
                       {pendingDelete === pr.id && (
                         <div className="inline-confirm" role="alert">
-                          <span>„{title}“ löschen?</span>
+                          <span>
+                            {t("planner.library.confirmDelete", { title })}
+                          </span>
                           <button
                             className="ui-btn ui-btn-danger"
                             onClick={() => {
@@ -354,13 +408,13 @@ export function PlanLibrary(
                               p.onDelete(pr.id);
                             }}
                           >
-                            Löschen
+                            {t("planner.library.delete")}
                           </button>
                           <button
                             className="ui-btn"
                             onClick={() => setPendingDelete(null)}
                           >
-                            Abbrechen
+                            {t("planner.library.cancel")}
                           </button>
                         </div>
                       )}
@@ -373,18 +427,18 @@ export function PlanLibrary(
         </div>
       </div>
       <details className="library-transfer">
-        <summary>Projekte importieren und sichern</summary>
+        <summary>{t("planner.library.transferSummary")}</summary>
         <div className="button-row">
           <button className="ui-btn" onClick={p.onExportAll}>
-            Alle Projekte exportieren
+            {t("planner.library.exportAll")}
           </button>
           <button className="ui-btn" onClick={() => jsonInput.current?.click()}>
-            Projektpaket importieren
+            {t("planner.library.importPackage")}
           </button>
         </div>
         <div className="filter-content">
           <label>
-            Bei gleichem Projekt
+            {t("planner.library.projectConflict")}
             <select
               value={p.projectConflictPolicy}
               onChange={(e) =>
@@ -394,13 +448,17 @@ export function PlanLibrary(
                 )
               }
             >
-              <option value="rename">Import umbenennen</option>
-              <option value="skip">Überspringen</option>
-              <option value="overwrite">Ersetzen</option>
+              <option value="rename">
+                {t("planner.library.policyRename")}
+              </option>
+              <option value="skip">{t("planner.library.policySkip")}</option>
+              <option value="overwrite">
+                {t("planner.library.policyOverwrite")}
+              </option>
             </select>
           </label>
           <label>
-            Bei gleichen Ressourcen
+            {t("planner.library.resourceConflict")}
             <select
               value={p.resourceConflictPolicy}
               onChange={(e) =>
@@ -410,9 +468,13 @@ export function PlanLibrary(
                 )
               }
             >
-              <option value="rename">Import umbenennen</option>
-              <option value="skip">Überspringen</option>
-              <option value="overwrite">Ersetzen</option>
+              <option value="rename">
+                {t("planner.library.policyRename")}
+              </option>
+              <option value="skip">{t("planner.library.policySkip")}</option>
+              <option value="overwrite">
+                {t("planner.library.policyOverwrite")}
+              </option>
             </select>
           </label>
         </div>

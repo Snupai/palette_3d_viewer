@@ -12,6 +12,7 @@ import {
   createViewerSceneController,
   type ViewerSceneController,
 } from "~/components/rob-viewer/sceneController";
+import { type MessageKey, useT } from "~/i18n";
 import { SCENE_THEME, hexToCss } from "~/components/rob-viewer/sceneTheme";
 import type {
   RobViewerHandle,
@@ -76,12 +77,13 @@ function unavailableCapture(): ViewerCaptureResult {
   };
 }
 
-const cameraPresetLabels: ReadonlyArray<readonly [ViewerCameraPreset, string]> =
-  [
-    ["top", "Draufsicht"],
-    ["front", "Vorne"],
-    ["right-top", "Schräg rechts"],
-  ];
+const cameraPresetLabelKeys: ReadonlyArray<
+  readonly [ViewerCameraPreset, MessageKey]
+> = [
+  ["top", "components.viewer.presetTop"],
+  ["front", "components.viewer.presetFront"],
+  ["right-top", "components.viewer.presetRightTop"],
+];
 
 export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
   function RobViewer(
@@ -103,6 +105,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
     },
     ref,
   ) {
+    const t = useT();
     const mountRef = useRef<HTMLDivElement>(null);
     const controllerRef = useRef<ViewerSceneController | null>(null);
     const onBoxSelectRef = useRef(onBoxSelect);
@@ -311,10 +314,10 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
         {showSceneControls ? (
           <div
             role="toolbar"
-            aria-label="3D-Ansicht"
+            aria-label={t("components.viewer.toolbar")}
             className="border-viewport-line bg-viewport absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 border p-1"
           >
-            {cameraPresetLabels.map(([preset, label]) => (
+            {cameraPresetLabelKeys.map(([preset, labelKey]) => (
               <button
                 key={preset}
                 type="button"
@@ -322,7 +325,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                 onClick={() => applyPreset(preset)}
                 className={controlClass(activeCameraPreset === preset)}
               >
-                {label}
+                {t(labelKey)}
               </button>
             ))}
             <span
@@ -340,7 +343,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
               }
               className={`${controlClass(topLayerLift > 0)} disabled:text-viewport-ink/30 disabled:cursor-not-allowed`}
             >
-              Oberste Lage anheben
+              {t("components.viewer.liftTopLayer")}
             </button>
             <button
               type="button"
@@ -348,7 +351,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
               onClick={() => setLabelsVisible((current) => !current)}
               className={controlClass(labelsVisible)}
             >
-              Lagennummern
+              {t("components.viewer.layerNumbers")}
             </button>
             {temporaryCalibration ? (
               <>
@@ -362,7 +365,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                   onClick={() => setCalibrationEnabled((current) => !current)}
                   className={controlClass(calibrationEnabled)}
                 >
-                  Calibrate
+                  {t("components.calibration.toggle")}
                 </button>
               </>
             ) : null}
@@ -370,7 +373,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
         ) : null}
         {calibrationEnabled && calibrationState ? (
           <section
-            aria-label="Temporary 3D calibration"
+            aria-label={t("components.calibration.panel")}
             data-testid="temporary-calibration-panel"
             data-calibration-values={calibrationValues}
             className="border-viewport-line bg-viewport/95 text-viewport-ink absolute bottom-2 left-2 z-20 w-[min(360px,calc(100%-1rem))] border p-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.1)] backdrop-blur"
@@ -378,17 +381,17 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-viewport-ink text-micro font-semibold">
-                  Temporary calibration
+                  {t("components.calibration.title")}
                 </h3>
                 <p className="text-micro text-viewport-ink/60 mt-0.5">
-                  Drag the 3D axes. Values are not saved.
+                  {t("components.calibration.hint")}
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setCalibrationEnabled(false)}
                 className="text-viewport-ink/60 hover:text-viewport-ink text-body px-1 leading-none"
-                aria-label="Close calibration"
+                aria-label={t("components.calibration.close")}
               >
                 ×
               </button>
@@ -405,7 +408,9 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                     calibrationState.activeTarget === target,
                   )}
                 >
-                  {target === "pallet" ? "Pallet + stack" : "Pickup"}
+                  {target === "pallet"
+                    ? t("components.calibration.targetPalletStack")
+                    : t("components.calibration.targetPickup")}
                 </button>
               ))}
               <span
@@ -424,21 +429,41 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
                   }
                   className={controlClass(calibrationState.mode === mode)}
                 >
-                  {mode === "translate" ? "Move" : "Rotate Z"}
+                  {mode === "translate"
+                    ? t("components.calibration.modeMove")
+                    : t("components.calibration.modeRotate")}
                 </button>
               ))}
             </div>
 
             <div className="border-viewport-line text-micro mt-2 grid grid-cols-[76px_repeat(4,minmax(0,1fr))] gap-x-2 gap-y-1 border-t pt-2 font-mono tabular-nums">
-              <span className="text-viewport-ink/50 font-sans">Object</span>
-              <span className="text-viewport-ink/50 text-right">X mm</span>
-              <span className="text-viewport-ink/50 text-right">Y mm</span>
-              <span className="text-viewport-ink/50 text-right">Z mm</span>
-              <span className="text-viewport-ink/50 text-right">Yaw°</span>
+              <span className="text-viewport-ink/50 font-sans">
+                {t("components.calibration.object")}
+              </span>
+              <span className="text-viewport-ink/50 text-right">
+                {t("components.calibration.xMm")}
+              </span>
+              <span className="text-viewport-ink/50 text-right">
+                {t("components.calibration.yMm")}
+              </span>
+              <span className="text-viewport-ink/50 text-right">
+                {t("components.calibration.zMm")}
+              </span>
+              <span className="text-viewport-ink/50 text-right">
+                {t("components.calibration.yaw")}
+              </span>
               {(
                 [
-                  ["Pallet", calibrationState.palletPose, "pallet"],
-                  ["Pickup", calibrationState.pickupPose, "pickup"],
+                  [
+                    t("components.calibration.pallet"),
+                    calibrationState.palletPose,
+                    "pallet",
+                  ],
+                  [
+                    t("components.calibration.pickup"),
+                    calibrationState.pickupPose,
+                    "pickup",
+                  ],
                 ] as const
               ).map(([label, pose, target]) => (
                 <div
@@ -487,14 +512,14 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
 
             <div className="border-viewport-line mt-2 flex items-center justify-between gap-3 border-t pt-2">
               <span className="text-micro text-viewport-ink/50">
-                1 mm / 1° snapping
+                {t("components.calibration.snapping")}
               </span>
               <button
                 type="button"
                 onClick={resetCalibration}
                 className="text-micro text-viewport-ink/70 hover:text-viewport-ink font-medium"
               >
-                Reset both
+                {t("components.calibration.resetBoth")}
               </button>
             </div>
           </section>

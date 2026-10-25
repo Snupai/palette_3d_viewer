@@ -2,6 +2,7 @@
 
 import type { PlanningSolution } from "~/domain/project/projectSchema";
 import type { ProjectEditorCommand } from "~/features/editor/editorModel";
+import { useT } from "~/i18n";
 
 export type InterlayerPanelProps = {
   solution: PlanningSolution;
@@ -15,6 +16,7 @@ function finite(raw: string): number | null {
 
 /** Interlayer sheets per layer boundary plus the deck sheet, for the stack. */
 export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
+  const t = useT();
   const stack = solution.stack;
   const base = { mode: "pattern" as const, solutionId: solution.id };
   const sheetCount =
@@ -23,16 +25,16 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
   return (
     <details className="ed-panel-details">
       <summary>
-        Zwischenlagen{" "}
+        {t("editor.interlayer.title")}{" "}
         <small>
-          {sheetCount} {sheetCount === 1 ? "Blatt" : "Blätter"}
+          {t("editor.interlayer.sheetCount", { count: sheetCount })}
         </small>
       </summary>
       <div>
         <label className="ed-field">
-          Standarddicke (mm)
+          {t("editor.interlayer.defaultThickness")}
           <input
-            aria-label="Standarddicke der Zwischenlagen"
+            aria-label={t("editor.interlayer.defaultThicknessAria")}
             type="number"
             min="0.01"
             step="any"
@@ -52,9 +54,9 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
         <table className="ed-table">
           <thead>
             <tr>
-              <th>Position</th>
-              <th>Anzahl</th>
-              <th>Dicke (mm)</th>
+              <th>{t("editor.interlayer.position")}</th>
+              <th>{t("editor.interlayer.quantity")}</th>
+              <th>{t("editor.interlayer.thickness")}</th>
             </tr>
           </thead>
           <tbody>
@@ -62,12 +64,14 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
               <tr key={layer.id}>
                 <td>
                   {index === 0
-                    ? "Unter Lage 1 (Boden)"
-                    : `Unter Lage ${index + 1}`}
+                    ? t("editor.interlayer.belowFirst")
+                    : t("editor.interlayer.belowLayer", { n: index + 1 })}
                 </td>
                 <td>
                   <input
-                    aria-label={`Zwischenlagen unter Lage ${index + 1}`}
+                    aria-label={t("editor.interlayer.quantityAria", {
+                      n: index + 1,
+                    })}
                     type="number"
                     min="0"
                     step="1"
@@ -87,7 +91,9 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
                 </td>
                 <td>
                   <input
-                    aria-label={`Dicke unter Lage ${index + 1}`}
+                    aria-label={t("editor.interlayer.thicknessAria", {
+                      n: index + 1,
+                    })}
                     type="number"
                     min="0.01"
                     step="any"
@@ -110,10 +116,10 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
               </tr>
             ))}
             <tr>
-              <td>Decklage (oben)</td>
+              <td>{t("editor.interlayer.deck")}</td>
               <td>
                 <input
-                  aria-label="Decklagen"
+                  aria-label={t("editor.interlayer.deckQuantityAria")}
                   type="number"
                   min="0"
                   step="1"
@@ -132,7 +138,7 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
               </td>
               <td>
                 <input
-                  aria-label="Dicke der Decklage"
+                  aria-label={t("editor.interlayer.deckThicknessAria")}
                   type="number"
                   min="0.01"
                   step="any"

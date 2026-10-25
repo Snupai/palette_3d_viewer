@@ -476,7 +476,7 @@ describe("candidateRankReason", () => {
     const six = candidate(1, [placement, placement, placement]);
     const five = candidate(2, [placement, placement]);
     expect(candidateRankReason(six, five)).toBe(
-      "More packages per layer (3 vs 2)",
+      "Mehr Pakete je Lage (3 statt 2)",
     );
   });
 
@@ -485,7 +485,7 @@ describe("candidateRankReason", () => {
     const worse = candidate(2, [placement, placement]);
     worse.score = { ...worse.score, utilizationMillionths: 150_000 };
     expect(candidateRankReason(best, worse)).toBe(
-      "Higher area utilization (20.0% vs 15.0%)",
+      "Höhere Flächenauslastung (20.0 % statt 15.0 %)",
     );
   });
 
@@ -493,7 +493,7 @@ describe("candidateRankReason", () => {
     const best = candidate(1, [placement, placement], 3);
     const worse = candidate(2, [placement, placement], 4);
     expect(candidateRankReason(best, worse)).toBe(
-      "Fewer robot cycles (3 vs 4)",
+      "Weniger Roboterzyklen (3 statt 4)",
     );
   });
 
@@ -507,7 +507,7 @@ describe("candidateRankReason", () => {
       boundingBlockAreaMm2: 12_000,
     };
     expect(candidateRankReason(best, worse)).toBe(
-      "Smaller bounding block (100 × 100 mm vs 120 × 100 mm)",
+      "Kleinerer Begrenzungsblock (100 × 100 mm statt 120 × 100 mm)",
     );
   });
 
@@ -516,7 +516,7 @@ describe("candidateRankReason", () => {
     const worse = candidate(2, [placement, placement]);
     worse.score = { ...worse.score, boundingBlockPerimeterMm: 440 };
     expect(candidateRankReason(best, worse)).toBe(
-      "Tighter bounding block perimeter (400 mm vs 440 mm)",
+      "Kürzerer Umfang des Begrenzungsblocks (400 mm statt 440 mm)",
     );
   });
 
@@ -524,7 +524,7 @@ describe("candidateRankReason", () => {
     const best = candidate(1, [placement, placement]);
     const tied = candidate(2, [placement, placement]);
     expect(candidateRankReason(best, tied)).toBe(
-      "Equivalent score — ranked ahead by the deterministic identity tie-break",
+      "Gleichwertige Bewertung — durch den deterministischen Identitäts-Tiebreak vorn gereiht",
     );
   });
 });

@@ -13,6 +13,7 @@ import {
   type RobotObstacle,
   type RobotPose,
 } from "~/domain/robotics";
+import type { Translate } from "~/i18n";
 import type { ViewerScenePose } from "~/components/rob-viewer/viewerTypes";
 
 export type RobotWorkspaceSettings = {
@@ -290,6 +291,7 @@ export function createRobotReadiness(
   settings: RobotWorkspaceSettings,
   exportReady: boolean,
   exportBlockingIssues: number,
+  t: Translate,
 ): RobotReadinessItem[] {
   const hasSolution = project.activeSolutionId !== null;
   const planBlocked = hasDiagnosticError(materialization, [
@@ -325,21 +327,23 @@ export function createRobotReadiness(
   return [
     {
       id: "plan",
-      label: "Plan and pickup list",
+      label: t("robotics.item.plan"),
       status: planBlocked
         ? "blocked"
         : !hasSolution || materialization.cycles.length === 0
           ? "needs-input"
           : "complete",
       evidence: planBlocked
-        ? "The active plan has blocking grouping or order issues."
+        ? t("robotics.evidence.planBlocked")
         : materialization.cycles.length > 0
-          ? `${materialization.cycles.length} pickup${materialization.cycles.length === 1 ? "" : "s"} calculated.`
-          : "Create and stack a package pattern first.",
+          ? t("robotics.evidence.planCalculated", {
+              count: materialization.cycles.length,
+            })
+          : t("robotics.evidence.planEmpty"),
     },
     {
       id: "equipment",
-      label: "Equipment",
+      label: t("robotics.item.equipment"),
       status: !equipmentSelected
         ? "needs-input"
         : equipmentBlocked
@@ -348,16 +352,16 @@ export function createRobotReadiness(
             ? "warning"
             : "complete",
       evidence: !equipmentSelected
-        ? "Select a gripper and pallet station."
+        ? t("robotics.evidence.equipmentMissing")
         : equipmentBlocked
-          ? "The selected equipment does not pass the internal compatibility checks."
+          ? t("robotics.evidence.equipmentBlocked")
           : multipackProfile
-            ? "The observed Multipack default profile is selected. Its values are documented evidence, not calibrated production equipment."
-            : "Selected gripper and station pass the available internal checks.",
+            ? t("robotics.evidence.equipmentProfile")
+            : t("robotics.evidence.equipmentOk"),
     },
     {
       id: "pickup",
-      label: "Pickup point",
+      label: t("robotics.item.pickup"),
       status: !pickupComplete
         ? "needs-input"
         : pickupBlocked
@@ -366,18 +370,18 @@ export function createRobotReadiness(
             ? "complete"
             : "warning",
       evidence: !pickupComplete
-        ? "Enter a surveyed pickup, or leave X, Y, and Z blank to use the box-group top-center."
+        ? t("robotics.evidence.pickupIncomplete")
         : pickupBlocked
-          ? "The pickup values or their evidence need correction."
+          ? t("robotics.evidence.pickupBlocked")
           : derivedPickup
-            ? "Pickup is the top-center of each box group, from package size and count."
+            ? t("robotics.evidence.pickupDerived")
             : settings.pickReferenceStatus === "verified"
-              ? "Marked as checked against the stated source."
-              : "Coordinates are present but have not been checked against the station.",
+              ? t("robotics.evidence.pickupVerified")
+              : t("robotics.evidence.pickupUnverified"),
     },
     {
       id: "workspace",
-      label: "Station workspace",
+      label: t("robotics.item.workspace"),
       status:
         !equipmentSelected || materialization.cycles.length === 0
           ? "not-checked"
@@ -388,16 +392,16 @@ export function createRobotReadiness(
               : "complete",
       evidence:
         !equipmentSelected || materialization.cycles.length === 0
-          ? "Select equipment and calculate pickups before checking reach and envelopes."
+          ? t("robotics.evidence.workspaceNotChecked")
           : workspaceBlocked
-            ? "At least one pickup is outside an entered reach or envelope."
+            ? t("robotics.evidence.workspaceBlocked")
             : reachNotChecked
-              ? "Entered TCP and free-space envelopes contain the calculated pickups, but radial reach was not checked because 0 / 0 is an uncalibrated legacy sentinel."
-              : "Entered reach and envelope limits contain the calculated pickups.",
+              ? t("robotics.evidence.workspaceSentinel")
+              : t("robotics.evidence.workspaceOk"),
     },
     {
       id: "obstacles",
-      label: "Fixed obstacles",
+      label: t("robotics.item.obstacles"),
       status: collisionBlocked
         ? "blocked"
         : settings.obstacles.length > 0
@@ -406,20 +410,25 @@ export function createRobotReadiness(
             ? "warning"
             : "not-checked",
       evidence: collisionBlocked
-        ? "A calculated motion intersects the modeled feed conveyor or an entered obstacle, or an obstacle is invalid."
+        ? t("robotics.evidence.obstaclesBlocked")
         : settings.obstacles.length > 0
-          ? `${settings.obstacles.length} entered obstacle${settings.obstacles.length === 1 ? "" : "s"} checked${materialization.conveyor ? " together with the calculated feed conveyor bed" : ""}.`
+          ? t(
+              materialization.conveyor
+                ? "robotics.evidence.obstaclesCheckedConveyor"
+                : "robotics.evidence.obstaclesChecked",
+              { count: settings.obstacles.length },
+            )
           : materialization.conveyor
-            ? "The calculated feed conveyor bed was checked. No additional station obstacles are modeled."
-            : "No fixed obstacles are modeled. Collision against individual station objects has not been checked.",
+            ? t("robotics.evidence.obstaclesConveyorOnly")
+            : t("robotics.evidence.obstaclesNone"),
     },
     {
       id: "export",
-      label: "Internal export setup",
+      label: t("robotics.item.export"),
       status: exportReady ? "complete" : "engineering",
       evidence: exportReady
-        ? "Internal export preflight passed."
-        : `${exportBlockingIssues} export setting${exportBlockingIssues === 1 ? "" : "s"} still require engineering review.`,
+        ? t("robotics.evidence.exportOk")
+        : t("robotics.evidence.exportIssues", { count: exportBlockingIssues }),
     },
   ];
 }

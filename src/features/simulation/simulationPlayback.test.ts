@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { translateDe } from "~/i18n";
 import { BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION } from "~/components/rob-viewer/bundledRobotCell";
 import {
   createRobotTimeline,
@@ -192,13 +193,18 @@ describe("simulation playback controls", () => {
     const firstBoundary = timeline.boundariesMs[1]!;
     expect(stepTimelineCursor(timeline, 0, "forward")).toBe(firstBoundary);
     expect(stepTimelineCursor(timeline, firstBoundary, "reverse")).toBe(0);
-    expect(timelinePhaseLabel(timeline.segments[0]!.kind)).toBe("Pick dwell");
-    expect(timelinePhaseLabel(timeline.segments[1]!.kind)).toBe("Lift package");
+    expect(timelinePhaseLabel(timeline.segments[0]!.kind, translateDe)).toBe(
+      "Verweilen Aufnahme",
+    );
+    expect(timelinePhaseLabel(timeline.segments[1]!.kind, translateDe)).toBe(
+      "Paket anheben",
+    );
     expect(
       timelinePhaseLabel(
         timeline.segments.find(({ kind }) => kind === "cycle-traverse")!.kind,
+        translateDe,
       ),
-    ).toBe("Travel above feed");
+    ).toBe("Fahrt über Zufuhr");
   });
 });
 

@@ -214,7 +214,7 @@ describe("RoboticsWorkspace operator view", () => {
     expect(
       screen
         .getAllByText(
-          "No fixed obstacles are modeled. Collision against individual station objects has not been checked.",
+          "Keine festen Hindernisse modelliert. Die Kollision mit einzelnen Stationsobjekten wurde nicht geprüft.",
         )
         .filter((element) => element.closest("details") === null),
     ).toHaveLength(1);
@@ -285,7 +285,7 @@ describe("RoboticsWorkspace operator view", () => {
     expect(screen.getByText(/nicht\s+vermessen/)).toBeTruthy();
     expect(
       screen.getByText(
-        "The observed Multipack default profile is selected. Its values are documented evidence, not calibrated production equipment.",
+        "Das beobachtete Multipack-Standardprofil ist gewählt. Seine Werte sind dokumentierte Belege, keine kalibrierte Produktionsausrüstung.",
       ),
     ).toBeTruthy();
 

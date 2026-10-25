@@ -8,6 +8,7 @@ import type {
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import { labelSideOptions } from "~/features/editor/editorLabels";
 import type { ProjectEditorCommand } from "~/features/editor/editorModel";
+import { useT } from "~/i18n";
 
 export type ArrangePanelProps = {
   solution: PlanningSolution;
@@ -32,6 +33,7 @@ export function ArrangePanel({
   onCoarseStepChange,
   execute,
 }: ArrangePanelProps) {
+  const t = useT();
   const selected = pattern.placements.filter(({ id }) =>
     selectedPlacementIds.has(id),
   );
@@ -79,20 +81,23 @@ export function ArrangePanel({
     <>
       <section className="ed-panel" aria-labelledby="ed-selection-title">
         <div className="ed-panel-head">
-          <h3 id="ed-selection-title">Auswahl</h3>
+          <h3 id="ed-selection-title">{t("editor.arrange.selection")}</h3>
           <small>
-            {selected.length} / {pattern.placements.length} Pakete
+            {t("editor.arrange.selectionCount", {
+              selected: selected.length,
+              total: pattern.placements.length,
+            })}
           </small>
         </div>
         {selected.length === 0 ? (
-          <p className="ed-panel-note">Kein Paket ausgewählt.</p>
+          <p className="ed-panel-note">{t("editor.arrange.emptyNote")}</p>
         ) : (
           <>
             <div className="ed-grid2">
               <label className="ed-field">
                 X (mm)
                 <input
-                  aria-label="Position X"
+                  aria-label={t("editor.arrange.positionX")}
                   type="number"
                   step="any"
                   disabled={!selectedOne}
@@ -110,7 +115,7 @@ export function ArrangePanel({
               <label className="ed-field">
                 Y (mm)
                 <input
-                  aria-label="Position Y"
+                  aria-label={t("editor.arrange.positionY")}
                   type="number"
                   step="any"
                   disabled={!selectedOne}
@@ -127,9 +132,9 @@ export function ArrangePanel({
               </label>
             </div>
             <label className="ed-field">
-              Etikettseite
+              {t("editor.arrange.labelSide")}
               <select
-                aria-label="Etikettseite"
+                aria-label={t("editor.arrange.labelSide")}
                 value={sharedLabel}
                 onChange={(event) => {
                   if (event.target.value === "mixed") return;
@@ -146,9 +151,9 @@ export function ArrangePanel({
                 className="ui-input"
               >
                 {sharedLabel === "mixed" ? (
-                  <option value="mixed">Gemischt</option>
+                  <option value="mixed">{t("editor.arrange.mixed")}</option>
                 ) : null}
-                {labelSideOptions.map(([value, label]) => (
+                {labelSideOptions(t).map(([value, label]) => (
                   <option key={value || "none"} value={value}>
                     {label}
                   </option>
@@ -160,10 +165,10 @@ export function ArrangePanel({
                 <table className="ed-table">
                   <thead>
                     <tr>
-                      <th>Paket</th>
+                      <th>{t("editor.arrange.colPackage")}</th>
                       <th>X</th>
                       <th>Y</th>
-                      <th>Drehung</th>
+                      <th>{t("editor.arrange.colRotation")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -184,12 +189,12 @@ export function ArrangePanel({
       </section>
 
       <details className="ed-panel-details">
-        <summary>Muster und Schrittweite</summary>
+        <summary>{t("editor.arrange.patternSettings")}</summary>
         <div>
           <label className="ed-field">
-            Name des Musters
+            {t("editor.arrange.patternName")}
             <input
-              aria-label="Name des Musters"
+              aria-label={t("editor.arrange.patternName")}
               value={nameDraft}
               onChange={(event) => setNameDraft(event.target.value)}
               onBlur={() => {
@@ -209,9 +214,9 @@ export function ArrangePanel({
           </label>
           <div className="ed-grid2">
             <label className="ed-field">
-              Feiner Schritt (mm)
+              {t("editor.arrange.fineStep")}
               <input
-                aria-label="Feiner Schritt"
+                aria-label={t("editor.arrange.fineStepAria")}
                 type="number"
                 min="0.01"
                 step="any"
@@ -221,9 +226,9 @@ export function ArrangePanel({
               />
             </label>
             <label className="ed-field">
-              Grober Schritt (mm)
+              {t("editor.arrange.coarseStep")}
               <input
-                aria-label="Grober Schritt"
+                aria-label={t("editor.arrange.coarseStepAria")}
                 type="number"
                 min="0.01"
                 step="any"
@@ -234,18 +239,18 @@ export function ArrangePanel({
             </label>
           </div>
           <dl className="ed-shortcuts">
-            <dt>Pfeile</dt>
-            <dd>Auswahl um den feinen Schritt verschieben, mit Shift grob</dd>
+            <dt>{t("editor.arrange.keyArrows")}</dt>
+            <dd>{t("editor.arrange.keyArrowsDesc")}</dd>
             <dt>R</dt>
-            <dd>Auswahl um 90° drehen</dd>
+            <dd>{t("editor.arrange.keyRotateDesc")}</dd>
             <dt>C</dt>
-            <dd>Auswahl auf der Palette zentrieren</dd>
+            <dd>{t("editor.arrange.keyCenterDesc")}</dd>
             <dt>L / T</dt>
-            <dd>Paket längs oder quer einfügen</dd>
-            <dt>Entf</dt>
-            <dd>Auswahl löschen</dd>
-            <dt>Strg+Z / Y</dt>
-            <dd>Rückgängig, Wiederholen</dd>
+            <dd>{t("editor.arrange.keyInsertDesc")}</dd>
+            <dt>{t("editor.arrange.keyDelete")}</dt>
+            <dd>{t("editor.arrange.keyDeleteDesc")}</dd>
+            <dt>{t("editor.arrange.keyUndo")}</dt>
+            <dd>{t("editor.arrange.keyUndoDesc")}</dd>
           </dl>
         </div>
       </details>

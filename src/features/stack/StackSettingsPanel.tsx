@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "~/i18n";
 import type { SolverCandidate } from "~/domain/solver";
 import type { StackCompositionMode, StackLayerTransform } from "~/domain/stack";
 import {
@@ -9,8 +10,9 @@ import {
   type StackInterlayerMode,
   type StackWorkspaceState,
 } from "~/features/stack/stackWorkspaceModel";
+import { compositionModes } from "~/features/stack/guidedStackModel";
 import {
-  modeLabels,
+  modeLabel,
   stackButtonClass,
   stackCheckboxClass,
   stackFieldLabelClass,
@@ -18,7 +20,8 @@ import {
   stackInputClass,
   stackLegendClass,
   type StackWorkspaceChange,
-  transformLabels,
+  classicTransformLabel,
+  stackLayerTransforms,
 } from "~/features/stack/stackWorkspaceUi";
 
 /** Composition, interlayer, and special-top controls of the stack workspace. */
@@ -33,18 +36,21 @@ export function StackSettingsPanel({
   capacity: ReturnType<typeof calculateWorkspaceCapacity>;
   change: StackWorkspaceChange;
 }) {
+  const t = useT();
   const selectedA = state.patternARef ?? "";
   const selectedB = state.patternBRef ?? "";
 
   return (
     <>
       <fieldset className={stackFieldsetClass}>
-        <legend className={stackLegendClass}>Composition</legend>
+        <legend className={stackLegendClass}>
+          {t("stack.settings.composition")}
+        </legend>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className={stackFieldLabelClass}>
-            Pattern A
+            {t("stack.settings.patternA")}
             <select
-              aria-label="Pattern A"
+              aria-label={t("stack.settings.patternA")}
               value={selectedA}
               onChange={(event) =>
                 change((current) => ({
@@ -59,15 +65,18 @@ export function StackSettingsPanel({
                   key={candidate.id}
                   value={candidatePatternRef(candidate)}
                 >
-                  #{candidate.rank} · {candidate.metrics.packageCount} packages
+                  {t("stack.settings.patternOption", {
+                    rank: candidate.rank,
+                    count: candidate.metrics.packageCount,
+                  })}
                 </option>
               ))}
             </select>
           </label>
           <label className={stackFieldLabelClass}>
-            Pattern B
+            {t("stack.settings.patternB")}
             <select
-              aria-label="Pattern B"
+              aria-label={t("stack.settings.patternB")}
               value={selectedB}
               onChange={(event) =>
                 change((current) => ({
@@ -77,21 +86,24 @@ export function StackSettingsPanel({
               }
               className={stackInputClass}
             >
-              <option value="">Use pattern A</option>
+              <option value="">{t("stack.settings.usePatternA")}</option>
               {candidates.map((candidate) => (
                 <option
                   key={candidate.id}
                   value={candidatePatternRef(candidate)}
                 >
-                  #{candidate.rank} · {candidate.metrics.packageCount} packages
+                  {t("stack.settings.patternOption", {
+                    rank: candidate.rank,
+                    count: candidate.metrics.packageCount,
+                  })}
                 </option>
               ))}
             </select>
           </label>
           <label className={stackFieldLabelClass}>
-            Composition mode
+            {t("stack.settings.compositionMode")}
             <select
-              aria-label="Composition mode"
+              aria-label={t("stack.settings.compositionMode")}
               value={state.compositionMode}
               onChange={(event) =>
                 change((current) => ({
@@ -101,17 +113,17 @@ export function StackSettingsPanel({
               }
               className={stackInputClass}
             >
-              {Object.entries(modeLabels).map(([value, label]) => (
+              {compositionModes.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {modeLabel(t, value)}
                 </option>
               ))}
             </select>
           </label>
           <label className={stackFieldLabelClass}>
-            Requested layers
+            {t("stack.settings.requestedLayers")}
             <input
-              aria-label="Requested layers"
+              aria-label={t("stack.settings.requestedLayers")}
               type="number"
               min="0"
               step="1"
@@ -132,25 +144,28 @@ export function StackSettingsPanel({
             onClick={() => change((current) => rebuildStackSequence(current))}
             className={stackButtonClass}
           >
-            Build A/B sequence
+            {t("stack.settings.buildAB")}
           </button>
           <span className="text-muted text-micro">
-            Derived maximum layers:{" "}
-            {capacity ? capacity.capacityLayers : "Unknown"}
+            {t("stack.settings.derivedMax", {
+              value: capacity ? capacity.capacityLayers : t("stack.unknown"),
+            })}
             {capacity
               ? ` · ${capacity.message}`
-              : " · no storage height configured"}
+              : ` · ${t("stack.settings.noStorageHeight")}`}
           </span>
         </div>
       </fieldset>
 
       <fieldset className={stackFieldsetClass}>
-        <legend className={stackLegendClass}>Interlayers</legend>
+        <legend className={stackLegendClass}>
+          {t("stack.settings.interlayers")}
+        </legend>
         <div className="grid gap-2 sm:grid-cols-3">
           <label className={stackFieldLabelClass}>
-            Rule
+            {t("stack.settings.rule")}
             <select
-              aria-label="Interlayer rule"
+              aria-label={t("stack.settings.ruleAria")}
               value={state.interlayerMode}
               onChange={(event) =>
                 change((current) => ({
@@ -160,16 +175,18 @@ export function StackSettingsPanel({
               }
               className={stackInputClass}
             >
-              <option value="none">No interlayers</option>
-              <option value="all">All layer boundaries</option>
-              <option value="individual">Individual boundaries</option>
+              <option value="none">{t("stack.settings.ruleNone")}</option>
+              <option value="all">{t("stack.settings.ruleAll")}</option>
+              <option value="individual">
+                {t("stack.settings.ruleIndividual")}
+              </option>
             </select>
           </label>
           {state.interlayerMode === "all" ? (
             <label className={stackFieldLabelClass}>
-              Between-layer thickness (mm)
+              {t("stack.settings.betweenThickness")}
               <input
-                aria-label="Between-layer thickness"
+                aria-label={t("stack.settings.betweenThicknessAria")}
                 type="number"
                 min="0"
                 step="any"
@@ -189,7 +206,7 @@ export function StackSettingsPanel({
           <label className="text-ink text-micro grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
             <input
               type="checkbox"
-              aria-label="Enable base sheet"
+              aria-label={t("stack.settings.enableBase")}
               checked={state.baseEnabled}
               onChange={(event) =>
                 change((current) => ({
@@ -199,10 +216,10 @@ export function StackSettingsPanel({
               }
               className={stackCheckboxClass}
             />
-            Base sheet
+            {t("stack.settings.baseSheet")}
             <span className="col-span-2 pl-6">
               <input
-                aria-label="Base sheet thickness"
+                aria-label={t("stack.settings.baseThickness")}
                 type="number"
                 min="0"
                 step="any"
@@ -221,7 +238,7 @@ export function StackSettingsPanel({
           <label className="text-ink text-micro grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">
             <input
               type="checkbox"
-              aria-label="Enable deck sheet"
+              aria-label={t("stack.settings.enableDeck")}
               checked={state.deckEnabled}
               onChange={(event) =>
                 change((current) => ({
@@ -231,10 +248,10 @@ export function StackSettingsPanel({
               }
               className={stackCheckboxClass}
             />
-            Deck sheet
+            {t("stack.settings.deckSheet")}
             <span className="col-span-2 pl-6">
               <input
-                aria-label="Deck sheet thickness"
+                aria-label={t("stack.settings.deckThickness")}
                 type="number"
                 min="0"
                 step="any"
@@ -254,7 +271,9 @@ export function StackSettingsPanel({
       </fieldset>
 
       <fieldset className={stackFieldsetClass}>
-        <legend className={stackLegendClass}>Special top candidate</legend>
+        <legend className={stackLegendClass}>
+          {t("stack.settings.specialTop")}
+        </legend>
         <label className="text-ink text-micro flex items-center gap-2">
           <input
             type="checkbox"
@@ -267,13 +286,13 @@ export function StackSettingsPanel({
             }
             className={stackCheckboxClass}
           />
-          Replace the physical top layer
+          {t("stack.settings.replaceTop")}
         </label>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className={stackFieldLabelClass}>
-            Top candidate
+            {t("stack.settings.topCandidate")}
             <select
-              aria-label="Top candidate"
+              aria-label={t("stack.settings.topCandidate")}
               value={state.specialTopPatternRef ?? ""}
               disabled={!state.specialTopEnabled}
               onChange={(event) =>
@@ -289,15 +308,18 @@ export function StackSettingsPanel({
                   key={candidate.id}
                   value={candidatePatternRef(candidate)}
                 >
-                  #{candidate.rank} · {candidate.metrics.packageCount} packages
+                  {t("stack.settings.patternOption", {
+                    rank: candidate.rank,
+                    count: candidate.metrics.packageCount,
+                  })}
                 </option>
               ))}
             </select>
           </label>
           <label className={stackFieldLabelClass}>
-            Top transform
+            {t("stack.settings.topTransform")}
             <select
-              aria-label="Top transform"
+              aria-label={t("stack.settings.topTransform")}
               value={state.specialTopTransform}
               disabled={!state.specialTopEnabled}
               onChange={(event) =>
@@ -309,9 +331,9 @@ export function StackSettingsPanel({
               }
               className={stackInputClass}
             >
-              {Object.entries(transformLabels).map(([value, label]) => (
+              {stackLayerTransforms.map((value) => (
                 <option key={value} value={value}>
-                  {label}
+                  {classicTransformLabel(t, value)}
                 </option>
               ))}
             </select>

@@ -93,7 +93,7 @@ describe("CandidateBrowser", () => {
   it("navigates the filtered listbox with arrows, Home, End, and pointer selection", () => {
     render(<Harness />);
     const listbox = screen.getByRole("listbox", {
-      name: "Selectable candidate layouts",
+      name: "Wählbare Kandidatenmuster",
     });
     const options = screen.getAllByRole("option");
     listbox.focus();
@@ -172,19 +172,21 @@ describe("CandidateBrowser", () => {
   it("applies exact and Maximum filters, reports x of y, and resets without losing candidates", () => {
     render(<Harness />);
 
-    fireEvent.change(screen.getByLabelText("Exact package count"), {
+    fireEvent.change(screen.getByLabelText("Genaue Paketanzahl"), {
       target: { value: "5" },
     });
-    expect(screen.getByText(/2 of 3 layouts/)).toBeTruthy();
+    expect(screen.getByText(/2 von 3 Mustern/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(2);
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Maximum (6)" }));
-    expect(screen.getByText(/1 of 3 layouts/)).toBeTruthy();
+    expect(screen.getByText(/1 von 3 Mustern/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(1);
     expect(screen.getByTestId("selected").textContent).toBe("candidate-2");
 
-    fireEvent.click(screen.getByRole("button", { name: "Reset filters" }));
-    expect(screen.getByText(/3 of 3 layouts/)).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+    expect(screen.getByText(/3 von 3 Mustern/)).toBeTruthy();
     expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 });

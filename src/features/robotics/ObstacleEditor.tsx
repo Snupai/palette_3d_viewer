@@ -1,4 +1,5 @@
 import type { RobotObstacle } from "~/domain/robotics";
+import { useT } from "~/i18n";
 
 export function ObstacleEditor({
   obstacles,
@@ -7,6 +8,7 @@ export function ObstacleEditor({
   obstacles: readonly RobotObstacle[];
   onChange: (obstacles: readonly RobotObstacle[]) => void;
 }) {
+  const t = useT();
   const update = (index: number, obstacle: RobotObstacle) =>
     onChange(
       obstacles.map((current, itemIndex) =>
@@ -24,7 +26,9 @@ export function ObstacleEditor({
               ...obstacles,
               {
                 id: `obstacle-${obstacles.length + 1}`,
-                name: `Hindernis ${obstacles.length + 1}`,
+                name: t("robotics.obstacleDefaultName", {
+                  number: obstacles.length + 1,
+                }),
                 boundsMm: { minX: 0, minY: 0, maxX: 100, maxY: 100 },
                 minZMm: 0,
                 maxZMm: 1_000,
@@ -33,17 +37,17 @@ export function ObstacleEditor({
           }
           className="ui-btn ui-btn-sm"
         >
-          Hindernis hinzufügen
+          {t("robotics.addObstacle")}
         </button>
       </div>
       {obstacles.length === 0 ? (
-        <p className="ed-panel-note">Keine Hindernisse modelliert.</p>
+        <p className="ed-panel-note">{t("robotics.obstacleNone")}</p>
       ) : (
         obstacles.map((obstacle, index) => (
           <div key={`${obstacle.id}-${index}`} className="ed-panel">
             <div className="ed-actions">
               <input
-                aria-label={`Name von Hindernis ${index + 1}`}
+                aria-label={t("robotics.obstacleNameOf", { number: index + 1 })}
                 value={obstacle.name ?? ""}
                 onChange={(event) =>
                   update(index, { ...obstacle, name: event.target.value })
@@ -60,16 +64,16 @@ export function ObstacleEditor({
                 }
                 className="ui-btn ui-btn-sm ui-btn-danger"
               >
-                Entfernen
+                {t("robotics.remove")}
               </button>
             </div>
             <div className="ed-grid3">
               {(
                 [
-                  ["Min X", "minX"],
-                  ["Min Y", "minY"],
-                  ["Max X", "maxX"],
-                  ["Max Y", "maxY"],
+                  [t("robotics.minX"), "minX"],
+                  [t("robotics.minY"), "minY"],
+                  [t("robotics.maxX"), "maxX"],
+                  [t("robotics.maxY"), "maxY"],
                 ] as const
               ).map(([label, field]) => (
                 <label key={field} className="ed-field">
@@ -93,8 +97,8 @@ export function ObstacleEditor({
               ))}
               {(
                 [
-                  ["Min Z", "minZMm"],
-                  ["Max Z", "maxZMm"],
+                  [t("robotics.minZ"), "minZMm"],
+                  [t("robotics.maxZ"), "maxZMm"],
                 ] as const
               ).map(([label, field]) => (
                 <label key={field} className="ed-field">

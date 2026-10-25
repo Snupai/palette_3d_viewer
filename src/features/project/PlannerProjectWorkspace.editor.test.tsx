@@ -214,7 +214,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    expect(await screen.findByText("Importierter Plan")).toBeTruthy();
+    expect(await screen.findAllByText("Importierter Plan")).toHaveLength(2);
     expect(
       screen.getByRole("heading", { name: "Plan im Überblick" }),
     ).toBeTruthy();
@@ -223,7 +223,6 @@ describe("PlannerProjectWorkspace editor integration", () => {
     ).toBeNull();
     expect(screen.queryByRole("button", { name: /Generate/i })).toBeNull();
     expect(screen.queryByText("Footprint recreation")).toBeNull();
-    expect(screen.getAllByText("Imported plan")).toHaveLength(1);
 
     await waitFor(async () => {
       const listed = (await repository.listProjects()).projects;

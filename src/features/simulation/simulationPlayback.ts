@@ -1,3 +1,4 @@
+import type { Translate } from "~/i18n";
 import {
   nextRobotTimelineBoundary,
   normalizeYawDeg,
@@ -222,27 +223,30 @@ export function createSimulationFrame(
   };
 }
 
-export function timelinePhaseLabel(kind: RobotTimelineSegmentKind): string {
+export function timelinePhaseLabel(
+  kind: RobotTimelineSegmentKind,
+  t: Translate,
+): string {
   switch (kind) {
     case "cycle-retract":
-      return "Retract from pallet";
+      return t("simulation.phase.cycleRetract");
     case "cycle-traverse":
-      return "Travel above feed";
+      return t("simulation.phase.cycleTraverse");
     case "pick-approach":
-      return "Approach pickup";
+      return t("simulation.phase.pickApproach");
     case "pick-dwell":
-      return "Pick dwell";
+      return t("simulation.phase.pickDwell");
     case "pick-lift":
-      return "Lift package";
+      return t("simulation.phase.pickLift");
     case "pick-traverse":
-      return "Travel from pickup";
+      return t("simulation.phase.pickTraverse");
     case "transfer-traverse":
-      return "Travel above pallet";
+      return t("simulation.phase.transferTraverse");
     case "place-approach":
-      return "Place approach";
+      return t("simulation.phase.placeApproach");
     case "place-dwell":
-      return "Place dwell";
+      return t("simulation.phase.placeDwell");
     case "between-cycle-dwell":
-      return "Between-cycle dwell";
+      return t("simulation.phase.betweenCycleDwell");
   }
 }

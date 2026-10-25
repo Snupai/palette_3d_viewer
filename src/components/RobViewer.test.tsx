@@ -161,7 +161,7 @@ describe("RobViewer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Calibrate" }));
+    fireEvent.click(screen.getByRole("button", { name: "Kalibrieren" }));
     await waitFor(() =>
       expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith({
         activeTarget: "pallet",
@@ -171,8 +171,8 @@ describe("RobViewer", () => {
       }),
     );
 
-    fireEvent.click(screen.getAllByRole("button", { name: "Pickup" })[0]!);
-    fireEvent.click(screen.getByRole("button", { name: "Rotate Z" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Aufnahme" })[0]!);
+    fireEvent.click(screen.getByRole("button", { name: "Z drehen" }));
     await waitFor(() =>
       expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -209,7 +209,9 @@ describe("RobViewer", () => {
       yawDeg: 90,
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Close calibration" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kalibrierung schließen" }),
+    );
     await waitFor(() =>
       expect(controller.setTemporaryCalibration).toHaveBeenLastCalledWith(null),
     );

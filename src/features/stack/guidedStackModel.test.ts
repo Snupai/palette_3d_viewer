@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
+import { translateDe } from "~/i18n";
 import type { StackWarning } from "~/domain/stack";
 import {
   clampLayerCount,
@@ -185,13 +186,13 @@ describe("guided stack model", () => {
       resourceKind: "gripper",
       message: "No gripper is selected for the materialized robot cycles.",
     };
-    expect(describeStackWarning(height)).toBe(
+    expect(describeStackWarning(height, translateDe, "de-DE")).toBe(
       "Ladehöhe 1.667 mm liegt über der Lagerhöhe 1.600 mm.",
     );
-    expect(describeStackWarning(envelope)).toBe(
+    expect(describeStackWarning(envelope, translateDe, "de-DE")).toBe(
       "Blocklänge 1.240 mm ist größer als die Lagerlänge 1.200 mm.",
     );
-    expect(describeStackWarning(gripper)).toBe(
+    expect(describeStackWarning(gripper, translateDe, "de-DE")).toBe(
       "Kein Greifer ausgewählt; die Takte sind noch keinem Greifer zugeordnet.",
     );
     expect([height, envelope, gripper].map(isLimitWarning)).toEqual([

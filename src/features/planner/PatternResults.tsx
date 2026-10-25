@@ -1,24 +1,18 @@
 "use client";
 import { useMemo, useState } from "react";
+import { useT, type Translate } from "~/i18n";
 import { LayerPattern } from "~/components/LayerPattern";
 import type { RectangleBoundsMm } from "~/domain/geometry";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import { candidateRankReason } from "~/features/candidates/candidateListModel";
 import { solverCandidateToPatternPreview } from "~/lib/previewAdapters";
 
-function reason(candidate: SolverCandidate, next: SolverCandidate | null) {
-  const text = candidateRankReason(candidate, next);
-  return text
-    ?.replace("More packages per layer", "Mehr Pakete je Lage")
-    .replace("Higher area utilization", "Höhere Flächennutzung")
-    .replace("Fewer robot cycles", "Weniger vorläufige Roboterzyklen")
-    .replace("Smaller bounding block", "Kleineres Blockmaß")
-    .replace("Tighter bounding block perimeter", "Kleinerer Blockumfang")
-    .replaceAll(" vs ", " gegenüber ")
-    .replace(
-      "Equivalent score — ranked ahead by the deterministic identity tie-break",
-      "Gleiche Kennzahlen; die feste Geometrie-Reihenfolge entscheidet.",
-    );
+function reason(
+  t: Translate,
+  candidate: SolverCandidate,
+  next: SolverCandidate | null,
+) {
+  return candidateRankReason(candidate, next, t);
 }
 export function PatternResults({
   candidates,
@@ -33,6 +27,7 @@ export function PatternResults({
   selectedId: string | null;
   onSelect: (id: string) => void;
 }) {
+  const t = useT();
   const [filter, setFilter] = useState("all"),
     [exact, setExact] = useState(""),
     [compareId, setCompareId] = useState<string | null>(null),
@@ -67,19 +62,19 @@ export function PatternResults({
   const metrics = (c: SolverCandidate) => (
     <dl className="pattern-metrics">
       <div>
-        <dt>Pakete je Lage</dt>
+        <dt>{t("planner.results.packagesPerLayer")}</dt>
         <dd>{c.metrics.packageCount}</dd>
       </div>
       <div>
-        <dt>Flächennutzung</dt>
+        <dt>{t("planner.results.utilization")}</dt>
         <dd>{c.metrics.utilizationPercent.toFixed(1)} %</dd>
       </div>
       <div>
-        <dt>Vorläufige Zyklen</dt>
+        <dt>{t("planner.results.provisionalCycles")}</dt>
         <dd>{c.metrics.provisionalCycleCount}</dd>
       </div>
       <div>
-        <dt>Blockmaß</dt>
+        <dt>{t("planner.results.blockSize")}</dt>
         <dd>
           {c.metrics.boundingBlockLengthMm} × {c.metrics.boundingBlockWidthMm}{" "}
           <small>mm</small>
@@ -90,35 +85,35 @@ export function PatternResults({
   if (!selected)
     return (
       <div className="fable-panel">
-        <h2>Kein passendes Muster gefunden</h2>
-        <p>
-          Ändern Sie die gewünschte Paketanzahl, die Maße oder den zulässigen
-          Überstand und berechnen Sie erneut.
-        </p>
+        <h2>{t("planner.results.noneTitle")}</h2>
+        <p>{t("planner.results.noneText")}</p>
       </div>
     );
   return (
-    <section className="pattern-results" aria-label="Muster auswählen">
-      {!selection && (
-        <p role="status">
-          Noch kein Muster ausgewählt. Bitte ein Muster übernehmen.
-        </p>
-      )}
+    <section
+      className="pattern-results"
+      aria-label={t("planner.results.label")}
+    >
+      {!selection && <p role="status">{t("planner.results.noneSelected")}</p>}
       {compare && selection ? (
         <div className="pattern-comparison">
           <header>
             <div>
-              <p className="muted">Direktvergleich</p>
-              <h2>Gewählt gegen Muster {compare.rank}</h2>
+              <p className="muted">{t("planner.results.directCompare")}</p>
+              <h2>{t("planner.results.selectedVs", { rank: compare.rank })}</h2>
             </div>
             <button className="ui-btn" onClick={() => setCompareId(null)}>
-              Vergleich schließen
+              {t("planner.results.closeCompare")}
             </button>
           </header>
           <div className="comparison-columns">
             {[selected, compare].map((c, i) => (
               <section key={c.id}>
-                <h3>{i === 0 ? "Ihre Auswahl" : `Alternative ${c.rank}`}</h3>
+                <h3>
+                  {i === 0
+                    ? t("planner.results.yourChoice")
+                    : t("planner.results.alternative", { rank: c.rank })}
+                </h3>
                 {drawing(c, true)}
                 {metrics(c)}
                 {i === 1 && (
@@ -129,7 +124,7 @@ export function PatternResults({
                       setCompareId(null);
                     }}
                   >
-                    Dieses Muster übernehmen
+                    {t("planner.results.accept")}
                   </button>
                 )}
               </section>
@@ -137,6 +132,7 @@ export function PatternResults({
           </div>
           <p className="pattern-reason">
             {reason(
+              t,
               selected.rank < compare.rank ? selected : compare,
               selected.rank < compare.rank ? compare : selected,
             )}
@@ -147,32 +143,40 @@ export function PatternResults({
           <header>
             <span className="selection-tag">
               {selected.id === candidates[0]?.id
-                ? "Empfehlung"
-                : "Ihre Auswahl"}
+                ? t("planner.results.recommendation")
+                : t("planner.results.yourChoice")}
             </span>
             <span>
-              Muster {selected.rank} von {candidates.length}
+              {t("planner.results.patternOf", {
+                rank: selected.rank,
+                total: candidates.length,
+              })}
             </span>
           </header>
           <div className="pattern-featured-body">
             {drawing(selected, true)}
             <div>
-              <h2>{selected.metrics.packageCount} Pakete auf einer Lage</h2>
+              <h2>
+                {t("planner.results.packagesOnLayer", {
+                  count: selected.metrics.packageCount,
+                })}
+              </h2>
               {metrics(selected)}
               <p className="pattern-reason">
                 {reason(
+                  t,
                   selected,
                   candidates[
                     candidates.findIndex((c) => c.id === selected.id) + 1
                   ] ?? null,
-                ) ?? "Dieses Muster passt zu den vorgegebenen Maßen."}
+                ) ?? t("planner.results.fitsDefault")}
               </p>
               {!selection && (
                 <button
                   className="ui-btn-primary"
                   onClick={() => onSelect(selected.id)}
                 >
-                  Dieses Muster übernehmen
+                  {t("planner.results.accept")}
                 </button>
               )}
               {selected.id !== candidates[0]?.id && (
@@ -180,7 +184,7 @@ export function PatternResults({
                   className="text-action"
                   onClick={() => onSelect(candidates[0]!.id)}
                 >
-                  Empfehlung ansehen
+                  {t("planner.results.viewRecommendation")}
                 </button>
               )}
             </div>
@@ -189,7 +193,7 @@ export function PatternResults({
       )}
       <div className="pattern-filter">
         <h2>
-          Weitere Muster <small>({shown.length})</small>
+          {t("planner.results.morePatterns")} <small>({shown.length})</small>
         </h2>
         <div className="button-row">
           <button
@@ -200,7 +204,7 @@ export function PatternResults({
               setLimit(12);
             }}
           >
-            Alle
+            {t("planner.results.all")}
           </button>
           <button
             className="ui-btn"
@@ -210,14 +214,14 @@ export function PatternResults({
               setLimit(12);
             }}
           >
-            Nur Maximum ({maximum})
+            {t("planner.results.onlyMaximum", { max: maximum })}
           </button>
           <label className="exact-filter">
-            <span>Genau</span>
+            <span>{t("planner.results.exact")}</span>
             <input
               type="number"
               min="1"
-              aria-label="Genau Pakete je Lage"
+              aria-label={t("planner.results.exactAria")}
               value={exact}
               onChange={(e) => {
                 setExact(e.target.value);
@@ -225,14 +229,14 @@ export function PatternResults({
                 setLimit(12);
               }}
             />
-            <span>Pakete</span>
+            <span>{t("planner.results.packagesUnit")}</span>
           </label>
         </div>
       </div>
       {shown.length === 0 ? (
         <div className="fable-panel">
-          <h3>Kein Muster mit {exact} Paketen</h3>
-          <p>Die Suche hat andere Belegungen gefunden.</p>
+          <h3>{t("planner.results.noPatternWith", { exact })}</h3>
+          <p>{t("planner.results.searchFoundOthers")}</p>
           <button
             className="text-action"
             onClick={() => {
@@ -240,7 +244,7 @@ export function PatternResults({
               setExact("");
             }}
           >
-            Alle Muster anzeigen
+            {t("planner.results.showAll")}
           </button>
         </div>
       ) : (
@@ -254,38 +258,51 @@ export function PatternResults({
                 className="pattern-pick"
                 onClick={() => onSelect(c.id)}
                 aria-pressed={selectedId === c.id}
-                aria-label={`Muster ${c.rank} mit ${c.metrics.packageCount} Paketen wählen`}
+                aria-label={t("planner.results.pickAria", {
+                  rank: c.rank,
+                  count: c.metrics.packageCount,
+                })}
               >
                 <div className="pattern-card-heading">
-                  <h3>Muster {c.rank}</h3>
+                  <h3>{t("planner.results.cardTitle", { rank: c.rank })}</h3>
                   <span>
                     {selectedId === c.id
-                      ? "✓ Gewählt"
-                      : `${c.metrics.packageCount} Pakete`}
+                      ? t("planner.results.chosen")
+                      : t("planner.results.cardPackages", {
+                          count: c.metrics.packageCount,
+                        })}
                   </span>
                 </div>
                 {drawing(c)}
                 <div className="pattern-card-facts">
                   <span>
-                    {c.metrics.utilizationPercent.toFixed(1)} % Fläche
+                    {t("planner.results.cardArea", {
+                      percent: c.metrics.utilizationPercent.toFixed(1),
+                    })}
                   </span>
-                  <span>{c.metrics.provisionalCycleCount} Zyklen</span>
+                  <span>
+                    {t("planner.results.cardCycles", {
+                      count: c.metrics.provisionalCycleCount,
+                    })}
+                  </span>
                 </div>
               </button>
               <footer>
                 <span>
                   {c.id === selectedId
-                    ? "Aktuelles Muster"
+                    ? t("planner.results.currentPattern")
                     : !selection
-                      ? "Noch keine Auswahl"
-                      : `${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount > 0 ? "+" : ""}${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount} Zyklen zur Auswahl`}
+                      ? t("planner.results.noSelectionYet")
+                      : t("planner.results.cycleDelta", {
+                          delta: `${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount > 0 ? "+" : ""}${c.metrics.provisionalCycleCount - selected.metrics.provisionalCycleCount}`,
+                        })}
                 </span>
                 <button
                   className="text-action"
                   disabled={!selection || c.id === selectedId}
                   onClick={() => setCompareId(c.id)}
                 >
-                  Vergleichen
+                  {t("planner.results.compare")}
                 </button>
               </footer>
             </article>
@@ -294,17 +311,14 @@ export function PatternResults({
       )}
       {shown.length > limit && (
         <button className="ui-btn" onClick={() => setLimit((n) => n + 12)}>
-          Weitere {Math.min(12, shown.length - limit)} Muster anzeigen
+          {t("planner.results.showMore", {
+            count: Math.min(12, shown.length - limit),
+          })}
         </button>
       )}
       <details className="ranking-note">
-        <summary>Wie entsteht die Empfehlung?</summary>
-        <p>
-          Die feste Rangfolge bevorzugt mehr Pakete, dann höhere Flächennutzung,
-          weniger vorläufige Roboterzyklen und ein kleineres Blockmaß. Bei
-          Gleichstand entscheidet die Geometrie-Kennung. Eine mechanische
-          Stabilitätsprüfung ist damit nicht verbunden.
-        </p>
+        <summary>{t("planner.results.rankingSummary")}</summary>
+        <p>{t("planner.results.rankingNote")}</p>
       </details>
     </section>
   );

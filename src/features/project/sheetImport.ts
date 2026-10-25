@@ -1,3 +1,4 @@
+import { translateDe, type Translate } from "~/i18n";
 import type { PalletSheet } from "~/domain/sheetExtraction";
 import {
   palletTemplateFormValues,
@@ -121,6 +122,7 @@ async function downscalePhoto(file: File): Promise<Blob> {
 export async function requestSheetExtraction(
   file: File,
   signal?: AbortSignal,
+  t: Translate = translateDe,
 ): Promise<SheetExtractionResult> {
   const body = new FormData();
   body.append("image", await downscalePhoto(file), "sheet.jpg");
@@ -135,7 +137,8 @@ export async function requestSheetExtraction(
     | null;
   if (!response.ok || payload === null || payload.error !== undefined) {
     throw new Error(
-      payload?.error ?? `Sheet extraction failed (${response.status}).`,
+      payload?.error ??
+        t("project.sheet.extractionFailed", { status: response.status }),
     );
   }
   return payload;

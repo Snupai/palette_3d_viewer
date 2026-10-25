@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT } from "~/i18n";
 import { LayerSlider } from "~/components/LayerSlider";
 import { RobViewer, type BoxSelection } from "~/components/RobViewer";
 import type { PalletData } from "~/domain/palletTypes";
@@ -17,6 +18,7 @@ export function FinishedStack3D({
   data: PalletData;
   resetKey: string;
 }) {
+  const t = useT();
   const [selection, setSelection] = useState<BoxSelection | null>(null);
   const [visibleUpToLayer, setVisibleUpToLayer] = useState(data.layer_count);
 
@@ -27,7 +29,7 @@ export function FinishedStack3D({
 
   return (
     <section
-      aria-label="Finished pallet in 3D"
+      aria-label={t("planningCase.finished3dLabel")}
       className="border-line bg-surface flex h-full min-h-[420px] min-w-0 items-stretch gap-1 border"
     >
       <div className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
@@ -47,19 +49,27 @@ export function FinishedStack3D({
           {selection ? (
             <>
               <strong>
-                Lage {selection.layerIndex + 1} · Griff {selection.blueNumber}
+                {t("planningCase.pickLayerGrip", {
+                  layer: selection.layerIndex + 1,
+                  grip: selection.blueNumber,
+                })}
               </strong>
-              <span>{selection.numPackages} Pakete</span>
               <span>
-                Ablage X {selection.placeX} / Y {selection.placeY} / Z{" "}
-                {selection.placeZ} mm
+                {t("planningCase.pickPackages", {
+                  count: selection.numPackages,
+                })}
+              </span>
+              <span>
+                {t("planningCase.pickPlace", {
+                  x: selection.placeX,
+                  y: selection.placeY,
+                  z: selection.placeZ,
+                })}
               </span>
               <span>{selection.rotation}°</span>
             </>
           ) : (
-            <span>
-              Paket auswählen, um Griff und Ablagekoordinaten zu prüfen.
-            </span>
+            <span>{t("planningCase.pickEmpty")}</span>
           )}
         </div>
       </div>

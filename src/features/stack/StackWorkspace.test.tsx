@@ -688,64 +688,64 @@ describe("StackWorkspace", () => {
     );
 
     // Pattern B starts as "Use pattern A"; pick the second candidate.
-    expect(screen.getByLabelText<HTMLSelectElement>("Pattern B").value).toBe(
-      "",
-    );
-    fireEvent.change(screen.getByLabelText("Pattern B"), {
+    expect(screen.getByLabelText<HTMLSelectElement>("Muster B").value).toBe("");
+    fireEvent.change(screen.getByLabelText("Muster B"), {
       target: { value: candidatePatternRef(candidates[1]!) },
     });
     // New stacks start without interlayers.
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Interlayer rule").value,
+      screen.getByLabelText<HTMLSelectElement>("Zwischenlagen-Regel").value,
     ).toBe("none");
-    fireEvent.change(screen.getByLabelText("Composition mode"), {
+    fireEvent.change(screen.getByLabelText("Verbundart"), {
       target: { value: "rotation" },
     });
-    fireEvent.change(screen.getByLabelText("Requested layers"), {
+    fireEvent.change(screen.getByLabelText("Gewünschte Lagen"), {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Build A/B sequence" }));
+    fireEvent.click(screen.getByRole("button", { name: "A/B-Folge aufbauen" }));
 
     expect(document.querySelectorAll("[data-layer-id]")).toHaveLength(3);
     await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Layer 2 pattern").value,
+      screen.getByLabelText<HTMLSelectElement>("Muster von Lage 2").value,
     ).toBe(candidatePatternRef(candidates[1]!));
 
-    fireEvent.click(screen.getByRole("button", { name: "Move layer 2 up" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lage 2 nach oben verschieben" }),
+    );
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Layer 1 pattern").value,
+      screen.getByLabelText<HTMLSelectElement>("Muster von Lage 1").value,
     ).toBe(candidatePatternRef(candidates[1]!));
 
-    fireEvent.change(screen.getByLabelText("Interlayer rule"), {
+    fireEvent.change(screen.getByLabelText("Zwischenlagen-Regel"), {
       target: { value: "individual" },
     });
-    fireEvent.click(screen.getByLabelText("Interlayer before layer 2"));
+    fireEvent.click(screen.getByLabelText("Zwischenlage vor Lage 2"));
     fireEvent.change(
-      screen.getByLabelText("Interlayer thickness before layer 2"),
+      screen.getByLabelText("Dicke der Zwischenlage vor Lage 2"),
       { target: { value: "7" } },
     );
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Enable base sheet" }),
+      screen.getByRole("checkbox", { name: "Bodenblatt aktivieren" }),
     );
-    fireEvent.change(screen.getByLabelText("Base sheet thickness"), {
+    fireEvent.change(screen.getByLabelText("Dicke Bodenblatt"), {
       target: { value: "5" },
     });
     fireEvent.click(
-      screen.getByRole("checkbox", { name: "Enable deck sheet" }),
+      screen.getByRole("checkbox", { name: "Deckblatt aktivieren" }),
     );
-    fireEvent.change(screen.getByLabelText("Deck sheet thickness"), {
+    fireEvent.change(screen.getByLabelText("Dicke Deckblatt"), {
       target: { value: "4" },
     });
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Replace the physical top layer",
+        name: "Physisch oberste Lage ersetzen",
       }),
     );
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Save stack and continue to Robotics",
+        name: "Stapel speichern und weiter zur Robotik",
       }),
     );
 
@@ -775,19 +775,19 @@ describe("StackWorkspace", () => {
     {
       name: "length-axis mirror",
       transform: "mirror-y" as const,
-      label: "Mirror along pallet length (flip Y)",
+      label: "Spiegeln entlang der Palettenlänge (Y spiegeln)",
       expected: { positionMm: { x: 100, y: 700 }, rotation: 0 },
     },
     {
       name: "width-axis mirror",
       transform: "mirror-x" as const,
-      label: "Mirror along pallet width (flip X)",
+      label: "Spiegeln entlang der Palettenbreite (X spiegeln)",
       expected: { positionMm: { x: 1100, y: 100 }, rotation: 180 },
     },
     {
       name: "180-degree rotation",
       transform: "rotate-180" as const,
-      label: "Rotate 180°",
+      label: "180° drehen",
       expected: { positionMm: { x: 1100, y: 700 }, rotation: 180 },
     },
   ])(
@@ -809,16 +809,17 @@ describe("StackWorkspace", () => {
         />,
       );
 
-      fireEvent.change(screen.getByLabelText("Requested layers"), {
+      fireEvent.change(screen.getByLabelText("Gewünschte Lagen"), {
         target: { value: "1" },
       });
       fireEvent.click(
-        screen.getByRole("button", { name: "Build A/B sequence" }),
+        screen.getByRole("button", { name: "A/B-Folge aufbauen" }),
       );
       expect(document.querySelectorAll("[data-layer-id]")).toHaveLength(1);
 
-      const transformSelect =
-        screen.getByLabelText<HTMLSelectElement>("Layer 1 transform");
+      const transformSelect = screen.getByLabelText<HTMLSelectElement>(
+        "Transformation von Lage 1",
+      );
       expect(
         Array.from(transformSelect.options).find(
           (option) => option.value === transform,
@@ -827,7 +828,7 @@ describe("StackWorkspace", () => {
       fireEvent.change(transformSelect, { target: { value: transform } });
       fireEvent.click(
         screen.getByRole("button", {
-          name: "Save stack and continue to Robotics",
+          name: "Stapel speichern und weiter zur Robotik",
         }),
       );
 
@@ -857,19 +858,19 @@ describe("StackWorkspace", () => {
         onDirtyChange={onDirtyChange}
       />,
     );
-    fireEvent.change(screen.getByLabelText("Layer 1 transform"), {
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
       target: { value: "mirror-x" },
     });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Save stack and continue to Robotics",
+        name: "Stapel speichern und weiter zur Robotik",
       }),
     );
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
     expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
-    expect(screen.getByText("Unsaved stack edits")).toBeTruthy();
+    expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy();
     expect(
-      screen.queryByText("Stack saved to the project repository."),
+      screen.queryByText("Stapel im Projektarchiv gespeichert."),
     ).toBeNull();
   });
 
@@ -895,21 +896,22 @@ describe("StackWorkspace", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Layer 1 transform"), {
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
       target: { value: "mirror-x" },
     });
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Save stack and continue to Robotics",
+        name: "Stapel speichern und weiter zur Robotik",
       }),
     );
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
 
-    fireEvent.change(screen.getByLabelText("Layer 1 transform"), {
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
       target: { value: "rotate-90" },
     });
     expect(
-      screen.getByLabelText<HTMLSelectElement>("Layer 1 transform").value,
+      screen.getByLabelText<HTMLSelectElement>("Transformation von Lage 1")
+        .value,
     ).toBe("rotate-90");
 
     await act(async () => {
@@ -918,12 +920,12 @@ describe("StackWorkspace", () => {
     });
 
     await waitFor(() =>
-      expect(screen.getByText("Unsaved stack edits")).toBeTruthy(),
+      expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy(),
     );
     expect(onSave.mock.calls[0]?.[0].layers[0]?.transform).toBe("mirror-x");
     expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
     expect(screen.getByRole("status").textContent).toMatch(
-      /newer edits remain unsaved/i,
+      /Neuere Änderungen sind noch nicht gespeichert/i,
     );
   });
 });

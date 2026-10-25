@@ -18,7 +18,7 @@ import {
   projectEditorHistoryDirty,
   projectEditorHistoryReducer,
 } from "~/features/editor/editorHistory";
-import { countLabel, describeDiagnostic } from "~/features/editor/editorLabels";
+import { describeDiagnostic } from "~/features/editor/editorLabels";
 import {
   activeEditorPattern,
   activeEditorSolution,
@@ -30,14 +30,10 @@ import {
 import { InterlayerPanel } from "~/features/editor/InterlayerPanel";
 import { OrderPanel } from "~/features/editor/OrderPanel";
 import { PatternCanvas } from "~/features/editor/PatternCanvas";
+import { useT } from "~/i18n";
 
 /** Editor views; the command `mode` of the model uses the same names. */
 type EditorView = "pattern" | "order";
-
-const views: ReadonlyArray<readonly [EditorView, string]> = [
-  ["pattern", "Anordnung"],
-  ["order", "Greifreihenfolge"],
-];
 
 export type ProjectEditorWorkspaceProps = {
   project: Project;
@@ -71,6 +67,11 @@ export function ProjectEditorWorkspace({
   onDirtyChange,
   onSaveProject,
 }: ProjectEditorWorkspaceProps) {
+  const t = useT();
+  const views: ReadonlyArray<readonly [EditorView, string]> = [
+    ["pattern", t("editor.view.pattern")],
+    ["order", t("editor.view.order")],
+  ];
   const [history, dispatch] = useReducer(
     projectEditorHistoryReducer,
     project,
@@ -331,10 +332,10 @@ export function ProjectEditorWorkspace({
       const saved = await onSaveProject(submitted);
       dispatch({ type: "mark-saved", project: saved, snapshot });
       loadedProjectRef.current = saved;
-      setStatus("Muster gespeichert.");
+      setStatus(t("editor.statusSaved"));
     } catch (cause) {
       setSaveError(
-        cause instanceof Error ? cause.message : "Speichern fehlgeschlagen.",
+        cause instanceof Error ? cause.message : t("editor.saveFailed"),
       );
     } finally {
       pendingSaveRef.current = null;
@@ -343,16 +344,13 @@ export function ProjectEditorWorkspace({
   };
 
   const discard = () => {
-    if (
-      dirty &&
-      !window.confirm("Alle ungespeicherten Änderungen verwerfen?")
-    ) {
+    if (dirty && !window.confirm(t("editor.confirmDiscard"))) {
       return;
     }
     dispatch({ type: "discard" });
     setSelectedPlacementIds(new Set());
     setSaveError(null);
-    setStatus("Änderungen verworfen.");
+    setStatus(t("editor.statusDiscarded"));
   };
 
   const handleKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -408,18 +406,18 @@ export function ProjectEditorWorkspace({
     >
       <div className="ed-bar">
         <div className="ed-bar-title">
-          <h2>{pattern ? pattern.name : "Muster bearbeiten"}</h2>
+          <h2>{pattern ? pattern.name : t("editor.patternEditTitle")}</h2>
           <p>
             {pattern
-              ? `${countLabel(pattern.placements.length, "Paket", "Pakete")} · ${countLabel(orderModel?.groups.length ?? 0, "Griff", "Griffe")}`
-              : "Kein Muster geladen"}
+              ? `${t("editor.packageCount", { count: pattern.placements.length })} · ${t("editor.gripCount", { count: orderModel?.groups.length ?? 0 })}`
+              : t("editor.noPatternLoaded")}
           </p>
         </div>
         {history.present.solutions.length > 1 ? (
           <label className="ed-bar-select">
-            Lösung
+            {t("editor.solution")}
             <select
-              aria-label="Aktive Lösung"
+              aria-label={t("editor.activeSolution")}
               value={solution?.id ?? ""}
               onChange={(event) => {
                 execute({
@@ -442,9 +440,9 @@ export function ProjectEditorWorkspace({
         ) : null}
         {solution && solution.patterns.length > 1 ? (
           <label className="ed-bar-select">
-            Muster
+            {t("editor.pattern")}
             <select
-              aria-label="Aktives Muster"
+              aria-label={t("editor.activePattern")}
               value={pattern?.id ?? ""}
               onChange={(event) => {
                 setSelectedPatternId(event.target.value);
@@ -454,14 +452,17 @@ export function ProjectEditorWorkspace({
             >
               {solution.patterns.map((candidate) => (
                 <option key={candidate.id} value={candidate.id}>
-                  {candidate.name} · {candidate.placements.length} Pakete
+                  {candidate.name} ·{" "}
+                  {t("editor.packageCount", {
+                    count: candidate.placements.length,
+                  })}
                 </option>
               ))}
             </select>
           </label>
         ) : null}
         <fieldset className="fw-seg-field">
-          <legend className="sr-only">Ansicht</legend>
+          <legend className="sr-only">{t("editor.view")}</legend>
           <div className="fw-seg">
             {views.map(([value, label]) => (
               <label key={value}>
@@ -479,7 +480,7 @@ export function ProjectEditorWorkspace({
         </fieldset>
         <div className="ed-bar-actions">
           <span role="status" className="ed-status" data-dirty={dirty}>
-            {dirty ? "Ungespeicherte Änderungen" : "Gespeichert"}
+            {dirty ? t("editor.unsavedChanges") : t("editor.saved")}
           </span>
           <button
             type="button"
@@ -487,7 +488,7 @@ export function ProjectEditorWorkspace({
             disabled={history.past.length === 0 || saving}
             onClick={() => dispatch({ type: "undo" })}
           >
-            Rückgängig
+            {t("editor.undo")}
           </button>
           <button
             type="button"
@@ -495,7 +496,7 @@ export function ProjectEditorWorkspace({
             disabled={history.future.length === 0 || saving}
             onClick={() => dispatch({ type: "redo" })}
           >
-            Wiederholen
+            {t("editor.redo")}
           </button>
           <button
             type="button"
@@ -503,7 +504,7 @@ export function ProjectEditorWorkspace({
             disabled={!projectEditorCanReset(history) || saving}
             onClick={() => dispatch({ type: "reset-to-original" })}
           >
-            Original wiederherstellen
+            {t("editor.resetOriginal")}
           </button>
           <button
             type="button"
@@ -511,7 +512,7 @@ export function ProjectEditorWorkspace({
             disabled={!dirty || saving}
             onClick={discard}
           >
-            Verwerfen
+            {t("editor.discard")}
           </button>
           <button
             type="button"
@@ -519,7 +520,7 @@ export function ProjectEditorWorkspace({
             disabled={!dirty || saving}
             onClick={() => void save()}
           >
-            {saving ? "Speichert …" : "Speichern"}
+            {saving ? t("editor.saving") : t("editor.save")}
           </button>
         </div>
       </div>
@@ -538,28 +539,29 @@ export function ProjectEditorWorkspace({
       </div>
 
       {!ready || !solution || !pattern || !orderModel ? (
-        <div className="ed-empty">
-          Erst einen Stapel mit mindestens einem Muster speichern oder eine
-          .rob-Datei importieren, dann lässt sich das Muster bearbeiten.
-        </div>
+        <div className="ed-empty">{t("editor.emptyState")}</div>
       ) : (
         <div className="ed-layout">
           <div className="ed-stage">
             {view === "pattern" ? (
-              <div className="ed-toolbar" role="toolbar" aria-label="Anordnung">
+              <div
+                className="ed-toolbar"
+                role="toolbar"
+                aria-label={t("editor.view.pattern")}
+              >
                 <button
                   type="button"
                   className="ui-btn"
                   onClick={() => insert("longitudinal")}
                 >
-                  Paket längs einfügen
+                  {t("editor.insertLongitudinal")}
                 </button>
                 <button
                   type="button"
                   className="ui-btn"
                   onClick={() => insert("transverse")}
                 >
-                  Paket quer einfügen
+                  {t("editor.insertTransverse")}
                 </button>
                 <span className="ed-toolbar-gap" aria-hidden="true" />
                 <button
@@ -568,7 +570,7 @@ export function ProjectEditorWorkspace({
                   disabled={selectedCount === 0}
                   onClick={rotate}
                 >
-                  Drehen
+                  {t("editor.rotate")}
                 </button>
                 <button
                   type="button"
@@ -576,7 +578,7 @@ export function ProjectEditorWorkspace({
                   disabled={selectedCount === 0}
                   onClick={center}
                 >
-                  Zentrieren
+                  {t("editor.center")}
                 </button>
                 <button
                   type="button"
@@ -584,17 +586,17 @@ export function ProjectEditorWorkspace({
                   disabled={selectedCount === 0}
                   onClick={remove}
                 >
-                  Löschen
+                  {t("editor.delete")}
                 </button>
                 <span className="ed-toolbar-count">
-                  {selectedCount} ausgewählt
+                  {t("editor.selectedCount", { count: selectedCount })}
                 </span>
               </div>
             ) : (
               <div
                 className="ed-toolbar"
                 role="toolbar"
-                aria-label="Greifreihenfolge"
+                aria-label={t("editor.view.order")}
               >
                 <button
                   type="button"
@@ -602,7 +604,7 @@ export function ProjectEditorWorkspace({
                   disabled={selectedCount === 0}
                   onClick={createGroup}
                 >
-                  Griff aus Auswahl bilden ({selectedCount})
+                  {t("editor.createGrip", { count: selectedCount })}
                 </button>
                 <button
                   type="button"
@@ -610,7 +612,7 @@ export function ProjectEditorWorkspace({
                   disabled={selectedGripIds.size < 2}
                   onClick={mergeGroups}
                 >
-                  Griffe zusammenlegen ({selectedGripIds.size})
+                  {t("editor.mergeGrips", { count: selectedGripIds.size })}
                 </button>
                 <span className="ed-toolbar-gap" aria-hidden="true" />
                 <button
@@ -619,10 +621,10 @@ export function ProjectEditorWorkspace({
                   disabled={orderModel.groups.length === 0}
                   onClick={applySuggestedOrder}
                 >
-                  Automatisch ordnen
+                  {t("editor.autoOrder")}
                 </button>
                 <span className="ed-toolbar-count">
-                  {selectedCount} ausgewählt
+                  {t("editor.selectedCount", { count: selectedCount })}
                 </span>
               </div>
             )}
@@ -667,17 +669,15 @@ export function ProjectEditorWorkspace({
 
             <section className="ed-panel" aria-labelledby="ed-check-title">
               <div className="ed-panel-head">
-                <h3 id="ed-check-title">Prüfung</h3>
+                <h3 id="ed-check-title">{t("editor.check")}</h3>
                 <small>
                   {diagnostics.length === 0
-                    ? "keine Hinweise"
-                    : `${diagnostics.length} ${diagnostics.length === 1 ? "Hinweis" : "Hinweise"}`}
+                    ? t("editor.noHints")
+                    : t("editor.hintCount", { count: diagnostics.length })}
                 </small>
               </div>
               {diagnostics.length === 0 ? (
-                <p className="ed-ok">
-                  Anordnung, Griffe und Reihenfolge sind gültig.
-                </p>
+                <p className="ed-ok">{t("editor.allValid")}</p>
               ) : (
                 <ul className="ed-diag">
                   {diagnostics.map((diagnostic, index) => (
@@ -689,6 +689,7 @@ export function ProjectEditorWorkspace({
                         diagnostic,
                         pattern,
                         orderModel.groups,
+                        t,
                       )}
                     </li>
                   ))}
@@ -701,7 +702,8 @@ export function ProjectEditorWorkspace({
             {robotDiagnostics.length > 0 ? (
               <details className="ed-panel-details">
                 <summary>
-                  Roboterprüfung <small>{robotDiagnostics.length}</small>
+                  {t("editor.robotCheck")}{" "}
+                  <small>{robotDiagnostics.length}</small>
                 </summary>
                 <div>
                   <ul className="ed-diag">

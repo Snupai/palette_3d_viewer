@@ -5,11 +5,12 @@ import type {
   LayerPattern,
   PlanningSolution,
 } from "~/domain/project/projectSchema";
-import { countLabel, gripLabel } from "~/features/editor/editorLabels";
+import { gripLabel } from "~/features/editor/editorLabels";
 import type {
   ProjectEditorCommand,
   ProjectEditorOrderModel,
 } from "~/features/editor/editorModel";
+import { useT } from "~/i18n";
 
 export type OrderPanelProps = {
   solution: PlanningSolution;
@@ -29,6 +30,7 @@ export function OrderPanel({
   onSelectionChange,
   execute,
 }: OrderPanelProps) {
+  const t = useT();
   const groups = orderModel.groups;
   const [beforeGripId, setBeforeGripId] = useState("");
   const [afterGripId, setAfterGripId] = useState("");
@@ -55,15 +57,11 @@ export function OrderPanel({
     <>
       <section className="ed-panel" aria-labelledby="ed-grips-title">
         <div className="ed-panel-head">
-          <h3 id="ed-grips-title">Griffe in Reihenfolge</h3>
-          <small>{countLabel(groups.length, "Griff", "Griffe")}</small>
+          <h3 id="ed-grips-title">{t("editor.order.title")}</h3>
+          <small>{t("editor.gripCount", { count: groups.length })}</small>
         </div>
         {groups.length === 0 ? (
-          <p className="ed-panel-note">
-            Dieses Muster hat noch keine Griffe. Pakete auf der Palette
-            auswählen und „Griff aus Auswahl bilden“ wählen, oder „Automatisch
-            ordnen“ für einen Vorschlag.
-          </p>
+          <p className="ed-panel-note">{t("editor.order.empty")}</p>
         ) : (
           <ol className="ed-grips">
             {groups.map((group, index) => {
@@ -80,7 +78,7 @@ export function OrderPanel({
                     type="button"
                     className="ed-grip-pick"
                     aria-pressed={selected}
-                    aria-label={`Griff ${label} auswählen`}
+                    aria-label={t("editor.order.select", { label })}
                     onClick={() =>
                       onSelectionChange(
                         selected ? new Set() : new Set(group.placementIds),
@@ -92,16 +90,16 @@ export function OrderPanel({
                     </span>
                     <span className="ed-grip-text">
                       <span>
-                        {countLabel(
-                          group.placementIds.length,
-                          "Paket",
-                          "Pakete",
-                        )}
+                        {t("editor.packageCount", {
+                          count: group.placementIds.length,
+                        })}
                       </span>
                       <small>
-                        Mitte {Number(group.centerMm.x.toFixed(1))} /{" "}
-                        {Number(group.centerMm.y.toFixed(1))} mm
-                        {group.persisted ? "" : " · neu"}
+                        {t("editor.order.center", {
+                          x: Number(group.centerMm.x.toFixed(1)),
+                          y: Number(group.centerMm.y.toFixed(1)),
+                        })}
+                        {group.persisted ? "" : t("editor.order.new")}
                       </small>
                     </span>
                   </button>
@@ -109,8 +107,8 @@ export function OrderPanel({
                     <button
                       type="button"
                       className="ui-btn"
-                      aria-label={`Griff ${label} nach vorn`}
-                      title="Früher greifen"
+                      aria-label={t("editor.order.earlier", { label })}
+                      title={t("editor.order.earlierTitle")}
                       disabled={index === 0}
                       onClick={() =>
                         execute({
@@ -126,8 +124,8 @@ export function OrderPanel({
                     <button
                       type="button"
                       className="ui-btn"
-                      aria-label={`Griff ${label} nach hinten`}
-                      title="Später greifen"
+                      aria-label={t("editor.order.later", { label })}
+                      title={t("editor.order.laterTitle")}
                       disabled={index === groups.length - 1}
                       onClick={() =>
                         execute({
@@ -143,7 +141,7 @@ export function OrderPanel({
                     <button
                       type="button"
                       className="ui-btn"
-                      aria-label={`Griff ${label} teilen`}
+                      aria-label={t("editor.order.splitAria", { label })}
                       disabled={group.placementIds.length <= 1}
                       onClick={() =>
                         execute({
@@ -153,13 +151,13 @@ export function OrderPanel({
                         })
                       }
                     >
-                      Teilen
+                      {t("editor.order.split")}
                     </button>
                     <button
                       type="button"
                       className="ui-btn"
                       data-danger="true"
-                      aria-label={`Griff ${label} auflösen`}
+                      aria-label={t("editor.order.dissolveAria", { label })}
                       onClick={() =>
                         execute({
                           type: "remove-group",
@@ -168,7 +166,7 @@ export function OrderPanel({
                         })
                       }
                     >
-                      Auflösen
+                      {t("editor.order.dissolve")}
                     </button>
                   </span>
                 </li>
@@ -178,28 +176,29 @@ export function OrderPanel({
         )}
         {orderModel.unassignedPlacementIds.length > 0 ? (
           <p className="ed-panel-note">
-            Ohne Griff:{" "}
-            {orderModel.unassignedPlacementIds
-              .map((id) => {
-                const placement = pattern.placements.find((p) => p.id === id);
-                return placement ? `#${placement.sequence + 1}` : id;
-              })
-              .join(", ")}
-            . Diese Pakete werden nicht exportiert.
+            {t("editor.order.unassigned", {
+              packages: orderModel.unassignedPlacementIds
+                .map((id) => {
+                  const placement = pattern.placements.find((p) => p.id === id);
+                  return placement ? `#${placement.sequence + 1}` : id;
+                })
+                .join(", "),
+            })}
           </p>
         ) : null}
       </section>
 
       <details className="ed-panel-details">
         <summary>
-          Abhängigkeiten <small>{orderModel.dependencies.length}</small>
+          {t("editor.order.dependencies")}{" "}
+          <small>{orderModel.dependencies.length}</small>
         </summary>
         <div>
           <div className="ed-dep-form">
             <label className="ed-field">
-              Zuerst
+              {t("editor.order.first")}
               <select
-                aria-label="Abhängigkeit: zuerst"
+                aria-label={t("editor.order.firstAria")}
                 value={beforeGripId}
                 onChange={(event) => setBeforeGripId(event.target.value)}
                 className="ui-input"
@@ -212,11 +211,11 @@ export function OrderPanel({
                 ))}
               </select>
             </label>
-            <span aria-hidden="true">vor</span>
+            <span aria-hidden="true">{t("editor.order.before")}</span>
             <label className="ed-field">
-              Danach
+              {t("editor.order.then")}
               <select
-                aria-label="Abhängigkeit: danach"
+                aria-label={t("editor.order.thenAria")}
                 value={afterGripId}
                 onChange={(event) => setAfterGripId(event.target.value)}
                 className="ui-input"
@@ -244,11 +243,11 @@ export function OrderPanel({
                 })
               }
             >
-              Hinzufügen
+              {t("editor.order.add")}
             </button>
           </div>
           {orderModel.dependencies.length === 0 ? (
-            <p className="ed-panel-note">Keine Abhängigkeiten.</p>
+            <p className="ed-panel-note">{t("editor.order.noDependencies")}</p>
           ) : (
             <ul className="ed-deps">
               {orderModel.dependencies.map((dependency) => {
@@ -260,15 +259,18 @@ export function OrderPanel({
                     className="ed-dep"
                   >
                     <span className="ed-dep-text">
-                      {before} vor {after}
+                      {t("editor.order.beforeAfter", { before, after })}
                     </span>
                     {dependency.source === "inferred" ? (
-                      <small>aus der Geometrie abgeleitet</small>
+                      <small>{t("editor.order.inferred")}</small>
                     ) : (
                       <button
                         type="button"
                         className="ui-btn ui-btn-sm"
-                        aria-label={`Abhängigkeit ${before} vor ${after} entfernen`}
+                        aria-label={t("editor.order.removeAria", {
+                          before,
+                          after,
+                        })}
                         onClick={() =>
                           execute({
                             type: "remove-order-dependency",
@@ -278,7 +280,7 @@ export function OrderPanel({
                           })
                         }
                       >
-                        Entfernen
+                        {t("editor.order.remove")}
                       </button>
                     )}
                   </li>

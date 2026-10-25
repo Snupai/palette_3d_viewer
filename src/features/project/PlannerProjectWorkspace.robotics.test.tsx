@@ -172,11 +172,11 @@ describe("PlannerProjectWorkspace robotics integration", () => {
       ),
     ).toBeTruthy();
     expect(
-      screen.getByText("Robot readiness").closest("summary")?.textContent,
+      screen.getByText("Roboterbereitschaft").closest("summary")?.textContent,
     ).toContain("OBSERVED");
     expect(
-      screen.getByText("Robot readiness").closest("summary")?.textContent,
-    ).toContain("observed Multipack equipment profile");
+      screen.getByText("Roboterbereitschaft").closest("summary")?.textContent,
+    ).toContain("beobachtete Multipack-Ausrüstungsprofil");
     openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
@@ -262,10 +262,10 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     });
 
     await waitFor(() => {
-      const row = screen.getByText("Robot readiness").closest("summary");
+      const row = screen.getByText("Roboterbereitschaft").closest("summary");
       expect(row?.textContent).toContain("OBSERVED");
       expect(row?.textContent).toContain(
-        "observed Multipack equipment profile",
+        "beobachtete Multipack-Ausrüstungsprofil",
       );
       expect(row?.textContent).not.toContain("PASS");
     });

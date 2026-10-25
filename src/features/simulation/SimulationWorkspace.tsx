@@ -20,7 +20,7 @@ import {
   type RobotCycleMaterialization,
   type RobotTimelineConfig,
 } from "~/domain/robotics";
-import { countLabel } from "~/features/editor/editorLabels";
+import { useLocale, type MessageKey } from "~/i18n";
 import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
 import {
   advanceTimelineCursor,
@@ -50,17 +50,25 @@ const defaultConfig: RobotTimelineConfig = {
 };
 
 const timingFields: ReadonlyArray<
-  readonly [string, keyof RobotTimelineConfig]
+  readonly [MessageKey, keyof RobotTimelineConfig]
 > = [
-  ["Bahngeschwindigkeit (mm/s)", "linearSpeedMmPerSec"],
-  ["Drehgeschwindigkeit (°/s)", "angularSpeedDegPerSec"],
-  ["Haltezeit Aufnahme (ms)", "pickDwellMs"],
-  ["Haltezeit Ablage (ms)", "placeDwellMs"],
-  ["Pause zwischen Griffen (ms)", "betweenCycleDwellMs"],
+  ["simulation.timing.linearSpeed", "linearSpeedMmPerSec"],
+  ["simulation.timing.angularSpeed", "angularSpeedDegPerSec"],
+  ["simulation.timing.pickDwell", "pickDwellMs"],
+  ["simulation.timing.placeDwell", "placeDwellMs"],
+  ["simulation.timing.betweenCycles", "betweenCycleDwellMs"],
 ];
 
-function formatTime(timeMs: number): string {
-  return `${(timeMs / 1_000).toFixed(1).replace(".", ",")} s`;
+function formatDecimal(value: number, tag: string): string {
+  return new Intl.NumberFormat(tag, {
+    minimumFractionDigits: 1,
+    maximumFractionDigits: 1,
+    useGrouping: false,
+  }).format(value);
+}
+
+function formatTime(timeMs: number, tag: string): string {
+  return `${formatDecimal(timeMs / 1_000, tag)} s`;
 }
 
 function numericInput(value: string, fallback: number): number {
@@ -68,8 +76,8 @@ function numericInput(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
-function mm(value: number): string {
-  return value.toFixed(1).replace(".", ",");
+function mm(value: number, tag: string): string {
+  return formatDecimal(value, tag);
 }
 
 export function SimulationWorkspace({
@@ -77,6 +85,7 @@ export function SimulationWorkspace({
   materialization,
   previewData,
 }: SimulationWorkspaceProps) {
+  const { t, tag } = useLocale();
   const [config, setConfig] = useState<RobotTimelineConfig>(defaultConfig);
   const sceneCalibration = useMemo<ViewerSceneCalibrationConfig | null>(
     () =>
@@ -289,7 +298,7 @@ export function SimulationWorkspace({
     cursorRef.current = next;
     setCursorMs(next);
   };
-  const phaseText = sample ? timelinePhaseLabel(sample.segment.kind) : "–";
+  const phaseText = sample ? timelinePhaseLabel(sample.segment.kind, t) : "–";
 
   return (
     <div className="ed" data-testid="simulation-workspace">
@@ -298,14 +307,14 @@ export function SimulationWorkspace({
           <h2>Simulation</h2>
           <p>
             {timeline.cycles.length > 0
-              ? `${countLabel(timeline.cycles.length, "Griff", "Griffe")} · Dauer ${formatTime(timeline.durationMs)}`
-              : "Keine berechneten Griffe"}
+              ? `${t("simulation.cycleCount", { count: timeline.cycles.length })} · ${t("simulation.duration", { time: formatTime(timeline.durationMs, tag) })}`
+              : t("simulation.noCycles")}
           </p>
         </div>
         <div
           className="ed-bar-actions"
           role="toolbar"
-          aria-label="Wiedergabe"
+          aria-label={t("simulation.playback")}
           style={{ marginLeft: 0 }}
         >
           <button
@@ -325,7 +334,7 @@ export function SimulationWorkspace({
               setPlaying(!playing);
             }}
           >
-            {playing ? "Stopp" : "Start"}
+            {playing ? t("simulation.stop") : t("simulation.start")}
           </button>
           <button
             type="button"
@@ -333,7 +342,7 @@ export function SimulationWorkspace({
             disabled={!canNavigate}
             onClick={() => setBoundary(0)}
           >
-            Anfang
+            {t("simulation.toStart")}
           </button>
           <button
             type="button"
@@ -343,7 +352,7 @@ export function SimulationWorkspace({
               setBoundary(stepTimelineCursor(timeline, cursorMs, "reverse"))
             }
           >
-            Zurück
+            {t("simulation.back")}
           </button>
           <button
             type="button"
@@ -353,7 +362,7 @@ export function SimulationWorkspace({
               setBoundary(stepTimelineCursor(timeline, cursorMs, "forward"))
             }
           >
-            Weiter
+            {t("simulation.next")}
           </button>
           <button
             type="button"
@@ -361,17 +370,17 @@ export function SimulationWorkspace({
             disabled={!canNavigate}
             onClick={() => setBoundary(timeline.durationMs)}
           >
-            Ende
+            {t("simulation.toEnd")}
           </button>
         </div>
         <div className="ed-bar-actions">
           <fieldset className="fw-seg-field">
-            <legend className="sr-only">Richtung</legend>
+            <legend className="sr-only">{t("simulation.direction")}</legend>
             <div className="fw-seg">
               {(
                 [
-                  ["forward", "Vorwärts"],
-                  ["reverse", "Rückwärts"],
+                  ["forward", t("simulation.forward")],
+                  ["reverse", t("simulation.reverse")],
                 ] as const
               ).map(([value, label]) => (
                 <label key={value}>
@@ -391,9 +400,9 @@ export function SimulationWorkspace({
             </div>
           </fieldset>
           <label className="ed-bar-select">
-            Geschwindigkeit
+            {t("simulation.speed")}
             <select
-              aria-label="Geschwindigkeit"
+              aria-label={t("simulation.speed")}
               value={speed}
               onChange={(event) => setSpeed(Number(event.target.value))}
               className="ui-input"
@@ -424,9 +433,9 @@ export function SimulationWorkspace({
       <div className="ed-layout">
         <div className="ed-stage">
           <div className="ed-toolbar">
-            <span className="ed-status">{formatTime(cursorMs)}</span>
+            <span className="ed-status">{formatTime(cursorMs, tag)}</span>
             <input
-              aria-label="Zeitposition"
+              aria-label={t("simulation.timePosition")}
               type="range"
               min={0}
               max={Math.max(1, timeline.durationMs)}
@@ -437,10 +446,12 @@ export function SimulationWorkspace({
               className="accent-brand"
               style={{ flex: "1 1 240px" }}
             />
-            <span className="ed-status">{formatTime(timeline.durationMs)}</span>
+            <span className="ed-status">
+              {formatTime(timeline.durationMs, tag)}
+            </span>
             <span className="ed-toolbar-count">
               {cycle
-                ? `Griff ${cycle.sequence + 1} / ${timeline.cycles.length} · ${phaseText}`
+                ? `${t("simulation.cycle")} ${cycle.sequence + 1} / ${timeline.cycles.length} · ${phaseText}`
                 : "–"}
             </span>
           </div>
@@ -462,8 +473,7 @@ export function SimulationWorkspace({
               />
             ) : (
               <div className="ed-empty" style={{ minHeight: 560 }}>
-                Erst einen Stapel mit Lagen speichern, dann lässt sich die
-                Bewegung ansehen.
+                {t("simulation.emptyPreview")}
               </div>
             )}
           </div>
@@ -473,14 +483,14 @@ export function SimulationWorkspace({
           {project.source.kind === "new" ? (
             <section className="ed-panel" aria-labelledby="sim-lift-title">
               <div className="ed-panel-head">
-                <h3 id="sim-lift-title">Hub (Ewellix)</h3>
+                <h3 id="sim-lift-title">{t("simulation.lift.title")}</h3>
                 <output htmlFor="lift-carriage-mm" className="ed-status">
                   {liftCarriageMm} mm
                 </output>
               </div>
               <input
                 id="lift-carriage-mm"
-                aria-label="Hubposition Ewellix"
+                aria-label={t("simulation.lift.position")}
                 type="range"
                 min={BUNDLED_ROBOT_CELL.liftTravelMm.min}
                 max={BUNDLED_ROBOT_CELL.liftTravelMm.max}
@@ -495,11 +505,11 @@ export function SimulationWorkspace({
           ) : null}
 
           <details className="ed-panel-details">
-            <summary>Bewegungszeiten</summary>
+            <summary>{t("simulation.timing.title")}</summary>
             <div>
               {timingFields.map(([label, field]) => (
                 <label key={field} className="ed-field">
-                  {label}
+                  {t(label)}
                   <input
                     type="number"
                     min={0}
@@ -522,12 +532,12 @@ export function SimulationWorkspace({
           </details>
 
           <details className="ed-panel-details">
-            <summary>Aktuelle Werkzeugposition</summary>
+            <summary>{t("simulation.tcp.title")}</summary>
             <div>
               <table className="ed-table">
                 <tbody>
                   <tr>
-                    <td>Griff</td>
+                    <td>{t("simulation.cycle")}</td>
                     <td className="num">
                       {cycle
                         ? `${cycle.sequence + 1} / ${timeline.cycles.length}`
@@ -535,40 +545,40 @@ export function SimulationWorkspace({
                     </td>
                   </tr>
                   <tr>
-                    <td>Phase</td>
+                    <td>{t("simulation.tcp.phase")}</td>
                     <td className="num">{phaseText}</td>
                   </tr>
                   <tr>
                     <td>X</td>
                     <td className="num">
-                      {sample ? mm(sample.pose.positionMm.x) : "–"}
+                      {sample ? mm(sample.pose.positionMm.x, tag) : "–"}
                     </td>
                   </tr>
                   <tr>
                     <td>Y</td>
                     <td className="num">
-                      {sample ? mm(sample.pose.positionMm.y) : "–"}
+                      {sample ? mm(sample.pose.positionMm.y, tag) : "–"}
                     </td>
                   </tr>
                   <tr>
                     <td>Z</td>
                     <td className="num">
-                      {sample ? mm(sample.pose.positionMm.z) : "–"}
+                      {sample ? mm(sample.pose.positionMm.z, tag) : "–"}
                     </td>
                   </tr>
                   <tr>
-                    <td>Drehung</td>
+                    <td>{t("simulation.tcp.rotation")}</td>
                     <td className="num">
-                      {sample ? `${mm(sample.pose.yawDeg)}°` : "–"}
+                      {sample ? `${mm(sample.pose.yawDeg, tag)}°` : "–"}
                     </td>
                   </tr>
                   <tr>
-                    <td>Stützpunkt</td>
+                    <td>{t("simulation.tcp.keyPoint")}</td>
                     <td className="num">
                       {sample
                         ? sample.atBoundary
-                          ? "exakt"
-                          : "interpoliert"
+                          ? t("simulation.tcp.exact")
+                          : t("simulation.tcp.interpolated")
                         : "–"}
                     </td>
                   </tr>

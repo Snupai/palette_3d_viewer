@@ -3,6 +3,7 @@ import {
   type RectangleSizeMm,
 } from "~/domain/geometry";
 import type { SolverCandidate } from "~/domain/solver";
+import { translateDe, type Translate } from "~/i18n";
 
 export const CANDIDATE_LAYOUT_POSITION_TOLERANCE_MM = 0.001;
 
@@ -511,24 +512,42 @@ export function selectDistinctCandidateLayouts(
 export function candidateRankReason(
   candidate: SolverCandidate,
   following: SolverCandidate | null,
+  t: Translate = translateDe,
 ): string | null {
   if (!following) return null;
   const current = candidate.score;
   const next = following.score;
   if (current.packageCount !== next.packageCount) {
-    return `More packages per layer (${current.packageCount} vs ${next.packageCount})`;
+    return t("candidates.rank.packages", {
+      current: current.packageCount,
+      next: next.packageCount,
+    });
   }
   if (current.utilizationMillionths !== next.utilizationMillionths) {
-    return `Higher area utilization (${(current.utilizationMillionths / 10_000).toFixed(1)}% vs ${(next.utilizationMillionths / 10_000).toFixed(1)}%)`;
+    return t("candidates.rank.utilization", {
+      current: (current.utilizationMillionths / 10_000).toFixed(1),
+      next: (next.utilizationMillionths / 10_000).toFixed(1),
+    });
   }
   if (current.provisionalCycleCount !== next.provisionalCycleCount) {
-    return `Fewer robot cycles (${current.provisionalCycleCount} vs ${next.provisionalCycleCount})`;
+    return t("candidates.rank.cycles", {
+      current: current.provisionalCycleCount,
+      next: next.provisionalCycleCount,
+    });
   }
   if (current.boundingBlockAreaMm2 !== next.boundingBlockAreaMm2) {
-    return `Smaller bounding block (${candidate.metrics.boundingBlockLengthMm} × ${candidate.metrics.boundingBlockWidthMm} mm vs ${following.metrics.boundingBlockLengthMm} × ${following.metrics.boundingBlockWidthMm} mm)`;
+    return t("candidates.rank.boundingBlock", {
+      currentLength: candidate.metrics.boundingBlockLengthMm,
+      currentWidth: candidate.metrics.boundingBlockWidthMm,
+      nextLength: following.metrics.boundingBlockLengthMm,
+      nextWidth: following.metrics.boundingBlockWidthMm,
+    });
   }
   if (current.boundingBlockPerimeterMm !== next.boundingBlockPerimeterMm) {
-    return `Tighter bounding block perimeter (${current.boundingBlockPerimeterMm} mm vs ${next.boundingBlockPerimeterMm} mm)`;
+    return t("candidates.rank.perimeter", {
+      current: current.boundingBlockPerimeterMm,
+      next: next.boundingBlockPerimeterMm,
+    });
   }
-  return "Equivalent score — ranked ahead by the deterministic identity tie-break";
+  return t("candidates.rank.tie");
 }

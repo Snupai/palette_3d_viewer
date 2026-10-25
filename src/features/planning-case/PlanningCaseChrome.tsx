@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useT } from "~/i18n";
 import type { PalletData } from "~/domain/palletTypes";
 import type { SolverCandidate } from "~/domain/solver";
 import {
@@ -26,6 +27,7 @@ export function PlanningCandidateIndex({
   onSelect: (candidateId: string) => void;
   maximumRows?: number;
 }) {
+  const t = useT();
   const [expandedList, setExpandedList] = useState<{
     candidates: readonly SolverCandidate[];
     rowLimit: number;
@@ -63,7 +65,7 @@ export function PlanningCandidateIndex({
       ? candidates[selectedPosition]
       : null;
   const selectedRankReason = selectedCandidate
-    ? candidateRankReason(selectedCandidate, followingCandidate ?? null)
+    ? candidateRankReason(selectedCandidate, followingCandidate ?? null, t)
     : null;
 
   const selectAt = (index: number) => {
@@ -109,7 +111,7 @@ export function PlanningCandidateIndex({
       <div>
         <header className="border-line flex items-center justify-between border-b px-2.5 py-2">
           <h3 className="text-body text-ink font-semibold">
-            Candidate layouts
+            {t("planningCase.chrome.candidateLayouts")}
           </h3>
           <span className="text-micro text-muted font-mono">
             {rows.length}/{candidates.length}
@@ -123,7 +125,9 @@ export function PlanningCandidateIndex({
             <span className="text-ink font-semibold">
               #{selectedCandidate.rank}
               {followingCandidate
-                ? ` ahead of #${followingCandidate.rank}`
+                ? t("planningCase.chrome.aheadOf", {
+                    rank: followingCandidate.rank,
+                  })
                 : ""}
               :
             </span>{" "}
@@ -133,22 +137,35 @@ export function PlanningCandidateIndex({
       </div>
       <div
         role="listbox"
-        aria-label="Generated pattern layouts"
+        aria-label={t("planningCase.chrome.generatedLayouts")}
         className="scrollbar-thin min-h-0 overflow-auto"
       >
         <table className="text-micro w-full border-collapse whitespace-nowrap">
           <thead className="bg-surface text-micro text-muted sticky top-0 z-10 text-left">
             <tr className="border-line border-b">
-              <th className="px-2 py-1.5 font-medium">Rank</th>
-              <th className="px-2 py-1.5 font-medium">Pkgs</th>
-              <th className="px-2 py-1.5 text-right font-medium">Util</th>
-              <th className="px-2 py-1.5 text-right font-medium">Cycles</th>
+              <th className="px-2 py-1.5 font-medium">
+                {t("planningCase.chrome.rank")}
+              </th>
+              <th className="px-2 py-1.5 font-medium">
+                {t("planningCase.chrome.pkgs")}
+              </th>
+              <th className="px-2 py-1.5 text-right font-medium">
+                {t("planningCase.chrome.util")}
+              </th>
+              <th className="px-2 py-1.5 text-right font-medium">
+                {t("planningCase.chrome.cycles")}
+              </th>
               <th className="px-1 py-1.5 text-center font-medium">
-                <abbr title="Geometry check" className="no-underline">
-                  Geo
+                <abbr
+                  title={t("planningCase.chrome.geoCheck")}
+                  className="no-underline"
+                >
+                  {t("planningCase.chrome.geo")}
                 </abbr>
               </th>
-              <th className="px-2 py-1.5 text-right font-medium">Bounds mm</th>
+              <th className="px-2 py-1.5 text-right font-medium">
+                {t("planningCase.chrome.boundsMm")}
+              </th>
             </tr>
           </thead>
           <tbody>
@@ -187,7 +204,9 @@ export function PlanningCandidateIndex({
                   <td
                     className="px-1 py-1.5 text-center"
                     title={
-                      candidate.validation.valid ? "Geometry OK" : "Rejected"
+                      candidate.validation.valid
+                        ? t("planningCase.chrome.geometryOk")
+                        : t("planningCase.chrome.rejected")
                     }
                   >
                     <span
@@ -199,7 +218,9 @@ export function PlanningCandidateIndex({
                       {candidate.validation.valid ? "■" : "×"}
                     </span>
                     <span className="sr-only">
-                      {candidate.validation.valid ? "Geometry OK" : "Rejected"}
+                      {candidate.validation.valid
+                        ? t("planningCase.chrome.geometryOk")
+                        : t("planningCase.chrome.rejected")}
                     </span>
                   </td>
                   <td className="text-micro text-muted px-2 py-1.5 text-right font-mono">
@@ -213,15 +234,17 @@ export function PlanningCandidateIndex({
         </table>
         {rows.length === 0 ? (
           <p className="text-micro text-muted p-3 leading-5">
-            Generate patterns to populate the candidate layouts.
+            {t("planningCase.chrome.generateHint")}
           </p>
         ) : null}
         {candidates.length > rowLimit ? (
           <div className="border-line text-micro text-muted grid gap-2 border-t p-2">
             <p>
               {selectedOutsideTopRows
-                ? `Showing the selected candidate with the first ${Math.max(0, rowLimit - 1)} ranked candidates.`
-                : `Showing the first ${rowLimit} ranked candidates.`}
+                ? t("planningCase.chrome.showingSelectedPlusFirst", {
+                    count: Math.max(0, rowLimit - 1),
+                  })
+                : t("planningCase.chrome.showingFirst", { count: rowLimit })}
             </p>
             <button
               type="button"
@@ -236,8 +259,12 @@ export function PlanningCandidateIndex({
                 })
               }
             >
-              Show more layouts (
-              {Math.min(Math.max(1, pageSize), candidates.length - rowLimit)})
+              {t("planningCase.chrome.showMore", {
+                count: Math.min(
+                  Math.max(1, pageSize),
+                  candidates.length - rowLimit,
+                ),
+              })}
             </button>
           </div>
         ) : null}
@@ -255,15 +282,18 @@ function statusClass(status: ValidationStatus): string {
 }
 
 export function ValidationLedger({ rows }: { rows: ValidationLedgerRow[] }) {
+  const t = useT();
   return (
     <aside
-      aria-label="Inspection ledger"
+      aria-label={t("planningCase.chrome.ledgerLabel")}
       className="planning-ledger app-chrome border-line bg-surface grid min-h-0 grid-rows-[auto_minmax(0,1fr)] border"
     >
       <header className="border-line border-b px-3 py-2">
-        <h2 className="text-body text-ink font-semibold">Inspection ledger</h2>
+        <h2 className="text-body text-ink font-semibold">
+          {t("planningCase.chrome.ledgerLabel")}
+        </h2>
         <p className="text-micro text-muted mt-0.5">
-          G generated · O observed · ? unknown
+          {t("planningCase.chrome.ledgerLegend")}
         </p>
       </header>
       <div className="scrollbar-thin min-h-0 overflow-auto">
@@ -347,6 +377,7 @@ function StripRow({
   selectedIndex: number;
   onSelect: (index: number) => void;
 }) {
+  const t = useT();
   return (
     <div className="border-line grid grid-cols-[76px_minmax(0,1fr)] border-b last:border-b-0">
       <div className="border-line text-micro text-muted flex items-center border-r px-2 font-semibold">
@@ -355,7 +386,7 @@ function StripRow({
       <div className="scrollbar-thin flex min-w-0 overflow-x-auto">
         {items.length === 0 ? (
           <span className="text-micro text-muted px-3 py-2">
-            No layer sequence
+            {t("planningCase.chrome.noLayerSequence")}
           </span>
         ) : (
           items.map((item, index) => (
@@ -363,7 +394,7 @@ function StripRow({
               {item.sheetBefore ? (
                 <span
                   className="w-1 bg-[repeating-linear-gradient(45deg,var(--accent)_0,var(--accent)_1px,transparent_1px,transparent_3px)]"
-                  title="Interlayer before"
+                  title={t("planningCase.chrome.interlayerBefore")}
                 />
               ) : null}
               <button
@@ -404,21 +435,22 @@ export function LayerStrips({
   onReferenceLayerChange: (index: number) => void;
   onCurrentLayerChange: (index: number) => void;
 }) {
+  const t = useT();
   return (
     <section
-      aria-label="Layer sequences"
+      aria-label={t("planningCase.chrome.layerSequences")}
       className="app-chrome border-line bg-surface border"
     >
       {reference ? (
         <StripRow
-          label="Reference"
+          label={t("planningCase.chrome.reference")}
           items={sourceStrip(reference)}
           selectedIndex={referenceLayerIndex}
           onSelect={onReferenceLayerChange}
         />
       ) : null}
       <StripRow
-        label="Layers"
+        label={t("planningCase.chrome.layers")}
         items={currentStrip(current)}
         selectedIndex={currentLayerIndex}
         onSelect={onCurrentLayerChange}
