@@ -87,7 +87,6 @@ export function PlanLibrary(
       <header className="page-intro library-intro">
         <div>
           <h1>Vorhandene Pläne</h1>
-          <p>Der richtige Plan beginnt mit einem Blick auf die Palette.</p>
         </div>
         <div className="button-row">
           <button className="ui-btn" onClick={() => robInput.current?.click()}>

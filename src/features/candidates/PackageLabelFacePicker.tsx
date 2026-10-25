@@ -175,10 +175,6 @@ export function PackageLabelFacePicker({
         <legend className="text-micro text-muted font-semibold">
           Physical label face
         </legend>
-        <p className="text-micro text-muted leading-4">
-          Click the package edge where the label is attached.
-        </p>
-
         <div className="border-line bg-canvas relative flex h-40 items-center justify-center overflow-hidden border">
           <div
             aria-hidden="true"

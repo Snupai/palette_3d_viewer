@@ -115,6 +115,9 @@ export function SheetPhotoImport({
 
   const sheet = result?.sheet;
 
+  const busyLabel =
+    scan === "scanning" ? "Blatt wird zugeschnitten …" : "Blatt wird gelesen …";
+
   return (
     <fieldset className="border-line bg-surface grid gap-3 border p-4">
       <legend className="text-ink px-1 text-sm font-semibold">
@@ -148,12 +151,10 @@ export function SheetPhotoImport({
           type="button"
           disabled={disabled || busy}
           onClick={() => cameraInputRef.current?.click()}
-          className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
+          className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50 md:hidden"
         >
           {busy
-            ? scan === "scanning"
-              ? "Blatt wird zugeschnitten …"
-              : "Blatt wird gelesen …"
+            ? busyLabel
             : photoUrl
               ? "Neues Foto aufnehmen"
               : "Foto aufnehmen"}
@@ -164,7 +165,7 @@ export function SheetPhotoImport({
           onClick={() => libraryInputRef.current?.click()}
           className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50"
         >
-          Aus Galerie wählen
+          {busy ? busyLabel : "Aus Galerie wählen"}
         </button>
         <span className="fw-note">
           Wird lokal auf dem eigenen Server gelesen. Die Werte sind ein

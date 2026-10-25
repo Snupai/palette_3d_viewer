@@ -766,11 +766,6 @@ export function GuidedProjectForm({
             <h1 id={`${baseId}-title`}>
               {creating ? "Paket und Palette" : "Plan bearbeiten"}
             </h1>
-            <p>
-              {creating
-                ? "Artikelnummer und drei Maße genügen für den Anfang. Alles Weitere hat Vorgaben, die Sie hier anpassen können."
-                : "Angaben ändern und speichern. Nur Maße, Überstand, Abstand und Einlauf verwerfen erzeugte Muster."}
-            </p>
           </header>
 
           {failure ? (
@@ -813,10 +808,6 @@ export function GuidedProjectForm({
                   onChange={(value) => set("projectNumber", value)}
                 />
               </div>
-              <p className="fw-note">
-                Die Artikelnummer benennt den Plan in der Planliste; die Linie
-                ist optional. Beides ändert weder Muster noch Stapel.
-              </p>
               <div className="fw-sec-foot">
                 <button
                   type="button"
@@ -866,9 +857,6 @@ export function GuidedProjectForm({
                   onChange={(value) => set("packageHeightMm", value)}
                 />
               </div>
-              <p className="fw-note">
-                Außenmaße so, wie das Paket am Einlauf ankommt.
-              </p>
               <div className="fw-grid2">
                 <NumberField
                   {...field("packageWeightKg")}
@@ -876,7 +864,6 @@ export function GuidedProjectForm({
                   unit="kg"
                   min="0"
                   placeholder="unbekannt"
-                  hint="Optional, für die Bruttogewichts-Prüfung des Stapels."
                   value={values.packageWeightKg}
                   onChange={(value) => set("packageWeightKg", value)}
                 />
@@ -885,7 +872,6 @@ export function GuidedProjectForm({
                   label="Abstand zwischen Paketen"
                   unit="mm"
                   min="0"
-                  hint="0, wenn die Pakete dicht an dicht stehen."
                   value={values.packageClearanceMm}
                   onChange={(value) => set("packageClearanceMm", value)}
                 />
@@ -1045,7 +1031,6 @@ export function GuidedProjectForm({
                     {...field("storageHeightMm")}
                     label="Lagerhöhe"
                     unit="mm"
-                    hint="Der Stapel vergleicht seine Ladehöhe ohne Palette mit diesem Wert."
                     value={values.storageHeightMm}
                     onChange={(value) => set("storageHeightMm", value)}
                   />
@@ -1165,10 +1150,6 @@ export function GuidedProjectForm({
             <section className="fw-count" aria-labelledby={`${baseId}-count`}>
               <div className="fw-count-text">
                 <h2 id={`${baseId}-count`}>Pakete je Schicht</h2>
-                <p>
-                  Der Generator sucht Muster mit genau dieser Anzahl. Eine
-                  automatische Suche nach dem Maximum gibt es noch nicht.
-                </p>
               </div>
               <div className="fw-count-ctl">
                 <NumberField

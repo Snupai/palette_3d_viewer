@@ -640,11 +640,6 @@ export function ProjectEditorWorkspace({
               onDeleteSelection={remove}
               onRotateSelection={rotate}
             />
-            <p className="ed-canvas-hint">
-              {view === "pattern"
-                ? "Pakete ziehen oder mit den Pfeiltasten verschieben. Die Nummern zeigen die Griffe, die Pfeile die Ablagerichtung."
-                : "G1 wird zuerst gesetzt. Griff anklicken, um ihn auf der Palette zu sehen; Pakete auswählen, um daraus einen neuen Griff zu bilden."}
-            </p>
           </div>
 
           <aside className="ed-side">

@@ -17,10 +17,6 @@ export function ObstacleEditor({
   return (
     <>
       <div className="ed-actions">
-        <p className="ed-panel-note">
-          Gemessene feste Objekte im Stationskoordinatensystem. Ohne sie wird
-          die Kollision mit einzelnen Stationsobjekten nicht geprüft.
-        </p>
         <button
           type="button"
           onClick={() =>
@@ -41,10 +37,7 @@ export function ObstacleEditor({
         </button>
       </div>
       {obstacles.length === 0 ? (
-        <p className="ed-panel-note">
-          Keine festen Hindernisse modelliert. Die Kollision mit einzelnen
-          Stationsobjekten wurde nicht geprüft.
-        </p>
+        <p className="ed-panel-note">Keine Hindernisse modelliert.</p>
       ) : (
         obstacles.map((obstacle, index) => (
           <div key={`${obstacle.id}-${index}`} className="ed-panel">

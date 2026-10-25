@@ -180,10 +180,6 @@ export function ReportWorkspace({
             <h2 className="text-ink text-body font-semibold">
               Palettierschema
             </h2>
-            <p className="text-muted text-micro">
-              One-page A4 sheet for the line: figures and an isometric drawing
-              with the top layer lifted off.
-            </p>
           </div>
           <button
             type="button"
@@ -257,11 +253,6 @@ export function ReportWorkspace({
             <p className="text-muted text-body mt-1">
               Product {report.project.productNumber || "not set"} · Line{" "}
               {report.project.projectNumber || "not set"}
-            </p>
-            <p className="text-muted text-micro mt-1">
-              Project schema {report.project.schemaVersion} · Last updated{" "}
-              {new Date(report.project.updatedAt).toLocaleString()} ·{" "}
-              {report.project.source}
             </p>
           </header>
 
@@ -351,9 +342,6 @@ export function ReportWorkspace({
                 <h2 className="text-ink text-body font-semibold">
                   Deterministic 2D SVG
                 </h2>
-                <p className="text-muted text-micro mt-1">
-                  Read-only layer geometry rendered without canvas or WebGL.
-                </p>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {uniquePatterns.map((preview) => (
                     <figure
@@ -384,10 +372,6 @@ export function ReportWorkspace({
                 <h2 className="text-ink text-body font-semibold">
                   Fixed-view 3D capture
                 </h2>
-                <p className="text-muted text-micro mt-1">
-                  Fixed right-top preset. A deterministic 2D SVG is used when
-                  capture is unavailable.
-                </p>
                 <div className="report-capture-source no-print border-line bg-viewport mt-2 min-h-[360px] overflow-hidden border">
                   {previewData && previewData.layer_count > 0 ? (
                     <RobViewer
@@ -434,11 +418,11 @@ export function ReportWorkspace({
                     </p>
                   )}
                 </div>
-                <p className="text-micro text-muted mt-2">
-                  {report.fixedView3d.status === "captured"
-                    ? report.fixedView3d.provenance
-                    : `Fallback reason: ${report.fixedView3d.reason}`}
-                </p>
+                {report.fixedView3d.status === "captured" ? null : (
+                  <p className="text-micro text-muted mt-2">
+                    Fallback reason: {report.fixedView3d.reason}
+                  </p>
+                )}
               </div>
             </section>
           )}

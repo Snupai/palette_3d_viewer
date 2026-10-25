@@ -408,10 +408,6 @@ export function GuidedStackWorkspace({
         <h1 ref={headingRef} tabIndex={-1}>
           Stapel aufbauen
         </h1>
-        <p>
-          Schichten, Folgeschicht und Zwischenlagen wählen. Jede Änderung baut
-          die Schichtfolge neu auf.
-        </p>
       </header>
       {alerts}
 
@@ -788,12 +784,6 @@ export function GuidedStackWorkspace({
       <section className="fw-panel" aria-labelledby="fw-stack-seq">
         <header className="fw-panel-head">
           <h2 id="fw-stack-seq">Schichtfolge</h2>
-          <p>
-            Von oben nach unten, mit Ablagehöhe des Roboters ohne Palette.
-            {state.interlayerMode === "individual"
-              ? " Zwischenlagen hier einfügen."
-              : ""}
-          </p>
         </header>
         {physicalRows.length === 0 ? (
           <p className="fw-note">Noch keine Schicht. Mit + eine hinzufügen.</p>
@@ -898,11 +888,6 @@ export function GuidedStackWorkspace({
       <details className="fw-panel-details">
         <summary>Schichtfolge einzeln bearbeiten</summary>
         <div className="fw-details-body fw-classic">
-          <p className="fw-note">
-            Muster und Lage je Schicht frei setzen, Schichten verschieben oder
-            löschen. Eine spätere Änderung an Anzahl, Folgeschicht oder Muster
-            baut die Folge wieder neu auf.
-          </p>
           <StackLayerSequence
             state={state}
             candidates={candidates}
@@ -1016,10 +1001,6 @@ export function GuidedStackWorkspace({
         <h1 ref={headingRef} tabIndex={-1}>
           Prüfen und speichern
         </h1>
-        <p>
-          Jede Zeile lässt sich gezielt ändern; der Stapel bleibt dabei
-          erhalten.
-        </p>
       </header>
       {alerts}
       <dl className="fw-review">

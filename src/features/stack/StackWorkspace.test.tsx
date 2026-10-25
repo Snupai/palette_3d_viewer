@@ -809,11 +809,6 @@ describe("StackWorkspace", () => {
         />,
       );
 
-      expect(
-        screen.getByText(
-          "Each row is one physical layer. Set requested layers to 1 to build exactly one layer, then choose its transform below.",
-        ),
-      ).toBeTruthy();
       fireEvent.change(screen.getByLabelText("Requested layers"), {
         target: { value: "1" },
       });

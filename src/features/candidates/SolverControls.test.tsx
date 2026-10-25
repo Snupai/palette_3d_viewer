@@ -868,9 +868,6 @@ describe("SolverControls", () => {
       />,
     );
 
-    expect(
-      screen.getByText(/Zero on both axes creates a tight centered footprint/),
-    ).toBeTruthy();
     fireEvent.change(
       screen.getByLabelText("Length total overhang / underhang"),
       { target: { value: "-0" } },

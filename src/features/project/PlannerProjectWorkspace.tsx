@@ -38,6 +38,11 @@ import {
 } from "~/features/project/ProjectDialog";
 import type { GuidedSectionId } from "~/features/project/guidedProjectFormModel";
 import { PlanLibrary } from "~/features/planner/PlanLibrary";
+import {
+  parsePlannerRoute,
+  plannerRoutePath,
+  type PlannerRoute,
+} from "~/features/project/plannerRoute";
 import { PlannerWelcome } from "~/features/planner/PlannerWelcome";
 import { libraryRobDownload } from "~/features/project/projectRobDownload";
 import { downloadText } from "~/lib/download";
@@ -236,6 +241,15 @@ export function PlannerProjectWorkspace({
   const generatorLaunchSequence = useRef(0);
   const selectedProjectIdRef = useRef<string | null>(selectedId);
   selectedProjectIdRef.current = selectedId;
+  /** Where "Neuen Plan erstellen" was started, so cancelling returns there. */
+  const createOriginRef = useRef<{
+    screen: "welcome" | "library" | "workbench";
+    selectedId: string | null;
+  }>({ screen: "welcome", selectedId: null });
+  /** Stage requested by the URL; wins once over the project's default stage. */
+  const routeStageRef = useRef<PlanningStage | null>(null);
+  const [routeReady, setRouteReady] = useState(false);
+  const pendingEditIdRef = useRef<string | null>(null);
 
   const generatorLaunchRequestRef = useRef(generatorLaunchRequest);
   generatorLaunchRequestRef.current = generatorLaunchRequest;
@@ -244,6 +258,33 @@ export function PlannerProjectWorkspace({
     setGeneratorLaunchRequest((current) =>
       current?.requestId === requestId ? null : current,
     );
+  }, []);
+
+  useEffect(() => {
+    const route = parsePlannerRoute(window.location.pathname);
+    if (route.kind === "library") {
+      setShowWelcome(false);
+      setProjectDrawerOpen(true);
+    } else if (route.kind === "create") {
+      setShowWelcome(false);
+      setInputSection("meta");
+      setDialogMode("create");
+    } else if (route.kind === "plan") {
+      setShowWelcome(false);
+      selectedProjectIdRef.current = route.id;
+      setSelectedId(route.id);
+      if (route.stage) {
+        routeStageRef.current = route.stage;
+        setActiveStage(route.stage);
+      }
+      if (route.view === "edit") {
+        setInputSection("meta");
+        pendingEditIdRef.current = route.id;
+      } else if (route.view) {
+        setActiveTool(route.view);
+      }
+    }
+    setRouteReady(true);
   }, []);
 
   useEffect(() => {
@@ -364,7 +405,9 @@ export function PlannerProjectWorkspace({
         }
         setSelectedProject(result.project);
         setRobotSettings(createInitialRobotWorkspaceSettings(result.project));
-        if (!generatorLaunchRequestRef.current) {
+        if (routeStageRef.current) {
+          routeStageRef.current = null;
+        } else if (!generatorLaunchRequestRef.current) {
           setActiveStage(planningStageForProject(result.project));
         }
         const diagnostic = diagnosticText(result.diagnostics);
@@ -477,8 +520,6 @@ export function PlannerProjectWorkspace({
     selectedProject?.id === id
       ? selectedProject
       : (projects.find((entry) => entry.id === id) ?? null);
-
-  const pendingEditIdRef = useRef<string | null>(null);
 
   const editProject = (id: string) => {
     navigationGeneration.current += 1;
@@ -931,6 +972,32 @@ export function PlannerProjectWorkspace({
   useEffect(() => {
     document.scrollingElement?.scrollTo?.({ top: 0, behavior: "auto" });
   }, [resolvedStage, showWelcome, projectDrawerOpen, dialogMode]);
+
+  const currentRoute: PlannerRoute | null = !routeReady
+    ? null
+    : showWelcome
+      ? { kind: "welcome" }
+      : dialogMode === "create"
+        ? { kind: "create" }
+        : projectDrawerOpen
+          ? { kind: "library" }
+          : selectedId
+            ? {
+                kind: "plan",
+                id: selectedId,
+                stage: dialogMode === "edit" ? null : resolvedStage,
+                view: dialogMode === "edit" ? "edit" : activeTool,
+              }
+            : { kind: "welcome" };
+  const currentPath = currentRoute ? plannerRoutePath(currentRoute) : null;
+  useEffect(() => {
+    if (!currentPath || window.location.pathname === currentPath) return;
+    window.history.replaceState(
+      window.history.state,
+      "",
+      `${currentPath}${window.location.search}${window.location.hash}`,
+    );
+  }, [currentPath]);
   const emptyComparison = {
     status: "unavailable" as const,
     referenceCount: 0,
@@ -1129,6 +1196,14 @@ export function PlannerProjectWorkspace({
   const createNew = () => {
     if (!confirmDiscardUnsaved("Neuen Plan erstellen")) return;
     discardUnsavedPlannerChanges();
+    createOriginRef.current = {
+      screen: showWelcome
+        ? "welcome"
+        : projectDrawerOpen
+          ? "library"
+          : "workbench",
+      selectedId,
+    };
     setShowWelcome(false);
     setProjectDrawerOpen(false);
     setInputSection("meta");
@@ -1232,7 +1307,7 @@ export function PlannerProjectWorkspace({
             )}
         </div>
       </header>
-      {showWelcome && dialogMode === "closed" ? (
+      {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
           planCount={projects.length}
           onCreate={createNew}
@@ -1521,6 +1596,17 @@ export function PlannerProjectWorkspace({
             ) {
               navigationGeneration.current += 1;
               setDialogMode("closed");
+              // Cancelled (nothing saved): go back to where the form was
+              // opened instead of stranding the user on an empty workbench.
+              const origin = createOriginRef.current;
+              if (
+                dialogMode === "create" &&
+                selectedProjectIdRef.current === origin.selectedId
+              ) {
+                const screen = origin.selectedId ? origin.screen : "welcome";
+                if (screen === "welcome") setShowWelcome(true);
+                else if (screen === "library") setProjectDrawerOpen(true);
+              }
             }
           }}
           onSave={async ({

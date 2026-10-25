@@ -36,10 +36,6 @@ export function StackLayerSequence({
   return (
     <fieldset className="border-line grid gap-2 border p-3">
       <legend className={stackLegendClass}>Editable layer sequence</legend>
-      <p className="text-muted text-micro">
-        Each row is one physical layer. Set requested layers to 1 to build
-        exactly one layer, then choose its transform below.
-      </p>
       <div className="border-line scrollbar-thin max-h-[360px] overflow-auto border">
         <table className="ui-table min-w-[600px]">
           <thead>

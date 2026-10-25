@@ -455,11 +455,6 @@ export function SimulationWorkspace({
               </div>
             )}
           </div>
-          <p className="ed-canvas-hint">
-            {project.source.kind === "new"
-              ? "Zelle, Förderband und Greifer sind Anschauungshilfen. Reichweite und Kollision gelten nur nach der Prüfung unter Robotik & Greifer."
-              : "Förderband, Greiferhüllraum, Palette und Arm sind Anschauungshilfen. Reichweite und Kollision gelten nur nach der Prüfung unter Robotik & Greifer."}
-          </p>
         </div>
 
         <aside className="ed-side">
@@ -484,11 +479,6 @@ export function SimulationWorkspace({
                 }
                 className="accent-brand"
               />
-              <p className="ed-panel-note">
-                {BUNDLED_ROBOT_CELL.liftTravelMm.min} bis{" "}
-                {BUNDLED_ROBOT_CELL.liftTravelMm.max} mm. Der Hub bewegt nur die
-                Darstellung, nicht die berechneten Griffe.
-              </p>
             </section>
           ) : null}
 
@@ -516,9 +506,6 @@ export function SimulationWorkspace({
                   />
                 </label>
               ))}
-              <p className="ed-panel-note">
-                Planwerte für die Zeitachse, keine Werte der realen Steuerung.
-              </p>
             </div>
           </details>
 

@@ -13,10 +13,6 @@ export function ExportMappingPanel({
     <details className="ed-sub-details" data-testid="robotics-export-settings">
       <summary>Export-Zuordnung (.rob)</summary>
       <div>
-        <p className="ed-panel-note">
-          Diese Felder beschreiben den internen Export. Sie belegen keine
-          Kompatibilität mit einer externen Multipack-Steuerung.
-        </p>
         <div className="ed-grid3">
           <label className="ed-field">
             Ganzzahl-Rundung

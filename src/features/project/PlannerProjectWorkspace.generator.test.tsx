@@ -532,6 +532,32 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("");
   });
 
+  it("returns to the start page when a new plan is cancelled and mirrors the screen in the URL", async () => {
+    const repository = emptyRepository();
+    render(<PlannerProjectWorkspace repository={repository} />);
+    expect(window.location.pathname).toBe("/");
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+    );
+    expect(window.location.pathname).toBe("/neu");
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    expect(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+    ).toBeTruthy();
+    expect(window.location.pathname).toBe("/");
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
+    );
+    fillNewProjectPackageDimensions();
+    fireEvent.change(screen.getByLabelText("Genaue Anzahl"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
+    await screen.findByRole("region", { name: "Muster auswählen" });
+    const savedId = (await repository.listProjects()).projects[0]!.id;
+    expect(window.location.pathname).toBe(`/plan/${savedId}/muster`);
+  });
+
   it("starts with the two explicit paths, saves inputs and solves exactly once", async () => {
     const repository = emptyRepository();
     await createAndGenerate(repository);

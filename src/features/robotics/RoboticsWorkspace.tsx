@@ -502,11 +502,9 @@ export function RoboticsWorkspace({
             </div>
             {selectedProfile ? (
               <p className="ed-panel-note">
-                Die Werte stammen aus „Multipack für Roboter“{" "}
-                {selectedProfile.provenance.applicationVersion} und sind mit der
-                lokalen Plandatenbank abgeglichen. Das ist dokumentierte
-                Konfiguration, keine Stationsvermessung. Die Reichweite ist
-                nicht kalibriert.
+                Aus „Multipack für Roboter“{" "}
+                {selectedProfile.provenance.applicationVersion}, nicht
+                vermessen.
               </p>
             ) : null}
           </section>
@@ -548,10 +546,6 @@ export function RoboticsWorkspace({
               Berechnete Griffe <small>{materialization.cycles.length}</small>
             </summary>
             <div>
-              <p className="ed-panel-note">
-                Dieselben Koordinaten gehen in Simulation, Palettierblatt und
-                Export.
-              </p>
               <GeneratedPickupTable materialization={materialization} />
             </div>
           </details>
@@ -579,9 +573,7 @@ export function RoboticsWorkspace({
                 <summary>Aufnahmepunkt und Nachweis</summary>
                 <div>
                   <p className="ed-panel-note">
-                    X, Y und Z leer lassen, um die berechnete Oberkante Mitte zu
-                    verwenden. Alle vier Werte zusammen gelten als vermessener
-                    Stationspunkt.
+                    Leer = berechnete Oberkante Mitte.
                   </p>
                   <div className="ed-grid4">
                     {(
@@ -764,10 +756,6 @@ export function RoboticsWorkspace({
                 <details className="ed-sub-details">
                   <summary>Importierte Originaldatei</summary>
                   <div>
-                    <p className="ed-panel-note">
-                      Gibt den importierten Text unverändert zurück. Das ist
-                      kein berechneter Export.
-                    </p>
                     <div className="ed-actions">
                       <button
                         type="button"

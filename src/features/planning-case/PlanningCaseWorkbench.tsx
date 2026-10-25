@@ -285,10 +285,6 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 data={savedPalletData}
                 resetKey={`${project?.id}:${project?.updatedAt}`}
               />
-              <p className="generator-hint">
-                Paket anklicken, um nur die Lagen bis zu diesem Paket zu zeigen.
-                Ziehen zum Drehen, Scrollen zum Zoomen.
-              </p>
             </div>
             <aside className="fable-panel">
               <h2>Plan im Überblick</h2>
@@ -365,11 +361,6 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
         <div className="fable-two-column">
           <section className="fable-panel">
             <h1>{project ? "Paket & Palette" : "Neuer Palettenplan"}</h1>
-            <p className="generator-hint">
-              {project
-                ? "Prüfen Sie die Angaben oder passen Sie sie an, bevor Sie Muster berechnen."
-                : "Beginnen Sie mit Paketmaßen und Palette."}
-            </p>
             {project && (
               <dl className="viewer-summary">
                 <div>

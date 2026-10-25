@@ -282,9 +282,7 @@ describe("RoboticsWorkspace operator view", () => {
         .value,
     ).toBe(MULTIPACK_PALLET_STATION_ID);
     expect(screen.getByText("Multipack-Profil v1")).toBeTruthy();
-    expect(
-      screen.getByText(/dokumentierte Konfiguration, keine Stationsvermessung/),
-    ).toBeTruthy();
+    expect(screen.getByText(/nicht\s+vermessen/)).toBeTruthy();
     expect(
       screen.getByText(
         "The observed Multipack default profile is selected. Its values are documented evidence, not calibrated production equipment.",

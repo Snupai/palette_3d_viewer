@@ -195,10 +195,6 @@ export function OrderPanel({
           Abhängigkeiten <small>{orderModel.dependencies.length}</small>
         </summary>
         <div>
-          <p className="ed-panel-note">
-            Ein Griff, der vor einem anderen gesetzt werden muss, zum Beispiel
-            weil er dessen Paket stützt.
-          </p>
           <div className="ed-dep-form">
             <label className="ed-field">
               Zuerst

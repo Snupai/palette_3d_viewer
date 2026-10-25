@@ -155,10 +155,6 @@ export function InterlayerPanel({ solution, execute }: InterlayerPanelProps) {
             </tr>
           </tbody>
         </table>
-        <p className="ed-panel-note">
-          Gilt für den gespeicherten Stapel dieses Plans. Beim Stapel-Schritt
-          lassen sich dieselben Blätter auch bei der Zusammenstellung setzen.
-        </p>
       </div>
     </details>
   );

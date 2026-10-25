@@ -85,11 +85,7 @@ export function ArrangePanel({
           </small>
         </div>
         {selected.length === 0 ? (
-          <p className="ed-panel-note">
-            Paket anklicken. Strg/Cmd-Klick wählt mehrere, Shift-Ziehen auf
-            freier Fläche zieht einen Rahmen. Ein Klick auf ein Paket wählt
-            immer den ganzen Griff.
-          </p>
+          <p className="ed-panel-note">Kein Paket ausgewählt.</p>
         ) : (
           <>
             <div className="ed-grid2">
@@ -130,13 +126,6 @@ export function ArrangePanel({
                 />
               </label>
             </div>
-            {!selectedOne ? (
-              <p className="ed-panel-note">
-                Koordinaten lassen sich nur für ein einzelnes Paket eintragen.
-                Verschieben, Drehen, Zentrieren und Etikett gelten für die ganze
-                Auswahl.
-              </p>
-            ) : null}
             <label className="ed-field">
               Etikettseite
               <select

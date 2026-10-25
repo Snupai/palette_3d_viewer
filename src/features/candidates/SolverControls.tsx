@@ -1003,10 +1003,6 @@ export function SolverControls({
     <section className="border-line bg-surface border">
       <header className="border-line border-b p-3">
         <h2 className="text-body text-ink font-semibold">Layer solver</h2>
-        <p className="text-micro text-muted mt-1 leading-4">
-          Enter the package, signed pallet allowance, and exact package count
-          for this layer.
-        </p>
       </header>
 
       <div className="grid gap-3 p-3">
@@ -1070,13 +1066,6 @@ export function SolverControls({
               mm
             </p>
           ) : null}
-          <p className="text-muted col-span-2 text-[10px] leading-4">
-            The total is split equally between both sides (−38 mm means −19 mm
-            per side). Zero on both axes creates a tight centered footprint. Any
-            positive or negative value defines the requested frame and may
-            distribute bounded spacing to reach it. The saved pallet policy
-            remains unchanged.
-          </p>
         </fieldset>
 
         <label className="text-muted grid gap-1 text-[10px] font-semibold">
@@ -1110,13 +1099,6 @@ export function SolverControls({
             })
           }
         />
-        <p className="text-muted text-[10px] leading-4">
-          The infeed reference always runs left to right. Changing lengthwise or
-          crosswise rotates only the package view and preserves the selected
-          physical face. The solver keeps the generated footprint and rotates a
-          package by 180° only when the opposite authorized yaw points that face
-          toward the nearer physical pallet edge.
-        </p>
         {draft.unrotatedPackageLabelSide &&
         project.selectedGripperId === null ? (
           <p className="border-brand bg-plan-fill text-ink border px-2 py-1.5 text-[10px] leading-4">
@@ -1154,11 +1136,6 @@ export function SolverControls({
             Allow multipick
           </label>
         </div>
-        <p className="text-muted text-[10px] leading-4">
-          Valid results may include compact rectangles, pinwheels, and mosaics.
-          Multipick groups only equal-yaw packages that are directly adjacent
-          along their package length; incompatible packages remain single picks.
-        </p>
 
         <details className="border-line border-t pt-2">
           <summary className="text-muted cursor-pointer text-[10px] font-semibold">

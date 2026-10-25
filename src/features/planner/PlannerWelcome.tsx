@@ -48,19 +48,11 @@ export function PlannerWelcome({
     <div className="fable-page fable-welcome">
       <header className="page-intro">
         <h1>Womit möchten Sie beginnen?</h1>
-        <p>
-          Ein neues Paket auf die Palette bringen oder einen vorhandenen Plan
-          öffnen.
-        </p>
       </header>
       <div className="welcome-doors">
         <button className="welcome-door" onClick={onCreate}>
           <div>
             <h2>Neuen Plan erstellen</h2>
-            <p>
-              Paket und Palette eingeben, passende Muster finden und den Stapel
-              aufbauen.
-            </p>
           </div>
           <PlanRender
             emptyPackage={{ length: 400, width: 300, height: 260 }}
@@ -74,10 +66,6 @@ export function PlannerWelcome({
         <button className="welcome-door" onClick={onBrowse}>
           <div>
             <h2>Vorhandene Pläne ansehen</h2>
-            <p>
-              Gespeicherte Pläne durchsuchen, prüfen, bearbeiten und
-              exportieren.
-            </p>
           </div>
           <div className="welcome-pallets">
             {illustrationStacks.map((data, i) => (

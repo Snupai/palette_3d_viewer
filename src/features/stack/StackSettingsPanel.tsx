@@ -183,13 +183,7 @@ export function StackSettingsPanel({
                 className={`${stackInputClass} font-mono`}
               />
             </label>
-          ) : (
-            <p className="text-muted text-micro self-end sm:col-span-2">
-              {state.interlayerMode === "none"
-                ? "No sheets between layers."
-                : "Enable and size sheets directly in the layer sequence below."}
-            </p>
-          )}
+          ) : null}
         </div>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className="text-ink text-micro grid grid-cols-[auto_1fr] items-center gap-x-2 gap-y-1">

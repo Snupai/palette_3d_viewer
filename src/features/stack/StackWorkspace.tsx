@@ -213,7 +213,6 @@ export function StackWorkspace({
   return (
     <Panel
       title="Stack workspace"
-      description="Compose patterns A/B, edit the physical sequence, and materialize production metrics."
       actions={
         <>
           <span
@@ -296,21 +295,12 @@ export function StackWorkspace({
                   </div>
                 )}
               </div>
-              <p className="text-muted text-micro leading-5">
-                The 3D toolbar provides top, front, right-top, lifted-top, and
-                layer-label views.
-              </p>
             </div>
           </div>
 
           {materialized.result ? (
             <StackResultPanel result={materialized.result} />
           ) : null}
-          <p className="text-micro text-muted leading-5">
-            The shared thickness remains the ProjectV2 compatibility fallback;
-            exact base, boundary, and deck thickness overrides persist with the
-            current project stack.
-          </p>
         </div>
       </div>
     </Panel>
