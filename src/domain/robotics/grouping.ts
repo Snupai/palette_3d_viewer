@@ -321,7 +321,9 @@ export function groupsFromPatternGrips(layer: MaterializedPackageLayer): {
             y: center.y / placements.length,
             z: layer.zTopMm,
           },
-          placeRotationDeg: grip.rotation,
+          // Grips carry the legacy infeed-relative rotation; placements are
+          // canonical, which is what every robot pose expects.
+          placeRotationDeg: placements[0]!.rotation,
           sourceGripId: grip.sourceGripId,
           sourceCycleId: null,
           sourceSequence: null,

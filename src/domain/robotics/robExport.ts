@@ -262,11 +262,17 @@ function unknownFieldsForCycle(
   };
 }
 
+/** Robot yaws are canonical; `.rob` rotations are relative to the infeed. */
+function legacyYaw(yawDeg: number, inputDirection: 0 | 1): number {
+  return yawDeg - inputDirection * 90;
+}
+
 function gripForCycle(
   cycle: RobotCycle,
   quantization: RobIntegerQuantizationPolicy,
   convention: RobSignConvention,
   unknownPolicy: RobUnknownFieldPolicy,
+  inputDirection: 0 | 1,
   diagnostics: RobotDiagnostic[],
 ): Grip {
   const unknown = unknownFieldsForCycle(
@@ -292,7 +298,7 @@ function gripForCycle(
       cycle,
     ),
     pickRotation: exportedYaw(
-      cycle.pickPose.yawDeg,
+      legacyYaw(cycle.pickPose.yawDeg, inputDirection),
       convention,
       diagnostics,
       `${cycle.id}.pickYaw`,
@@ -313,7 +319,7 @@ function gripForCycle(
       cycle,
     ),
     rotation: exportedYaw(
-      cycle.placeGripPosePallet.yawDeg,
+      legacyYaw(cycle.placeGripPosePallet.yawDeg, inputDirection),
       convention,
       diagnostics,
       `${cycle.id}.placeYaw`,
@@ -452,6 +458,7 @@ function buildPalletData(
           quantization,
           convention,
           unknownPolicy,
+          inputDirection,
           diagnostics,
         ),
       );

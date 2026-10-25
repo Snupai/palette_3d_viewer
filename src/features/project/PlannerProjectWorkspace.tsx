@@ -248,6 +248,10 @@ export function PlannerProjectWorkspace({
   }>({ screen: "welcome", selectedId: null });
   /** Stage requested by the URL; wins once over the project's default stage. */
   const routeStageRef = useRef<PlanningStage | null>(null);
+  /** Tool requested by the URL; restored once the project has loaded. */
+  const routeToolRef = useRef<ProductionTool | null>(null);
+  /** Bumped when the open project was replaced on disk and must be re-read. */
+  const [projectReloadToken, setProjectReloadToken] = useState(0);
   const [routeReady, setRouteReady] = useState(false);
   const pendingEditIdRef = useRef<string | null>(null);
 
@@ -281,7 +285,7 @@ export function PlannerProjectWorkspace({
         setInputSection("meta");
         pendingEditIdRef.current = route.id;
       } else if (route.view) {
-        setActiveTool(route.view);
+        routeToolRef.current = route.view;
       }
     }
     setRouteReady(true);
@@ -410,6 +414,10 @@ export function PlannerProjectWorkspace({
         } else if (!generatorLaunchRequestRef.current) {
           setActiveStage(planningStageForProject(result.project));
         }
+        if (routeToolRef.current) {
+          setActiveTool(routeToolRef.current);
+          routeToolRef.current = null;
+        }
         const diagnostic = diagnosticText(result.diagnostics);
         if (diagnostic) setError(diagnostic);
       })
@@ -426,7 +434,7 @@ export function PlannerProjectWorkspace({
       .finally(() => {
         if (request === projectRequest.current) setLoadingProject(false);
       });
-  }, [repository, selectedId]);
+  }, [repository, selectedId, projectReloadToken]);
 
   const saveProject = async (project: Project): Promise<Project> => {
     setShowWelcome(false);
@@ -757,6 +765,14 @@ export function PlannerProjectWorkspace({
         selectedProjectIdRef.current = result.projects[0].id;
         setActiveStage(planningStageForProject(result.projects[0]));
         setSelectedId(result.projects[0].id);
+      }
+      // An overwrite of the open plan keeps the same id, so the load effect
+      // would not re-run; force it so stale inputs cannot be saved back.
+      if (
+        selectedProjectIdRef.current &&
+        result.projects.some(({ id }) => id === selectedProjectIdRef.current)
+      ) {
+        setProjectReloadToken((token) => token + 1);
       }
       await refreshProjects();
     } catch (cause) {

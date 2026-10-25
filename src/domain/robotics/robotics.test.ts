@@ -16,6 +16,7 @@ import {
   checkObstacleAlongSegment,
   checkReachAlongSegment,
   rotationSweptEnvelopeBounds,
+  sweptToolBounds,
   checkObstacleAtPose,
   checkReachBoundary,
   createRobotCycleMotionRoute,
@@ -42,6 +43,7 @@ import {
   type RobotPose,
 } from "~/domain/robotics";
 import { parseRobText } from "~/lib/robParser";
+import { footprintSize } from "~/domain/palletGeometry";
 
 function suctionGripper(id = "suction-1"): Gripper {
   return {
@@ -125,6 +127,7 @@ function calculatedProject(input: {
   placements: PackagePlacement[];
   dimensionsMm?: { length: number; width: number; height: number };
   palletDimensionsMm?: { length: number; width: number; height: number };
+  inletOrientation?: Project["package"]["inletOrientation"];
   origin?: PlanningSolution["origin"];
   robotCycles?: PlanningSolution["robotCycles"];
   grippers?: Gripper[];
@@ -145,7 +148,7 @@ function calculatedProject(input: {
           height: 40,
         },
         multiPickAllowed: true,
-        inletOrientation: "lengthwise",
+        inletOrientation: input.inletOrientation ?? "lengthwise",
         palletizingDirection: "x-positive-y-positive",
       },
       pallet: pallet(
@@ -902,6 +905,96 @@ describe("coordinate frames and safety boundaries", () => {
         obstacle,
       ),
     ).toBe(true);
+  });
+
+  it("exports crosswise canonical geometry in the infeed-relative .rob convention", () => {
+    // Canonical 0° = length along X. With input direction 1 the legacy file
+    // treats 0° as "as arrived" (length along Y), so the export must turn.
+    const project = calculatedProject({
+      dimensionsMm: { length: 400, width: 200, height: 150 },
+      inletOrientation: "crosswise",
+      placements: [
+        placement("package-a", 0, 200, 100),
+        placement("package-b", 1, 600, 100),
+      ],
+    });
+    const materialized = materializeRobotCycles(project, {
+      maxPackagesPerPick: 1,
+    });
+    const exported = exportProjectRob(
+      materialized,
+      identityExportOptions(materialized.cycles.map(({ id }) => id)),
+    );
+
+    expect(materialized.valid).toBe(true);
+    expect(exported.ok).toBe(true);
+    const parsed = parseRobText(exported.text!);
+    expect(parsed.inputDirection).toBe(1);
+    expect(parsed.uniqueLayers[1]?.map(({ rotation }) => rotation)).toEqual([
+      270, 270,
+    ]);
+    expect(
+      parsed.layers[0]?.boxes
+        .map((box) => {
+          const size = footprintSize(box);
+          return [box.rect.x, box.rect.y, size.width, size.length];
+        })
+        .sort((left, right) => left[0]! - right[0]!),
+    ).toEqual([
+      [200, 100, 400, 200],
+      [600, 100, 400, 200],
+    ]);
+  });
+
+  it("flags gripper rotations that sweep outside the station free-space contour", () => {
+    const envelope = {
+      negativeX: 100,
+      positiveX: 100,
+      negativeY: 10,
+      positiveY: 10,
+    };
+    const narrowStation = station({
+      obstacleEnvelopeMm: {
+        negativeX: 110,
+        positiveX: 110,
+        negativeY: 20,
+        positiveY: 20,
+      },
+    });
+    const swept = sweptToolBounds(
+      pose(0, 0, 500, 0),
+      pose(0, 0, 500, 180),
+      envelope,
+    );
+    expect(swept.maxY).toBeCloseTo(Math.hypot(100, 10), 6);
+
+    const diagnostics = validateCycleMotionBoundaries(
+      [
+        cycle(
+          "first",
+          0,
+          pose(0, 0, 300, 0),
+          pose(0, 0, 500, 0),
+          pose(0, 0, 300, 0),
+        ),
+        cycle(
+          "second",
+          1,
+          pose(0, 0, 300, 180),
+          pose(0, 0, 500, 180),
+          pose(0, 0, 300, 180),
+        ),
+      ],
+      narrowStation,
+      envelope,
+    );
+    const envelopeHits = diagnostics.filter(
+      ({ code }) => code === "tool-envelope-exceeded",
+    );
+    expect(envelopeHits.map(({ details }) => details?.phase)).toEqual([
+      "cycle-traverse",
+    ]);
+    expect(envelopeHits[0]?.details?.check).toBe("conservative-swept-aabb");
   });
 
   it("covers intermediate orientations when a segment rotates the gripper", () => {

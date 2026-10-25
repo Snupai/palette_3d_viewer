@@ -64,6 +64,29 @@ describe("project schema migration", () => {
     });
   });
 
+  it("turns infeed-relative legacy rotations into canonical placements for crosswise plans", () => {
+    const crosswise = {
+      ...projectV2(),
+      package: {
+        ...projectV2().package,
+        inletOrientation: "crosswise" as const,
+      },
+    };
+    const migrated = migrateProject(crosswise);
+    const pattern = migrated.solutions[0]!.patterns[0]!;
+    const sourceGrip = crosswise.solutions[0]!.patterns[0]!.grips[0]!;
+    const cycle = migrated.solutions[0]!.robotCycles.find(
+      ({ gripId }) => gripId === sourceGrip.id,
+    )!;
+
+    expect(pattern.grips[0]?.rotation).toBe(sourceGrip.rotation);
+    expect(pattern.placements[0]?.rotation).toBe(
+      (sourceGrip.rotation + 90) % 360,
+    );
+    expect(cycle.placePose.rotation).toBe((sourceGrip.rotation + 90) % 360);
+    expect(cycle.pickPose.rotation).toBe((sourceGrip.pickRotation + 90) % 360);
+  });
+
   it("backfills exact Multipack defaults for fully unconfigured ordinary V3 projects", () => {
     const ordinary = createProject(
       {

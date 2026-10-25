@@ -15,7 +15,11 @@ import {
   buildGripVerticalOverlapDependencies,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
-import { pickOffsetForCount } from "~/domain/palletGeometry";
+import {
+  canonicalRotationFromLegacy,
+  legacyRotationFromCanonical,
+  pickOffsetForCount,
+} from "~/domain/palletGeometry";
 import {
   projectSchema,
   type LayerPattern,
@@ -609,7 +613,7 @@ function gripFromPlacements(
     pickRotation: existing?.pickRotation ?? 0,
     x: center.x,
     y: center.y,
-    rotation: first.rotation,
+    rotation: legacyRotationFromCanonical(first.rotation, inputDirection),
     numPackages: placements.length,
     dx: labelOffset.x,
     dy: labelOffset.y,
@@ -976,6 +980,8 @@ function synchronizePatternCycles(
   const assignments = assignmentsByGrip(pattern);
   const order = normalizedGroupOrder(pattern);
   const orderIndex = new Map(order.map((id, index) => [id, index]));
+  const inputDirection =
+    project.package.inletOrientation === "crosswise" ? 1 : 0;
   const cycles = pattern.grips.flatMap((grip, index) => {
     const placements = assignments.get(grip.id) ?? [];
     if (placements.length === 0) return [];
@@ -995,13 +1001,16 @@ function synchronizePatternCycles(
           x: grip.pickX,
           y: grip.pickY,
           z: existing?.pickPose.z ?? null,
-          rotation: grip.pickRotation,
+          rotation: canonicalRotationFromLegacy(
+            grip.pickRotation,
+            inputDirection,
+          ),
         },
         placePose: {
           x: grip.x,
           y: grip.y,
           z: existing?.placePose.z ?? null,
-          rotation: grip.rotation,
+          rotation: canonicalRotationFromLegacy(grip.rotation, inputDirection),
         },
         labelOffset: { x: grip.dx, y: grip.dy },
       },

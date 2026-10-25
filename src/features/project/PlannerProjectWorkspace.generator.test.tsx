@@ -14,6 +14,7 @@ import type {
   materializeStackWorkspace,
 } from "~/features/stack/stackWorkspaceModel";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
+import { exportProjectPackageJson } from "~/lib/projectPackage";
 import {
   MemoryPlannerRecordStorage,
   ProjectRepository,
@@ -556,6 +557,57 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     await screen.findByRole("region", { name: "Muster auswählen" });
     const savedId = (await repository.listProjects()).projects[0]!.id;
     expect(window.location.pathname).toBe(`/plan/${savedId}/muster`);
+  });
+
+  it("restores the tool requested by the URL once the plan has loaded", async () => {
+    const { repository, project } = await repositoryWithProject();
+    window.history.replaceState(null, "", `/plan/${project.id}/stapel/editor`);
+    render(<PlannerProjectWorkspace repository={repository} />);
+    await screen.findByRole("dialog", { name: "Muster-Editor" });
+    expect(window.location.pathname).toBe(`/plan/${project.id}/stapel/editor`);
+  });
+
+  it("re-reads the open plan after a package import replaces it", async () => {
+    const { repository, project } = await repositoryWithProject();
+    render(<PlannerProjectWorkspace repository={repository} />);
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    await screen.findByText("M5-GENERATOR");
+
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    fireEvent.change(await screen.findByLabelText("Bei gleichem Projekt"), {
+      target: { value: "overwrite" },
+    });
+    const replaced = exportProjectPackageJson({
+      projects: [{ ...project, productNumber: "REPLACED-ON-DISK" }],
+    });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="file"][accept*="json"]',
+    )!;
+    const file = new File([replaced], "package.json", {
+      type: "application/json",
+    });
+    // jsdom's File lacks Blob.text(); the workspace reads the package with it.
+    Object.defineProperty(file, "text", {
+      value: () => Promise.resolve(replaced),
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await screen.findByText("REPLACED-ON-DISK");
+    // Same id: "Öffnen" only closes the library, so the header shows the
+    // project state held in memory, which must be the re-read one.
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".header-context")?.textContent).toBe(
+        "REPLACED-ON-DISK",
+      ),
+    );
   });
 
   it("starts with the two explicit paths, saves inputs and solves exactly once", async () => {

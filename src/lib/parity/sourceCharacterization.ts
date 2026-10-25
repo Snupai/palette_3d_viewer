@@ -3,8 +3,11 @@ import {
   type PlacementGeometry,
   type RectangleBoundsMm,
 } from "~/domain/geometry";
-import { gripsToBoxes } from "~/domain/palletGeometry";
-import type { Box, Grip, PalletData, Rotation } from "~/domain/palletTypes";
+import {
+  canonicalRotationFromLegacy,
+  gripsToBoxes,
+} from "~/domain/palletGeometry";
+import type { Box, Grip, PalletData } from "~/domain/palletTypes";
 import {
   candidateGeometryFingerprint,
   createCandidateGeometryId,
@@ -19,20 +22,13 @@ import type {
   SourcePatternCharacterization,
 } from "~/lib/parity/types";
 
-function solverRotation(
-  sourceRotation: Rotation,
-  inputDirection: 0 | 1,
-): Rotation {
-  return ((sourceRotation + inputDirection * 90) % 360) as Rotation;
-}
-
 function placementsFromBoxes(
   boxes: readonly Box[],
   inputDirection: 0 | 1,
 ): PlacementGeometry[] {
   return boxes.map((box) => ({
     positionMm: { x: box.rect.x, y: box.rect.y },
-    rotation: solverRotation(box.rotation, inputDirection),
+    rotation: canonicalRotationFromLegacy(box.rotation, inputDirection),
   }));
 }
 

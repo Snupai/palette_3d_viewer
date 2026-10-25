@@ -168,21 +168,18 @@ export function rotationSweptEnvelopeBounds(
 }
 
 /**
- * Conservative swept-AABB test for a linear TCP move. When the yaw changes
- * along the segment, both endpoints use the rotation-swept bounds so every
- * intermediate orientation is inside the tested volume.
+ * Horizontal bounds swept by the tool along a linear TCP move. When the yaw
+ * changes along the segment, both endpoints use the rotation-swept bounds so
+ * every intermediate orientation is inside the volume.
  */
-export function checkObstacleAlongSegment(
+export function sweptToolBounds(
   from: RobotPose,
   to: RobotPose,
   toolEnvelope: HorizontalEnvelopeMm,
-  obstacle: RobotObstacle,
-  toleranceMm = 0,
-): boolean {
+): HorizontalBoundsMm {
   if (from.frame !== to.frame) {
-    throw new Error("Obstacle checks require both segment poses in one frame.");
+    throw new Error("Segment checks require both poses in one frame.");
   }
-  const tolerance = finiteTolerance(toleranceMm);
   const rotates = yawChanges(from, to);
   const fromBounds = rotates
     ? rotationSweptEnvelopeBounds(from, toolEnvelope)
@@ -190,12 +187,24 @@ export function checkObstacleAlongSegment(
   const toBounds = rotates
     ? rotationSweptEnvelopeBounds(to, toolEnvelope)
     : horizontalEnvelopeBounds(to, toolEnvelope);
-  const sweptBounds = {
+  return {
     minX: Math.min(fromBounds.minX, toBounds.minX),
     minY: Math.min(fromBounds.minY, toBounds.minY),
     maxX: Math.max(fromBounds.maxX, toBounds.maxX),
     maxY: Math.max(fromBounds.maxY, toBounds.maxY),
   };
+}
+
+/** Conservative swept-AABB obstacle test for a linear TCP move. */
+export function checkObstacleAlongSegment(
+  from: RobotPose,
+  to: RobotPose,
+  toolEnvelope: HorizontalEnvelopeMm,
+  obstacle: RobotObstacle,
+  toleranceMm = 0,
+): boolean {
+  const tolerance = finiteTolerance(toleranceMm);
+  const sweptBounds = sweptToolBounds(from, to, toolEnvelope);
   const segmentMinZ = Math.min(from.positionMm.z, to.positionMm.z);
   const segmentMaxZ = Math.max(from.positionMm.z, to.positionMm.z);
   const obstacleMinZ = obstacle.minZMm ?? Number.NEGATIVE_INFINITY;
@@ -426,6 +435,27 @@ export function validateCycleMotionBoundaries(
             radiusMm: reach.actual,
             minimumMm: reach.minimum,
           },
+        });
+      }
+      // Waypoints already cover translation-only moves (the contour is
+      // convex); a rotating segment can leave it between two valid poses.
+      if (
+        yawChanges(segment.from.pose, segment.to.pose) &&
+        !boundsContained(
+          toolBoundsLimit,
+          sweptToolBounds(segment.from.pose, segment.to.pose, toolEnvelope),
+          toleranceMm,
+        )
+      ) {
+        diagnostics.push({
+          severity: "error",
+          phase: "envelope",
+          code: "tool-envelope-exceeded",
+          message: `Cycle "${cycle.id}" ${segment.kind} gripper rotation sweeps outside the station free-space contour.`,
+          cycleId: cycle.id,
+          layerId: cycle.physicalLayerId,
+          resourceId: station.id,
+          details: { phase: segment.kind, check: "conservative-swept-aabb" },
         });
       }
       for (const obstacle of obstacles) {

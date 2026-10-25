@@ -5,7 +5,10 @@ import {
   type Project,
   type ProjectV2,
 } from "~/domain/project/projectSchema";
-import { gripsToBoxes } from "~/domain/palletGeometry";
+import {
+  gripsToBoxes,
+  legacyRotationFromCanonical,
+} from "~/domain/palletGeometry";
 import type { RobotCycleMaterialization } from "~/domain/robotics";
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import { materializeProjectSolutionStack } from "~/domain/stack/project";
@@ -173,6 +176,7 @@ const labelOffsetBySide: Record<
 
 function previewGripsForPattern(
   pattern: MaterializedStackResult["patterns"][number],
+  inputDirection: 0 | 1,
 ): Grip[] {
   if (pattern.grips.length > 0) {
     return pattern.grips.map((grip) => ({
@@ -200,7 +204,7 @@ function previewGripsForPattern(
       pickRotation: 0,
       x: placement.positionMm.x,
       y: placement.positionMm.y,
-      rotation: placement.rotation,
+      rotation: legacyRotationFromCanonical(placement.rotation, inputDirection),
       numPackages: 1,
       ...labelOffset,
     } satisfies Grip;
@@ -209,6 +213,7 @@ function previewGripsForPattern(
 
 function previewGripsForLayer(
   layer: MaterializedStackResult["packageLayers"][number],
+  inputDirection: 0 | 1,
 ): Grip[] {
   if (layer.grips.length > 0) {
     return layer.grips.map((grip) => ({
@@ -236,7 +241,7 @@ function previewGripsForLayer(
       pickRotation: 0,
       x: placement.positionMm.x,
       y: placement.positionMm.y,
-      rotation: placement.rotation,
+      rotation: legacyRotationFromCanonical(placement.rotation, inputDirection),
       numPackages: 1,
       ...labelOffset,
     } satisfies Grip;
@@ -282,13 +287,16 @@ export function materializedStackToPalletData(
     if (uniqueLayerIdByVariant.has(variantKey)) continue;
     const uniqueLayerId = uniqueLayerIdByVariant.size + 1;
     uniqueLayerIdByVariant.set(variantKey, uniqueLayerId);
-    uniqueLayers[uniqueLayerId] = previewGripsForPattern(pattern);
+    uniqueLayers[uniqueLayerId] = previewGripsForPattern(
+      pattern,
+      inputDirection,
+    );
   }
 
   const layers = stack.packageLayers.map((layer) => {
     const variantKey = JSON.stringify([layer.patternRef, layer.transform]);
     let uniqueLayerId = uniqueLayerIdByVariant.get(variantKey);
-    const grips = previewGripsForLayer(layer);
+    const grips = previewGripsForLayer(layer, inputDirection);
     if (uniqueLayerId === undefined) {
       uniqueLayerId = uniqueLayerIdByVariant.size + 1;
       uniqueLayerIdByVariant.set(variantKey, uniqueLayerId);

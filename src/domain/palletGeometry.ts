@@ -10,6 +10,26 @@ import type {
 } from "~/domain/palletTypes";
 import { ZWISCHENLAGE_HEIGHT_MM } from "~/domain/palletTypes";
 
+/**
+ * Legacy `.rob` rotations are relative to the infeed: with input direction 1
+ * the package arrives turned by 90°, so legacy 0° places it length-along-Y.
+ * Canonical placements are absolute (0° = length along X). These two helpers
+ * are the only sanctioned bridge between the conventions.
+ */
+export function canonicalRotationFromLegacy(
+  rotation: Rotation,
+  inputDirection: 0 | 1,
+): Rotation {
+  return ((rotation + inputDirection * 90) % 360) as Rotation;
+}
+
+export function legacyRotationFromCanonical(
+  rotation: Rotation,
+  inputDirection: 0 | 1,
+): Rotation {
+  return ((rotation + 360 - inputDirection * 90) % 360) as Rotation;
+}
+
 function exactInterlayerHeightMm(values: readonly number[]): number | null {
   return values.every((value) => Number.isFinite(value) && value >= 0)
     ? values.reduce((total, value) => total + value, 0)

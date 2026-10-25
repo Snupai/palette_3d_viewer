@@ -1,5 +1,8 @@
 import { z } from "zod";
-import { gripsToBoxes } from "~/domain/palletGeometry";
+import {
+  canonicalRotationFromLegacy,
+  gripsToBoxes,
+} from "~/domain/palletGeometry";
 import {
   createMultipackEquipmentProfileResources,
   MULTIPACK_GRIPPER_ID,
@@ -76,7 +79,7 @@ function placementsAndCycles(
       id: `placement-${patternIndex + 1}-${placementIndex + 1}`,
       sequence: placementIndex,
       positionMm: { x: box.rect.x, y: box.rect.y },
-      rotation: box.rotation,
+      rotation: canonicalRotationFromLegacy(box.rotation, inputDirection),
       gripId: grip.id,
       labelSide: box.blueLine,
     } satisfies PackagePlacement;
@@ -101,13 +104,13 @@ function placementsAndCycles(
       x: grip.pickX,
       y: grip.pickY,
       z: null,
-      rotation: grip.pickRotation,
+      rotation: canonicalRotationFromLegacy(grip.pickRotation, inputDirection),
     },
     placePose: {
       x: grip.x,
       y: grip.y,
       z: null,
-      rotation: grip.rotation,
+      rotation: canonicalRotationFromLegacy(grip.rotation, inputDirection),
     },
     labelOffset: { x: grip.dx, y: grip.dy },
   })) satisfies RobotCycle[];
