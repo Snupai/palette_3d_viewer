@@ -1,3 +1,4 @@
+import type { Translate } from "~/i18n";
 import type { PalletData } from "~/domain/palletTypes";
 import { isometricPallet } from "~/features/reporting/isometricPallet";
 import {
@@ -23,6 +24,9 @@ export type PalletSheetInput = {
   palletName: string | null;
   /** Printed date, already formatted (dd.mm.yyyy). */
   date: string;
+  t: Translate;
+  /** BCP-47 tag for number formatting; defaults to de-DE. */
+  tag?: string;
 };
 
 const COMPANY = "Szaidel Cosmetic GmbH";
@@ -55,6 +59,7 @@ function dimensionRow(
   y: number,
   label: string,
   values: readonly (number | null)[],
+  tag: string,
 ): SheetPrimitive[] {
   const columns = [104, 128, 152];
   return [
@@ -62,7 +67,7 @@ function dimensionRow(
     ...values.flatMap((value, index) => [
       text(
         { x: columns[index]!, y },
-        value === null ? "–" : formatSheetNumber(value),
+        value === null ? "–" : formatSheetNumber(value, 1, tag),
         { sizePt: 10.5, anchor: "end" },
       ),
       ...(index < values.length - 1
@@ -78,16 +83,22 @@ function dimensionRow(
   ];
 }
 
-function layerSummary(figures: PalletSheetFigures): string {
-  const layers = `${figures.layerCount} ${figures.layerCount === 1 ? "Lage" : "Lagen"}`;
+function layerSummary(figures: PalletSheetFigures, t: Translate): string {
   if (figures.uniformPackagesPerLayer !== null) {
-    return `${layers} à ${figures.uniformPackagesPerLayer} Packstücke`;
+    return t("reporting.sheet.layersUniform", {
+      count: figures.layerCount,
+      perLayer: figures.uniformPackagesPerLayer,
+    });
   }
-  return `${layers} à ${figures.minPackagesPerLayer}–${figures.maxPackagesPerLayer} Packstücke`;
+  return t("reporting.sheet.layersRange", {
+    count: figures.layerCount,
+    min: figures.minPackagesPerLayer,
+    max: figures.maxPackagesPerLayer,
+  });
 }
 
-function percent(value: number | null): string {
-  return value === null ? "–" : `${formatSheetNumber(value)} %`;
+function percent(value: number | null, tag: string): string {
+  return value === null ? "–" : `${formatSheetNumber(value, 1, tag)} %`;
 }
 
 /** Small isometric carton mark for the header, drawn in the kraft carton tones. */
@@ -120,6 +131,8 @@ function brandMark(x: number, y: number, size: number): SheetPrimitive[] {
 }
 
 export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
+  const { t } = input;
+  const tag = input.tag ?? "de-DE";
   const figures = palletSheetFigures({
     data: input.data,
     storageHeightMm: input.storageHeightMm,
@@ -136,13 +149,15 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
       sizePt: 17,
       fill: BRAND,
     }),
-    text({ x: MARGIN + 28, y: headerY + 17 }, "Palettierschema", {
+    text({ x: MARGIN + 28, y: headerY + 17 }, t("reporting.sheet.title"), {
       sizePt: 10,
       fill: INK,
     }),
     text(
       { x: MARGIN + 28, y: headerY + 22 },
-      input.palletName ? `Palette: ${input.palletName}` : "Pallet planner",
+      input.palletName
+        ? t("reporting.sheet.pallet", { name: input.palletName })
+        : t("reporting.sheet.appName"),
       { sizePt: 8.5, fill: MUTED },
     ),
     text({ x: MARGIN + CONTENT_WIDTH - 5, y: headerY + 9 }, input.date, {
@@ -156,14 +171,20 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
   const productH = 16;
   primitives.push(
     ...panel(productY, productH),
-    text({ x: MARGIN + 5, y: productY + 6.5 }, "Produkt-Nr.:", {
-      sizePt: 10.5,
-    }),
+    text(
+      { x: MARGIN + 5, y: productY + 6.5 },
+      t("reporting.sheet.productNumber"),
+      {
+        sizePt: 10.5,
+      },
+    ),
     text({ x: MARGIN + 50, y: productY + 6.5 }, input.productNumber || "–", {
       sizePt: 10.5,
       bold: true,
     }),
-    text({ x: MARGIN + 5, y: productY + 12.5 }, "Linie:", { sizePt: 10.5 }),
+    text({ x: MARGIN + 5, y: productY + 12.5 }, t("reporting.sheet.line"), {
+      sizePt: 10.5,
+    }),
     text({ x: MARGIN + 50, y: productY + 12.5 }, input.lineNumber || "–", {
       sizePt: 10.5,
     }),
@@ -175,35 +196,52 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
   const rowY = (row: number) => figuresY + 7 + row * 5.6;
   primitives.push(
     ...panel(figuresY, figuresH),
-    ...dimensionRow(rowY(0), "Packstückmaße:", [
-      figures.packageMm.length,
-      figures.packageMm.width,
-      figures.packageMm.height,
-    ]),
-    ...dimensionRow(rowY(1), "Palettenstauraum:", [
-      figures.storageMm.length,
-      figures.storageMm.width,
-      figures.storageMm.height,
-    ]),
-    ...dimensionRow(rowY(2), "Blockmaße:", [
-      figures.blockMm.length,
-      figures.blockMm.width,
-      figures.blockMm.height,
-    ]),
+    ...dimensionRow(
+      rowY(0),
+      t("reporting.sheet.packageDims"),
+      [
+        figures.packageMm.length,
+        figures.packageMm.width,
+        figures.packageMm.height,
+      ],
+      tag,
+    ),
+    ...dimensionRow(
+      rowY(1),
+      t("reporting.sheet.storageSpace"),
+      [
+        figures.storageMm.length,
+        figures.storageMm.width,
+        figures.storageMm.height,
+      ],
+      tag,
+    ),
+    ...dimensionRow(
+      rowY(2),
+      t("reporting.sheet.blockDims"),
+      [figures.blockMm.length, figures.blockMm.width, figures.blockMm.height],
+      tag,
+    ),
     text(
       { x: MARGIN + 5, y: rowY(3) + 3.5 },
-      `Packstücke/Palette: ${figures.packageCount}`,
+      t("reporting.sheet.packagesPerPallet", { count: figures.packageCount }),
       { sizePt: 10.5 },
     ),
-    text({ x: 110, y: rowY(3) + 3.5 }, layerSummary(figures), { sizePt: 10.5 }),
+    text({ x: 110, y: rowY(3) + 3.5 }, layerSummary(figures, t), {
+      sizePt: 10.5,
+    }),
     text(
       { x: MARGIN + 5, y: rowY(4) + 3.5 },
-      `Flächennutzung: ${percent(figures.areaUtilizationPercent)}`,
+      t("reporting.sheet.areaUtilization", {
+        value: percent(figures.areaUtilizationPercent, tag),
+      }),
       { sizePt: 10.5 },
     ),
     text(
       { x: 110, y: rowY(4) + 3.5 },
-      `Volumennutzung: ${percent(figures.volumeUtilizationPercent)}`,
+      t("reporting.sheet.volumeUtilization", {
+        value: percent(figures.volumeUtilizationPercent, tag),
+      }),
       { sizePt: 10.5 },
     ),
   );
@@ -245,7 +283,7 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
   primitives.push(
     text(
       { x: MARGIN, y: A4_HEIGHT_MM - 8 },
-      `${COMPANY} · Erstellt mit dem Pallet planner`,
+      t("reporting.sheet.footer", { company: COMPANY }),
       { sizePt: 7.5, fill: MUTED },
     ),
   );
@@ -254,7 +292,7 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
     widthMm: A4_WIDTH_MM,
     heightMm: A4_HEIGHT_MM,
     title:
-      `Palettierschema ${input.productNumber || input.lineNumber || ""}`.trim(),
+      `${t("reporting.sheet.title")} ${input.productNumber || input.lineNumber || ""}`.trim(),
     primitives,
   };
 }
@@ -262,10 +300,12 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
 export function sheetFileName(
   productNumber: string,
   lineNumber: string,
+  t: Translate,
 ): string {
+  const fileStem = t("reporting.sheet.fileStem");
   const stem =
-    (productNumber || lineNumber || "palettierschema")
+    (productNumber || lineNumber || fileStem)
       .trim()
-      .replace(/[^a-zA-Z0-9._-]+/g, "-") || "palettierschema";
-  return `${stem}-palettierschema.pdf`;
+      .replace(/[^a-zA-Z0-9._-]+/g, "-") || fileStem;
+  return `${stem}-${fileStem}.pdf`;
 }

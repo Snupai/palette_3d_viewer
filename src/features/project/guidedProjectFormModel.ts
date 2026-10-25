@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { Translate } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
 import { geometryReviewSignature } from "~/domain/project/geometryReview";
 import { createLayerSolverInputFromProject } from "~/domain/solver/projectInput";
@@ -24,13 +25,20 @@ export const guidedSectionOrder: readonly GuidedSectionId[] = [
   "handling",
 ];
 
-export const guidedSectionTitles: Record<GuidedSectionId, string> = {
-  package: "Paket",
-  pallet: "Palette",
-  limits: "Grenzen",
-  handling: "Einlauf, Etikett, Griff",
-  meta: "Artikel und Linie",
-};
+const guidedSectionTitleKeys = {
+  package: "projectForm.section.package",
+  pallet: "projectForm.section.pallet",
+  limits: "projectForm.section.limits",
+  handling: "projectForm.section.handling",
+  meta: "projectForm.section.meta",
+} as const satisfies Record<GuidedSectionId, string>;
+
+export function guidedSectionTitle(
+  section: GuidedSectionId,
+  t: Translate,
+): string {
+  return t(guidedSectionTitleKeys[section]);
+}
 
 /** Schema path reported by `buildProjectFromForm` for each form value. */
 export const fieldPathByValue: Partial<
@@ -90,44 +98,40 @@ export function firstSectionWithError(
   return guidedSectionOrder.find((section) => sections.has(section)) ?? null;
 }
 
-const germanMessages: readonly [RegExp, string][] = [
-  [/^Expected number, received nan$/i, "Bitte eine Zahl eingeben."],
-  [/^Number must be greater than 0$/i, "Muss größer als 0 sein."],
-  [/^Number must be greater than or equal to 0$/i, "Darf nicht negativ sein."],
-  [/^Expected number/i, "Bitte eine Zahl eingeben."],
-  [/^Number must be finite$/i, "Bitte eine endliche Zahl eingeben."],
-  [/^String must contain at least 1 character/i, "Darf nicht leer sein."],
-  [/^String must contain at most/i, "Ist zu lang."],
+const fieldErrorMessages = [
+  [/^Expected number, received nan$/i, "projectForm.error.number"],
+  [/^Number must be greater than 0$/i, "projectForm.error.greaterThanZero"],
+  [
+    /^Number must be greater than or equal to 0$/i,
+    "projectForm.error.notNegative",
+  ],
+  [/^Expected number/i, "projectForm.error.number"],
+  [/^Number must be finite$/i, "projectForm.error.finite"],
+  [/^String must contain at least 1 character/i, "projectForm.error.empty"],
+  [/^String must contain at most/i, "projectForm.error.tooLong"],
   [
     /^must be greater than or equal to tareKg$/i,
-    "Muss mindestens so groß wie das Leergewicht sein.",
+    "projectForm.error.grossBelowTare",
   ],
   [
     /^underhang leaves no usable load length$/i,
-    "Der Unterstand lässt keine nutzbare Ladelänge übrig.",
+    "projectForm.error.underhangLength",
   ],
   [
     /^underhang leaves no usable load width$/i,
-    "Der Unterstand lässt keine nutzbare Ladebreite übrig.",
+    "projectForm.error.underhangWidth",
   ],
   [
     /^must contain the allowed load length$/i,
-    "Muss die zulässige Ladelänge (Palette plus Überstand) aufnehmen.",
+    "projectForm.error.storageLength",
   ],
-  [
-    /^must contain the allowed load width$/i,
-    "Muss die zulässige Ladebreite (Palette plus Überstand) aufnehmen.",
-  ],
-  [
-    /^must be at least the pallet height$/i,
-    "Muss mindestens so hoch wie die Palette sein.",
-  ],
-];
+  [/^must contain the allowed load width$/i, "projectForm.error.storageWidth"],
+  [/^must be at least the pallet height$/i, "projectForm.error.storageHeight"],
+] as const satisfies readonly (readonly [RegExp, string])[];
 
-export function germanFieldError(message: string): string {
-  return (
-    germanMessages.find(([pattern]) => pattern.test(message))?.[1] ?? message
-  );
+export function fieldErrorMessage(message: string, t: Translate): string {
+  const match = fieldErrorMessages.find(([pattern]) => pattern.test(message));
+  return match ? t(match[1]) : message;
 }
 
 const validationDependencies = {
@@ -142,12 +146,13 @@ const validationDependencies = {
 export function validateProjectFormValues(
   values: ProjectFormValues,
   project: Project | null,
+  t: Translate,
 ): ProjectFieldErrors {
   // The project schema allows an empty article number (imported .rob files
   // have none), but a planned project needs one for the plan list.
   const required: ProjectFieldErrors =
     values.productNumber.trim() === ""
-      ? { productNumber: "Darf nicht leer sein." }
+      ? { productNumber: t("projectForm.error.empty") }
       : {};
   try {
     buildProjectFromForm(values, project, validationDependencies);
@@ -169,20 +174,22 @@ export function parseExactPackageCount(raw: string): number | null {
   return Number.isInteger(value) && value > 0 ? value : null;
 }
 
-const numberFormat = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 2,
-});
-
 /** Hint under a total-overhang field: the per-side share of the entered value. */
-export function overhangPerSideHint(value: string): string {
+export function overhangPerSideHint(
+  value: string,
+  t: Translate,
+  tag: string,
+): string {
   const total = finite(value);
   return total === null
-    ? "Gesamt über beide Seiten, je Seite die Hälfte. Negativ für Unterstand."
-    : `Je Seite ${formatNumber(total / 2)} mm. Negativ für Unterstand.`;
+    ? t("projectForm.overhangTotalHint")
+    : t("projectForm.overhangPerSideHint", {
+        value: formatNumber(total / 2, tag),
+      });
 }
 
-export function formatNumber(value: number): string {
-  return numberFormat.format(value);
+export function formatNumber(value: number, tag: string): string {
+  return new Intl.NumberFormat(tag, { maximumFractionDigits: 2 }).format(value);
 }
 
 function positive(raw: string): number | null {
@@ -246,54 +253,70 @@ export function simpleGridCount(values: ProjectFormValues): number | null {
   );
 }
 
-const palletKindLabels: Record<ProjectFormValues["palletKind"], string> = {
-  euro: "Euro-Palette",
-  industrial: "Industriepalette",
-  custom: "Eigene Palette",
-};
+const palletKindLabelKeys = {
+  euro: "projectForm.palletKind.euro",
+  industrial: "projectForm.palletKind.industrial",
+  custom: "projectForm.palletKind.custom",
+} as const satisfies Record<ProjectFormValues["palletKind"], string>;
 
-export function palletKindLabel(kind: ProjectFormValues["palletKind"]): string {
-  return palletKindLabels[kind];
+export function palletKindLabel(
+  kind: ProjectFormValues["palletKind"],
+  t: Translate,
+): string {
+  return t(palletKindLabelKeys[kind]);
 }
 
-const sideLabels = {
-  top: "oben",
-  right: "rechts",
-  bottom: "unten",
-  left: "links",
-} as const;
+const sideLabelKeys = {
+  top: "projectForm.side.top",
+  right: "projectForm.side.right",
+  bottom: "projectForm.side.bottom",
+  left: "projectForm.side.left",
+} as const satisfies Record<LabelEdge, string>;
 
 /** Label position as seen in the infeed view, which is what the picker shows. */
 export function labelSideLabel(
   side: ProjectFormValues["labelSideAtPickup"],
-  orientation: ProjectFormValues["inletOrientation"] = "lengthwise",
+  orientation: ProjectFormValues["inletOrientation"],
+  t: Translate,
 ): string {
   return side
-    ? sideLabels[displayedEdgeForPackageSide(orientation, side)]
-    : "ohne Vorgabe";
+    ? t(sideLabelKeys[displayedEdgeForPackageSide(orientation, side)])
+    : t("projectForm.noPreference");
 }
 
-function overhangText(values: ProjectFormValues): string {
+function overhangText(
+  values: ProjectFormValues,
+  t: Translate,
+  tag: string,
+): string {
   const length = finite(values.overhangLengthMm) ?? 0;
   const width = finite(values.overhangWidthMm) ?? 0;
-  if (length === 0 && width === 0) return "ohne Überstand";
+  if (length === 0 && width === 0) return t("projectForm.noOverhang");
   const signed = (value: number) =>
-    `${value > 0 ? "+" : ""}${formatNumber(value)}`;
-  return `Überstand ${signed(length)} / ${signed(width)} mm gesamt`;
+    `${value > 0 ? "+" : ""}${formatNumber(value, tag)}`;
+  return t("projectForm.overhangSummary", {
+    length: signed(length),
+    width: signed(width),
+  });
 }
 
 /** One-line summary shown on a collapsed section. */
 export function sectionSummary(
   section: GuidedSectionId,
   values: ProjectFormValues,
+  t: Translate,
+  tag: string,
 ): string {
+  const fmt = (value: number) => formatNumber(value, tag);
   switch (section) {
     case "package": {
       const box = packageDimensions(values);
-      if (!box) return "Länge, Breite und Höhe fehlen noch";
+      if (!box) return t("projectForm.summary.packageMissing");
       const weight = positive(values.packageWeightKg);
-      return `${formatNumber(box.length)} × ${formatNumber(box.width)} × ${formatNumber(box.height)} mm${
-        weight === null ? ", Gewicht offen" : `, ${formatNumber(weight)} kg`
+      return `${fmt(box.length)} × ${fmt(box.width)} × ${fmt(box.height)} mm${
+        weight === null
+          ? t("projectForm.summary.weightOpen")
+          : t("projectForm.summary.weight", { value: fmt(weight) })
       }`;
     }
     case "pallet": {
@@ -301,36 +324,49 @@ export function sectionSummary(
       const width = positive(values.palletWidthMm);
       const name =
         values.palletKind === "custom"
-          ? values.palletName.trim() || palletKindLabel("custom")
-          : palletKindLabel(values.palletKind);
+          ? values.palletName.trim() || palletKindLabel("custom", t)
+          : palletKindLabel(values.palletKind, t);
       return `${name}${
         length !== null && width !== null
-          ? ` ${formatNumber(length)} × ${formatNumber(width)} mm`
+          ? ` ${fmt(length)} × ${fmt(width)} mm`
           : ""
-      }, ${overhangText(values)}`;
+      }, ${overhangText(values, t, tag)}`;
     }
     case "limits": {
       const height = positive(values.storageHeightMm);
       const gross = positive(values.maxGrossKg);
       const storage =
         values.hasStorageEnvelope && height !== null
-          ? `Lagerhöhe ${formatNumber(height)} mm`
-          : "Keine Lagerhöhe";
+          ? t("projectForm.summary.storageHeight", { value: fmt(height) })
+          : t("projectForm.summary.noStorageHeight");
       return `${storage}, ${
         gross === null
-          ? "kein Gewichtslimit"
-          : `max. ${formatNumber(gross)} kg brutto`
+          ? t("projectForm.summary.noWeightLimit")
+          : t("projectForm.summary.maxGross", { value: fmt(gross) })
       }`;
     }
     case "handling":
-      return `Einlauf ${values.inletOrientation === "lengthwise" ? "längs" : "quer"}, Etikett ${labelSideLabel(values.labelSideAtPickup, values.inletOrientation)}, ${
-        values.multiPickAllowed ? "Mehrfachgriff" : "Einzelgriff"
-      }`;
+      return t("projectForm.summary.handling", {
+        orientation:
+          values.inletOrientation === "lengthwise"
+            ? t("projectForm.summary.lengthwise")
+            : t("projectForm.summary.crosswise"),
+        label: labelSideLabel(
+          values.labelSideAtPickup,
+          values.inletOrientation,
+          t,
+        ),
+        grip: values.multiPickAllowed
+          ? t("projectForm.summary.multiGrip")
+          : t("projectForm.summary.singleGrip"),
+      });
     case "meta": {
       const product = values.productNumber.trim();
       const line = values.projectNumber.trim();
-      if (!product) return "Artikelnummer fehlt noch";
-      return line ? `Artikel ${product}, Linie ${line}` : `Artikel ${product}`;
+      if (!product) return t("projectForm.summary.productMissing");
+      return line
+        ? t("projectForm.summary.productLine", { product, line })
+        : t("projectForm.summary.product", { product });
     }
   }
 }

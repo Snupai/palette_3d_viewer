@@ -6,6 +6,7 @@ import {
   PlanningCandidateIndex,
   ValidationLedger,
 } from "~/features/planning-case/PlanningCaseChrome";
+import { translateDe } from "~/i18n/translateDe";
 import { type ValidationLedgerRow } from "~/features/planning-case/planningCaseModel";
 
 afterEach(cleanup);
@@ -158,8 +159,12 @@ describe("planning case chrome", () => {
     ];
     render(<CandidateIndexHarness items={tiedCycles} />);
 
-    expect(screen.getByText(/#1 ahead of #2:/)).toBeTruthy();
-    expect(screen.getByText("Fewer robot cycles (1 vs 4)")).toBeTruthy();
+    expect(screen.getByText(/#1 vor #2:/)).toBeTruthy();
+    expect(
+      screen.getByText(
+        translateDe("candidates.rank.cycles", { current: 1, next: 4 }),
+      ),
+    ).toBeTruthy();
 
     cleanup();
     const tied: readonly SolverCandidate[] = [
@@ -168,11 +173,7 @@ describe("planning case chrome", () => {
     ];
     render(<CandidateIndexHarness items={tied} />);
 
-    expect(
-      screen.getByText(
-        "Equivalent score — ranked ahead by the deterministic identity tie-break",
-      ),
-    ).toBeTruthy();
+    expect(screen.getByText(translateDe("candidates.rank.tie"))).toBeTruthy();
   });
 
   it("makes layouts beyond the first 32 selectable and resets the page for a new result", () => {
@@ -182,11 +183,11 @@ describe("planning case chrome", () => {
     const { rerender } = render(<CandidateIndexHarness items={items} />);
     expect(screen.getAllByRole("option")).toHaveLength(32);
     fireEvent.click(
-      screen.getByRole("button", { name: "Show more layouts (32)" }),
+      screen.getByRole("button", { name: "Weitere Layouts anzeigen (32)" }),
     );
     expect(screen.getAllByRole("option")).toHaveLength(64);
     fireEvent.click(
-      screen.getByRole("button", { name: "Show more layouts (1)" }),
+      screen.getByRole("button", { name: "Weitere Layouts anzeigen (1)" }),
     );
     const last = screen.getAllByRole("option")[64]!;
     fireEvent.click(last);
@@ -195,7 +196,7 @@ describe("planning case chrome", () => {
     );
     expect(last.getAttribute("aria-selected")).toBe("true");
     expect(
-      screen.queryByRole("button", { name: /Show more layouts/ }),
+      screen.queryByRole("button", { name: /Weitere Layouts anzeigen/ }),
     ).toBeNull();
 
     rerender(<CandidateIndexHarness items={[...items]} />);
@@ -204,7 +205,7 @@ describe("planning case chrome", () => {
       screen.getAllByRole("option")[31]?.getAttribute("aria-selected"),
     ).toBe("true");
     expect(
-      screen.getByRole("button", { name: "Show more layouts (32)" }),
+      screen.getByRole("button", { name: "Weitere Layouts anzeigen (32)" }),
     ).toBeTruthy();
   });
 

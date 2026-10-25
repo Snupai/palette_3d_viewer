@@ -2,6 +2,7 @@
 import { projectNeedsGeometryReview } from "~/features/planning-case/planningCaseModel";
 import dynamic from "next/dynamic";
 import { useState, type ReactNode } from "react";
+import { useT } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { Project } from "~/domain/project/projectSchema";
 import type { PalletData } from "~/domain/palletTypes";
@@ -24,11 +25,15 @@ import {
   type PlanningStage,
   type ValidationLedgerRow,
 } from "./planningCaseModel";
+function StackLoading() {
+  const t = useT();
+  return <div className="fable-panel">{t("planningCase.loading3d")}</div>;
+}
 const FinishedStack3D = dynamic(
   () => import("./FinishedStack3D").then((m) => m.FinishedStack3D),
   {
     ssr: false,
-    loading: () => <div className="fable-panel">3D-Ansicht wird geladen …</div>,
+    loading: () => <StackLoading />,
   },
 );
 export type ProductionTool =
@@ -84,6 +89,7 @@ export type PlanningCaseWorkbenchProps = {
 };
 
 export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
+  const t = useT();
   const { project, activeStage: stage } = p;
   const imported =
     project?.source.kind === "rob-import" &&
@@ -113,23 +119,31 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
   const savedPalletData = p.savedPalletData ?? p.currentPalletData;
   const preview = (
     <aside className="fable-stage">
-      <h3>{stage === "generate" ? "Ihre Lage" : "Paket & Palette"}</h3>
+      <h3>
+        {stage === "generate"
+          ? t("planningCase.yourLayer")
+          : t("planningCase.packageAndPallet")}
+      </h3>
       <PlanRender
         data={stage === "generate" ? p.currentPalletData : null}
         emptyPackage={d}
         palletSize={project?.pallet?.dimensionsMm}
-        title="Vorschau des aktuellen Plans"
+        title={t("planningCase.previewTitle")}
       />
       <dl className="workflow-metrics">
         <div>
-          <dt>{selected ? "Pakete / Lage" : "Länge"}</dt>
+          <dt>
+            {selected
+              ? t("planningCase.packagesPerLayerShort")
+              : t("planningCase.length")}
+          </dt>
           <dd>
             {selected?.metrics.packageCount ?? d?.length ?? "–"}
             {!selected && <small> mm</small>}
           </dd>
         </div>
         <div>
-          <dt>{selected ? "Fläche" : "Breite"}</dt>
+          <dt>{selected ? t("planningCase.area") : t("planningCase.width")}</dt>
           <dd>
             {selected
               ? selected.metrics.utilizationPercent.toFixed(1)
@@ -138,7 +152,9 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
           </dd>
         </div>
         <div>
-          <dt>{selected ? "Zyklen" : "Höhe"}</dt>
+          <dt>
+            {selected ? t("planningCase.cycles") : t("planningCase.height")}
+          </dt>
           <dd>
             {selected?.metrics.provisionalCycleCount ?? d?.height ?? "–"}
             {!selected && <small> mm</small>}
@@ -150,7 +166,7 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
   if (p.loadingProject)
     return (
       <div className="fable-page" role="status">
-        Plan wird geöffnet …
+        {t("planningCase.opening")}
       </div>
     );
   return (
@@ -158,11 +174,16 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
       className={`fable-page planning-case-grid ${stage === "generate" ? "is-generating" : ""}`}
     >
       {!imported && (
-        <ol className="fable-steps" aria-label="Planungsschritte">
+        <ol className="fable-steps" aria-label={t("planningCase.stepsLabel")}>
           {[
-            ["inputs", "Paket & Palette"],
-            ["generate", "Muster auswählen"],
-            ["stack", stackSaved ? "Fertiger Plan" : "Stapel aufbauen"],
+            ["inputs", t("planningCase.packageAndPallet")],
+            ["generate", t("planningCase.stepSelectPattern")],
+            [
+              "stack",
+              stackSaved
+                ? t("planningCase.stepFinishedPlan")
+                : t("planningCase.buildStack"),
+            ],
           ].map(([id, label], i) => (
             <li key={id} aria-current={stage === id ? "step" : undefined}>
               <span className="step-number">{i + 1}</span>
@@ -205,21 +226,21 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 />
               )}
               <details className="ranking-note">
-                <summary>Diagnosen und weitere Ansichten</summary>
+                <summary>{t("planningCase.diagnosticsSummary")}</summary>
                 <div className="button-row">
                   <button
                     className="ui-btn"
                     disabled={!p.solverResult}
                     onClick={() => p.onOpenTool("candidate-browser")}
                   >
-                    Suchdiagnosen
+                    {t("planningCase.searchDiagnostics")}
                   </button>
                   <button
                     className="ui-btn"
                     disabled={!selected}
                     onClick={() => p.onOpenTool("candidate-3d")}
                   >
-                    Lage in 3D ansehen
+                    {t("planningCase.viewLayer3d")}
                   </button>
                 </div>
               </details>
@@ -229,8 +250,8 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
           <div className="fable-actions generation-actions">
             <p>
               {selected
-                ? `Muster ${selected.rank} wird die erste Lage Ihres Stapels.`
-                : "Wählen Sie nach der Berechnung ein Muster aus."}
+                ? t("planningCase.firstLayerPattern", { rank: selected.rank })
+                : t("planningCase.selectAfterCalc")}
             </p>
             <div className="button-row">
               {stackSaved && (
@@ -241,11 +262,11 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                     p.onStageChange("stack");
                   }}
                 >
-                  Gespeicherten Plan ansehen
+                  {t("planningCase.viewSavedPlan")}
                 </button>
               )}
               <button className="ui-btn" onClick={p.onEditProject}>
-                Eingaben ändern
+                {t("planningCase.changeInputs")}
               </button>
               <button
                 className="ui-btn-primary"
@@ -255,7 +276,7 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                   p.onStageChange("stack");
                 }}
               >
-                Stapel aufbauen
+                {t("planningCase.buildStack")}
               </button>
             </div>
           </div>
@@ -271,12 +292,16 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               <h1>
                 {[project?.productNumber, project?.projectNumber].find(
                   (value) => value?.trim(),
-                ) ?? "Ihr Palettenplan"}
+                ) ?? t("planningCase.yourPalletPlan")}
               </h1>
-              <p>{imported ? "Importierter Plan" : "Stapel gespeichert"}</p>
+              <p>
+                {imported
+                  ? t("planningCase.importedPlan")
+                  : t("planningCase.stackSaved")}
+              </p>
             </div>
             <button className="ui-btn-primary" onClick={p.onDownloadRob}>
-              .rob herunterladen
+              {t("planningCase.downloadRob")}
             </button>
           </div>
           <div className="fable-two-column">
@@ -287,31 +312,31 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               />
             </div>
             <aside className="fable-panel">
-              <h2>Plan im Überblick</h2>
+              <h2>{t("planningCase.overview")}</h2>
               <dl className="viewer-summary">
                 <div>
-                  <dt>Paket L × B × H</dt>
+                  <dt>{t("planningCase.packageLwh")}</dt>
                   <dd>
                     {d?.length} × {d?.width} × {d?.height} mm
                   </dd>
                 </div>
                 <div>
-                  <dt>Palette</dt>
+                  <dt>{t("planningCase.pallet")}</dt>
                   <dd>
                     {project?.pallet?.dimensionsMm.length} ×{" "}
                     {project?.pallet?.dimensionsMm.width} mm
                   </dd>
                 </div>
                 <div>
-                  <dt>Lagen</dt>
+                  <dt>{t("planningCase.layers")}</dt>
                   <dd>{savedPalletData.layer_count}</dd>
                 </div>
                 <div>
-                  <dt>Pakete gesamt</dt>
+                  <dt>{t("planningCase.packagesTotal")}</dt>
                   <dd>{savedPalletData.total_boxes}</dd>
                 </div>
                 <div>
-                  <dt>Pakete je Lage</dt>
+                  <dt>{t("planningCase.packagesPerLayer")}</dt>
                   <dd>
                     {[
                       ...new Set(
@@ -321,8 +346,12 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                   </dd>
                 </div>
                 <div>
-                  <dt>Herkunft</dt>
-                  <dd>{imported ? ".rob-Datei" : "Planung"}</dd>
+                  <dt>{t("planningCase.origin")}</dt>
+                  <dd>
+                    {imported
+                      ? t("planningCase.robFile")
+                      : t("planningCase.planning")}
+                  </dd>
                 </div>
               </dl>
               <div className="viewer-buttons">
@@ -330,47 +359,51 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                   className="ui-btn"
                   onClick={() => p.onOpenTool("editor")}
                 >
-                  Muster bearbeiten
+                  {t("planningCase.editPattern")}
                 </button>
                 <button
                   className="ui-btn"
                   onClick={() => p.onOpenTool("report")}
                 >
-                  Palettierblatt ansehen
+                  {t("planningCase.viewPalletSheet")}
                 </button>
                 {!imported && (
                   <button
                     className="ui-btn"
                     onClick={() => p.onStageChange("generate")}
                   >
-                    Weitere Muster erzeugen
+                    {t("planningCase.morePatterns")}
                   </button>
                 )}
                 <button className="text-action" onClick={p.onEditProject}>
-                  Planangaben bearbeiten
+                  {t("planningCase.editPlanData")}
                 </button>
               </div>
             </aside>
           </div>
           <details className="ranking-note">
-            <summary>Prüfungen und Originaldatei</summary>
+            <summary>{t("planningCase.checksSummary")}</summary>
             <ValidationLedger rows={p.ledgerRows} />
           </details>
         </>
       ) : (
         <div className="fable-two-column">
           <section className="fable-panel">
-            <h1>{project ? "Paket & Palette" : "Neuer Palettenplan"}</h1>
+            <h1>
+              {project
+                ? t("planningCase.packageAndPallet")
+                : t("planningCase.newPalletPlan")}
+            </h1>
             {project && (
               <dl className="viewer-summary">
                 <div>
-                  <dt>Paket</dt>
+                  <dt>{t("planningCase.package")}</dt>
                   <dd>
                     {d?.length} × {d?.width} × {d?.height} mm
                   </dd>
                 </div>
                 <div>
-                  <dt>Palette</dt>
+                  <dt>{t("planningCase.pallet")}</dt>
                   <dd>{project.pallet?.name}</dd>
                 </div>
               </dl>
@@ -380,14 +413,16 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 className="ui-btn"
                 onClick={project ? p.onEditProject : p.onCreateProject}
               >
-                {project ? "Angaben bearbeiten" : "Neuen Plan erstellen"}
+                {project
+                  ? t("planningCase.editDetails")
+                  : t("planningCase.createNewPlan")}
               </button>
               {project && (
                 <button
                   className="ui-btn-primary"
                   onClick={() => p.onStageChange("generate")}
                 >
-                  Weiter zu den Mustern
+                  {t("planningCase.continueToPatterns")}
                 </button>
               )}
             </div>

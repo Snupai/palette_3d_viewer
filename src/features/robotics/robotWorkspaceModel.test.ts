@@ -7,6 +7,7 @@ import {
   exportProjectRob,
   materializeRobotCycles,
 } from "~/domain/robotics";
+import { translateDe } from "~/i18n";
 import {
   createInitialRobotExportSettings,
   createInitialRobotWorkspaceSettings,
@@ -494,6 +495,7 @@ describe("robotics readiness", () => {
       settings,
       false,
       1,
+      translateDe,
     );
 
     expect(materialization.diagnostics).toContainEqual(
@@ -505,12 +507,12 @@ describe("robotics readiness", () => {
     const equipmentReadiness = readiness.find(({ id }) => id === "equipment");
     expect(equipmentReadiness?.status).toBe("warning");
     expect(equipmentReadiness?.evidence).toContain(
-      "observed Multipack default profile",
+      "beobachtete Multipack-Standardprofil",
     );
     const workspaceReadiness = readiness.find(({ id }) => id === "workspace");
     expect(workspaceReadiness?.status).toBe("warning");
     expect(workspaceReadiness?.evidence).toContain(
-      "radial reach was not checked",
+      "radiale Reichweite wurde aber nicht geprüft",
     );
   });
 
@@ -534,6 +536,7 @@ describe("robotics readiness", () => {
       settings,
       false,
       3,
+      translateDe,
     );
 
     expect(readiness).toContainEqual(
@@ -549,7 +552,8 @@ describe("robotics readiness", () => {
       expect.objectContaining({
         id: "export",
         status: "engineering",
-        evidence: "3 export settings still require engineering review.",
+        evidence:
+          "3 Export-Einstellungen müssen noch technisch geprüft werden.",
       }),
     );
   });
@@ -571,6 +575,7 @@ describe("robotics readiness", () => {
       baseSettings,
       false,
       1,
+      translateDe,
     );
 
     expect(conveyorOnly.valid).toBe(true);
@@ -580,7 +585,7 @@ describe("robotics readiness", () => {
         id: "obstacles",
         status: "warning",
         evidence:
-          "The calculated feed conveyor bed was checked. No additional station obstacles are modeled.",
+          "Das berechnete Zufuhrband wurde geprüft. Weitere Stationshindernisse sind nicht modelliert.",
       }),
     );
 
@@ -611,6 +616,7 @@ describe("robotics readiness", () => {
       settingsWithObstacle,
       false,
       1,
+      translateDe,
     );
 
     expect(withObstacle.valid).toBe(true);
@@ -619,7 +625,7 @@ describe("robotics readiness", () => {
         id: "obstacles",
         status: "complete",
         evidence:
-          "1 entered obstacle checked together with the calculated feed conveyor bed.",
+          "1 eingetragenes Hindernis zusammen mit dem berechneten Zufuhrband geprüft.",
       }),
     );
   });
@@ -641,6 +647,7 @@ describe("robotics readiness", () => {
       settings,
       false,
       1,
+      translateDe,
     );
 
     expect(materialization.diagnostics).toContainEqual(
@@ -655,7 +662,7 @@ describe("robotics readiness", () => {
         id: "obstacles",
         status: "blocked",
         evidence:
-          "A calculated motion intersects the modeled feed conveyor or an entered obstacle, or an obstacle is invalid.",
+          "Eine berechnete Bewegung schneidet das modellierte Zufuhrband oder ein eingetragenes Hindernis, oder ein Hindernis ist ungültig.",
       }),
     );
   });

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LayerPattern } from "~/components/LayerPattern";
+import { useLocale, useT } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { PalletData } from "~/domain/palletTypes";
 import type { Project } from "~/domain/project/projectSchema";
@@ -15,19 +16,19 @@ import type {
 import type { GuidedSectionId } from "~/features/project/guidedProjectFormModel";
 import { PlanRender } from "~/features/planner/PlanRender";
 import {
-  candidateLabelDe,
+  candidateLabel,
   candidateRefOptions,
   clampLayerCount,
-  compositionLabelsDe,
+  compositionLabel,
   compositionModes,
   compositionPreviewState,
   describeStackWarning,
-  formatDe,
+  formatNumber,
   isLimitWarning,
-  patternNameDe,
+  patternName,
   rebuildGuidedSequence,
   setIndividualSheet,
-  transformLabelsDe,
+  transformLabel,
 } from "~/features/stack/guidedStackModel";
 import { StackLayerSequence } from "~/features/stack/StackLayerSequence";
 import { StackResultPanel } from "~/features/stack/StackResultPanel";
@@ -36,7 +37,10 @@ import {
   type StackInterlayerMode,
   type StackWorkspaceState,
 } from "~/features/stack/stackWorkspaceModel";
-import type { StackWorkspaceChange } from "~/features/stack/stackWorkspaceUi";
+import {
+  stackLayerTransforms,
+  type StackWorkspaceChange,
+} from "~/features/stack/stackWorkspaceUi";
 import { materializedStackToPalletData } from "~/lib/projectAdapters";
 import { palletLayerToPatternPreview } from "~/lib/previewAdapters";
 
@@ -63,8 +67,8 @@ export type GuidedStackWorkspaceProps = {
   onSubstepChange?: (substep: GuidedStackSubstep) => void;
 };
 
-function mm(value: number): string {
-  return `${formatDe(value)} mm`;
+function formatMm(value: number, tag: string): string {
+  return `${formatNumber(value, tag)} mm`;
 }
 
 function thicknessValue(raw: string): number {
@@ -137,6 +141,8 @@ function HeightGauge({
   heightMm: number;
   limitMm: number;
 }) {
+  const t = useT();
+  const { tag } = useLocale();
   const ratio = limitMm > 0 ? heightMm / limitMm : 0;
   const over = ratio > 1;
   // The limit line sits at 100 %; an over-height fill runs past it.
@@ -145,11 +151,14 @@ function HeightGauge({
     <div
       className="fw-gauge"
       role="meter"
-      aria-label="Ladehöhe gegen Lagerhöhe"
+      aria-label={t("stack.gauge.aria")}
       aria-valuemin={0}
       aria-valuemax={limitMm}
       aria-valuenow={Math.round(heightMm)}
-      aria-valuetext={`${mm(heightMm)} von ${mm(limitMm)}`}
+      aria-valuetext={t("stack.gauge.valueText", {
+        height: formatMm(heightMm, tag),
+        limit: formatMm(limitMm, tag),
+      })}
     >
       <div className="fw-gauge-track">
         <div
@@ -162,7 +171,7 @@ function HeightGauge({
           style={{ bottom: `${(1 / scaleMax) * 100}%` }}
         />
       </div>
-      <span className="fw-gauge-label">Lagerhöhe</span>
+      <span className="fw-gauge-label">{t("stack.gauge.label")}</span>
     </div>
   );
 }
@@ -187,6 +196,12 @@ export function GuidedStackWorkspace({
   onEditProject,
   onSubstepChange,
 }: GuidedStackWorkspaceProps) {
+  const t = useT();
+  const { tag } = useLocale();
+  const fmt = (value: number) => formatNumber(value, tag);
+  const mm = (value: number) => formatMm(value, tag);
+  const describe = (warning: Parameters<typeof describeStackWarning>[0]) =>
+    describeStackWarning(warning, t, tag);
   const [substep, setSubstep] = useState<GuidedStackSubstep>("stack");
   const [countDraft, setCountDraft] = useState<string | null>(null);
   const [stageExpanded, setStageExpanded] = useState(false);
@@ -245,25 +260,32 @@ export function GuidedStackWorkspace({
   };
 
   const capacityText = (() => {
-    if (storageHeightMm === null) return "Keine Lagerhöhe hinterlegt.";
+    if (storageHeightMm === null) return t("stack.layers.noStorage");
     if (!capacity) return "";
     if (capacity.status === "impossible") {
-      return `Schon eine Schicht passt nicht in ${mm(storageHeightMm)}.`;
+      return t("stack.layers.impossible", { height: mm(storageHeightMm) });
     }
     if (capacity.status !== "calculated") return "";
     if (state.interlayerMode === "individual") {
       return capacity.capacityLayers < layerCount
-        ? `Nur ${capacity.capacityLayers} der ${layerCount} Schichten passen in ${mm(storageHeightMm)}.`
-        : `Alle Schichten passen in ${mm(storageHeightMm)}.`;
+        ? t("stack.layers.partial", {
+            fit: capacity.capacityLayers,
+            total: layerCount,
+            height: mm(storageHeightMm),
+          })
+        : t("stack.layers.allFit", { height: mm(storageHeightMm) });
     }
-    return `Bis zu ${capacity.capacityLayers} passen in ${mm(storageHeightMm)}.`;
+    return t("stack.layers.upTo", {
+      max: capacity.capacityLayers,
+      height: mm(storageHeightMm),
+    });
   })();
 
   const sheetSummary = (() => {
     const parts: string[] = [];
     if (state.interlayerMode === "all") {
       parts.push(
-        `Zwischenlage zwischen allen Schichten (${mm(state.betweenThicknessMm)})`,
+        t("stack.sumSheets.all", { thickness: mm(state.betweenThicknessMm) }),
       );
     } else if (state.interlayerMode === "individual") {
       const before = state.layers
@@ -275,14 +297,14 @@ export function GuidedStackWorkspace({
         .filter((value): value is number => value !== null);
       parts.push(
         before.length === 0
-          ? "Keine einzelnen Zwischenlagen"
-          : `Zwischenlage vor Schicht ${before.join(", ")}`,
+          ? t("stack.sumSheets.noIndividual")
+          : t("stack.sumSheets.before", { layers: before.join(", ") }),
       );
     } else {
-      parts.push("Keine Zwischenlagen");
+      parts.push(t("stack.sumSheets.none"));
     }
-    if (state.baseEnabled) parts.push("Bodenblatt");
-    if (state.deckEnabled) parts.push("Deckblatt");
+    if (state.baseEnabled) parts.push(t("stack.seq.baseSheet"));
+    if (state.deckEnabled) parts.push(t("stack.seq.deckSheet"));
     return parts.join(", ");
   })();
 
@@ -290,16 +312,16 @@ export function GuidedStackWorkspace({
     <aside
       className="fw-stage"
       data-expanded={stageExpanded ? "true" : "false"}
-      aria-label="Stapelvorschau"
+      aria-label={t("stack.stage.aria")}
     >
       <div className="fw-stage-head">
         <h2>
           {layerCount === 0
-            ? "Noch keine Schicht"
-            : `${layerCount} ${layerCount === 1 ? "Schicht" : "Schichten"} gestapelt`}
+            ? t("stack.stage.empty")
+            : t("stack.stage.stacked", { count: layerCount })}
         </h2>
         <span className="fw-stage-meta">
-          {compositionLabelsDe[state.compositionMode]}
+          {compositionLabel(t, state.compositionMode)}
         </span>
         <button
           type="button"
@@ -307,7 +329,7 @@ export function GuidedStackWorkspace({
           aria-expanded={stageExpanded}
           onClick={() => setStageExpanded((current) => !current)}
         >
-          {stageExpanded ? "Kleiner" : "Größer"}
+          {stageExpanded ? t("stack.stage.smaller") : t("stack.stage.larger")}
         </button>
       </div>
       <div
@@ -328,8 +350,8 @@ export function GuidedStackWorkspace({
           packageHeight={project.package.dimensionsMm.height}
           title={
             layerCount === 0
-              ? "Leere Palette"
-              : `Stapel mit ${layerCount} Schichten`
+              ? t("stack.stage.emptyPallet")
+              : t("stack.stage.stackTitle", { count: layerCount })
           }
         />
         {storageHeightMm !== null ? (
@@ -338,42 +360,44 @@ export function GuidedStackWorkspace({
       </div>
       <dl className="fw-facts">
         <StageFact
-          label="Pakete gesamt"
+          label={t("stack.stage.totalPackages")}
           value={metrics ? metrics.packages.totalPackageCount : "–"}
         />
         <StageFact
           label={
             storageHeightMm !== null
-              ? "Ladehöhe / Lagerhöhe mm"
-              : "Ladehöhe mm ohne Palette"
+              ? t("stack.stage.loadVsStorage")
+              : t("stack.stage.loadNoPallet")
           }
           bad={heightOver}
           value={
             metrics
               ? storageHeightMm !== null
-                ? `${formatDe(loadHeightMm)} / ${formatDe(storageHeightMm)}`
-                : formatDe(loadHeightMm)
+                ? `${fmt(loadHeightMm)} / ${fmt(storageHeightMm)}`
+                : fmt(loadHeightMm)
               : "–"
           }
         />
         <StageFact
           label={
             project.pallet?.maxGrossKg != null
-              ? `Brutto kg, max. ${formatDe(project.pallet.maxGrossKg)}`
-              : "Brutto kg"
+              ? t("stack.stage.grossMax", {
+                  max: fmt(project.pallet.maxGrossKg),
+                })
+              : t("stack.stage.gross")
           }
           bad={weightOver}
           value={
             metrics?.weight.grossWeightKg != null
-              ? formatDe(metrics.weight.grossWeightKg)
-              : "unbekannt"
+              ? fmt(metrics.weight.grossWeightKg)
+              : t("stack.stage.unknownWeight")
           }
         />
       </dl>
       {limitWarnings.length > 0 ? (
         <ul className="fw-limits" role="status">
           {limitWarnings.map((warning) => (
-            <li key={warning.id}>{describeStackWarning(warning)}</li>
+            <li key={warning.id}>{describe(warning)}</li>
           ))}
         </ul>
       ) : null}
@@ -384,7 +408,7 @@ export function GuidedStackWorkspace({
     <>
       {error ? (
         <div role="alert" className="fw-alert">
-          Der Stapel lässt sich so nicht aufbauen: {error}
+          {t("stack.alert.cannotBuild", { error })}
         </div>
       ) : null}
       {saveFailure ? (
@@ -406,24 +430,27 @@ export function GuidedStackWorkspace({
     <>
       <header className="fw-intro">
         <h1 ref={headingRef} tabIndex={-1}>
-          Stapel aufbauen
+          {t("stack.build.title")}
         </h1>
       </header>
       {alerts}
 
       <section className="fw-row" aria-labelledby="fw-stack-pattern">
         <div className="fw-row-label">
-          <h2 id="fw-stack-pattern">Muster A</h2>
+          <h2 id="fw-stack-pattern">{t("stack.patternA")}</h2>
           <span>
             {patternA
-              ? `${candidateLabelDe(patternA)}, ${patternA.metrics.provisionalCycleCount} Griffe je Schicht`
-              : "Kein Muster gewählt"}
+              ? t("stack.build.patternSummary", {
+                  label: candidateLabel(t, patternA),
+                  cycles: patternA.metrics.provisionalCycleCount,
+                })
+              : t("stack.build.noPattern")}
           </span>
         </div>
         <div className="fw-row-ctl fw-row-end">
           {onBack ? (
             <button type="button" className="ui-btn" onClick={onBack}>
-              Anderes Muster wählen
+              {t("stack.build.otherPattern")}
             </button>
           ) : null}
         </div>
@@ -431,7 +458,7 @@ export function GuidedStackWorkspace({
 
       <section className="fw-row" aria-labelledby="fw-stack-count">
         <div className="fw-row-label">
-          <h2 id="fw-stack-count">Schichten</h2>
+          <h2 id="fw-stack-count">{t("stack.layers.title")}</h2>
           <span>{capacityText}</span>
         </div>
         <div className="fw-row-ctl">
@@ -439,7 +466,7 @@ export function GuidedStackWorkspace({
             <div className="fw-stepper">
               <button
                 type="button"
-                aria-label="Eine Schicht weniger"
+                aria-label={t("stack.layers.fewer")}
                 disabled={layerCount <= 0 || !state.patternARef}
                 onClick={() => setCount(layerCount - 1)}
               >
@@ -450,7 +477,7 @@ export function GuidedStackWorkspace({
                 inputMode="numeric"
                 min="0"
                 step="1"
-                aria-label="Anzahl Schichten"
+                aria-label={t("stack.layers.countAria")}
                 value={countDraft ?? String(state.requestedLayerCount)}
                 disabled={!state.patternARef}
                 onChange={(event) => {
@@ -469,7 +496,7 @@ export function GuidedStackWorkspace({
               />
               <button
                 type="button"
-                aria-label="Eine Schicht mehr"
+                aria-label={t("stack.layers.more")}
                 disabled={!state.patternARef}
                 onClick={() => setCount(layerCount + 1)}
               >
@@ -483,7 +510,7 @@ export function GuidedStackWorkspace({
                 aria-pressed={layerCount === maxLayers}
                 onClick={() => setCount(maxLayers)}
               >
-                Maximum ({maxLayers})
+                {t("stack.layers.maximum", { max: maxLayers })}
               </button>
             ) : null}
             {storageHeightMm === null && onEditProject ? (
@@ -492,14 +519,16 @@ export function GuidedStackWorkspace({
                 className="fw-link"
                 onClick={() => onEditProject("limits")}
               >
-                Lagerhöhe eintragen
+                {t("stack.layers.enterStorage")}
               </button>
             ) : null}
           </div>
           {metrics ? (
             <p className="fw-note">
-              {metrics.packages.totalPackageCount} Pakete, {mm(loadHeightMm)}{" "}
-              Ladehöhe ohne Palette
+              {t("stack.layers.summary", {
+                count: metrics.packages.totalPackageCount,
+                height: mm(loadHeightMm),
+              })}
             </p>
           ) : null}
         </div>
@@ -507,14 +536,18 @@ export function GuidedStackWorkspace({
 
       <section className="fw-row" aria-labelledby="fw-stack-mode">
         <div className="fw-row-label">
-          <h2 id="fw-stack-mode">Folgeschicht</h2>
+          <h2 id="fw-stack-mode">{t("stack.mode.title")}</h2>
           <span>
-            Wie jede zweite Schicht liegt. Versatz gibt Verbund.
-            {layerCount < 2 ? " Wirkt ab der zweiten Schicht." : ""}
+            {t("stack.mode.desc")}
+            {layerCount < 2 ? ` ${t("stack.mode.fromSecond")}` : ""}
           </span>
         </div>
         <div className="fw-row-ctl">
-          <div className="fw-tiles" role="group" aria-label="Folgeschicht">
+          <div
+            className="fw-tiles"
+            role="group"
+            aria-label={t("stack.mode.title")}
+          >
             {compositionModes.map((mode) => {
               const pair = thumbs[mode];
               return (
@@ -547,7 +580,7 @@ export function GuidedStackWorkspace({
                       </>
                     ) : null}
                   </span>
-                  <span>{compositionLabelsDe[mode]}</span>
+                  <span>{compositionLabel(t, mode)}</span>
                 </button>
               );
             })}
@@ -557,18 +590,18 @@ export function GuidedStackWorkspace({
 
       <section className="fw-row" aria-labelledby="fw-stack-sheets">
         <div className="fw-row-label">
-          <h2 id="fw-stack-sheets">Zwischenlagen</h2>
-          <span>Zählen zur Ladehöhe.</span>
+          <h2 id="fw-stack-sheets">{t("stack.sheets.title")}</h2>
+          <span>{t("stack.sheets.hint")}</span>
         </div>
         <div className="fw-row-ctl">
           <fieldset className="fw-seg-field">
-            <legend className="sr-only">Zwischenlagen</legend>
+            <legend className="sr-only">{t("stack.sheets.title")}</legend>
             <div className="fw-seg">
               {(
                 [
-                  ["none", "Keine"],
-                  ["all", "Zwischen allen"],
-                  ["individual", "Einzeln in der Schichtfolge"],
+                  ["none", t("stack.sheets.none")],
+                  ["all", t("stack.sheets.all")],
+                  ["individual", t("stack.sheets.individual")],
                 ] as const satisfies readonly (readonly [
                   StackInterlayerMode,
                   string,
@@ -594,7 +627,7 @@ export function GuidedStackWorkspace({
           </fieldset>
           {state.interlayerMode === "all" ? (
             <label className="fw-mini-field">
-              Dicke je Zwischenlage
+              {t("stack.sheets.thicknessEach")}
               <span className="fw-ctl fw-ctl-sm">
                 <input
                   type="number"
@@ -625,7 +658,7 @@ export function GuidedStackWorkspace({
                     }))
                   }
                 />
-                Bodenblatt auf der Palette
+                {t("stack.sheets.baseCheck")}
               </label>
               {state.baseEnabled ? (
                 <span className="fw-ctl fw-ctl-sm">
@@ -633,7 +666,7 @@ export function GuidedStackWorkspace({
                     type="number"
                     min="0"
                     step="any"
-                    aria-label="Dicke Bodenblatt"
+                    aria-label={t("stack.sheets.baseThicknessAria")}
                     value={state.baseThicknessMm}
                     onChange={(event) =>
                       change((current) => ({
@@ -658,7 +691,7 @@ export function GuidedStackWorkspace({
                     }))
                   }
                 />
-                Deckblatt oben
+                {t("stack.sheets.deckCheck")}
               </label>
               {state.deckEnabled ? (
                 <span className="fw-ctl fw-ctl-sm">
@@ -666,7 +699,7 @@ export function GuidedStackWorkspace({
                     type="number"
                     min="0"
                     step="any"
-                    aria-label="Dicke Deckblatt"
+                    aria-label={t("stack.sheets.deckThicknessAria")}
                     value={state.deckThicknessMm}
                     onChange={(event) =>
                       change((current) => ({
@@ -689,13 +722,11 @@ export function GuidedStackWorkspace({
           state.patternBRef !== null || state.specialTopEnabled || undefined
         }
       >
-        <summary>Muster B und abweichende Decklage</summary>
+        <summary>{t("stack.more.summary")}</summary>
         <div className="fw-details-body">
           <div className="fw-grid2">
             <div className="fw-field">
-              <label htmlFor="fw-pattern-b">
-                Muster B (jede zweite Schicht)
-              </label>
+              <label htmlFor="fw-pattern-b">{t("stack.more.patternB")}</label>
               <div className="fw-ctl">
                 <select
                   id="fw-pattern-b"
@@ -708,8 +739,8 @@ export function GuidedStackWorkspace({
                     )
                   }
                 >
-                  <option value="">Wie Muster A</option>
-                  {candidateRefOptions(candidates).map((option) => (
+                  <option value="">{t("stack.more.likeA")}</option>
+                  {candidateRefOptions(t, candidates).map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
                     </option>
@@ -729,12 +760,14 @@ export function GuidedStackWorkspace({
                 }))
               }
             />
-            Oberste Schicht durch ein anderes Muster ersetzen
+            {t("stack.more.replaceTop")}
           </label>
           {state.specialTopEnabled ? (
             <div className="fw-grid2">
               <div className="fw-field">
-                <label htmlFor="fw-top-pattern">Muster der Decklage</label>
+                <label htmlFor="fw-top-pattern">
+                  {t("stack.more.topPattern")}
+                </label>
                 <div className="fw-ctl">
                   <select
                     id="fw-top-pattern"
@@ -746,7 +779,7 @@ export function GuidedStackWorkspace({
                       }))
                     }
                   >
-                    {candidateRefOptions(candidates).map((option) => (
+                    {candidateRefOptions(t, candidates).map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -755,7 +788,9 @@ export function GuidedStackWorkspace({
                 </div>
               </div>
               <div className="fw-field">
-                <label htmlFor="fw-top-transform">Lage der Decklage</label>
+                <label htmlFor="fw-top-transform">
+                  {t("stack.more.topTransform")}
+                </label>
                 <div className="fw-ctl">
                   <select
                     id="fw-top-transform"
@@ -768,9 +803,9 @@ export function GuidedStackWorkspace({
                       }))
                     }
                   >
-                    {Object.entries(transformLabelsDe).map(([value, label]) => (
+                    {stackLayerTransforms.map((value) => (
                       <option key={value} value={value}>
-                        {label}
+                        {transformLabel(t, value)}
                       </option>
                     ))}
                   </select>
@@ -783,10 +818,10 @@ export function GuidedStackWorkspace({
 
       <section className="fw-panel" aria-labelledby="fw-stack-seq">
         <header className="fw-panel-head">
-          <h2 id="fw-stack-seq">Schichtfolge</h2>
+          <h2 id="fw-stack-seq">{t("stack.seq.title")}</h2>
         </header>
         {physicalRows.length === 0 ? (
-          <p className="fw-note">Noch keine Schicht. Mit + eine hinzufügen.</p>
+          <p className="fw-note">{t("stack.seq.empty")}</p>
         ) : (
           <ol className="fw-seq">
             {physicalRows.map((item, index) => {
@@ -797,10 +832,10 @@ export function GuidedStackWorkspace({
                   item.beforeLayerId !== null;
                 const name =
                   item.role === "base-sheet"
-                    ? "Bodenblatt"
+                    ? t("stack.seq.baseSheet")
                     : item.role === "deck-sheet"
-                      ? "Deckblatt"
-                      : "Zwischenlage";
+                      ? t("stack.seq.deckSheet")
+                      : t("stack.seq.interlayer");
                 return (
                   <li key={item.id} className="fw-seq-sheet">
                     <span className="fw-seq-line" aria-hidden="true" />
@@ -821,7 +856,7 @@ export function GuidedStackWorkspace({
                           )
                         }
                       >
-                        Entfernen
+                        {t("stack.seq.remove")}
                       </button>
                     ) : null}
                   </li>
@@ -850,15 +885,18 @@ export function GuidedStackWorkspace({
                       ) : null}
                     </span>
                     <span className="fw-seq-text">
-                      {special ? "Decklage: " : ""}
-                      {patternNameDe(state, item.patternRef, candidateByRef)}
+                      {special ? `${t("stack.seq.specialTop")} ` : ""}
+                      {patternName(t, state, item.patternRef, candidateByRef)}
                       {item.transform !== "identity"
-                        ? `, ${transformLabelsDe[item.transform]}`
+                        ? `, ${transformLabel(t, item.transform)}`
                         : ""}
-                      , {item.placements.length} Pakete
+                      ,{" "}
+                      {t("stack.packageCount", {
+                        count: item.placements.length,
+                      })}
                     </span>
                     <span className="fw-seq-z">
-                      Ablage-Z {formatDe(item.zTopMm)}
+                      {t("stack.seq.placeZ", { z: fmt(item.zTopMm) })}
                     </span>
                   </div>
                   {canInsert ? (
@@ -867,14 +905,16 @@ export function GuidedStackWorkspace({
                       <button
                         type="button"
                         className="ui-btn ui-btn-sm"
-                        aria-label={`Zwischenlage unter Schicht ${layerNumber} einfügen`}
+                        aria-label={t("stack.seq.insertAria", {
+                          n: layerNumber,
+                        })}
                         onClick={() =>
                           change((current) =>
                             setIndividualSheet(current, item.id, true),
                           )
                         }
                       >
-                        Zwischenlage einfügen
+                        {t("stack.seq.insert")}
                       </button>
                     </div>
                   ) : null}
@@ -886,7 +926,7 @@ export function GuidedStackWorkspace({
       </section>
 
       <details className="fw-panel-details">
-        <summary>Schichtfolge einzeln bearbeiten</summary>
+        <summary>{t("stack.edit.summary")}</summary>
         <div className="fw-details-body fw-classic">
           <StackLayerSequence
             state={state}
@@ -899,10 +939,10 @@ export function GuidedStackWorkspace({
 
       {notes.length > 0 ? (
         <details className="fw-panel-details">
-          <summary>Hinweise ({notes.length})</summary>
+          <summary>{t("stack.notes.summary", { count: notes.length })}</summary>
           <ul className="fw-notes">
             {notes.map((warning) => (
-              <li key={warning.id}>{describeStackWarning(warning)}</li>
+              <li key={warning.id}>{describe(warning)}</li>
             ))}
           </ul>
         </details>
@@ -921,76 +961,109 @@ export function GuidedStackWorkspace({
   }[] = [
     {
       key: "package",
-      label: "Paket",
-      value: `${formatDe(pkg.dimensionsMm.length)} × ${formatDe(pkg.dimensionsMm.width)} × ${mm(pkg.dimensionsMm.height)}`,
-      detail: `${pkg.weightKg === null ? "Gewicht unbekannt" : `${formatDe(pkg.weightKg)} kg je Paket`}, Einlauf ${pkg.inletOrientation === "lengthwise" ? "längs" : "quer"}`,
+      label: t("stack.review.package"),
+      value: `${fmt(pkg.dimensionsMm.length)} × ${fmt(pkg.dimensionsMm.width)} × ${mm(pkg.dimensionsMm.height)}`,
+      detail: t("stack.review.packageDetail", {
+        weight:
+          pkg.weightKg === null
+            ? t("stack.review.weightUnknown")
+            : t("stack.review.weightPer", { weight: fmt(pkg.weightKg) }),
+        orientation:
+          pkg.inletOrientation === "lengthwise"
+            ? t("stack.review.lengthwise")
+            : t("stack.review.crosswise"),
+      }),
       action: onEditProject
-        ? { label: "Paket ändern", onClick: () => onEditProject("package") }
+        ? {
+            label: t("stack.review.changePackage"),
+            onClick: () => onEditProject("package"),
+          }
         : undefined,
     },
     {
       key: "pallet",
-      label: "Palette",
-      value: pallet?.name ?? "Keine Palette",
+      label: t("stack.review.pallet"),
+      value: pallet?.name ?? t("stack.review.noPallet"),
       detail: pallet
-        ? `${formatDe(pallet.dimensionsMm.length)} × ${formatDe(pallet.dimensionsMm.width)} × ${mm(pallet.dimensionsMm.height)}${
+        ? `${fmt(pallet.dimensionsMm.length)} × ${fmt(pallet.dimensionsMm.width)} × ${mm(pallet.dimensionsMm.height)}${
             pallet.storageEnvelopeMm
-              ? `, Lagerhöhe ${mm(pallet.storageEnvelopeMm.height)}`
+              ? `, ${t("stack.review.storageHeight", { height: mm(pallet.storageEnvelopeMm.height) })}`
               : ""
           }`
         : "",
       action: onEditProject
-        ? { label: "Palette ändern", onClick: () => onEditProject("pallet") }
+        ? {
+            label: t("stack.review.changePallet"),
+            onClick: () => onEditProject("pallet"),
+          }
         : undefined,
     },
     {
       key: "meta",
-      label: "Artikel und Linie",
+      label: t("stack.review.meta"),
       value:
         [project.productNumber, project.projectNumber]
           .filter((part) => part.trim() !== "")
-          .join(", ") || "Nicht angegeben",
-      detail: "Ändert weder Muster noch Stapel.",
+          .join(", ") || t("stack.review.notSpecified"),
+      detail: t("stack.review.metaDetail"),
       action: onEditProject
         ? {
-            label: "Artikel und Linie ändern",
+            label: t("stack.review.changeMeta"),
             onClick: () => onEditProject("meta"),
           }
         : undefined,
     },
     {
       key: "pattern",
-      label: "Muster A",
-      value: patternA ? `Platz ${patternA.rank}` : "Kein Muster",
+      label: t("stack.patternA"),
+      value: patternA
+        ? t("stack.rank", { rank: patternA.rank })
+        : t("stack.review.noPattern"),
       detail: patternA
-        ? `${patternA.metrics.packageCount} Pakete, ${patternA.metrics.provisionalCycleCount} Griffe je Schicht`
+        ? t("stack.review.patternDetail", {
+            count: patternA.metrics.packageCount,
+            cycles: patternA.metrics.provisionalCycleCount,
+          })
         : "",
-      action: onBack ? { label: "Muster ändern", onClick: onBack } : undefined,
+      action: onBack
+        ? { label: t("stack.review.changePattern"), onClick: onBack }
+        : undefined,
     },
     {
       key: "stack",
-      label: "Stapel",
-      value: `${layerCount} ${layerCount === 1 ? "Schicht" : "Schichten"}, ${compositionLabelsDe[state.compositionMode]}`,
+      label: t("stack.review.stack"),
+      value: `${t("stack.layerCount", { count: layerCount })}, ${compositionLabel(t, state.compositionMode)}`,
       detail: sheetSummary,
       action: {
-        label: "Stapel ändern",
+        label: t("stack.review.changeStack"),
         onClick: () => setSubstep("stack"),
       },
     },
     {
       key: "result",
-      label: "Ergebnis",
+      label: t("stack.review.result"),
       value: metrics
-        ? `${metrics.packages.totalPackageCount} Pakete, ${mm(loadHeightMm)}${
-            metrics.weight.grossWeightKg !== null
-              ? `, ${formatDe(metrics.weight.grossWeightKg)} kg brutto`
-              : ", Bruttogewicht unbekannt"
-          }`
+        ? metrics.weight.grossWeightKg !== null
+          ? t("stack.review.resultGross", {
+              packages: t("stack.packageCount", {
+                count: metrics.packages.totalPackageCount,
+              }),
+              height: mm(loadHeightMm),
+              weight: fmt(metrics.weight.grossWeightKg),
+            })
+          : t("stack.review.resultGrossUnknown", {
+              packages: t("stack.packageCount", {
+                count: metrics.packages.totalPackageCount,
+              }),
+              height: mm(loadHeightMm),
+            })
         : "–",
       detail: metrics
         ? metrics.cycles.totalCycleCount !== null
-          ? `${metrics.cycles.totalCycleCount} Griffe gesamt`
-          : "Griffzahl unbekannt"
+          ? t("stack.review.cyclesTotal", {
+              count: metrics.cycles.totalCycleCount,
+            })
+          : t("stack.review.cyclesUnknown")
         : "",
     },
   ];
@@ -999,7 +1072,7 @@ export function GuidedStackWorkspace({
     <>
       <header className="fw-intro">
         <h1 ref={headingRef} tabIndex={-1}>
-          Prüfen und speichern
+          {t("stack.review.title")}
         </h1>
       </header>
       {alerts}
@@ -1021,7 +1094,7 @@ export function GuidedStackWorkspace({
                   aria-label={row.action.label}
                   onClick={row.action.onClick}
                 >
-                  Ändern
+                  {t("stack.review.change")}
                 </button>
               </dd>
             ) : null}
@@ -1030,18 +1103,16 @@ export function GuidedStackWorkspace({
       </dl>
       {limitWarnings.length > 0 ? (
         <div className="fw-warn" role="status">
-          <p>
-            Der Stapel überschreitet Grenzen. Speichern ist trotzdem möglich.
-          </p>
+          <p>{t("stack.review.limitsWarning")}</p>
           <ul>
             {limitWarnings.map((warning) => (
-              <li key={warning.id}>{describeStackWarning(warning)}</li>
+              <li key={warning.id}>{describe(warning)}</li>
             ))}
           </ul>
         </div>
       ) : null}
       <details className="fw-panel-details">
-        <summary>Alle Kennzahlen</summary>
+        <summary>{t("stack.review.allMetrics")}</summary>
         <div className="fw-details-body fw-classic">
           {result ? <StackResultPanel result={result} /> : null}
         </div>
@@ -1062,14 +1133,14 @@ export function GuidedStackWorkspace({
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
           {substep === "review"
-            ? "Nach dem Speichern öffnet sich der Plan."
+            ? t("stack.footer.afterSave")
             : !canReview
-              ? "Mindestens eine Schicht aufbauen, um fortzufahren."
+              ? t("stack.footer.needLayer")
               : dirty
-                ? "Stapel noch nicht gespeichert."
+                ? t("stack.footer.dirty")
                 : limitWarnings.length > 0
-                  ? "Grenzen überschritten, Speichern bleibt möglich."
-                  : "Stapel bereit zum Prüfen."}
+                  ? t("stack.footer.limits")
+                  : t("stack.footer.ready")}
         </p>
         <div className="fw-footer-actions">
           {substep === "review" ? (
@@ -1080,7 +1151,7 @@ export function GuidedStackWorkspace({
                 disabled={saving}
                 onClick={() => setSubstep("stack")}
               >
-                Zurück
+                {t("stack.footer.back")}
               </button>
               <button
                 type="button"
@@ -1088,14 +1159,14 @@ export function GuidedStackWorkspace({
                 disabled={saving || !canReview}
                 onClick={onSaveClick}
               >
-                {saving ? "Wird gespeichert …" : "Plan speichern"}
+                {saving ? t("stack.footer.saving") : t("stack.footer.savePlan")}
               </button>
             </>
           ) : (
             <>
               {onBack ? (
                 <button type="button" className="ui-btn" onClick={onBack}>
-                  Zurück
+                  {t("stack.footer.back")}
                 </button>
               ) : null}
               <button
@@ -1104,7 +1175,7 @@ export function GuidedStackWorkspace({
                 disabled={!canReview}
                 onClick={() => setSubstep("review")}
               >
-                Prüfen &amp; speichern
+                {t("stack.footer.reviewSave")}
               </button>
             </>
           )}

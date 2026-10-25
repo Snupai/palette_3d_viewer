@@ -161,20 +161,18 @@ describe("SolverControls", () => {
         onReset={vi.fn()}
       />,
     );
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "-38" } },
-    );
-    fireEvent.change(
-      screen.getByLabelText("Width total overhang / underhang"),
-      { target: { value: "-62" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "-38" },
+    });
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Breite gesamt"), {
+      target: { value: "-62" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "38" },
     });
-    expect(screen.getByText("Effective frame: 1162 × 738 mm")).toBeTruthy();
+    expect(screen.getByText("Wirksamer Rahmen: 1162 × 738 mm")).toBeTruthy();
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
@@ -211,76 +209,71 @@ describe("SolverControls", () => {
       />,
     );
 
-    expect(screen.getByLabelText("Package length")).toHaveProperty(
-      "value",
-      "120",
-    );
+    expect(screen.getByLabelText("Paketlänge")).toHaveProperty("value", "120");
     expect(
-      screen.getByLabelText("Length total overhang / underhang"),
+      screen.getByLabelText("Über-/Unterstand Länge gesamt"),
     ).toHaveProperty("value", "0");
     expect(
       screen.getByRole("checkbox", {
-        name: "Allow mixed lengthwise / crosswise orientations",
+        name: "Gemischte Ausrichtungen längs / quer erlauben",
       }),
     ).toHaveProperty("checked", true);
     expect(
-      screen.getByRole("checkbox", { name: "Allow multipick" }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     ).toHaveProperty("checked", false);
-    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+    expect(screen.getByLabelText("Automatisches Gruppenlimit")).toHaveProperty(
       "disabled",
       true,
     );
-    expect(screen.getByRole("radio", { name: "Lengthwise" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "Längs" })).toHaveProperty(
       "checked",
       true,
     );
-    expect(screen.getByRole("radio", { name: "Crosswise" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "Quer" })).toHaveProperty(
       "checked",
       false,
     );
     expect(
       screen
-        .getByLabelText("Infeed direction: left to right")
+        .getByLabelText("Einlaufrichtung: von links nach rechts")
         .getAttribute("data-infeed-direction"),
     ).toBe("left-to-right");
     expect(
-      screen.getAllByRole("button", { name: /displayed .* edge/i }),
+      screen.getAllByRole("button", { name: /angezeigten Rand/i }),
     ).toHaveLength(4);
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed top edge",
+          name: "Etikett am angezeigten Rand oben wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("false");
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed right edge",
+        name: "Etikett am angezeigten Rand rechts wählen",
       }),
     );
-    expect(screen.getByText(/No gripper is selected/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("Package length"), {
+    expect(screen.getByText(/kein Greifer ausgewählt/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Paketlänge"), {
       target: { value: "100" },
     });
-    fireEvent.change(screen.getByLabelText("Package width"), {
+    fireEvent.change(screen.getByLabelText("Paketbreite"), {
       target: { value: "50" },
     });
-    fireEvent.change(screen.getByLabelText("Package height"), {
+    fireEvent.change(screen.getByLabelText("Pakethöhe"), {
       target: { value: "40" },
     });
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(
-      screen.getByLabelText("Width total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "-100" },
+    });
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Breite gesamt"), {
+      target: { value: "-100" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "3" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() =>
@@ -349,26 +342,30 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "3" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
+    );
 
     expect(
-      screen.getByRole("checkbox", { name: "Allow multipick" }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     ).toHaveProperty("checked", true);
-    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+    expect(screen.getByLabelText("Automatisches Gruppenlimit")).toHaveProperty(
       "disabled",
       false,
     );
-    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+    expect(screen.getByLabelText("Automatisches Gruppenlimit")).toHaveProperty(
       "value",
       "2",
     );
-    expect(screen.getByText(/automatic grouping enabled up to 2/)).toBeTruthy();
+    expect(
+      screen.getByText(/automatische Gruppierung aktiviert bis 2/),
+    ).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() =>
@@ -404,21 +401,23 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "2" },
     });
 
     expect(
-      screen.getByRole("checkbox", { name: "Allow multipick" }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     ).toHaveProperty("checked", true);
-    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+    expect(screen.getByLabelText("Automatisches Gruppenlimit")).toHaveProperty(
       "value",
       "2",
     );
-    expect(screen.getByText(/automatic grouping enabled up to 1/)).toBeTruthy();
+    expect(
+      screen.getByText(/automatische Gruppierung aktiviert bis 1/),
+    ).toBeTruthy();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -513,10 +512,7 @@ describe("SolverControls", () => {
     expect(clientMocks.run).not.toHaveBeenCalled();
     expect(onLaunchRequestConsumed).not.toHaveBeenCalled();
     expect(onReset).not.toHaveBeenCalled();
-    expect(screen.getByLabelText("Packages per layer")).toHaveProperty(
-      "value",
-      "",
-    );
+    expect(screen.getByLabelText("Pakete je Lage")).toHaveProperty("value", "");
   });
 
   it("disables multipick controls while a solver run is pending", async () => {
@@ -540,24 +536,26 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "2" },
     });
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
     expect(
-      screen.getByRole("checkbox", { name: "Allow multipick" }),
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     ).toHaveProperty("disabled", true);
-    expect(screen.getByLabelText("Automatic group limit")).toHaveProperty(
+    expect(screen.getByLabelText("Automatisches Gruppenlimit")).toHaveProperty(
       "disabled",
       true,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     expect(clientMocks.cancel).toHaveBeenCalledTimes(1);
     resolveResult(completedResult);
     await Promise.resolve();
@@ -575,13 +573,13 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "1" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
-    expect(await screen.findByText(/Completed: 0 candidates/)).toBeTruthy();
+    expect(await screen.findByText(/Abgeschlossen: 0 Kandidaten/)).toBeTruthy();
     onReset.mockClear();
 
     const authorizedProject = updateProject(sourceProject, {
@@ -601,13 +599,13 @@ describe("SolverControls", () => {
 
     await waitFor(() =>
       expect(
-        screen.getByRole("checkbox", { name: "Allow multipick" }),
+        screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
       ).toHaveProperty("checked", true),
     );
-    expect(screen.queryByText(/Completed: 0 candidates/)).toBeNull();
+    expect(screen.queryByText(/Abgeschlossen: 0 Kandidaten/)).toBeNull();
     expect(
       await screen.findByText(
-        "The previous solver run was discarded because generator inputs changed.",
+        "Der vorherige Solver-Lauf wurde verworfen, weil sich die Generator-Eingaben geändert haben.",
       ),
     ).toBeTruthy();
     expect(onReset).toHaveBeenCalled();
@@ -632,14 +630,14 @@ describe("SolverControls", () => {
       />,
     );
 
-    expect(screen.getByRole("radio", { name: "Crosswise" })).toHaveProperty(
+    expect(screen.getByRole("radio", { name: "Quer" })).toHaveProperty(
       "checked",
       true,
     );
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed bottom edge",
+          name: "Etikett am angezeigten Rand unten wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("true");
@@ -662,7 +660,7 @@ describe("SolverControls", () => {
     await waitFor(() =>
       expect(
         screen
-          .getByRole("button", { name: "No label" })
+          .getByRole("button", { name: "Kein Etikett" })
           .getAttribute("aria-pressed"),
       ).toBe("true"),
     );
@@ -684,16 +682,16 @@ describe("SolverControls", () => {
     expect(onReset).not.toHaveBeenCalled();
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Select label on displayed bottom edge",
+        name: "Etikett am angezeigten Rand unten wählen",
       }),
     );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "1" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
-    expect(await screen.findByText(/Completed: 0 candidates/)).toBeTruthy();
+    expect(await screen.findByText(/Abgeschlossen: 0 Kandidaten/)).toBeTruthy();
     onReset.mockClear();
 
     const resizedProject = updateProject(sourceProject, {
@@ -712,30 +710,24 @@ describe("SolverControls", () => {
     );
 
     await waitFor(() =>
-      expect(screen.getByLabelText("Package length")).toHaveProperty(
+      expect(screen.getByLabelText("Paketlänge")).toHaveProperty(
         "value",
         "130",
       ),
     );
-    expect(screen.getByLabelText("Package width")).toHaveProperty(
-      "value",
-      "90",
-    );
-    expect(screen.getByLabelText("Package height")).toHaveProperty(
-      "value",
-      "70",
-    );
+    expect(screen.getByLabelText("Paketbreite")).toHaveProperty("value", "90");
+    expect(screen.getByLabelText("Pakethöhe")).toHaveProperty("value", "70");
     expect(
       screen
         .getByRole("button", {
-          name: "Select label on displayed bottom edge",
+          name: "Etikett am angezeigten Rand unten wählen",
         })
         .getAttribute("aria-pressed"),
     ).toBe("true");
-    expect(screen.queryByText(/Completed: 0 candidates/)).toBeNull();
+    expect(screen.queryByText(/Abgeschlossen: 0 Kandidaten/)).toBeNull();
     expect(
       await screen.findByText(
-        "The previous solver run was discarded because generator inputs changed.",
+        "Der vorherige Solver-Lauf wurde verworfen, weil sich die Generator-Eingaben geändert haben.",
       ),
     ).toBeTruthy();
     expect(onReset).toHaveBeenCalled();
@@ -759,19 +751,17 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(
-      screen.getByLabelText("Width total overhang / underhang"),
-      { target: { value: "-100" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "-100" },
+    });
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Breite gesamt"), {
+      target: { value: "-100" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "3" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -812,21 +802,21 @@ describe("SolverControls", () => {
     );
 
     expect(
-      screen.getByLabelText("Length total overhang / underhang"),
+      screen.getByLabelText("Über-/Unterstand Länge gesamt"),
     ).toHaveProperty("value", "40");
     expect(
-      screen.getByLabelText("Width total overhang / underhang"),
+      screen.getByLabelText("Über-/Unterstand Breite gesamt"),
     ).toHaveProperty("value", "20");
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "4" },
     });
     fireEvent.click(
       screen.getByRole("checkbox", {
-        name: "Allow mixed lengthwise / crosswise orientations",
+        name: "Gemischte Ausrichtungen längs / quer erlauben",
       }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -868,15 +858,14 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "-0" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "-0" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "4" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -905,15 +894,14 @@ describe("SolverControls", () => {
       />,
     );
 
-    fireEvent.change(
-      screen.getByLabelText("Width total overhang / underhang"),
-      { target: { value: "-0.001" } },
-    );
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Breite gesamt"), {
+      target: { value: "-0.001" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "4" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Apply inputs & solve" }),
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
     await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
@@ -941,35 +929,33 @@ describe("SolverControls", () => {
     );
 
     expect(screen.getByRole("alert").textContent).toContain(
-      "Packages per layer must be a positive integer.",
+      "Pakete je Lage muss eine positive ganze Zahl sein.",
     );
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
-        name: "Apply inputs & solve",
+        name: "Eingaben übernehmen und lösen",
       }).disabled,
     ).toBe(true);
 
-    fireEvent.change(screen.getByLabelText("Packages per layer"), {
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
       target: { value: "3" },
     });
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "" } },
-    );
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "" },
+    });
     expect(screen.getByRole("alert").textContent).toContain(
-      "Length total overhang / underhang is required.",
+      "Über-/Unterstand Länge gesamt ist erforderlich.",
     );
 
-    fireEvent.change(
-      screen.getByLabelText("Length total overhang / underhang"),
-      { target: { value: "1" } },
-    );
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "1" },
+    });
     expect(screen.getByRole("alert").textContent).toContain(
       "The requested generation envelope must fit inside the project-authorized pallet envelope.",
     );
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
-        name: "Apply inputs & solve",
+        name: "Eingaben übernehmen und lösen",
       }).disabled,
     ).toBe(true);
   });
@@ -994,19 +980,23 @@ describe("SolverControls", () => {
         onReset={vi.fn()}
       />,
     );
-    const limit = screen.getByLabelText("Automatic group limit");
+    const limit = screen.getByLabelText("Automatisches Gruppenlimit");
     expect(limit).toHaveProperty("value", "3");
-    fireEvent.change(screen.getByLabelText("Package length"), {
+    fireEvent.change(screen.getByLabelText("Paketlänge"), {
       target: { value: "151" },
     });
     expect(limit).toHaveProperty("value", "2");
     fireEvent.change(limit, { target: { value: "1" } });
-    fireEvent.change(screen.getByLabelText("Package length"), {
+    fireEvent.change(screen.getByLabelText("Paketlänge"), {
       target: { value: "135" },
     });
     expect(limit).toHaveProperty("value", "1");
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: "Allow multipick" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
+    );
     expect(limit).toHaveProperty("value", "3");
   });
 });

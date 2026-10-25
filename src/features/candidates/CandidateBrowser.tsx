@@ -15,6 +15,7 @@ import type {
   SolverDiagnostic,
   SolverExclusion,
 } from "~/domain/solver";
+import { useT } from "~/i18n";
 import { solverCandidateToPatternPreview } from "~/lib/previewAdapters";
 
 export type CandidateBrowserProps = {
@@ -48,6 +49,7 @@ export function CandidateBrowser({
   diagnostics = [],
   exclusions = [],
 }: CandidateBrowserProps) {
+  const t = useT();
   const [exactCount, setExactCount] = useState("");
   const [maximumOnly, setMaximumOnly] = useState(false);
   const listboxRef = useRef<HTMLDivElement>(null);
@@ -147,15 +149,18 @@ export function CandidateBrowser({
       <header className="border-line flex flex-wrap items-end gap-2 border-b p-3">
         <div className="mr-auto">
           <h2 className="text-body text-ink font-semibold">
-            Selectable layouts
+            {t("candidates.browser.title")}
           </h2>
           <p className="text-micro text-muted" aria-live="polite">
-            {filteredCandidates.length} of {candidates.length} layouts ·{" "}
-            {generatedCandidateCount} generated candidates
+            {t("candidates.browser.summary", {
+              shown: filteredCandidates.length,
+              total: candidates.length,
+              generated: generatedCandidateCount,
+            })}
           </p>
         </div>
         <label className="text-micro text-muted grid gap-1">
-          Exact count
+          {t("candidates.browser.exactCount")}
           <input
             type="number"
             min="0"
@@ -163,7 +168,7 @@ export function CandidateBrowser({
             value={exactCount}
             disabled={maximumOnly}
             onChange={(event) => setExactCount(event.target.value)}
-            aria-label="Exact package count"
+            aria-label={t("candidates.browser.exactCountAria")}
             className="ui-input text-micro w-24 px-2 py-1.5 font-mono"
           />
         </label>
@@ -174,7 +179,7 @@ export function CandidateBrowser({
             onChange={(event) => setMaximumOnly(event.target.checked)}
             className="accent-brand h-4 w-4"
           />
-          Maximum ({maximumCount})
+          {t("candidates.browser.maximum", { count: maximumCount })}
         </label>
         <button
           type="button"
@@ -184,14 +189,14 @@ export function CandidateBrowser({
           }}
           className="ui-btn text-micro"
         >
-          Reset filters
+          {t("candidates.browser.resetFilters")}
         </button>
       </header>
 
       <div
         ref={listboxRef}
         role="listbox"
-        aria-label="Selectable candidate layouts"
+        aria-label={t("candidates.browser.listAria")}
         aria-activedescendant={
           selectedCandidateId ? optionId(selectedCandidateId) : undefined
         }
@@ -205,13 +210,27 @@ export function CandidateBrowser({
         >
           <thead className="text-muted text-left">
             <tr>
-              <th className="px-2 py-2 font-medium">Nr.</th>
-              <th className="px-2 py-2 font-medium">Count</th>
-              <th className="px-2 py-2 font-medium">Geometry</th>
-              <th className="px-2 py-2 font-medium">Blocks</th>
-              <th className="px-2 py-2 font-medium">Cycles</th>
-              <th className="px-2 py-2 font-medium">Length</th>
-              <th className="px-2 py-2 font-medium">Width</th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colNr")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colCount")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colGeometry")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colBlocks")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colCycles")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colLength")}
+              </th>
+              <th className="px-2 py-2 font-medium">
+                {t("candidates.browser.colWidth")}
+              </th>
             </tr>
           </thead>
           <tbody role="presentation">
@@ -239,13 +258,15 @@ export function CandidateBrowser({
                     {candidate.metrics.packageCount}
                   </td>
                   <td className="px-2 py-2">
-                    {candidate.validation.valid ? "Geometry OK" : "Rejected"}
+                    {candidate.validation.valid
+                      ? t("candidates.browser.geometryOk")
+                      : t("candidates.browser.rejected")}
                   </td>
                   <td
                     className="text-muted px-2 py-2"
-                    title="The legacy MultiPack Blocks value has not been verified and is not inferred."
+                    title={t("candidates.browser.blocksTitle")}
                   >
-                    Unknown
+                    {t("candidates.browser.unknown")}
                   </td>
                   <td className="px-2 py-2 font-mono">
                     {candidate.metrics.provisionalCycleCount}
@@ -263,7 +284,7 @@ export function CandidateBrowser({
         </table>
         {filteredCandidates.length === 0 ? (
           <p className="text-body text-muted p-4">
-            No candidate matches the current filters.
+            {t("candidates.browser.noMatch")}
           </p>
         ) : null}
       </div>
@@ -278,46 +299,50 @@ export function CandidateBrowser({
             />
           ) : (
             <div className="text-micro text-muted flex h-full min-h-[144px] items-center justify-center">
-              Select a candidate
+              {t("candidates.browser.selectCandidate")}
             </div>
           )}
         </div>
         <div className="text-micro text-muted min-w-0">
           {selectedCandidate ? (
             <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1">
-              <dt>Score</dt>
+              <dt>{t("candidates.browser.score")}</dt>
               <dd className="text-ink font-mono">
                 {selectedCandidate.score.value}
               </dd>
-              <dt>Utilization</dt>
+              <dt>{t("candidates.browser.utilization")}</dt>
               <dd className="text-ink font-mono">
                 {selectedCandidate.metrics.utilizationPercent.toFixed(2)}%
               </dd>
-              <dt>Geometry</dt>
+              <dt>{t("candidates.browser.colGeometry")}</dt>
               <dd
                 className="text-ink truncate font-mono"
                 title={selectedCandidate.geometryId}
               >
                 {selectedCandidate.geometryId}
               </dd>
-              <dt>Generators</dt>
+              <dt>{t("candidates.browser.generators")}</dt>
               <dd className="text-ink">
                 {selectedCandidate.provenance
                   .map(({ family, variant }) => `${family}/${variant}`)
-                  .join(", ") || "None recorded"}
+                  .join(", ") || t("candidates.browser.noneRecorded")}
               </dd>
             </dl>
           ) : (
-            <p>No active candidate diagnostics.</p>
+            <p>{t("candidates.browser.noDiagnosticsActive")}</p>
           )}
           <details className="border-line mt-3 border-t pt-2">
             <summary className="text-ink cursor-pointer">
-              Solver diagnostics ({diagnostics.length}) and exclusions (
-              {exclusions.length})
+              {t("candidates.browser.diagnosticsSummary", {
+                diagnostics: diagnostics.length,
+                exclusions: exclusions.length,
+              })}
             </summary>
             <div className="scrollbar-thin mt-2 max-h-32 overflow-auto pr-2">
               {diagnostics.length === 0 && exclusions.length === 0 ? (
-                <p className="text-muted">No diagnostics or exclusions.</p>
+                <p className="text-muted">
+                  {t("candidates.browser.noDiagnostics")}
+                </p>
               ) : (
                 <ul className="grid gap-1">
                   {diagnostics.map((diagnostic, index) => (
@@ -331,7 +356,11 @@ export function CandidateBrowser({
                     </li>
                   ))}
                   {exclusions.length > 30 ? (
-                    <li>{exclusions.length - 30} more exclusions not shown.</li>
+                    <li>
+                      {t("candidates.browser.moreExclusions", {
+                        count: exclusions.length - 30,
+                      })}
+                    </li>
                   ) : null}
                 </ul>
               )}

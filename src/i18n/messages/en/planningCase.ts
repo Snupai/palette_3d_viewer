@@ -1,0 +1,103 @@
+import type { planningCaseDe } from "../de/planningCase";
+
+export const planningCaseEn = {
+  // Workbench
+  "planningCase.loading3d": "Loading 3D view …",
+  "planningCase.yourLayer": "Your layer",
+  "planningCase.packageAndPallet": "Package & pallet",
+  "planningCase.previewTitle": "Preview of the current plan",
+  "planningCase.packagesPerLayerShort": "Packages / layer",
+  "planningCase.length": "Length",
+  "planningCase.area": "Area",
+  "planningCase.width": "Width",
+  "planningCase.cycles": "Cycles",
+  "planningCase.height": "Height",
+  "planningCase.opening": "Opening plan …",
+  "planningCase.stepsLabel": "Planning steps",
+  "planningCase.stepSelectPattern": "Select pattern",
+  "planningCase.stepFinishedPlan": "Finished plan",
+  "planningCase.buildStack": "Build stack",
+  "planningCase.diagnosticsSummary": "Diagnostics and more views",
+  "planningCase.searchDiagnostics": "Search diagnostics",
+  "planningCase.viewLayer3d": "View layer in 3D",
+  "planningCase.firstLayerPattern":
+    "Pattern {rank} becomes the first layer of your stack.",
+  "planningCase.selectAfterCalc": "Select a pattern after the calculation.",
+  "planningCase.viewSavedPlan": "View saved plan",
+  "planningCase.changeInputs": "Change inputs",
+  "planningCase.yourPalletPlan": "Your pallet plan",
+  "planningCase.importedPlan": "Imported plan",
+  "planningCase.stackSaved": "Stack saved",
+  "planningCase.downloadRob": "Download .rob",
+  "planningCase.overview": "Plan overview",
+  "planningCase.packageLwh": "Package L × W × H",
+  "planningCase.pallet": "Pallet",
+  "planningCase.layers": "Layers",
+  "planningCase.packagesTotal": "Total packages",
+  "planningCase.packagesPerLayer": "Packages per layer",
+  "planningCase.origin": "Origin",
+  "planningCase.robFile": ".rob file",
+  "planningCase.planning": "Planning",
+  "planningCase.editPattern": "Edit pattern",
+  "planningCase.viewPalletSheet": "View pallet sheet",
+  "planningCase.morePatterns": "Generate more patterns",
+  "planningCase.editPlanData": "Edit plan details",
+  "planningCase.checksSummary": "Checks and original file",
+  "planningCase.newPalletPlan": "New pallet plan",
+  "planningCase.package": "Package",
+  "planningCase.editDetails": "Edit details",
+  "planningCase.createNewPlan": "Create new plan",
+  "planningCase.continueToPatterns": "Continue to patterns",
+  // Finished stack 3D
+  "planningCase.finished3dLabel": "Finished pallet in 3D",
+  "planningCase.pickLayerGrip": "Layer {layer} · Grip {grip}",
+  "planningCase.pickPackages": "{count} packages",
+  "planningCase.pickPackages_one": "{count} package",
+  "planningCase.pickPackages_other": "{count} packages",
+  "planningCase.pickPlace": "Place X {x} / Y {y} / Z {z} mm",
+  "planningCase.pickEmpty":
+    "Select a package to inspect the grip and place coordinates.",
+  // Tool gates (model)
+  "planningCase.gate.noPlan": "No plan selected.",
+  "planningCase.gate.toInputs": "Go to inputs",
+  "planningCase.gate.geometryReview":
+    "Dimensions or handling were changed. Saved solutions are kept but must be rebuilt and checked before robotics and export.",
+  "planningCase.gate.recalcPatterns": "Recalculate patterns",
+  "planningCase.gate.editorNeedsStack":
+    "The pattern editor needs a saved stack with at least one layer.",
+  "planningCase.gate.buildStack": "Build stack",
+  "planningCase.gate.roboticsNeedsStack":
+    "Robotics needs a saved stack. This plan has no layers yet.",
+  "planningCase.gate.simulationNeedsCycle":
+    "The simulation needs at least one calculated robotics cycle.",
+  "planningCase.gate.openRobotics": "Open robotics check",
+  // Chrome: candidate index
+  "planningCase.chrome.candidateLayouts": "Candidate layouts",
+  "planningCase.chrome.aheadOf": " ahead of #{rank}",
+  "planningCase.chrome.generatedLayouts": "Generated pattern layouts",
+  "planningCase.chrome.rank": "Rank",
+  "planningCase.chrome.pkgs": "Pkgs",
+  "planningCase.chrome.util": "Util",
+  "planningCase.chrome.cycles": "Cycles",
+  "planningCase.chrome.geoCheck": "Geometry check",
+  "planningCase.chrome.geo": "Geo",
+  "planningCase.chrome.boundsMm": "Bounds mm",
+  "planningCase.chrome.geometryOk": "Geometry OK",
+  "planningCase.chrome.rejected": "Rejected",
+  "planningCase.chrome.generateHint":
+    "Generate patterns to populate the candidate layouts.",
+  "planningCase.chrome.showingSelectedPlusFirst":
+    "Showing the selected candidate with the first {count} ranked candidates.",
+  "planningCase.chrome.showingFirst":
+    "Showing the first {count} ranked candidates.",
+  "planningCase.chrome.showMore": "Show more layouts ({count})",
+  // Chrome: ledger
+  "planningCase.chrome.ledgerLabel": "Inspection ledger",
+  "planningCase.chrome.ledgerLegend": "G generated · O observed · ? unknown",
+  // Chrome: layer strips
+  "planningCase.chrome.noLayerSequence": "No layer sequence",
+  "planningCase.chrome.interlayerBefore": "Interlayer before",
+  "planningCase.chrome.layerSequences": "Layer sequences",
+  "planningCase.chrome.reference": "Reference",
+  "planningCase.chrome.layers": "Layers",
+} as const satisfies Record<keyof typeof planningCaseDe, string>;

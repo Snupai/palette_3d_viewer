@@ -1,3 +1,4 @@
+import type { MessageKey, Translate } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
 import type { SolverCandidate } from "~/domain/solver";
 import {
@@ -21,23 +22,19 @@ export const compositionModes: readonly StackCompositionMode[] = [
   "rotation",
 ];
 
-export const compositionLabelsDe: Record<StackCompositionMode, string> = {
-  tower: "Turm (identisch)",
-  "longitudinal-mirror": "Längs gespiegelt",
-  "transverse-mirror": "Quer gespiegelt",
-  rotation: "Um 180° gedreht",
-};
+export function compositionLabel(
+  t: Translate,
+  mode: StackCompositionMode,
+): string {
+  return t(`stack.composition.${mode}`);
+}
 
-export const transformLabelsDe: Record<StackLayerTransform, string> = {
-  identity: "unverändert",
-  "rotate-90": "um 90° gedreht",
-  "rotate-180": "um 180° gedreht",
-  "rotate-270": "um 270° gedreht",
-  "mirror-x": "quer gespiegelt",
-  "mirror-y": "längs gespiegelt",
-  "transpose-main": "an der Hauptdiagonale gespiegelt",
-  "transpose-anti": "an der Nebendiagonale gespiegelt",
-};
+export function transformLabel(
+  t: Translate,
+  transform: StackLayerTransform,
+): string {
+  return t(`stack.transform.${transform}`);
+}
 
 /**
  * Guided start: pattern A as a full stack when the storage height gives a
@@ -130,35 +127,51 @@ export function setIndividualSheet(
   };
 }
 
-export function candidateLabelDe(candidate: SolverCandidate): string {
-  return `Platz ${candidate.rank}, ${candidate.metrics.packageCount} Pakete`;
+export function candidateLabel(
+  t: Translate,
+  candidate: SolverCandidate,
+): string {
+  return t("stack.candidateLabel", {
+    rank: candidate.rank,
+    count: candidate.metrics.packageCount,
+  });
 }
 
 /** "Muster A" / "Muster B" for the composed refs, else the candidate rank. */
-export function patternNameDe(
+export function patternName(
+  t: Translate,
   state: StackWorkspaceState,
   patternRef: string,
   candidateByRef: ReadonlyMap<string, SolverCandidate>,
 ): string {
-  if (patternRef === state.patternARef) return "Muster A";
-  if (patternRef === state.patternBRef) return "Muster B";
+  if (patternRef === state.patternARef) return t("stack.patternA");
+  if (patternRef === state.patternBRef) return t("stack.patternB");
   const candidate = candidateByRef.get(patternRef);
-  return candidate ? `Platz ${candidate.rank}` : "Fehlendes Muster";
+  return candidate
+    ? t("stack.rank", { rank: candidate.rank })
+    : t("stack.missingPattern");
 }
 
-export function candidateRefOptions(candidates: readonly SolverCandidate[]) {
+export function candidateRefOptions(
+  t: Translate,
+  candidates: readonly SolverCandidate[],
+) {
   return candidates.map((candidate) => ({
     value: candidatePatternRef(candidate),
-    label: candidateLabelDe(candidate),
+    label: candidateLabel(t, candidate),
   }));
 }
 
-const numberFormat = new Intl.NumberFormat("de-DE", {
-  maximumFractionDigits: 1,
-});
+const numberFormats = new Map<string, Intl.NumberFormat>();
 
-export function formatDe(value: number): string {
-  return numberFormat.format(value);
+/** Locale-aware number with at most one fraction digit; `tag` is a BCP-47 tag. */
+export function formatNumber(value: number, tag: string): string {
+  let format = numberFormats.get(tag);
+  if (!format) {
+    format = new Intl.NumberFormat(tag, { maximumFractionDigits: 1 });
+    numberFormats.set(tag, format);
+  }
+  return format.format(value);
 }
 
 const limitCodes = new Set<StackWarning["code"]>([
@@ -174,71 +187,76 @@ export function isLimitWarning(warning: StackWarning): boolean {
   return warning.severity === "error" || limitCodes.has(warning.code);
 }
 
-const metricNamesDe: Record<string, string> = {
-  "area utilization": "Flächennutzung",
-  "volume utilization": "Volumennutzung",
-  "storage height utilization": "Höhennutzung",
-  "gross weight": "Bruttogewicht",
-  "cycle count": "Taktzahl",
+const metricNameKeys: Record<string, MessageKey> = {
+  "area utilization": "stack.warn.metric.area",
+  "volume utilization": "stack.warn.metric.volume",
+  "storage height utilization": "stack.warn.metric.height",
+  "gross weight": "stack.warn.metric.weight",
+  "cycle count": "stack.warn.metric.cycles",
 };
 
-const resourceTextDe: Record<string, string> = {
-  pallet:
-    "Keine Palette gewählt; Ladefläche, Lagermaße und Gewichte sind nicht prüfbar.",
-  gripper:
-    "Kein Greifer ausgewählt; die Takte sind noch keinem Greifer zugeordnet.",
-  "pallet-station":
-    "Keine Palettenstation ausgewählt; die Robotik-Prüfung folgt später.",
-  "package-weight":
-    "Paketgewicht fehlt; Nutzlast und Bruttogewicht sind unbekannt.",
-  "pallet-tare":
-    "Leergewicht der Palette fehlt; das Bruttogewicht ist unbekannt.",
-  material: "Eine Zwischenlage verweist auf ein fehlendes Material.",
-  pattern: "Ein Muster der Schichtfolge fehlt in den Ergebnissen.",
+const resourceTextKeys: Record<string, MessageKey> = {
+  pallet: "stack.warn.resource.pallet",
+  gripper: "stack.warn.resource.gripper",
+  "pallet-station": "stack.warn.resource.palletStation",
+  "package-weight": "stack.warn.resource.packageWeight",
+  "pallet-tare": "stack.warn.resource.palletTare",
+  material: "stack.warn.resource.material",
+  pattern: "stack.warn.resource.pattern",
 };
 
-/** German one-liner built from the warning's structured fields. */
-export function describeStackWarning(warning: StackWarning): string {
-  const actual = warning.actual ? formatDe(warning.actual.value) : null;
-  const limit = warning.limit ? formatDe(warning.limit.value) : null;
-  const axis =
-    warning.axis === "length"
-      ? "länge"
-      : warning.axis === "width"
-        ? "breite"
-        : null;
+/** One-liner in the active language built from the warning's structured fields. */
+export function describeStackWarning(
+  warning: StackWarning,
+  t: Translate,
+  tag: string,
+): string {
+  const actual = warning.actual
+    ? formatNumber(warning.actual.value, tag)
+    : null;
+  const limit = warning.limit ? formatNumber(warning.limit.value, tag) : null;
   switch (warning.code) {
     case "height-exceeded":
       return actual && limit
-        ? `Ladehöhe ${actual} mm liegt über der Lagerhöhe ${limit} mm.`
-        : "Die Ladehöhe liegt über der Lagerhöhe.";
+        ? t("stack.warn.height", { actual, limit })
+        : t("stack.warn.heightShort");
     case "gross-weight-exceeded":
       return actual && limit
-        ? `Bruttogewicht ${actual} kg liegt über dem Maximum ${limit} kg.`
-        : "Das Bruttogewicht liegt über dem Maximum.";
+        ? t("stack.warn.weight", { actual, limit })
+        : t("stack.warn.weightShort");
     case "storage-envelope-exceeded":
-      return axis && actual && limit
-        ? `Block${axis} ${actual} mm ist größer als die Lager${axis} ${limit} mm.`
-        : "Der Block ist größer als die Lagerfläche.";
+      return (warning.axis === "length" || warning.axis === "width") &&
+        actual &&
+        limit
+        ? t(
+            warning.axis === "length"
+              ? "stack.warn.envelopeLength"
+              : "stack.warn.envelopeWidth",
+            { actual, limit },
+          )
+        : t("stack.warn.envelopeShort");
     case "footprint-exceeded":
-      return "Eine Schicht ragt über die zulässige Ladefläche hinaus.";
-    case "missing-resource":
-      return (
-        (warning.resourceKind && resourceTextDe[warning.resourceKind]) ??
-        warning.message
-      );
+      return t("stack.warn.footprint");
+    case "missing-resource": {
+      const key =
+        warning.resourceKind && resourceTextKeys[warning.resourceKind];
+      return key ? t(key) : warning.message;
+    }
     case "metric-provenance-unknown":
     case "metric-provenance-unverified": {
-      const name =
-        (warning.metricName && metricNamesDe[warning.metricName]) ??
-        warning.metricName ??
-        "Kennzahl";
-      return warning.code === "metric-provenance-unknown"
-        ? `${name}: nicht berechenbar, Angaben fehlen.`
-        : `${name}: Wert ist nicht bestätigt.`;
+      const nameKey = warning.metricName && metricNameKeys[warning.metricName];
+      const name = nameKey
+        ? t(nameKey)
+        : (warning.metricName ?? t("stack.warn.metricFallback"));
+      return t(
+        warning.code === "metric-provenance-unknown"
+          ? "stack.warn.metricUnknown"
+          : "stack.warn.metricUnverified",
+        { name },
+      );
     }
     case "transform-frame-fallback":
-      return "Spiegelung und Drehung beziehen sich ersatzweise auf die Palette statt auf den Erzeugungsrahmen.";
+      return t("stack.warn.frameFallback");
     case "invalid-stack-input":
       return warning.message;
   }

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { MaterializedStackResult } from "~/domain/stack";
+import { useT } from "~/i18n";
 import { metric } from "~/features/stack/stackWorkspaceUi";
 
 function MetricTableRow({
@@ -25,43 +26,46 @@ export function StackResultPanel({
 }: {
   result: MaterializedStackResult;
 }) {
+  const t = useT();
   const { metrics, warnings } = result;
   return (
     <div className="grid gap-3 lg:grid-cols-2">
       <div className="border-line overflow-hidden border">
         <table className="text-micro w-full">
           <caption className="border-line text-ink border-b px-3 py-2 text-left font-semibold">
-            Stack metrics
+            {t("stack.result.title")}
           </caption>
           <tbody>
-            <MetricTableRow label="Packages">
+            <MetricTableRow label={t("stack.result.packages")}>
               {metrics.packages.totalPackageCount}
             </MetricTableRow>
-            <MetricTableRow label="Cycles">
-              {metric(metrics.cycles.totalCycleCount)}
+            <MetricTableRow label={t("stack.result.cycles")}>
+              {metric(t, metrics.cycles.totalCycleCount)}
             </MetricTableRow>
-            <MetricTableRow label="Load height">
-              {metric(metrics.height.loadStackHeightMm, " mm")}
+            <MetricTableRow label={t("stack.result.loadHeight")}>
+              {metric(t, metrics.height.loadStackHeightMm, " mm")}
             </MetricTableRow>
-            <MetricTableRow label="Area use">
-              {metric(metrics.area.utilization.percent, "%")}
+            <MetricTableRow label={t("stack.result.areaUse")}>
+              {metric(t, metrics.area.utilization.percent, "%")}
             </MetricTableRow>
-            <MetricTableRow label="Volume use">
-              {metric(metrics.volume.utilization.percent, "%")}
+            <MetricTableRow label={t("stack.result.volumeUse")}>
+              {metric(t, metrics.volume.utilization.percent, "%")}
             </MetricTableRow>
-            <MetricTableRow label="Gross weight">
-              {metric(metrics.weight.grossWeightKg, " kg")}
+            <MetricTableRow label={t("stack.result.grossWeight")}>
+              {metric(t, metrics.weight.grossWeightKg, " kg")}
             </MetricTableRow>
-            <MetricTableRow label="Block L × W" last>
+            <MetricTableRow label={t("stack.result.blockLW")} last>
               {metrics.block.lengthMm} × {metrics.block.widthMm} mm
             </MetricTableRow>
           </tbody>
         </table>
       </div>
       <div className="border-line text-micro border p-3">
-        <h3 className="text-ink font-semibold">Warnings ({warnings.length})</h3>
+        <h3 className="text-ink font-semibold">
+          {t("stack.result.warnings", { count: warnings.length })}
+        </h3>
         {warnings.length === 0 ? (
-          <p className="text-muted mt-2">No stack warnings.</p>
+          <p className="text-muted mt-2">{t("stack.result.noWarnings")}</p>
         ) : (
           <ul className="text-muted scrollbar-thin mt-2 max-h-52 space-y-1 overflow-auto pr-2">
             {warnings.map((warning) => (

@@ -1,3 +1,4 @@
+import { translateDe } from "~/i18n";
 import { describe, expect, it } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import type { Gripper, PalletStation } from "~/domain/project/projectSchema";
@@ -126,6 +127,7 @@ describe("planning report model", () => {
       project,
       materialization,
       previewData,
+      t: translateDe,
     });
 
     expect(report.project).toMatchObject({
@@ -171,6 +173,7 @@ describe("planning report model", () => {
       project,
       materialization,
       previewData,
+      t: translateDe,
       capture: {
         status: "captured",
         dataUrl: "data:image/png;base64,report",

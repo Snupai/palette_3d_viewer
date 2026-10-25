@@ -6,6 +6,7 @@ import type {
   PalletizingDirection,
 } from "~/domain/project/projectSchema";
 import { Field, NumberField as UiNumberField } from "~/components/ui";
+import { useT } from "~/i18n";
 
 const inputClass = "ui-input";
 
@@ -74,6 +75,7 @@ export function GripperEditor({
   value: Gripper;
   onChange: (value: Gripper) => void;
 }) {
+  const t = useT();
   const update = <K extends keyof Gripper>(key: K, next: Gripper[K]) =>
     onChange({ ...value, [key]: next });
   const toggleRotation = (rotation: 0 | 90 | 180 | 270) => {
@@ -90,14 +92,14 @@ export function GripperEditor({
   return (
     <div className="grid gap-3">
       <div className="grid gap-2 md:grid-cols-3">
-        <Field label="Name" className="md:col-span-2">
+        <Field label={t("robotics.name")} className="md:col-span-2">
           <input
             value={value.name}
             onChange={(event) => update("name", event.target.value)}
             className={inputClass}
           />
         </Field>
-        <Field label="Bauart">
+        <Field label={t("robotics.gripperKind")}>
           <select
             value={value.settings.type}
             onChange={(event) =>
@@ -110,12 +112,12 @@ export function GripperEditor({
             }
             className={inputClass}
           >
-            <option value="suction">Sauggreifer</option>
-            <option value="clamp">Klammergreifer (Mechanik ungeprüft)</option>
-            <option value="fork">Gabelgreifer (Mechanik ungeprüft)</option>
+            <option value="suction">{t("robotics.kind.suction")}</option>
+            <option value="clamp">{t("robotics.kind.clamp")}</option>
+            <option value="fork">{t("robotics.kind.fork")}</option>
           </select>
         </Field>
-        <Field label="Externe ID">
+        <Field label={t("robotics.externalId")}>
           <input
             value={value.externalId ?? ""}
             onChange={(event) =>
@@ -124,7 +126,7 @@ export function GripperEditor({
             className={inputClass}
           />
         </Field>
-        <Field label="Einlaufrichtung">
+        <Field label={t("robotics.inletDirection")}>
           <select
             value={value.inletOrientation}
             onChange={(event) =>
@@ -135,13 +137,13 @@ export function GripperEditor({
             }
             className={inputClass}
           >
-            <option value="any">Beliebig</option>
-            <option value="lengthwise">Längs</option>
-            <option value="crosswise">Quer</option>
+            <option value="any">{t("robotics.inlet.any")}</option>
+            <option value="lengthwise">{t("robotics.inlet.lengthwise")}</option>
+            <option value="crosswise">{t("robotics.inlet.crosswise")}</option>
           </select>
         </Field>
         <NumberField
-          label="Maximale Grifflänge (mm, leer = unbekannt)"
+          label={t("robotics.maxPickupLength")}
           value={value.maxPickupLengthMm}
           min={0}
           onChange={(next) => update("maxPickupLengthMm", next)}
@@ -149,7 +151,7 @@ export function GripperEditor({
       </div>
 
       <fieldset className="ed-field">
-        <legend className="ed-panel-note">Werkzeugmittelpunkt TCP (mm)</legend>
+        <legend className="ed-panel-note">{t("robotics.tcpLegend")}</legend>
         <div className="grid grid-cols-3 gap-2">
           {(["x", "y", "z"] as const).map((axis) => (
             <NumberField
@@ -168,7 +170,7 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="ed-field">
-        <legend className="ed-panel-note">Hüllraum des Werkzeugs (mm)</legend>
+        <legend className="ed-panel-note">{t("robotics.toolEnvelope")}</legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           {(["negativeX", "positiveX", "negativeY", "positiveY"] as const).map(
             (field) => (
@@ -190,7 +192,9 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="ed-field">
-        <legend className="ed-panel-note">Erlaubte Ablagedrehungen</legend>
+        <legend className="ed-panel-note">
+          {t("robotics.allowedPlaceRotations")}
+        </legend>
         <div className="ed-actions">
           {([0, 90, 180, 270] as const).map((rotation) => (
             <label key={rotation} className="flex items-center gap-1.5">
@@ -207,7 +211,7 @@ export function GripperEditor({
       </fieldset>
 
       <fieldset className="ed-field">
-        <legend className="ed-panel-note">Paketgrenzen (mm)</legend>
+        <legend className="ed-panel-note">{t("robotics.packageLimits")}</legend>
         <label className="ed-check">
           <input
             type="checkbox"
@@ -226,7 +230,7 @@ export function GripperEditor({
             }
             className="accent-brand"
           />
-          Paketmaße gegen diesen Greifer prüfen
+          {t("robotics.checkPackageLimits")}
         </label>
         {value.packageLimits ? (
           <div className="grid grid-cols-2 gap-2 md:grid-cols-6">
@@ -270,15 +274,13 @@ export function GripperEditor({
             }
             className="accent-brand"
           />
-          Mehrfachgriff mit geteilter Ablage (übernommen, erzeugte geteilte
-          Ablage ungeprüft)
+          {t("robotics.multipickShared")}
         </label>
       ) : (
         <p className="ed-warn">
-          Einstellungen für{" "}
-          {value.settings.type === "clamp" ? "Klammergreifer" : "Gabelgreifer"}{" "}
-          werden gespeichert, die erzeugte Greifmechanik ist aber ungeprüft und
-          blockiert den Export.
+          {t("robotics.otherGripperWarning", {
+            kind: t(`robotics.gripperType.${value.settings.type}`),
+          })}
         </p>
       )}
     </div>
@@ -299,6 +301,7 @@ export function StationEditor({
   value: PalletStation;
   onChange: (value: PalletStation) => void;
 }) {
+  const t = useT();
   const update = <K extends keyof PalletStation>(
     key: K,
     next: PalletStation[K],
@@ -321,14 +324,14 @@ export function StationEditor({
   return (
     <div className="grid gap-3">
       <div className="grid gap-2 md:grid-cols-3">
-        <Field label="Name" className="md:col-span-2">
+        <Field label={t("robotics.name")} className="md:col-span-2">
           <input
             value={value.name}
             onChange={(event) => update("name", event.target.value)}
             className={inputClass}
           />
         </Field>
-        <Field label="Externe ID">
+        <Field label={t("robotics.externalId")}>
           <input
             value={value.externalId ?? ""}
             onChange={(event) =>
@@ -337,7 +340,7 @@ export function StationEditor({
             className={inputClass}
           />
         </Field>
-        <Field label="Palettenursprung X">
+        <Field label={t("robotics.palletOriginX")}>
           <select
             value={value.palletOrigin.x}
             onChange={(event) =>
@@ -348,12 +351,12 @@ export function StationEditor({
             }
             className={inputClass}
           >
-            <option value="left">Links</option>
-            <option value="center">Mitte</option>
-            <option value="right">Rechts</option>
+            <option value="left">{t("robotics.left")}</option>
+            <option value="center">{t("robotics.center")}</option>
+            <option value="right">{t("robotics.right")}</option>
           </select>
         </Field>
-        <Field label="Palettenursprung Y">
+        <Field label={t("robotics.palletOriginY")}>
           <select
             value={value.palletOrigin.y}
             onChange={(event) =>
@@ -364,12 +367,12 @@ export function StationEditor({
             }
             className={inputClass}
           >
-            <option value="bottom">Unten</option>
-            <option value="center">Mitte</option>
-            <option value="top">Oben</option>
+            <option value="bottom">{t("robotics.bottom")}</option>
+            <option value="center">{t("robotics.center")}</option>
+            <option value="top">{t("robotics.top")}</option>
           </select>
         </Field>
-        <Field label="Ausrichtung am Einlauf">
+        <Field label={t("robotics.inletAlignment")}>
           <select
             value={value.inletAlignment}
             onChange={(event) =>
@@ -380,17 +383,17 @@ export function StationEditor({
             }
             className={inputClass}
           >
-            <option value="left">Links</option>
-            <option value="center">Mitte</option>
-            <option value="right">Rechts</option>
+            <option value="left">{t("robotics.left")}</option>
+            <option value="center">{t("robotics.center")}</option>
+            <option value="right">{t("robotics.right")}</option>
           </select>
         </Field>
       </div>
 
       {(
         [
-          ["TCP-Hüllraum", "tcpEnvelopeMm"],
-          ["Freiraum / Hinderniskontur", "obstacleEnvelopeMm"],
+          [t("robotics.tcpEnvelope"), "tcpEnvelopeMm"],
+          [t("robotics.obstacleEnvelope"), "obstacleEnvelopeMm"],
         ] as const
       ).map(([label, field]) => (
         <fieldset key={field} className="ed-field">
@@ -418,11 +421,11 @@ export function StationEditor({
 
       <fieldset className="ed-field">
         <legend className="ed-panel-note">
-          Robotermitte und Reichweite (mm)
+          {t("robotics.robotCenterRange")}
         </legend>
         <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
           <NumberField
-            label="Mitte X"
+            label={t("robotics.centerX")}
             value={value.robotCenterMm.x}
             onChange={(next) =>
               update("robotCenterMm", {
@@ -432,7 +435,7 @@ export function StationEditor({
             }
           />
           <NumberField
-            label="Mitte Y"
+            label={t("robotics.centerY")}
             value={value.robotCenterMm.y}
             onChange={(next) =>
               update("robotCenterMm", {
@@ -442,7 +445,7 @@ export function StationEditor({
             }
           />
           <NumberField
-            label="Radius min."
+            label={t("robotics.radiusMin")}
             min={0}
             value={value.robotRadiusMm.min}
             onChange={(next) =>
@@ -453,7 +456,7 @@ export function StationEditor({
             }
           />
           <NumberField
-            label="Radius max."
+            label={t("robotics.radiusMax")}
             min={0}
             value={value.robotRadiusMm.max}
             onChange={(next) =>
@@ -465,15 +468,14 @@ export function StationEditor({
           />
         </div>
         {value.robotRadiusMm.min === 0 && value.robotRadiusMm.max === 0 ? (
-          <p className="ed-warn">
-            0 / 0 bedeutet: Reichweite nicht kalibriert. Die Reichweitenprüfung
-            wird übersprungen, bis ein gemessener Bereich eingetragen ist.
-          </p>
+          <p className="ed-warn">{t("robotics.rangeUncalibrated")}</p>
         ) : null}
       </fieldset>
 
       <fieldset className="ed-field">
-        <legend className="ed-panel-note">Palettierrichtungen</legend>
+        <legend className="ed-panel-note">
+          {t("robotics.palletizingDirections")}
+        </legend>
         <div className="grid gap-2 md:grid-cols-2">
           {directions.map((direction) => (
             <label key={direction} className="ed-check">
@@ -487,7 +489,7 @@ export function StationEditor({
             </label>
           ))}
         </div>
-        <Field label="Bevorzugte Richtung">
+        <Field label={t("robotics.preferredDirection")}>
           <select
             value={value.preferredDirection}
             onChange={(event) =>

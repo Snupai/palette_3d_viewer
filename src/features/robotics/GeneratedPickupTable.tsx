@@ -1,21 +1,21 @@
 import type { RobotCycleMaterialization } from "~/domain/robotics";
+import { useT } from "~/i18n";
 
-const columns = [
-  "#",
-  "Lage",
-  "Griff",
-  "Pakete",
-  "Aufnahme X",
-  "Aufnahme Y",
-  "Aufnahme Z",
-  "Aufnahme Drehung",
-  "Transfer X/Y/Z",
-  "Ablage X",
-  "Ablage Y",
-  "Ablage Z",
-  "Ablage Drehung",
-  "Rahmen",
-  "Quelle",
+const columnKeys = [
+  "layer",
+  "grip",
+  "packages",
+  "pickX",
+  "pickY",
+  "pickZ",
+  "pickRotation",
+  "transfer",
+  "placeX",
+  "placeY",
+  "placeZ",
+  "placeRotation",
+  "frame",
+  "source",
 ] as const;
 
 export function GeneratedPickupTable({
@@ -23,6 +23,8 @@ export function GeneratedPickupTable({
 }: {
   materialization: RobotCycleMaterialization;
 }) {
+  const t = useT();
+  const columns = ["#", ...columnKeys.map((key) => t(`robotics.col.${key}`))];
   return (
     <div className="ed-table-wide">
       <table className="ed-table">
@@ -60,7 +62,7 @@ export function GeneratedPickupTable({
           {materialization.cycles.length === 0 ? (
             <tr>
               <td colSpan={15} className="ed-panel-note">
-                Noch keine Griffe berechnet.
+                {t("robotics.noPickupsYet")}
               </td>
             </tr>
           ) : null}

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { useT } from "~/i18n";
 
 /**
  * Technik: reusable template library plus the draft editor for one equipment
@@ -43,6 +44,7 @@ export function ResourceLibraryPanel({
   editor: ReactNode;
   emptyText: string;
 }) {
+  const t = useT();
   return (
     <details className="ed-sub-details">
       <summary>{title}</summary>
@@ -68,7 +70,7 @@ export function ResourceLibraryPanel({
             onClick={onApplyTemplate}
             className="ui-btn ui-btn-sm"
           >
-            Übernehmen
+            {t("robotics.apply")}
           </button>
           <button
             type="button"
@@ -76,7 +78,7 @@ export function ResourceLibraryPanel({
             onClick={onRemoveTemplate}
             className="ui-btn ui-btn-sm ui-btn-danger"
           >
-            Aus Bibliothek entfernen
+            {t("robotics.removeFromLibrary")}
           </button>
         </div>
         <div className="ed-actions">
@@ -93,7 +95,7 @@ export function ResourceLibraryPanel({
               onClick={onCreateEditableCopy}
               className="ui-btn ui-btn-sm"
             >
-              Bearbeitbare Kopie anlegen
+              {t("robotics.createEditableCopy")}
             </button>
           ) : null}
           <button
@@ -102,7 +104,7 @@ export function ResourceLibraryPanel({
             onClick={onSaveToProject}
             className="ui-btn ui-btn-sm"
           >
-            Im Plan speichern
+            {t("robotics.saveToPlan")}
           </button>
           <button
             type="button"
@@ -110,7 +112,7 @@ export function ResourceLibraryPanel({
             onClick={onSaveTemplate}
             className="ui-btn ui-btn-sm"
           >
-            Als Vorlage speichern
+            {t("robotics.saveAsTemplate")}
           </button>
         </div>
         {draftIsBuiltIn ? (
@@ -131,11 +133,6 @@ export function BuiltInProfileNotice({
 }: {
   version: string | number;
 }) {
-  return (
-    <p>
-      Das mitgelieferte Multipack-Profil v{version} ist schreibgeschützt. Für
-      Änderungen oder eine eigene Vorlage zuerst eine bearbeitbare Kopie
-      anlegen.
-    </p>
-  );
+  const t = useT();
+  return <p>{t("robotics.builtInNotice", { version })}</p>;
 }

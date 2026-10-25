@@ -1,6 +1,7 @@
 "use client";
 
 import { type ReactNode, useEffect, useRef } from "react";
+import { useT } from "~/i18n";
 import { focusableWithin, wrapFocusIndex } from "./focusTrap";
 
 /**
@@ -24,6 +25,7 @@ export function Drawer({
   actions?: ReactNode;
   children: ReactNode;
 }) {
+  const t = useT();
   const panelRef = useRef<HTMLElement>(null);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -85,7 +87,7 @@ export function Drawer({
         <button
           type="button"
           tabIndex={-1}
-          aria-label={`${title} schließen`}
+          aria-label={t("components.drawer.closeNamed", { title })}
           onClick={onClose}
           className="absolute inset-0 cursor-default"
         />
@@ -102,7 +104,7 @@ export function Drawer({
           <h2 className="text-body mr-auto truncate font-semibold">{title}</h2>
           {actions}
           <button type="button" onClick={onClose} className="ui-btn ui-btn-sm">
-            Schließen
+            {t("components.drawer.close")}
           </button>
         </header>
         <div className="scrollbar-thin min-h-0 overflow-auto">{children}</div>

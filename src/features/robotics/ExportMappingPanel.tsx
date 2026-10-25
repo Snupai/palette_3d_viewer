@@ -1,3 +1,4 @@
+import { useT } from "~/i18n";
 import { NumericDraftField } from "~/features/robotics/NumericDraftField";
 import type { RobotExportWorkspaceSettings } from "~/features/robotics/robotWorkspaceModel";
 
@@ -9,15 +10,16 @@ export function ExportMappingPanel({
   exportSettings: RobotExportWorkspaceSettings;
   onChange: (settings: RobotExportWorkspaceSettings) => void;
 }) {
+  const t = useT();
   return (
     <details className="ed-sub-details" data-testid="robotics-export-settings">
-      <summary>Export-Zuordnung (.rob)</summary>
+      <summary>{t("robotics.exportMapping")}</summary>
       <div>
         <div className="ed-grid3">
           <label className="ed-field">
-            Ganzzahl-Rundung
+            {t("robotics.quantization")}
             <select
-              aria-label="Ganzzahl-Rundung"
+              aria-label={t("robotics.quantization")}
               value={exportSettings.quantization}
               onChange={(event) =>
                 onChange({
@@ -29,18 +31,20 @@ export function ExportMappingPanel({
               className="ui-input"
             >
               <option value="round-half-away-from-zero">
-                Auf ganze Zahl runden
+                {t("robotics.quantization.round")}
               </option>
               <option value="truncate-toward-zero">
-                Nachkommastellen abschneiden
+                {t("robotics.quantization.truncate")}
               </option>
-              <option value="reject-decimals">Dezimalwerte ablehnen</option>
+              <option value="reject-decimals">
+                {t("robotics.quantization.reject")}
+              </option>
             </select>
           </label>
           <label className="ed-field">
-            Letzte zwei .rob-Felder
+            {t("robotics.lastTwoFields")}
             <select
-              aria-label="Behandlung der letzten .rob-Felder"
+              aria-label={t("robotics.lastTwoFieldsAria")}
               value={exportSettings.unknownFieldMode}
               onChange={(event) =>
                 onChange({
@@ -51,12 +55,16 @@ export function ExportMappingPanel({
               }
               className="ui-input"
             >
-              <option value="block">Blockieren: Bedeutung unbekannt</option>
-              <option value="from-cycle-or-zero">Griff-dx/dy, sonst 0</option>
-              <option value="preserve-imported">
-                Importierte Werte beibehalten
+              <option value="block">{t("robotics.unknownField.block")}</option>
+              <option value="from-cycle-or-zero">
+                {t("robotics.unknownField.fromCycle")}
               </option>
-              <option value="explicit-values">Werte eintragen</option>
+              <option value="preserve-imported">
+                {t("robotics.unknownField.preserve")}
+              </option>
+              <option value="explicit-values">
+                {t("robotics.unknownField.explicit")}
+              </option>
             </select>
           </label>
           <label className="ed-check">
@@ -70,12 +78,12 @@ export function ExportMappingPanel({
                 })
               }
             />
-            Nur Anzahl exportieren, wenn Zwischenlagen nicht 3 mm sind
+            {t("robotics.countOnlyInterlayers")}
           </label>
         </div>
         <div className="ed-grid3">
           <label className="ed-field">
-            Interne Zuordnungs-ID
+            {t("robotics.mappingId")}
             <input
               value={exportSettings.mappingId}
               onChange={(event) =>
@@ -86,9 +94,9 @@ export function ExportMappingPanel({
           </label>
           {(
             [
-              ["Vorzeichen X", "xSign"],
-              ["Vorzeichen Y", "ySign"],
-              ["Vorzeichen Drehung", "yawSign"],
+              [t("robotics.signX"), "xSign"],
+              [t("robotics.signY"), "ySign"],
+              [t("robotics.signRotation"), "yawSign"],
             ] as const
           ).map(([label, field]) => (
             <label key={field} className="ed-field">
@@ -109,7 +117,7 @@ export function ExportMappingPanel({
             </label>
           ))}
           <NumericDraftField
-            label="Drehungs-Offset (°)"
+            label={t("robotics.rotationOffset")}
             value={exportSettings.yawOffsetDeg}
             onChange={(value) =>
               onChange({ ...exportSettings, yawOffsetDeg: value })
@@ -118,7 +126,7 @@ export function ExportMappingPanel({
         </div>
         <label className="ed-check">
           <input
-            aria-label="Ungeprüfte .rob-Zuordnung bestätigen"
+            aria-label={t("robotics.acknowledgeAria")}
             type="checkbox"
             checked={exportSettings.mappingAcknowledged}
             onChange={(event) =>
@@ -128,27 +136,26 @@ export function ExportMappingPanel({
               })
             }
           />
-          Diese Zuordnung ist selbst eingetragen und belegt keine externe
-          Multipack-Kompatibilität.
+          {t("robotics.acknowledgeText")}
         </label>
         {exportSettings.unknownFieldMode === "explicit-values" ? (
           <div className="ed-grid2">
             <NumericDraftField
-              label="Feld 8"
+              label={t("robotics.field8")}
               value={exportSettings.field8}
               onChange={(value) =>
                 onChange({ ...exportSettings, field8: value })
               }
             />
             <NumericDraftField
-              label="Feld 9"
+              label={t("robotics.field9")}
               value={exportSettings.field9}
               onChange={(value) =>
                 onChange({ ...exportSettings, field9: value })
               }
             />
             <label className="ed-field">
-              Bedeutung der Felder 8 und 9
+              {t("robotics.fieldsMeaning")}
               <input
                 value={exportSettings.unknownFieldSemantics}
                 onChange={(event) =>
@@ -161,7 +168,7 @@ export function ExportMappingPanel({
               />
             </label>
             <label className="ed-field">
-              Quelle dieser Werte
+              {t("robotics.fieldsSource")}
               <input
                 value={exportSettings.unknownFieldProvenance}
                 onChange={(event) =>

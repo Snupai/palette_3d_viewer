@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { LayerPattern } from "~/components/LayerPattern";
 import { RobViewer } from "~/components/RobViewer";
 import { Notice, Panel } from "~/components/ui";
+import { useT } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
 import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
 import type { MaterializedStackResult } from "~/domain/stack";
@@ -60,6 +61,7 @@ export function StackWorkspace({
   onEditProject,
   onSubstepChange,
 }: StackWorkspaceProps) {
+  const t = useT();
   const candidateSignature = candidates.map(({ id }) => id).join("|");
   const initialState = () =>
     guided
@@ -110,12 +112,10 @@ export function StackWorkspace({
       return {
         result: null,
         error:
-          cause instanceof Error
-            ? cause.message
-            : "Unable to materialize the current stack.",
+          cause instanceof Error ? cause.message : t("stack.materializeFailed"),
       };
     }
-  }, [candidates, project, solverInput, state]);
+  }, [candidates, project, solverInput, state, t]);
   const previewData = useMemo(
     () =>
       materialized.result
@@ -157,15 +157,13 @@ export function StackWorkspace({
       if (editRevision.current === revisionAtSaveStart) {
         setDirty(false);
         setSaveMessage(
-          guided
-            ? "Plan gespeichert."
-            : "Stack saved to the project repository.",
+          guided ? t("stack.save.saved") : t("stack.classic.saved"),
         );
       } else {
         setSaveMessage(
           guided
-            ? "Ein früherer Stand wurde gespeichert. Neuere Änderungen sind noch nicht gespeichert."
-            : "An earlier stack revision was saved. Newer edits remain unsaved.",
+            ? t("stack.save.savedEarlier")
+            : t("stack.classic.savedEarlier"),
         );
       }
     } catch (cause) {
@@ -173,11 +171,11 @@ export function StackWorkspace({
       setSaveFailure(
         guided
           ? cause instanceof Error
-            ? `Speichern fehlgeschlagen: ${cause.message}`
-            : "Speichern fehlgeschlagen."
+            ? t("stack.save.failedWith", { message: cause.message })
+            : t("stack.save.failed")
           : cause instanceof Error
-            ? `Stack save failed: ${cause.message}`
-            : "Stack save failed.",
+            ? t("stack.classic.saveFailedWith", { message: cause.message })
+            : t("stack.classic.saveFailed"),
       );
     } finally {
       setSaving(false);
@@ -212,13 +210,15 @@ export function StackWorkspace({
 
   return (
     <Panel
-      title="Stack workspace"
+      title={t("stack.classic.title")}
       actions={
         <>
           <span
             className={`text-micro ${dirty ? "text-caution" : "text-muted"}`}
           >
-            {dirty ? "Unsaved stack edits" : "Saved state"}
+            {dirty
+              ? t("stack.classic.unsavedEdits")
+              : t("stack.classic.savedState")}
           </span>
           <button
             type="button"
@@ -228,7 +228,9 @@ export function StackWorkspace({
             }
             className="ui-btn-primary text-micro"
           >
-            {saving ? "Saving…" : "Save stack and continue to Robotics"}
+            {saving
+              ? t("stack.classic.saving")
+              : t("stack.classic.saveAndContinue")}
           </button>
         </>
       }
@@ -277,7 +279,7 @@ export function StackWorkspace({
                 />
               ) : (
                 <div className="text-viewport-ink/60 text-body flex h-full min-h-[420px] items-center justify-center">
-                  Build a stack to preview it in 3D.
+                  {t("stack.classic.buildToPreview")}
                 </div>
               )}
             </div>
@@ -291,7 +293,7 @@ export function StackWorkspace({
                   />
                 ) : (
                   <div className="text-muted text-micro flex min-h-[164px] items-center justify-center">
-                    No top layer
+                    {t("stack.classic.noTopLayer")}
                   </div>
                 )}
               </div>

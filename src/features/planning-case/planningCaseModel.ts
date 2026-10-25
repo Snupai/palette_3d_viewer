@@ -1,3 +1,5 @@
+import type { Translate } from "~/i18n";
+import { translateDe } from "~/i18n/translateDe";
 import type { Project } from "~/domain/project/projectSchema";
 import {
   envelopePreservingSymmetries,
@@ -39,8 +41,10 @@ export function clampPlanningStage(
   return stages.find(([id]) => id === stage)?.[0] ?? stages[0]![0];
 }
 
-export const GEOMETRY_REVIEW_MESSAGE =
-  "Maße oder Handhabung wurden geändert. Gespeicherte Lösungen bleiben erhalten, müssen aber vor Robotik und Export neu aufgebaut und geprüft werden.";
+/** Translated geometry-review notice; defaults to German without a `t`. */
+export function geometryReviewMessage(t: Translate = translateDe): string {
+  return t("planningCase.gate.geometryReview");
+}
 
 export function projectNeedsGeometryReview(project: Project | null): boolean {
   const solution =
@@ -93,11 +97,12 @@ export function productionToolGate(
   tool: string,
   project: Project | null,
   robotCycleCount: number,
+  t: Translate = translateDe,
 ): ProductionToolGate {
   const noProjectGate: ProductionToolGate = {
     ready: false,
-    missing: "Kein Plan ausgewählt.",
-    actionLabel: "Zu den Eingaben",
+    missing: t("planningCase.gate.noPlan"),
+    actionLabel: t("planningCase.gate.toInputs"),
     action: { kind: "stage", stage: "inputs" },
   };
   if (
@@ -106,8 +111,8 @@ export function productionToolGate(
   ) {
     return {
       ready: false,
-      missing: GEOMETRY_REVIEW_MESSAGE,
-      actionLabel: "Muster neu berechnen",
+      missing: geometryReviewMessage(t),
+      actionLabel: t("planningCase.gate.recalcPatterns"),
       action: { kind: "stage", stage: "generate" },
     };
   }
@@ -118,9 +123,8 @@ export function productionToolGate(
         ? { ready: true }
         : {
             ready: false,
-            missing:
-              "Der Muster-Editor benötigt einen gespeicherten Stapel mit mindestens einer Lage.",
-            actionLabel: "Stapel aufbauen",
+            missing: t("planningCase.gate.editorNeedsStack"),
+            actionLabel: t("planningCase.gate.buildStack"),
             action: { kind: "stage", stage: "stack" },
           };
     case "robotics":
@@ -129,9 +133,8 @@ export function productionToolGate(
         ? { ready: true }
         : {
             ready: false,
-            missing:
-              "Die Robotik benötigt einen gespeicherten Stapel. Dieser Plan hat noch keine Lagen.",
-            actionLabel: "Stapel aufbauen",
+            missing: t("planningCase.gate.roboticsNeedsStack"),
+            actionLabel: t("planningCase.gate.buildStack"),
             action: { kind: "stage", stage: "stack" },
           };
     case "simulation":
@@ -140,9 +143,8 @@ export function productionToolGate(
         ? { ready: true }
         : {
             ready: false,
-            missing:
-              "Die Simulation benötigt mindestens einen berechneten Robotik-Zyklus.",
-            actionLabel: "Robotik-Prüfung öffnen",
+            missing: t("planningCase.gate.simulationNeedsCycle"),
+            actionLabel: t("planningCase.gate.openRobotics"),
             action: { kind: "tool", tool: "robotics" },
           };
     default:

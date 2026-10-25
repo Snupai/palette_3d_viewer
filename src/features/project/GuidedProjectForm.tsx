@@ -12,6 +12,7 @@ import {
 } from "react";
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
+import { useLocale, useT } from "~/i18n";
 import { PlanRender } from "~/features/planner/PlanRender";
 import {
   EXACT_COUNT_PATH,
@@ -22,9 +23,9 @@ import {
   firstSectionWithError,
   formatNumber,
   overhangPerSideHint,
-  germanFieldError,
+  fieldErrorMessage,
   guidedSectionOrder,
-  guidedSectionTitles,
+  guidedSectionTitle,
   loadAreaMm,
   packageDimensions,
   packageSideForDisplayedEdge,
@@ -245,13 +246,14 @@ function Section({
   onToggle,
   children,
 }: SectionProps) {
+  const t = useT();
   const bodyId = `${id}-body`;
   const statusText =
     status === "error"
-      ? "Bitte prüfen"
+      ? t("projectForm.sectionStatus.error")
       : status === "ok"
-        ? "Vollständig"
-        : "Noch offen";
+        ? t("projectForm.sectionStatus.ok")
+        : t("projectForm.sectionStatus.todo");
   return (
     <section
       className="fw-sec"
@@ -275,7 +277,9 @@ function Section({
               {summary}
             </span>
           </span>
-          <span className="fw-sec-act">{open ? "Zuklappen" : "Ändern"}</span>
+          <span className="fw-sec-act">
+            {open ? t("projectForm.collapse") : t("projectForm.change")}
+          </span>
         </button>
       </h2>
       <div
@@ -291,12 +295,12 @@ function Section({
   );
 }
 
-const edgeLabels: Record<LabelEdge, string> = {
-  top: "oben",
-  right: "rechts",
-  bottom: "unten",
-  left: "links",
-};
+const edgeLabelKeys = {
+  top: "projectForm.side.top",
+  right: "projectForm.side.right",
+  bottom: "projectForm.side.bottom",
+  left: "projectForm.side.left",
+} as const satisfies Record<LabelEdge, string>;
 
 /** Label edge as seen at the infeed; stores the package side like the classic picker. */
 function LabelEdgePicker({
@@ -308,6 +312,7 @@ function LabelEdgePicker({
   disabled: boolean;
   onChange: (side: ProjectFormValues["labelSideAtPickup"]) => void;
 }) {
+  const t = useT();
   const box = packageDimensions(values);
   const lengthwise = values.inletOrientation === "lengthwise";
   const along = box ? (lengthwise ? box.length : box.width) : 4;
@@ -333,7 +338,9 @@ function LabelEdgePicker({
             type="button"
             className={`fw-label-edge fw-label-edge-${edge}`}
             aria-pressed={selectedEdge === edge}
-            aria-label={`Etikett ${edgeLabels[edge]}`}
+            aria-label={t("projectForm.labelEdgeAria", {
+              side: t(edgeLabelKeys[edge]),
+            })}
             disabled={disabled}
             onClick={() =>
               onChange(
@@ -344,19 +351,19 @@ function LabelEdgePicker({
             }
           >
             <span className="fw-label-edge-text" aria-hidden="true">
-              {edgeLabels[edge]}
+              {t(edgeLabelKeys[edge])}
             </span>
           </button>
         ))}
       </div>
       <div className="fw-label-flow" aria-hidden="true">
-        Einlauf
+        {t("projectForm.infeed")}
         <svg viewBox="0 0 24 12" width="24" height="12">
           <path d="M0 6h20M15 1l6 5-6 5" fill="none" stroke="currentColor" />
         </svg>
       </div>
       <p className="fw-hint">
-        Kante antippen, an der das Etikett am Einlauf sitzt.{" "}
+        {t("projectForm.labelEdgeHint")}{" "}
         {selectedEdge ? (
           <button
             type="button"
@@ -364,10 +371,10 @@ function LabelEdgePicker({
             disabled={disabled}
             onClick={() => onChange("")}
           >
-            Ohne Vorgabe
+            {t("projectForm.noPreferenceButton")}
           </button>
         ) : (
-          "Aktuell ohne Vorgabe."
+          t("projectForm.noPreferenceCurrent")
         )}
       </p>
     </div>
@@ -417,6 +424,8 @@ export function GuidedProjectForm({
   onSave,
   onDirtyChange,
 }: GuidedProjectFormProps) {
+  const t = useT();
+  const { tag } = useLocale();
   const baseId = useId().replace(/:/g, "");
   const id = (path: string) => domId(baseId, path);
   const creating = project === null;
@@ -501,20 +510,20 @@ export function GuidedProjectForm({
   });
 
   const schemaErrors = useMemo(
-    () => validateProjectFormValues(values, project),
-    [values, project],
+    () => validateProjectFormValues(values, project, t),
+    [values, project, t],
   );
   const parsedCount = parseExactPackageCount(exactPackageCount);
   const countError =
     exactPackageCount.trim() !== "" && parsedCount === null
-      ? "Bitte eine ganze Zahl größer als 0 eingeben."
+      ? t("projectForm.error.wholeNumber")
       : null;
 
   const visibleError = (path: string): string | undefined => {
     const message =
       saveErrors[path] ??
       (submitted || revealed.has(path) ? schemaErrors[path] : undefined);
-    return message ? germanFieldError(message) : undefined;
+    return message ? fieldErrorMessage(message, t) : undefined;
   };
 
   const explicitStorage = new Set(edited);
@@ -651,16 +660,14 @@ export function GuidedProjectForm({
       openAndFocus(firstSection, firstPath ? id(firstPath) : undefined);
       setFailure(
         missingCount
-          ? "Bitte die markierten Angaben korrigieren und die Pakete je Schicht eintragen."
-          : "Bitte die markierten Angaben korrigieren.",
+          ? t("projectForm.failure.fixAndCount")
+          : t("projectForm.failure.fix"),
       );
       return;
     }
     if (missingCount) {
       pendingFocus.current = id(EXACT_COUNT_PATH);
-      setFailure(
-        "Für die Mustererzeugung die genaue Anzahl Pakete je Schicht eintragen – oder nur speichern.",
-      );
+      setFailure(t("projectForm.failure.countRequired"));
       return;
     }
 
@@ -692,13 +699,15 @@ export function GuidedProjectForm({
         setSaveErrors(errors);
         const section = firstSectionWithError(errors);
         if (section) openAndFocus(section);
-        setFailure("Bitte die markierten Angaben korrigieren.");
+        setFailure(t("projectForm.failure.fix"));
       } else {
         console.error("Failed to save planner project", cause);
         setFailure(
           cause instanceof Error
-            ? `Speichern fehlgeschlagen: ${cause.message}`
-            : "Speichern fehlgeschlagen.",
+            ? t("projectForm.failure.saveWithReason", {
+                reason: cause.message,
+              })
+            : t("projectForm.failure.save"),
         );
       }
     } finally {
@@ -722,22 +731,22 @@ export function GuidedProjectForm({
     if (failure) return null;
     if (!creating) {
       if (changesPatterns === true) {
-        return "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden verworfen. Gespeicherte Lösungen bleiben zur Prüfung erhalten und sind bis zum Neuaufbau für Robotik und Export gesperrt.";
+        return t("projectForm.footer.patternsDiscarded");
       }
       if (changesPatterns === false && changesGeometry === true) {
-        return "Geänderte Höhe oder Handhabung: Muster bleiben erhalten. Gespeicherte Lösungen sind bis zum Neuaufbau für Robotik und Export gesperrt.";
+        return t("projectForm.footer.geometryReview");
       }
       if (changesPatterns === false) {
-        return "Diese Änderungen betreffen die Muster nicht; sie bleiben erhalten.";
+        return t("projectForm.footer.patternsKept");
       }
-      return "Noch nicht alle Angaben sind gültig.";
+      return t("projectForm.footer.notAllValid");
     }
-    if (!box) return "Länge, Breite und Höhe des Pakets eintragen.";
-    if (openErrorCount > 0) return "Einige Angaben sind noch ungültig.";
+    if (!box) return t("projectForm.footer.enterDimensions");
+    if (openErrorCount > 0) return t("projectForm.footer.someInvalid");
     if (parsedCount === null) {
-      return "Pakete je Schicht eintragen, dann Muster erzeugen.";
+      return t("projectForm.footer.enterCount");
     }
-    return "Alle Angaben gültig.";
+    return t("projectForm.footer.allValid");
   })();
 
   const field = (
@@ -764,7 +773,9 @@ export function GuidedProjectForm({
         <div className="fw-main">
           <header className="fw-intro">
             <h1 id={`${baseId}-title`}>
-              {creating ? "Paket und Palette" : "Plan bearbeiten"}
+              {creating
+                ? t("projectForm.titleCreate")
+                : t("projectForm.titleEdit")}
             </h1>
           </header>
 
@@ -786,8 +797,8 @@ export function GuidedProjectForm({
             <Section
               id={id("meta")}
               index={1}
-              title={guidedSectionTitles.meta}
-              summary={sectionSummary("meta", values)}
+              title={guidedSectionTitle("meta", t)}
+              summary={sectionSummary("meta", values, t, tag)}
               status={sectionStatus("meta")}
               open={openSection === "meta"}
               onToggle={() => toggle("meta")}
@@ -795,15 +806,15 @@ export function GuidedProjectForm({
               <div className="fw-grid2">
                 <TextField
                   {...field("productNumber")}
-                  label="Artikelnummer"
-                  placeholder="z. B. 1329-00004"
+                  label={t("projectForm.productNumber")}
+                  placeholder={t("projectForm.productNumberPlaceholder")}
                   value={values.productNumber}
                   onChange={(value) => set("productNumber", value)}
                 />
                 <TextField
                   {...field("projectNumber")}
-                  label="Linie / Auftrag"
-                  placeholder="z. B. AP-5006"
+                  label={t("projectForm.projectNumber")}
+                  placeholder={t("projectForm.projectNumberPlaceholder")}
                   value={values.projectNumber}
                   onChange={(value) => set("projectNumber", value)}
                 />
@@ -814,7 +825,7 @@ export function GuidedProjectForm({
                   className="ui-btn"
                   onClick={() => nextSection("meta")}
                 >
-                  Weiter zum Paket
+                  {t("projectForm.next.package")}
                 </button>
               </div>
             </Section>
@@ -822,8 +833,8 @@ export function GuidedProjectForm({
             <Section
               id={id("package")}
               index={2}
-              title={guidedSectionTitles.package}
-              summary={sectionSummary("package", values)}
+              title={guidedSectionTitle("package", t)}
+              summary={sectionSummary("package", values, t, tag)}
               status={sectionStatus("package")}
               open={openSection === "package"}
               onToggle={() => toggle("package")}
@@ -832,7 +843,7 @@ export function GuidedProjectForm({
                 <NumberField
                   {...field("packageLengthMm")}
                   big
-                  label="Länge"
+                  label={t("projectForm.length")}
                   unit="mm"
                   min="0"
                   value={values.packageLengthMm}
@@ -841,7 +852,7 @@ export function GuidedProjectForm({
                 <NumberField
                   {...field("packageWidthMm")}
                   big
-                  label="Breite"
+                  label={t("projectForm.width")}
                   unit="mm"
                   min="0"
                   value={values.packageWidthMm}
@@ -850,7 +861,7 @@ export function GuidedProjectForm({
                 <NumberField
                   {...field("packageHeightMm")}
                   big
-                  label="Höhe"
+                  label={t("projectForm.height")}
                   unit="mm"
                   min="0"
                   value={values.packageHeightMm}
@@ -860,16 +871,16 @@ export function GuidedProjectForm({
               <div className="fw-grid2">
                 <NumberField
                   {...field("packageWeightKg")}
-                  label="Gewicht je Paket"
+                  label={t("projectForm.packageWeight")}
                   unit="kg"
                   min="0"
-                  placeholder="unbekannt"
+                  placeholder={t("projectForm.unknown")}
                   value={values.packageWeightKg}
                   onChange={(value) => set("packageWeightKg", value)}
                 />
                 <NumberField
                   {...field("packageClearanceMm")}
-                  label="Abstand zwischen Paketen"
+                  label={t("projectForm.packageClearance")}
                   unit="mm"
                   min="0"
                   value={values.packageClearanceMm}
@@ -882,7 +893,7 @@ export function GuidedProjectForm({
                   className="ui-btn"
                   onClick={() => nextSection("package")}
                 >
-                  Weiter zur Palette
+                  {t("projectForm.next.pallet")}
                 </button>
               </div>
             </Section>
@@ -890,15 +901,17 @@ export function GuidedProjectForm({
             <Section
               id={id("pallet")}
               index={3}
-              title={guidedSectionTitles.pallet}
-              summary={sectionSummary("pallet", values)}
+              title={guidedSectionTitle("pallet", t)}
+              summary={sectionSummary("pallet", values, t, tag)}
               status={sectionStatus("pallet")}
               open={openSection === "pallet"}
               onToggle={() => toggle("pallet")}
             >
               <div className="fw-grid2">
                 <div className="fw-field">
-                  <label htmlFor={id("palletKind")}>Palettentyp</label>
+                  <label htmlFor={id("palletKind")}>
+                    {t("projectForm.palletType")}
+                  </label>
                   <div className="fw-ctl">
                     <select
                       id={id("palletKind")}
@@ -914,7 +927,9 @@ export function GuidedProjectForm({
                             palletId: current.palletId.startsWith("pallet-")
                               ? ""
                               : current.palletId,
-                            palletName: current.palletName || "Eigene Palette",
+                            palletName:
+                              current.palletName ||
+                              t("projectForm.palletKind.custom"),
                           }));
                         } else {
                           setValues((current) =>
@@ -931,15 +946,21 @@ export function GuidedProjectForm({
                         setSaveErrors({});
                       }}
                     >
-                      <option value="euro">Euro-Palette</option>
-                      <option value="industrial">Industriepalette</option>
-                      <option value="custom">Eigene Palette</option>
+                      <option value="euro">
+                        {t("projectForm.palletKind.euro")}
+                      </option>
+                      <option value="industrial">
+                        {t("projectForm.palletKind.industrial")}
+                      </option>
+                      <option value="custom">
+                        {t("projectForm.palletKind.custom")}
+                      </option>
                     </select>
                   </div>
                 </div>
                 <TextField
                   {...field("palletName")}
-                  label="Bezeichnung"
+                  label={t("projectForm.palletName")}
                   value={values.palletName}
                   onChange={(value) => set("palletName", value)}
                 />
@@ -947,8 +968,8 @@ export function GuidedProjectForm({
               {values.palletKind === "custom" ? (
                 <TextField
                   {...field("palletId")}
-                  label="Paletten-ID"
-                  placeholder="wird beim Speichern vergeben"
+                  label={t("projectForm.palletId")}
+                  placeholder={t("projectForm.palletIdPlaceholder")}
                   value={values.palletId}
                   onChange={(value) => set("palletId", value)}
                 />
@@ -956,21 +977,21 @@ export function GuidedProjectForm({
               <div className="fw-grid3">
                 <NumberField
                   {...field("palletLengthMm")}
-                  label="Palettenlänge"
+                  label={t("projectForm.palletLength")}
                   unit="mm"
                   value={values.palletLengthMm}
                   onChange={(value) => set("palletLengthMm", value)}
                 />
                 <NumberField
                   {...field("palletWidthMm")}
-                  label="Palettenbreite"
+                  label={t("projectForm.palletWidth")}
                   unit="mm"
                   value={values.palletWidthMm}
                   onChange={(value) => set("palletWidthMm", value)}
                 />
                 <NumberField
                   {...field("palletHeightMm")}
-                  label="Palettenhöhe"
+                  label={t("projectForm.palletHeight")}
                   unit="mm"
                   value={values.palletHeightMm}
                   onChange={(value) => set("palletHeightMm", value)}
@@ -979,17 +1000,17 @@ export function GuidedProjectForm({
               <div className="fw-grid2">
                 <NumberField
                   {...field("overhangLengthMm")}
-                  label="Überstand Länge"
+                  label={t("projectForm.overhangLength")}
                   unit="mm"
-                  hint={overhangPerSideHint(values.overhangLengthMm)}
+                  hint={overhangPerSideHint(values.overhangLengthMm, t, tag)}
                   value={values.overhangLengthMm}
                   onChange={(value) => set("overhangLengthMm", value)}
                 />
                 <NumberField
                   {...field("overhangWidthMm")}
-                  label="Überstand Breite"
+                  label={t("projectForm.overhangWidth")}
                   unit="mm"
-                  hint={overhangPerSideHint(values.overhangWidthMm)}
+                  hint={overhangPerSideHint(values.overhangWidthMm, t, tag)}
                   value={values.overhangWidthMm}
                   onChange={(value) => set("overhangWidthMm", value)}
                 />
@@ -1000,7 +1021,7 @@ export function GuidedProjectForm({
                   className="ui-btn"
                   onClick={() => nextSection("pallet")}
                 >
-                  Weiter zu den Grenzen
+                  {t("projectForm.next.limits")}
                 </button>
               </div>
             </Section>
@@ -1008,8 +1029,8 @@ export function GuidedProjectForm({
             <Section
               id={id("limits")}
               index={4}
-              title={guidedSectionTitles.limits}
-              summary={sectionSummary("limits", values)}
+              title={guidedSectionTitle("limits", t)}
+              summary={sectionSummary("limits", values, t, tag)}
               status={sectionStatus("limits")}
               open={openSection === "limits"}
               onToggle={() => toggle("limits")}
@@ -1023,13 +1044,13 @@ export function GuidedProjectForm({
                     set("hasStorageEnvelope", event.target.checked)
                   }
                 />
-                Lagermaße begrenzen (Länge, Breite, Höhe)
+                {t("projectForm.limitStorage")}
               </label>
               {values.hasStorageEnvelope ? (
                 <>
                   <NumberField
                     {...field("storageHeightMm")}
-                    label="Lagerhöhe"
+                    label={t("projectForm.storageHeight")}
                     unit="mm"
                     value={values.storageHeightMm}
                     onChange={(value) => set("storageHeightMm", value)}
@@ -1044,18 +1065,18 @@ export function GuidedProjectForm({
                       undefined
                     }
                   >
-                    <summary>Lagerfläche</summary>
+                    <summary>{t("projectForm.storageArea")}</summary>
                     <div className="fw-grid2">
                       <NumberField
                         {...field("storageLengthMm")}
-                        label="Lagerlänge"
+                        label={t("projectForm.storageLength")}
                         unit="mm"
                         value={values.storageLengthMm}
                         onChange={(value) => set("storageLengthMm", value)}
                       />
                       <NumberField
                         {...field("storageWidthMm")}
-                        label="Lagerbreite"
+                        label={t("projectForm.storageWidth")}
                         unit="mm"
                         value={values.storageWidthMm}
                         onChange={(value) => set("storageWidthMm", value)}
@@ -1067,19 +1088,19 @@ export function GuidedProjectForm({
               <div className="fw-grid2">
                 <NumberField
                   {...field("tareKg")}
-                  label="Leergewicht Palette"
+                  label={t("projectForm.tare")}
                   unit="kg"
                   min="0"
-                  placeholder="unbekannt"
+                  placeholder={t("projectForm.unknown")}
                   value={values.tareKg}
                   onChange={(value) => set("tareKg", value)}
                 />
                 <NumberField
                   {...field("maxGrossKg")}
-                  label="Max. Bruttogewicht"
+                  label={t("projectForm.maxGross")}
                   unit="kg"
                   min="0"
-                  placeholder="ohne Limit"
+                  placeholder={t("projectForm.noLimit")}
                   value={values.maxGrossKg}
                   onChange={(value) => set("maxGrossKg", value)}
                 />
@@ -1090,7 +1111,7 @@ export function GuidedProjectForm({
                   className="ui-btn"
                   onClick={() => nextSection("limits")}
                 >
-                  Weiter zu Einlauf und Etikett
+                  {t("projectForm.next.handling")}
                 </button>
               </div>
             </Section>
@@ -1098,8 +1119,8 @@ export function GuidedProjectForm({
             <Section
               id={id("handling")}
               index={5}
-              title={guidedSectionTitles.handling}
-              summary={sectionSummary("handling", values)}
+              title={guidedSectionTitle("handling", t)}
+              summary={sectionSummary("handling", values, t, tag)}
               status={sectionStatus("handling")}
               open={openSection === "handling"}
               onToggle={() => toggle("handling")}
@@ -1107,13 +1128,19 @@ export function GuidedProjectForm({
               <div className="fw-grid2 fw-handling">
                 <div className="fw-stack-gap">
                   <Segmented
-                    legend="Einlauf"
+                    legend={t("projectForm.infeed")}
                     name={id("inletOrientation")}
                     value={values.inletOrientation}
                     disabled={saving}
                     options={[
-                      { value: "lengthwise", label: "Längs" },
-                      { value: "crosswise", label: "Quer" },
+                      {
+                        value: "lengthwise",
+                        label: t("projectForm.lengthwise"),
+                      },
+                      {
+                        value: "crosswise",
+                        label: t("projectForm.crosswise"),
+                      },
                     ]}
                     onChange={(value) => set("inletOrientation", value)}
                   />
@@ -1126,7 +1153,7 @@ export function GuidedProjectForm({
                         set("multiPickAllowed", event.target.checked)
                       }
                     />
-                    Mehrfachgriff erlauben
+                    {t("projectForm.allowMultiGrip")}
                   </label>
                   {visibleError("package.inletOrientation") ? (
                     <span className="fw-hint fw-hint-bad">
@@ -1135,7 +1162,7 @@ export function GuidedProjectForm({
                   ) : null}
                 </div>
                 <fieldset className="fw-seg-field" disabled={saving}>
-                  <legend>Etikett</legend>
+                  <legend>{t("projectForm.label")}</legend>
                   <LabelEdgePicker
                     values={values}
                     disabled={saving}
@@ -1149,12 +1176,12 @@ export function GuidedProjectForm({
           {creating ? (
             <section className="fw-count" aria-labelledby={`${baseId}-count`}>
               <div className="fw-count-text">
-                <h2 id={`${baseId}-count`}>Pakete je Schicht</h2>
+                <h2 id={`${baseId}-count`}>{t("projectForm.countTitle")}</h2>
               </div>
               <div className="fw-count-ctl">
                 <NumberField
                   id={id(EXACT_COUNT_PATH)}
-                  label="Genaue Anzahl"
+                  label={t("projectForm.exactCount")}
                   min="1"
                   step="1"
                   inputMode="numeric"
@@ -1162,7 +1189,7 @@ export function GuidedProjectForm({
                   error={
                     countError ??
                     (submitted && parsedCount === null && box
-                      ? "Für „Muster erzeugen“ erforderlich."
+                      ? t("projectForm.countRequiredField")
                       : undefined)
                   }
                   onChange={(value) => {
@@ -1181,7 +1208,7 @@ export function GuidedProjectForm({
                       setFailure(null);
                     }}
                   >
-                    {gridCount} aus dem einfachen Raster
+                    {t("projectForm.fromSimpleGrid", { count: gridCount })}
                   </button>
                 ) : null}
               </div>
@@ -1192,25 +1219,33 @@ export function GuidedProjectForm({
         <aside
           className="fw-stage"
           data-expanded={stageExpanded ? "true" : "false"}
-          aria-label="Vorschau"
+          aria-label={t("projectForm.preview")}
         >
           <div className="fw-stage-head">
-            <h2>{box ? "Ein Paket auf der Palette" : "Leere Palette"}</h2>
+            <h2>
+              {box
+                ? t("projectForm.onePackageOnPallet")
+                : t("projectForm.emptyPallet")}
+            </h2>
             <button
               type="button"
               className="fw-link fw-stage-toggle"
               aria-expanded={stageExpanded}
               onClick={() => setStageExpanded((current) => !current)}
             >
-              {stageExpanded ? "Kleiner" : "Größer"}
+              {stageExpanded
+                ? t("projectForm.smaller")
+                : t("projectForm.larger")}
             </button>
           </div>
           <div className="fw-stage-scene">
             <PlanRender
               title={
                 box
-                  ? `Paket ${formatNumber(box.length)} × ${formatNumber(box.width)} × ${formatNumber(box.height)} mm auf der Palette`
-                  : "Leere Palette"
+                  ? t("projectForm.packageOnPallet", {
+                      dims: `${formatNumber(box.length, tag)} × ${formatNumber(box.width, tag)} × ${formatNumber(box.height, tag)}`,
+                    })
+                  : t("projectForm.emptyPallet")
               }
               emptyPackage={box ?? undefined}
               palletSize={
@@ -1223,23 +1258,23 @@ export function GuidedProjectForm({
           </div>
           <dl className="fw-facts">
             <div>
-              <dt>Paket mm</dt>
+              <dt>{t("projectForm.factPackage")}</dt>
               <dd>
                 {box
-                  ? `${formatNumber(box.length)}×${formatNumber(box.width)}×${formatNumber(box.height)}`
+                  ? `${formatNumber(box.length, tag)}×${formatNumber(box.width, tag)}×${formatNumber(box.height, tag)}`
                   : "–"}
               </dd>
             </div>
             <div>
-              <dt>Ladefläche mm</dt>
+              <dt>{t("projectForm.factLoadArea")}</dt>
               <dd>
                 {area
-                  ? `${formatNumber(area.length)}×${formatNumber(area.width)}`
+                  ? `${formatNumber(area.length, tag)}×${formatNumber(area.width, tag)}`
                   : "–"}
               </dd>
             </div>
             <div>
-              <dt>im einfachen Raster</dt>
+              <dt>{t("projectForm.factSimpleGrid")}</dt>
               <dd>{gridCount ?? "–"}</dd>
             </div>
           </dl>
@@ -1257,7 +1292,7 @@ export function GuidedProjectForm({
             disabled={saving}
             onClick={onClose}
           >
-            Abbrechen
+            {t("projectForm.cancel")}
           </button>
           {creating ? (
             <button
@@ -1267,7 +1302,7 @@ export function GuidedProjectForm({
               className="ui-btn"
               disabled={saving || readingSheet}
             >
-              Nur speichern
+              {t("projectForm.saveOnly")}
             </button>
           ) : null}
           <button
@@ -1278,10 +1313,10 @@ export function GuidedProjectForm({
             disabled={saving || readingSheet}
           >
             {saving
-              ? "Wird gespeichert …"
+              ? t("projectForm.saving")
               : creating
-                ? "Muster erzeugen"
-                : "Änderungen speichern"}
+                ? t("projectForm.generate")
+                : t("projectForm.saveChanges")}
           </button>
         </div>
       </footer>

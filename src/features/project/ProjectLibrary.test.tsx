@@ -58,45 +58,53 @@ describe("ProjectLibrary management controls", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Filter line number"), {
+    fireEvent.change(screen.getByLabelText("Nach Liniennummer filtern"), {
       target: { value: "P-1" },
     });
-    fireEvent.change(screen.getByLabelText("Filter product number"), {
+    fireEvent.change(screen.getByLabelText("Nach Produktnummer filtern"), {
       target: { value: "SKU" },
     });
-    fireEvent.change(screen.getByLabelText("Sort"), {
+    fireEvent.change(screen.getByLabelText("Sortierung"), {
       target: { value: "productNumber:asc" },
     });
     const actions = within(
-      screen.getByRole("group", { name: "Actions for SKU-9" }),
+      screen.getByRole("group", { name: "Aktionen für SKU-9" }),
     );
-    fireEvent.click(actions.getByRole("button", { name: "Duplicate" }));
-    fireEvent.click(actions.getByRole("button", { name: "Save as" }));
+    fireEvent.click(actions.getByRole("button", { name: "Duplizieren" }));
+    fireEvent.click(actions.getByRole("button", { name: "Speichern unter" }));
     // A plain click asks inline first; Cancel backs out without deleting.
-    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
-    expect(actions.getByText("Delete project?")).toBeTruthy();
+    fireEvent.click(actions.getByRole("button", { name: "Löschen" }));
+    expect(actions.getByText("Projekt löschen?")).toBeTruthy();
     expect(onDelete).not.toHaveBeenCalled();
-    fireEvent.click(actions.getByRole("button", { name: "Cancel" }));
-    expect(actions.queryByText("Delete project?")).toBeNull();
+    fireEvent.click(actions.getByRole("button", { name: "Abbrechen" }));
+    expect(actions.queryByText("Projekt löschen?")).toBeNull();
     // Confirming deletes once.
-    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
-    fireEvent.click(actions.getByRole("button", { name: "Delete" }));
+    fireEvent.click(actions.getByRole("button", { name: "Löschen" }));
+    fireEvent.click(actions.getByRole("button", { name: "Löschen" }));
     // Shift+click skips the confirmation step.
-    fireEvent.click(actions.getByRole("button", { name: "Delete" }), {
+    fireEvent.click(actions.getByRole("button", { name: "Löschen" }), {
       shiftKey: true,
     });
-    fireEvent.change(screen.getByLabelText("Project import conflict policy"), {
-      target: { value: "skip" },
-    });
-    fireEvent.change(screen.getByLabelText("Resource import conflict policy"), {
-      target: { value: "overwrite" },
-    });
+    fireEvent.change(
+      screen.getByLabelText("Konfliktrichtlinie beim Projektimport"),
+      {
+        target: { value: "skip" },
+      },
+    );
+    fireEvent.change(
+      screen.getByLabelText("Konfliktrichtlinie beim Ressourcenimport"),
+      {
+        target: { value: "overwrite" },
+      },
+    );
 
     expect(onProjectNumberFilterChange).toHaveBeenCalledWith("P-1");
     expect(onProductNumberFilterChange).toHaveBeenCalledWith("SKU");
     expect(onSortChange).toHaveBeenCalledWith("productNumber", "asc");
     // No stack and no imported file: there is no .rob plan to download.
-    expect(actions.queryByRole("button", { name: "Download .rob" })).toBeNull();
+    expect(
+      actions.queryByRole("button", { name: ".rob herunterladen" }),
+    ).toBeNull();
     expect(onDuplicate).toHaveBeenCalledWith("project-1");
     expect(onSaveAs).toHaveBeenCalledWith("project-1");
     expect(onDelete.mock.calls).toEqual([["project-1"], ["project-1"]]);

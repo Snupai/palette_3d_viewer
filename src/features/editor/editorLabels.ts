@@ -1,3 +1,4 @@
+import type { Translate } from "~/i18n";
 import type { CandidateLabelSide } from "~/domain/solver/candidateIdentity";
 import type {
   ProjectEditorDiagnostic,
@@ -5,27 +6,20 @@ import type {
 } from "~/features/editor/editorModel";
 
 /** Label side options as shown in the editor, in the order of the picker. */
-export const labelSideOptions: ReadonlyArray<
-  readonly [CandidateLabelSide | "", string]
-> = [
-  ["", "Keine Vorgabe"],
-  ["top", "Oben"],
-  ["right", "Rechts"],
-  ["bottom", "Unten"],
-  ["left", "Links"],
-  ["top_right", "Oben rechts"],
-  ["bottom_right", "Unten rechts"],
-  ["bottom_left", "Unten links"],
-  ["top_left", "Oben links"],
-];
-
-/** "1 Griff", "2 Griffe". */
-export function countLabel(
-  count: number,
-  singular: string,
-  plural: string,
-): string {
-  return `${count} ${count === 1 ? singular : plural}`;
+export function labelSideOptions(
+  t: Translate,
+): ReadonlyArray<readonly [CandidateLabelSide | "", string]> {
+  return [
+    ["", t("editor.labelSide.none")],
+    ["top", t("editor.labelSide.top")],
+    ["right", t("editor.labelSide.right")],
+    ["bottom", t("editor.labelSide.bottom")],
+    ["left", t("editor.labelSide.left")],
+    ["top_right", t("editor.labelSide.topRight")],
+    ["bottom_right", t("editor.labelSide.bottomRight")],
+    ["bottom_left", t("editor.labelSide.bottomLeft")],
+    ["top_left", t("editor.labelSide.topLeft")],
+  ];
 }
 
 /** The part of a layer pattern the labels need. */
@@ -52,13 +46,14 @@ export function gripLabel(
 }
 
 /**
- * German text for a model diagnostic. The model keeps English messages for
+ * Localized text for a model diagnostic. The model keeps English messages for
  * tests and logs; the editor shows package and grip labels instead of ids.
  */
 export function describeDiagnostic(
   diagnostic: ProjectEditorDiagnostic,
   pattern: PatternLike,
   groups: readonly ProjectEditorGroup[],
+  t: Translate,
 ): string {
   const packages = (diagnostic.placementIds ?? []).map((id) =>
     packageLabel(pattern, id),
@@ -67,31 +62,39 @@ export function describeDiagnostic(
   const grip = grips[0] ?? "?";
   switch (diagnostic.code) {
     case "missing-active-solution":
-      return "Das Projekt hat keine aktive Lösung.";
+      return t("editor.diag.noSolution");
     case "missing-pattern":
-      return "Kein Muster gewählt.";
+      return t("editor.diag.noPattern");
     case "missing-pallet":
-      return "Dem Projekt fehlt die Palette.";
+      return t("editor.diag.noPallet");
     case "placement-out-of-bounds":
-      return `Paket ${packages[0] ?? "?"} ragt über die zulässige Ladefläche hinaus.`;
+      return t("editor.diag.outOfBounds", { package: packages[0] ?? "?" });
     case "placement-overlap":
-      return `Pakete ${packages[0] ?? "?"} und ${packages[1] ?? "?"} überlappen sich oder unterschreiten den Paketabstand.`;
+      return t("editor.diag.overlap", {
+        first: packages[0] ?? "?",
+        second: packages[1] ?? "?",
+      });
     case "placement-unassigned":
-      return `Paket ${packages[0] ?? "?"} gehört zu keinem Griff.`;
+      return t("editor.diag.unassigned", { package: packages[0] ?? "?" });
     case "empty-group":
-      return `Griff ${grip} enthält kein Paket.`;
+      return t("editor.diag.emptyGroup", { grip });
     case "invalid-group-geometry":
-      return `Griff ${grip}: ${geometryReason(diagnostic.message)}`;
+      return t("editor.diag.groupGeometry", {
+        grip,
+        reason: geometryReason(diagnostic.message),
+      });
     case "group-label-mismatch":
-      return `Griff ${grip} mischt verschiedene Etikettseiten; das .rob-Format kann das nicht abbilden.`;
+      return t("editor.diag.labelMismatch", { grip });
     case "group-order-omission":
-      return "Die Reihenfolge muss jeden Griff genau einmal enthalten.";
+      return t("editor.diag.orderOmission");
     case "group-number-duplicate":
-      return `Zwei Griffe tragen dieselbe Nummer (${grips.join(", ") || "?"}).`;
+      return t("editor.diag.numberDuplicate", {
+        grips: grips.join(", ") || "?",
+      });
     case "invalid-order":
-      return `Reihenfolge ungültig: ${diagnostic.message}`;
+      return t("editor.diag.invalidOrder", { message: diagnostic.message });
     case "invalid-project":
-      return `Projekt ungültig: ${diagnostic.message}`;
+      return t("editor.diag.invalidProject", { message: diagnostic.message });
   }
 }
 

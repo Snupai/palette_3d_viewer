@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  countLabel,
   describeDiagnostic,
   gripLabel,
   packageLabel,
 } from "~/features/editor/editorLabels";
+import { translateDe } from "~/i18n";
 import type { ProjectEditorGroup } from "~/features/editor/editorModel";
 
 const pattern = {
@@ -40,8 +40,8 @@ describe("editor labels", () => {
     expect(packageLabel(pattern, "b")).toBe("#2");
     expect(packageLabel(pattern, "missing")).toBe("missing");
     expect(gripLabel(groups, "g-second")).toBe("G2");
-    expect(countLabel(1, "Griff", "Griffe")).toBe("1 Griff");
-    expect(countLabel(3, "Griff", "Griffe")).toBe("3 Griffe");
+    expect(translateDe("editor.gripCount", { count: 1 })).toBe("1 Griff");
+    expect(translateDe("editor.gripCount", { count: 3 })).toBe("3 Griffe");
   });
 
   it("describes model diagnostics in German with labels instead of ids", () => {
@@ -55,6 +55,7 @@ describe("editor labels", () => {
         },
         pattern,
         groups,
+        translateDe,
       ),
     ).toBe(
       "Pakete #1 und #2 überlappen sich oder unterschreiten den Paketabstand.",
@@ -69,6 +70,7 @@ describe("editor labels", () => {
         },
         pattern,
         groups,
+        translateDe,
       ),
     ).toBe("Paket #2 gehört zu keinem Griff.");
     expect(
@@ -82,6 +84,7 @@ describe("editor labels", () => {
         },
         pattern,
         groups,
+        translateDe,
       ),
     ).toBe("Griff G2: Grouped packages must be aligned on one cross axis.");
     expect(
@@ -94,6 +97,7 @@ describe("editor labels", () => {
         },
         pattern,
         groups,
+        translateDe,
       ),
     ).toBe("Die Reihenfolge muss jeden Griff genau einmal enthalten.");
   });

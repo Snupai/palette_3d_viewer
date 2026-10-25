@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { translateDe } from "~/i18n";
 import {
   buildProjectFromForm,
   projectToFormValues,
@@ -6,7 +7,7 @@ import {
 import {
   firstSectionWithError,
   geometryReviewChanges,
-  germanFieldError,
+  fieldErrorMessage,
   labelSideLabel,
   loadAreaMm,
   sectionSummary,
@@ -32,6 +33,7 @@ describe("guided project form model", () => {
     const errors = validateProjectFormValues(
       { ...filled(), packageHeightMm: "", maxGrossKg: "10", tareKg: "25" },
       null,
+      translateDe,
     );
     expect(Object.keys(errors).sort()).toEqual([
       "package.dimensionsMm.height",
@@ -43,12 +45,12 @@ describe("guided project form model", () => {
       firstSectionWithError({ "pallet.allowedOverhangMm.width": "x" }),
     ).toBe("pallet");
     expect(firstSectionWithError({ productNumber: "x" })).toBe("meta");
-    expect(germanFieldError(errors["pallet.maxGrossKg"]!)).toBe(
+    expect(fieldErrorMessage(errors["pallet.maxGrossKg"]!, translateDe)).toBe(
       "Muss mindestens so groß wie das Leergewicht sein.",
     );
-    expect(germanFieldError(errors["package.dimensionsMm.height"]!)).toBe(
-      "Bitte eine Zahl eingeben.",
-    );
+    expect(
+      fieldErrorMessage(errors["package.dimensionsMm.height"]!, translateDe),
+    ).toBe("Bitte eine Zahl eingeben.");
   });
 
   it("summarises collapsed sections in German from the current values", () => {
@@ -59,48 +61,71 @@ describe("guided project form model", () => {
       overhangWidthMm: "-20",
       productNumber: "1329-00004",
     };
-    expect(sectionSummary("package", values)).toBe(
+    expect(sectionSummary("package", values, translateDe, "de-DE")).toBe(
       "400 × 300 × 190 mm, 3,4 kg",
     );
-    expect(sectionSummary("pallet", values)).toBe(
+    expect(sectionSummary("pallet", values, translateDe, "de-DE")).toBe(
       "Euro-Palette 1.200 × 800 mm, Überstand +40 / -20 mm gesamt",
     );
-    expect(sectionSummary("limits", values)).toBe(
+    expect(sectionSummary("limits", values, translateDe, "de-DE")).toBe(
       "Lagerhöhe 1.800 mm, max. 1.500 kg brutto",
     );
-    expect(sectionSummary("handling", values)).toBe(
+    expect(sectionSummary("handling", values, translateDe, "de-DE")).toBe(
       "Einlauf längs, Etikett unten, Mehrfachgriff",
     );
     expect(
-      sectionSummary("limits", {
-        ...values,
-        maxGrossKg: "",
-        hasStorageEnvelope: false,
-      }),
+      sectionSummary(
+        "limits",
+        {
+          ...values,
+          maxGrossKg: "",
+          hasStorageEnvelope: false,
+        },
+        translateDe,
+        "de-DE",
+      ),
     ).toBe("Keine Lagerhöhe, kein Gewichtslimit");
-    expect(sectionSummary("meta", values)).toBe("Artikel 1329-00004");
-    expect(
-      sectionSummary("meta", { ...values, projectNumber: "AP-5006" }),
-    ).toBe("Artikel 1329-00004, Linie AP-5006");
-    expect(sectionSummary("meta", { ...values, productNumber: "" })).toBe(
-      "Artikelnummer fehlt noch",
+    expect(sectionSummary("meta", values, translateDe, "de-DE")).toBe(
+      "Artikel 1329-00004",
     );
+    expect(
+      sectionSummary(
+        "meta",
+        { ...values, projectNumber: "AP-5006" },
+        translateDe,
+        "de-DE",
+      ),
+    ).toBe("Artikel 1329-00004, Linie AP-5006");
+    expect(
+      sectionSummary(
+        "meta",
+        { ...values, productNumber: "" },
+        translateDe,
+        "de-DE",
+      ),
+    ).toBe("Artikelnummer fehlt noch");
     // Storage footprint off: the +40 mm overhang would not fit 1200 × 800.
     expect(
       validateProjectFormValues(
         { ...values, productNumber: " ", hasStorageEnvelope: false },
         null,
+        translateDe,
       ),
     ).toEqual({ productNumber: "Darf nicht leer sein." });
-    expect(sectionSummary("package", projectToFormValues(null))).toBe(
-      "Länge, Breite und Höhe fehlen noch",
-    );
+    expect(
+      sectionSummary(
+        "package",
+        projectToFormValues(null),
+        translateDe,
+        "de-DE",
+      ),
+    ).toBe("Länge, Breite und Höhe fehlen noch");
   });
 
   it("names the label edge as seen at a crosswise infeed", () => {
-    expect(labelSideLabel("bottom", "lengthwise")).toBe("unten");
-    expect(labelSideLabel("bottom", "crosswise")).toBe("rechts");
-    expect(labelSideLabel("", "crosswise")).toBe("ohne Vorgabe");
+    expect(labelSideLabel("bottom", "lengthwise", translateDe)).toBe("unten");
+    expect(labelSideLabel("bottom", "crosswise", translateDe)).toBe("rechts");
+    expect(labelSideLabel("", "crosswise", translateDe)).toBe("ohne Vorgabe");
   });
 
   it("derives the load area and the single-orientation grid reference", () => {

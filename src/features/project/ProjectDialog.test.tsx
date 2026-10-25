@@ -27,21 +27,19 @@ describe("ProjectDialog", () => {
       />,
     );
 
-    expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Länge (mm)").value).toBe(
       "",
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Width (mm)").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Breite (mm)").value).toBe(
       "",
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Height (mm)").value).toBe(
-      "",
-    );
+    expect(screen.getByLabelText<HTMLInputElement>("Höhe (mm)").value).toBe("");
 
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Projekt speichern" }));
 
     expect(
       await screen.findByText(
-        "Correct the marked project fields before saving.",
+        "Korrigieren Sie die markierten Projektfelder vor dem Speichern.",
       ),
     ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
@@ -58,31 +56,31 @@ describe("ProjectDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+    fireEvent.change(screen.getByLabelText(/^Pakete pro Lage/), {
       target: { value: "4" },
     });
-    fireEvent.change(screen.getByLabelText("Length (mm)"), {
+    fireEvent.change(screen.getByLabelText("Länge (mm)"), {
       target: { value: "0" },
     });
-    fireEvent.change(screen.getByLabelText("Width (mm)"), {
+    fireEvent.change(screen.getByLabelText("Breite (mm)"), {
       target: { value: "300" },
     });
-    fireEvent.change(screen.getByLabelText("Height (mm)"), {
+    fireEvent.change(screen.getByLabelText("Höhe (mm)"), {
       target: { value: "200" },
     });
-    fireEvent.change(screen.getByLabelText("Pallet name"), {
+    fireEvent.change(screen.getByLabelText("Palettenname"), {
       target: { value: "" },
     });
-    fireEvent.change(screen.getByLabelText("Maximum gross (kg)"), {
+    fireEvent.change(screen.getByLabelText("Maximales Bruttogewicht (kg)"), {
       target: { value: "10" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
+      screen.getByRole("button", { name: "Speichern und Muster erzeugen" }),
     );
 
     expect(
       await screen.findByText(
-        "Correct the marked project fields before saving.",
+        "Korrigieren Sie die markierten Projektfelder vor dem Speichern.",
       ),
     ).toBeTruthy();
     expect(screen.getByText("Number must be greater than 0")).toBeTruthy();
@@ -114,27 +112,27 @@ describe("ProjectDialog", () => {
       />,
     );
 
-    fireEvent.change(screen.getByLabelText("Line number"), {
+    fireEvent.change(screen.getByLabelText("Liniennummer"), {
       target: { value: "AP-5006" },
     });
-    fireEvent.change(screen.getByLabelText("Product number"), {
+    fireEvent.change(screen.getByLabelText("Produktnummer"), {
       target: { value: "1329-00004" },
     });
-    fireEvent.change(screen.getByLabelText("Length (mm)"), {
+    fireEvent.change(screen.getByLabelText("Länge (mm)"), {
       target: { value: "157" },
     });
-    fireEvent.change(screen.getByLabelText("Width (mm)"), {
+    fireEvent.change(screen.getByLabelText("Breite (mm)"), {
       target: { value: "106" },
     });
-    fireEvent.change(screen.getByLabelText("Height (mm)"), {
+    fireEvent.change(screen.getByLabelText("Höhe (mm)"), {
       target: { value: "150" },
     });
     // New projects default to multipick on.
-    expect(screen.getByLabelText("Allow multipick")).toHaveProperty(
+    expect(screen.getByLabelText("Multipick erlauben")).toHaveProperty(
       "checked",
       true,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Projekt speichern" }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
     expect(savedProject).not.toBeNull();
@@ -158,24 +156,24 @@ describe("ProjectDialog", () => {
         onSave={onEditSave}
       />,
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Line number").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Liniennummer").value).toBe(
       "AP-5006",
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Length (mm)").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Länge (mm)").value).toBe(
       "157",
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Width (mm)").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Breite (mm)").value).toBe(
       "106",
     );
-    expect(screen.getByLabelText<HTMLInputElement>("Height (mm)").value).toBe(
+    expect(screen.getByLabelText<HTMLInputElement>("Höhe (mm)").value).toBe(
       "150",
     );
     expect(
-      screen.getByLabelText<HTMLInputElement>("Allow multipick").checked,
+      screen.getByLabelText<HTMLInputElement>("Multipick erlauben").checked,
     ).toBe(true);
-    expect(screen.queryByLabelText("Packages per layer")).toBeNull();
+    expect(screen.queryByLabelText("Pakete pro Lage")).toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "Save project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Projekt speichern" }));
     await waitFor(() => expect(onEditSave).toHaveBeenCalledTimes(1));
     expect(onEditSave.mock.calls[0]?.[0]).toMatchObject({
       project: {
@@ -196,42 +194,42 @@ describe("ProjectDialog", () => {
     );
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
+      screen.getByRole("button", { name: "Speichern und Muster erzeugen" }),
     );
     expect(
       await screen.findByText(
-        "Enter the exact packages per layer, or choose Save project.",
+        "Geben Sie die genaue Anzahl Pakete pro Lage ein oder wählen Sie „Projekt speichern“.",
       ),
     ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+    fireEvent.change(screen.getByLabelText(/^Pakete pro Lage/), {
       target: { value: "2.5" },
     });
     fireEvent.submit(
       screen
-        .getByRole("button", { name: "Save and generate patterns" })
+        .getByRole("button", { name: "Speichern und Muster erzeugen" })
         .closest("form")!,
     );
     expect(
-      await screen.findByText("Enter a positive whole number."),
+      await screen.findByText("Geben Sie eine positive ganze Zahl ein."),
     ).toBeTruthy();
     expect(onSave).not.toHaveBeenCalled();
 
-    fireEvent.change(screen.getByLabelText("Length (mm)"), {
+    fireEvent.change(screen.getByLabelText("Länge (mm)"), {
       target: { value: "157" },
     });
-    fireEvent.change(screen.getByLabelText("Width (mm)"), {
+    fireEvent.change(screen.getByLabelText("Breite (mm)"), {
       target: { value: "106" },
     });
-    fireEvent.change(screen.getByLabelText("Height (mm)"), {
+    fireEvent.change(screen.getByLabelText("Höhe (mm)"), {
       target: { value: "150" },
     });
-    fireEvent.change(screen.getByLabelText(/^Packages per layer/), {
+    fireEvent.change(screen.getByLabelText(/^Pakete pro Lage/), {
       target: { value: "4" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Save and generate patterns" }),
+      screen.getByRole("button", { name: "Speichern und Muster erzeugen" }),
     );
 
     await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));

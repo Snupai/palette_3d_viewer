@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 
 import { type Metadata } from "next";
 import localFont from "next/font/local";
+import { LocaleProvider } from "~/i18n";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -61,7 +62,9 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="de" className={`${barlow.variable} ${condensed.variable}`}>
-      <body className="bg-canvas text-ink">{children}</body>
+      <body className="bg-canvas text-ink">
+        <LocaleProvider>{children}</LocaleProvider>
+      </body>
     </html>
   );
 }

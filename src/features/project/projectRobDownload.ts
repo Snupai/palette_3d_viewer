@@ -1,9 +1,9 @@
+import type { Translate } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
 import { getRetainedRawRobDownload } from "~/domain/robotics/robExport";
 import {
   stackLayerCount,
   projectNeedsGeometryReview,
-  GEOMETRY_REVIEW_MESSAGE,
 } from "~/features/planning-case/planningCaseModel";
 import { exportProjectRobDownload } from "~/features/robotics/robotWorkspaceModel";
 
@@ -26,19 +26,22 @@ export function hasRobPlan(project: Project): boolean {
  * Imported plans are handed back verbatim (the retained text is never
  * rewritten); generated plans go through the default project-derived export.
  */
-export function libraryRobDownload(project: Project): LibraryRobDownload {
+export function libraryRobDownload(
+  project: Project,
+  t: Translate,
+): LibraryRobDownload {
   if (project.source.kind === "rob-import") {
     const retained = getRetainedRawRobDownload(project, "edited");
     return retained
       ? { ok: true, fileName: retained.fileName, text: retained.text }
-      : { ok: false, message: "This project keeps no .rob file text." };
+      : { ok: false, message: t("project.download.noRobText") };
   }
   if (projectNeedsGeometryReview(project))
-    return { ok: false, message: GEOMETRY_REVIEW_MESSAGE };
+    return { ok: false, message: t("project.geometryReview") };
   if (stackLayerCount(project) === 0) {
     return {
       ok: false,
-      message: "Save a stack for this project before downloading a .rob plan.",
+      message: t("project.download.noStack"),
     };
   }
   const result = exportProjectRobDownload(project);
@@ -47,7 +50,7 @@ export function libraryRobDownload(project: Project): LibraryRobDownload {
       ok: false,
       message:
         result.diagnostics.map(({ message }) => message).join(" ") ||
-        "The .rob plan could not be exported.",
+        t("project.download.exportFailed"),
     };
   }
   return { ok: true, fileName: result.fileName, text: result.text };

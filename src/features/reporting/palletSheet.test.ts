@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { translateDe } from "~/i18n";
 import { describe, expect, it } from "vitest";
 import type { Box, PalletData } from "~/domain/palletTypes";
 import {
@@ -141,6 +142,7 @@ describe("buildPalletSheet", () => {
     lineNumber: "AP-5006",
     palletName: "EURO pallet",
     date: "22.10.2026",
+    t: translateDe,
   });
   const texts = sheet.primitives.flatMap((primitive) =>
     primitive.kind === "text" ? [primitive.text] : [],
@@ -192,9 +194,11 @@ describe("buildPalletSheet", () => {
   });
 
   it("names the file after the product", () => {
-    expect(sheetFileName("UK01587", "AP-5006")).toBe(
+    expect(sheetFileName("UK01587", "AP-5006", translateDe)).toBe(
       "UK01587-palettierschema.pdf",
     );
-    expect(sheetFileName("", "")).toBe("palettierschema-palettierschema.pdf");
+    expect(sheetFileName("", "", translateDe)).toBe(
+      "palettierschema-palettierschema.pdf",
+    );
   });
 });

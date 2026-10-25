@@ -26,7 +26,6 @@ import {
   getRetainedRawRobDownload,
   type RobotCycleMaterialization,
 } from "~/domain/robotics";
-import { countLabel } from "~/features/editor/editorLabels";
 import { DiagnosticsPanel } from "~/features/robotics/DiagnosticsPanel";
 import { ExportMappingPanel } from "~/features/robotics/ExportMappingPanel";
 import { GeneratedPickupTable } from "~/features/robotics/GeneratedPickupTable";
@@ -59,6 +58,7 @@ import {
   type RobotExportWorkspaceSettings,
   type RobotWorkspaceSettings,
 } from "~/features/robotics/robotWorkspaceModel";
+import { useT } from "~/i18n";
 import { downloadText } from "~/lib/download";
 import type { ProjectRepository } from "~/lib/projectRepository";
 
@@ -97,12 +97,6 @@ function resourceStations(
   );
 }
 
-const gripperTypeLabels: Record<Gripper["settings"]["type"], string> = {
-  suction: "Sauggreifer",
-  clamp: "Klammergreifer",
-  fork: "Gabelgreifer",
-};
-
 export function RoboticsWorkspace({
   project,
   repository,
@@ -112,6 +106,7 @@ export function RoboticsWorkspace({
   onSaveProject,
   onPreviewMotion,
 }: RoboticsWorkspaceProps) {
+  const t = useT();
   const selectedGripper =
     project.grippers.find(({ id }) => id === project.selectedGripperId) ?? null;
   const selectedStation =
@@ -160,7 +155,7 @@ export function RoboticsWorkspace({
       setError(
         cause instanceof Error
           ? cause.message
-          : "Die Vorlagenbibliothek konnte nicht geladen werden.",
+          : t("robotics.errorTemplateLibraryLoad"),
       );
     });
     // Repository identity is stable for the workspace lifetime.
@@ -190,6 +185,7 @@ export function RoboticsWorkspace({
         settings,
         exportGate.enabled,
         exportBlockingIssues,
+        t,
       ),
     [
       exportBlockingIssues,
@@ -197,6 +193,7 @@ export function RoboticsWorkspace({
       materialization,
       project,
       settings,
+      t,
     ],
   );
   const activeSolution =
@@ -241,7 +238,7 @@ export function RoboticsWorkspace({
       setStatus(message);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "Speichern fehlgeschlagen.",
+        cause instanceof Error ? cause.message : t("robotics.errorSaveFailed"),
       );
     }
   };
@@ -249,20 +246,22 @@ export function RoboticsWorkspace({
   const selectGripper = (id: string) =>
     saveProjectChange(
       updateProject(project, { selectedGripperId: id || null }),
-      id ? "Greifer übernommen." : "Greiferauswahl entfernt.",
+      id
+        ? t("robotics.statusGripperApplied")
+        : t("robotics.statusGripperRemoved"),
     );
   const selectStation = (id: string) =>
     saveProjectChange(
       updateProject(project, { selectedPalletStationId: id || null }),
-      id ? "Palettenstation übernommen." : "Stationsauswahl entfernt.",
+      id
+        ? t("robotics.statusStationApplied")
+        : t("robotics.statusStationRemoved"),
     );
 
   const saveGripper = async () => {
     if (!gripperDraft) return;
     if (isMultipackProfileGripper(gripperDraft)) {
-      setError(
-        "Der mitgelieferte Multipack-Greifer ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
-      );
+      setError(t("robotics.errorBuiltInGripperReadOnly"));
       return;
     }
     const parsed = gripperSchema.safeParse(gripperDraft);
@@ -276,16 +275,14 @@ export function RoboticsWorkspace({
     }
     await saveProjectChange(
       projectWithGripper(project, parsed.data),
-      `Greifer „${parsed.data.name}“ im Plan gespeichert.`,
+      t("robotics.statusGripperSaved", { name: parsed.data.name }),
     );
   };
 
   const saveStation = async () => {
     if (!stationDraft) return;
     if (isMultipackProfileStation(stationDraft)) {
-      setError(
-        "Die mitgelieferte Multipack-Station ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
-      );
+      setError(t("robotics.errorBuiltInStationReadOnly"));
       return;
     }
     const parsed = palletStationSchema.safeParse(stationDraft);
@@ -299,16 +296,14 @@ export function RoboticsWorkspace({
     }
     await saveProjectChange(
       projectWithStation(project, parsed.data),
-      `Palettenstation „${parsed.data.name}“ im Plan gespeichert.`,
+      t("robotics.statusStationSaved", { name: parsed.data.name }),
     );
   };
 
   const saveGripperTemplate = async () => {
     if (!gripperDraft) return;
     if (isMultipackProfileGripper(gripperDraft)) {
-      setError(
-        "Mitgelieferte Profile werden nicht in die Bibliothek übernommen. Zuerst eine bearbeitbare Kopie anlegen.",
-      );
+      setError(t("robotics.errorBuiltInNotInLibrary"));
       return;
     }
     const value = gripperSchema.parse(gripperDraft);
@@ -318,16 +313,16 @@ export function RoboticsWorkspace({
       : createProjectResource({ kind: "gripper", value });
     await repository.saveResource(resource);
     setLibraryGripperId(resource.id);
-    setStatus(`Greifervorlage „${resource.name}“ gespeichert.`);
+    setStatus(
+      t("robotics.statusGripperTemplateSaved", { name: resource.name }),
+    );
     await refreshLibrary();
   };
 
   const saveStationTemplate = async () => {
     if (!stationDraft) return;
     if (isMultipackProfileStation(stationDraft)) {
-      setError(
-        "Mitgelieferte Profile werden nicht in die Bibliothek übernommen. Zuerst eine bearbeitbare Kopie anlegen.",
-      );
+      setError(t("robotics.errorBuiltInNotInLibrary"));
       return;
     }
     const value = palletStationSchema.parse(stationDraft);
@@ -337,7 +332,9 @@ export function RoboticsWorkspace({
       : createProjectResource({ kind: "pallet-station", value });
     await repository.saveResource(resource);
     setLibraryStationId(resource.id);
-    setStatus(`Stationsvorlage „${resource.name}“ gespeichert.`);
+    setStatus(
+      t("robotics.statusStationTemplateSaved", { name: resource.name }),
+    );
     await refreshLibrary();
   };
 
@@ -347,7 +344,7 @@ export function RoboticsWorkspace({
     setGripperDraft(resource.value);
     await saveProjectChange(
       projectWithGripper(project, resource.value),
-      `Greifervorlage „${resource.name}“ in den Plan übernommen.`,
+      t("robotics.statusGripperTemplateApplied", { name: resource.name }),
     );
   };
 
@@ -357,7 +354,7 @@ export function RoboticsWorkspace({
     setStationDraft(resource.value);
     await saveProjectChange(
       projectWithStation(project, resource.value),
-      `Stationsvorlage „${resource.name}“ in den Plan übernommen.`,
+      t("robotics.statusStationTemplateApplied", { name: resource.name }),
     );
   };
 
@@ -367,9 +364,7 @@ export function RoboticsWorkspace({
     await repository.deleteResource(id);
     if (kind === "gripper") setLibraryGripperId("");
     else setLibraryStationId("");
-    setStatus(
-      "Vorlage aus der Bibliothek entfernt; die Kopie im Plan bleibt erhalten.",
-    );
+    setStatus(t("robotics.statusTemplateRemoved"));
     await refreshLibrary();
   };
 
@@ -380,7 +375,7 @@ export function RoboticsWorkspace({
       return;
     }
     downloadText(result.text, robDownloadFileName(project));
-    setStatus(".rob-Datei exportiert und per Parser-Rücklauf geprüft.");
+    setStatus(t("robotics.statusRobExported"));
   };
 
   const downloadRetained = (variant: "original" | "edited") => {
@@ -400,11 +395,21 @@ export function RoboticsWorkspace({
     <div className="ed" data-testid="robotics-workspace">
       <div className="ed-bar">
         <div className="ed-bar-title">
-          <h2>Robotik & Greifer</h2>
+          <h2>{t("robotics.title")}</h2>
           <p>
             {activeSolution
-              ? `${countLabel(activeSolution.stack.layers.length, "Lage", "Lagen")} · ${countLabel(plannedPackageCount, "Paket", "Pakete")} · ${countLabel(materialization.cycles.length, "Griff", "Griffe")} berechnet`
-              : "Kein gespeicherter Stapel"}
+              ? t("robotics.summaryCalculated", {
+                  layers: t("robotics.layerCount", {
+                    count: activeSolution.stack.layers.length,
+                  }),
+                  packages: t("robotics.packageCount", {
+                    count: plannedPackageCount,
+                  }),
+                  pickups: t("robotics.pickupCount", {
+                    count: materialization.cycles.length,
+                  }),
+                })
+              : t("robotics.noStack")}
           </p>
         </div>
         <div className="ed-bar-actions">
@@ -413,8 +418,12 @@ export function RoboticsWorkspace({
             data-dirty={exportGate.enabled ? undefined : "true"}
           >
             {exportGate.enabled
-              ? "Export freigegeben"
-              : `${countLabel(exportBlockingIssues, "offener Punkt", "offene Punkte")} unter Technik`}
+              ? t("robotics.exportEnabled")
+              : t("robotics.openItemsUnderAdvanced", {
+                  items: t("robotics.openItems", {
+                    count: exportBlockingIssues,
+                  }),
+                })}
           </span>
           <button
             type="button"
@@ -422,7 +431,7 @@ export function RoboticsWorkspace({
             disabled={!onPreviewMotion || materialization.cycles.length === 0}
             onClick={onPreviewMotion}
           >
-            Bewegung ansehen
+            {t("robotics.previewMotion")}
           </button>
           <button
             type="button"
@@ -430,7 +439,7 @@ export function RoboticsWorkspace({
             disabled={!exportGate.enabled}
             onClick={exportGenerated}
           >
-            .rob exportieren
+            {t("robotics.exportRob")}
           </button>
         </div>
       </div>
@@ -456,42 +465,44 @@ export function RoboticsWorkspace({
         <div className="ed-main">
           <section className="ed-panel" aria-labelledby="rb-equipment-title">
             <div className="ed-panel-head">
-              <h3 id="rb-equipment-title">Ausrüstung</h3>
+              <h3 id="rb-equipment-title">{t("robotics.equipment")}</h3>
               <small>
                 {selectedProfile
-                  ? `Multipack-Profil v${selectedProfile.version}`
+                  ? t("robotics.multipackProfile", {
+                      version: selectedProfile.version,
+                    })
                   : project.source.kind === "rob-import"
-                    ? "aus .rob-Import nicht ableitbar"
-                    : "gegen die reale Zelle prüfen"}
+                    ? t("robotics.notDerivableFromImport")
+                    : t("robotics.checkAgainstRealCell")}
               </small>
             </div>
             <div className="ed-grid2">
               <label className="ed-field">
-                Greifer
+                {t("robotics.gripper")}
                 <select
-                  aria-label="Greifer des Plans"
+                  aria-label={t("robotics.gripperOfPlan")}
                   value={project.selectedGripperId ?? ""}
                   onChange={(event) => void selectGripper(event.target.value)}
                   className="ui-input"
                 >
-                  <option value="">Greifer wählen …</option>
+                  <option value="">{t("robotics.selectGripper")}</option>
                   {project.grippers.map((gripper) => (
                     <option key={gripper.id} value={gripper.id}>
-                      {gripper.name} ({gripperTypeLabels[gripper.settings.type]}
-                      )
+                      {gripper.name} (
+                      {t(`robotics.gripperType.${gripper.settings.type}`)})
                     </option>
                   ))}
                 </select>
               </label>
               <label className="ed-field">
-                Palettenstation
+                {t("robotics.palletStation")}
                 <select
-                  aria-label="Palettenstation des Plans"
+                  aria-label={t("robotics.palletStationOfPlan")}
                   value={project.selectedPalletStationId ?? ""}
                   onChange={(event) => void selectStation(event.target.value)}
                   className="ui-input"
                 >
-                  <option value="">Station wählen …</option>
+                  <option value="">{t("robotics.selectStation")}</option>
                   {project.palletStations.map((station) => (
                     <option key={station.id} value={station.id}>
                       {station.name}
@@ -502,25 +513,25 @@ export function RoboticsWorkspace({
             </div>
             {selectedProfile ? (
               <p className="ed-panel-note">
-                Aus „Multipack für Roboter“{" "}
-                {selectedProfile.provenance.applicationVersion}, nicht
-                vermessen.
+                {t("robotics.profileNote", {
+                  version: selectedProfile.provenance.applicationVersion,
+                })}
               </p>
             ) : null}
           </section>
 
           <section className="ed-panel" aria-labelledby="rb-pickup-title">
             <div className="ed-panel-head">
-              <h3 id="rb-pickup-title">Aufnahme</h3>
+              <h3 id="rb-pickup-title">{t("robotics.pickup")}</h3>
               <small>
                 {derivedPickup
-                  ? "Oberkante Mitte der Paketgruppe"
-                  : "vermessener Aufnahmepunkt"}
+                  ? t("robotics.pickupDerivedTop")
+                  : t("robotics.pickupSurveyed")}
               </small>
             </div>
             <div className="ed-grid2">
               <NumericDraftField
-                label="Pakete je Griff"
+                label={t("robotics.packagesPerPickup")}
                 value={settings.maxPackagesPerPick}
                 onChange={(value) =>
                   onSettingsChange({ ...settings, maxPackagesPerPick: value })
@@ -529,12 +540,22 @@ export function RoboticsWorkspace({
             </div>
             <p className="ed-panel-note">
               {derivedPickup
-                ? `Aufnahme für ${box.length} × ${box.width} × ${box.height} mm: einzeln ${singlePickOffset.x} / ${singlePickOffset.y} mm${
-                    project.package.multiPickAllowed
-                      ? `, ${groupedPickCount}er-Griff ${groupedPickOffset.x} / ${groupedPickOffset.y} mm`
-                      : ""
-                  }. Z ${box.height} mm, Drehung ${pickYawDeg}°.`
-                : "Es gelten die unter Technik eingetragenen vermessenen Koordinaten."}
+                ? t("robotics.pickupDerivedNote", {
+                    length: box.length,
+                    width: box.width,
+                    height: box.height,
+                    singleX: singlePickOffset.x,
+                    singleY: singlePickOffset.y,
+                    grouped: project.package.multiPickAllowed
+                      ? t("robotics.pickupGroupedNote", {
+                          count: groupedPickCount,
+                          groupedX: groupedPickOffset.x,
+                          groupedY: groupedPickOffset.y,
+                        })
+                      : "",
+                    yaw: pickYawDeg,
+                  })
+                : t("robotics.pickupSurveyedNote")}
             </p>
           </section>
 
@@ -543,7 +564,8 @@ export function RoboticsWorkspace({
             data-testid="generated-pickup-list"
           >
             <summary>
-              Berechnete Griffe <small>{materialization.cycles.length}</small>
+              {t("robotics.calculatedPickups")}{" "}
+              <small>{materialization.cycles.length}</small>
             </summary>
             <div>
               <GeneratedPickupTable materialization={materialization} />
@@ -552,36 +574,27 @@ export function RoboticsWorkspace({
 
           <details className="ed-panel-details" data-testid="robotics-advanced">
             <summary>
-              Technik{" "}
+              {t("robotics.advanced")}{" "}
               <small>
                 {exportBlockingIssues === 0
-                  ? "keine offenen Punkte"
-                  : countLabel(
-                      exportBlockingIssues,
-                      "offener Punkt",
-                      "offene Punkte",
-                    )}
+                  ? t("robotics.noOpenItems")
+                  : t("robotics.openItems", { count: exportBlockingIssues })}
               </small>
             </summary>
             <div>
-              <p className="ed-warn">
-                Greiferentwürfe und Zuordnungen sind ungeprüfte Technikdaten.
-                Vor dem Einsatz gegen die reale Zelle prüfen.
-              </p>
+              <p className="ed-warn">{t("robotics.advancedWarning")}</p>
 
               <details className="ed-sub-details">
-                <summary>Aufnahmepunkt und Nachweis</summary>
+                <summary>{t("robotics.pickPointAndEvidence")}</summary>
                 <div>
-                  <p className="ed-panel-note">
-                    Leer = berechnete Oberkante Mitte.
-                  </p>
+                  <p className="ed-panel-note">{t("robotics.pickPointHint")}</p>
                   <div className="ed-grid4">
                     {(
                       [
-                        ["X (mm)", "pickX"],
-                        ["Y (mm)", "pickY"],
-                        ["Z (mm)", "pickZ"],
-                        ["Drehung (°)", "pickYaw"],
+                        [t("robotics.xMm"), "pickX"],
+                        [t("robotics.yMm"), "pickY"],
+                        [t("robotics.zMm"), "pickZ"],
+                        [t("robotics.rotationDeg"), "pickYaw"],
                       ] as const
                     ).map(([label, field]) => (
                       <NumericDraftField
@@ -596,7 +609,7 @@ export function RoboticsWorkspace({
                   </div>
                   <div className="ed-grid2">
                     <NumericDraftField
-                      label="Fahrhöhe über dem Stapel (mm)"
+                      label={t("robotics.transferClearance")}
                       value={settings.transferClearanceMm}
                       onChange={(value) =>
                         onSettingsChange({
@@ -606,7 +619,7 @@ export function RoboticsWorkspace({
                       }
                     />
                     <label className="ed-field">
-                      Stand des Aufnahmepunkts
+                      {t("robotics.pickReferenceStatus")}
                       <select
                         value={settings.pickReferenceStatus}
                         onChange={(event) =>
@@ -619,15 +632,17 @@ export function RoboticsWorkspace({
                         }
                         className="ui-input"
                       >
-                        <option value="unverified">Nicht geprüft</option>
+                        <option value="unverified">
+                          {t("robotics.statusUnverified")}
+                        </option>
                         <option value="verified">
-                          Gegen die angegebene Quelle geprüft
+                          {t("robotics.statusVerified")}
                         </option>
                       </select>
                     </label>
                   </div>
                   <label className="ed-field">
-                    Quelle des Aufnahmepunkts
+                    {t("robotics.pickReferenceSource")}
                     <input
                       value={settings.pickReferenceSource}
                       onChange={(event) =>
@@ -644,7 +659,8 @@ export function RoboticsWorkspace({
 
               <details className="ed-sub-details">
                 <summary>
-                  Feste Hindernisse <small>{settings.obstacles.length}</small>
+                  {t("robotics.fixedObstacles")}{" "}
+                  <small>{settings.obstacles.length}</small>
                 </summary>
                 <div>
                   <ObstacleEditor
@@ -657,15 +673,15 @@ export function RoboticsWorkspace({
               </details>
 
               <ResourceLibraryPanel
-                title="Greifer: Bibliothek und Editor"
-                libraryAriaLabel="Greifervorlagen"
-                libraryPlaceholder="Greifervorlage wählen …"
+                title={t("robotics.gripperLibraryTitle")}
+                libraryAriaLabel={t("robotics.gripperTemplates")}
+                libraryPlaceholder={t("robotics.selectGripperTemplate")}
                 libraryOptions={gripperLibrary}
                 libraryId={libraryGripperId}
                 onLibraryIdChange={setLibraryGripperId}
                 onApplyTemplate={() => void applyGripperTemplate()}
                 onRemoveTemplate={() => void removeTemplate("gripper")}
-                createDraftLabel="Neuen Sauggreifer anlegen (ungeprüft)"
+                createDraftLabel={t("robotics.createSuctionGripper")}
                 onCreateDraft={() =>
                   setGripperDraft(createSuctionGripperDraft(project))
                 }
@@ -681,10 +697,7 @@ export function RoboticsWorkspace({
                 builtInNote={
                   <>
                     <BuiltInProfileNotice version={multipackProfile.version} />
-                    <p>
-                      Maximale Grifflänge 450 mm. Paketgrenzen: längs 50–500 ×
-                      50–420 mm, quer 50–500 × 50–300 mm, Höhe 50–400 mm.
-                    </p>
+                    <p>{t("robotics.gripperBuiltInLimits")}</p>
                   </>
                 }
                 editor={
@@ -695,19 +708,19 @@ export function RoboticsWorkspace({
                     />
                   ) : null
                 }
-                emptyText="Greifer wählen oder anlegen, um ihn zu bearbeiten."
+                emptyText={t("robotics.gripperEmpty")}
               />
 
               <ResourceLibraryPanel
-                title="Palettenstation: Bibliothek und Editor"
-                libraryAriaLabel="Stationsvorlagen"
-                libraryPlaceholder="Stationsvorlage wählen …"
+                title={t("robotics.stationLibraryTitle")}
+                libraryAriaLabel={t("robotics.stationTemplates")}
+                libraryPlaceholder={t("robotics.selectStationTemplate")}
                 libraryOptions={stationLibrary}
                 libraryId={libraryStationId}
                 onLibraryIdChange={setLibraryStationId}
                 onApplyTemplate={() => void applyStationTemplate()}
                 onRemoveTemplate={() => void removeTemplate("station")}
-                createDraftLabel="Neue Station anlegen (ungeprüft)"
+                createDraftLabel={t("robotics.createStation")}
                 onCreateDraft={() =>
                   setStationDraft(createPalletStationDraft(project))
                 }
@@ -723,12 +736,7 @@ export function RoboticsWorkspace({
                 builtInNote={
                   <>
                     <BuiltInProfileNotice version={multipackProfile.version} />
-                    <p>
-                      Palettenursprung rechts / unten. TCP-Hüllraum ±2000 mm,
-                      Freiraumkontur ±1500 mm. Radius 0 / 0 bleibt als
-                      unkalibrierter Platzhalter erhalten, die Reichweite wird
-                      nicht geprüft.
-                    </p>
+                    <p>{t("robotics.stationBuiltInLimits")}</p>
                   </>
                 }
                 editor={
@@ -739,7 +747,7 @@ export function RoboticsWorkspace({
                     />
                   ) : null
                 }
-                emptyText="Station wählen oder anlegen, um sie zu bearbeiten."
+                emptyText={t("robotics.stationEmpty")}
               />
 
               <DiagnosticsPanel
@@ -754,7 +762,7 @@ export function RoboticsWorkspace({
 
               {retainedOriginal || retainedEdited ? (
                 <details className="ed-sub-details">
-                  <summary>Importierte Originaldatei</summary>
+                  <summary>{t("robotics.importedOriginal")}</summary>
                   <div>
                     <div className="ed-actions">
                       <button
@@ -763,7 +771,7 @@ export function RoboticsWorkspace({
                         onClick={() => downloadRetained("original")}
                         className="ui-btn ui-btn-sm"
                       >
-                        Original .rob herunterladen
+                        {t("robotics.downloadOriginal")}
                       </button>
                       <button
                         type="button"
@@ -771,7 +779,7 @@ export function RoboticsWorkspace({
                         onClick={() => downloadRetained("edited")}
                         className="ui-btn ui-btn-sm"
                       >
-                        Bearbeitete .rob herunterladen
+                        {t("robotics.downloadEdited")}
                       </button>
                     </div>
                   </div>

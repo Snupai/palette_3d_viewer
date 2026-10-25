@@ -20,6 +20,7 @@ import {
   createPlanningReportModel,
   type PlanningReportCapture,
 } from "~/features/reporting/reportModel";
+import { useLocale, type MessageKey, type Translate } from "~/i18n";
 import { downloadBlob } from "~/lib/download";
 
 export type ReportWorkspaceProps = {
@@ -28,8 +29,8 @@ export type ReportWorkspaceProps = {
   previewData: PalletData | null;
 };
 
-function metricValue(value: number | null, unit: string): string {
-  if (value === null) return "Unknown";
+function metricValue(value: number | null, unit: string, t: Translate): string {
+  if (value === null) return t("reporting.unknown");
   const digits = Number.isInteger(value) ? 0 : 2;
   return `${value.toLocaleString(undefined, { maximumFractionDigits: digits })} ${unit}`;
 }
@@ -43,6 +44,7 @@ function sheetDate(date: Date): string {
 function captureFromViewer(
   result: RobViewerReportCaptureResult,
   fallbackLayerIndex: number,
+  t: Translate,
 ): PlanningReportCapture {
   if (result.status === "captured") {
     return {
@@ -51,8 +53,7 @@ function captureFromViewer(
       width: result.width,
       height: result.height,
       cameraPreset: "right-top",
-      provenance:
-        "Captured from the shared 3D viewer with the fixed right-top camera preset.",
+      provenance: t("reporting.capture.provenance"),
     };
   }
   return {
@@ -68,6 +69,7 @@ export function ReportWorkspace({
   materialization,
   previewData,
 }: ReportWorkspaceProps) {
+  const { t, tag } = useLocale();
   const viewerRef = useRef<RobViewerHandle>(null);
   const captureRequestRef = useRef(0);
   const [capture, setCapture] = useState<PlanningReportCapture | undefined>();
@@ -88,17 +90,16 @@ export function ReportWorkspace({
         status: "fallback" as const,
         reason: "viewer-unavailable" as const,
         fallback: "layer-pattern-svg" as const,
-        message:
-          "The 3D viewer is not ready; the deterministic layer-pattern SVG is used instead.",
+        message: t("reporting.capture.viewerUnavailable"),
         layerPattern: null,
       };
       if (request === captureRequestRef.current) {
-        setCapture(captureFromViewer(result, fallbackLayerIndex));
+        setCapture(captureFromViewer(result, fallbackLayerIndex, t));
       }
     } finally {
       if (request === captureRequestRef.current) setCapturePending(false);
     }
-  }, [fallbackLayerIndex, previewData]);
+  }, [fallbackLayerIndex, previewData, t]);
 
   useEffect(() => {
     captureRequestRef.current += 1;
@@ -119,8 +120,9 @@ export function ReportWorkspace({
         materialization,
         previewData,
         ...(capture ? { capture } : {}),
+        t,
       }),
-    [capture, materialization, previewData, project],
+    [capture, materialization, previewData, project, t],
   );
 
   const uniquePatterns = useMemo(() => {
@@ -147,16 +149,18 @@ export function ReportWorkspace({
             lineNumber: project.projectNumber,
             palletName: project.pallet?.name ?? null,
             date: sheetDate(new Date()),
+            t,
+            tag,
           })
         : null,
-    [previewData, project],
+    [previewData, project, t, tag],
   );
   const downloadSheetPdf = () => {
     if (!sheet) return;
     const bytes = renderSheetPdf(sheet);
     downloadBlob(
       new Blob([bytes.buffer as ArrayBuffer], { type: "application/pdf" }),
-      sheetFileName(project.productNumber, project.projectNumber),
+      sheetFileName(project.productNumber, project.projectNumber, t),
     );
   };
 
@@ -172,13 +176,13 @@ export function ReportWorkspace({
   return (
     <div className="grid gap-4 p-4">
       <section
-        aria-label="Pallet sheet"
+        aria-label={t("reporting.sheet.aria")}
         className="border-line bg-surface grid gap-3 border p-4"
       >
         <header className="flex flex-wrap items-center gap-3">
           <div className="mr-auto">
             <h2 className="text-ink text-body font-semibold">
-              Palettierschema
+              {t("reporting.sheet.title")}
             </h2>
           </div>
           <button
@@ -187,7 +191,7 @@ export function ReportWorkspace({
             onClick={downloadSheetPdf}
             className="ui-btn-primary"
           >
-            Download PDF
+            {t("reporting.sheet.downloadPdf")}
           </button>
         </header>
         {sheet ? (
@@ -196,15 +200,13 @@ export function ReportWorkspace({
             className="border-line mx-auto block aspect-[210/297] w-full max-w-[760px] border shadow-[0_2px_8px_rgba(0,0,0,0.1)]"
           />
         ) : (
-          <p className="text-muted text-micro">
-            Save a stack to create the pallet sheet.
-          </p>
+          <p className="text-muted text-micro">{t("reporting.sheet.empty")}</p>
         )}
       </section>
 
       <details className="border-line bg-surface border">
         <summary className="text-muted text-micro cursor-pointer px-4 py-2.5 font-semibold">
-          Technical report (validation, robotics, provenance)
+          {t("reporting.technical.summary")}
         </summary>
         <div className="print-report report-sheet border-line bg-surface text-ink grid gap-4 border-t p-4">
           <div className="no-print border-line flex flex-wrap items-center gap-2 border-b pb-3">
@@ -215,29 +217,29 @@ export function ReportWorkspace({
               className="ui-btn"
             >
               {capturePending
-                ? "Capturing fixed view…"
-                : "Capture fixed right-top 3D view"}
+                ? t("reporting.technical.capturing")
+                : t("reporting.technical.capture")}
             </button>
             <button
               type="button"
               onClick={() => window.print()}
               className="ui-btn"
             >
-              Print technical report
+              {t("reporting.technical.print")}
             </button>
           </div>
 
           <nav
-            aria-label="Report sections"
+            aria-label={t("reporting.nav.aria")}
             className="no-print flex flex-wrap gap-2"
           >
             {(
               [
-                ["report-summary", "Summary"],
-                ["report-geometry", "Geometry"],
-                ["report-robotics", "Robotics"],
-                ["report-warnings", "Warnings"],
-                ["report-provenance", "Provenance"],
+                ["report-summary", t("reporting.nav.summary")],
+                ["report-geometry", t("reporting.nav.geometry")],
+                ["report-robotics", t("reporting.nav.robotics")],
+                ["report-warnings", t("reporting.nav.warnings")],
+                ["report-provenance", t("reporting.nav.provenance")],
               ] as const
             ).map(([id, label]) => (
               <a key={id} href={`#${id}`} className="ui-btn ui-btn-sm">
@@ -248,64 +250,77 @@ export function ReportWorkspace({
 
           <header className="report-header border-line border-b pb-3">
             <h1 className="text-ink text-xl font-semibold">
-              Pallet planner report
+              {t("reporting.header.title")}
             </h1>
             <p className="text-muted text-body mt-1">
-              Product {report.project.productNumber || "not set"} · Line{" "}
-              {report.project.projectNumber || "not set"}
+              {t("reporting.header.productLine", {
+                product:
+                  report.project.productNumber || t("reporting.notSetLower"),
+                line:
+                  report.project.projectNumber || t("reporting.notSetLower"),
+              })}
             </p>
           </header>
 
           <section id="report-summary" className="report-section scroll-mt-4">
             <h2 className="text-ink text-body font-semibold">
-              Line and product data
+              {t("reporting.data.title")}
             </h2>
             <div className="border-line mt-2 overflow-hidden border">
               <table className="report-table ui-table w-full text-left">
                 <tbody>
                   {[
-                    ["Project ID", report.project.id],
-                    ["Line number", report.project.projectNumber || "Not set"],
+                    [t("reporting.data.projectId"), report.project.id],
                     [
-                      "Product number",
-                      report.project.productNumber || "Not set",
+                      t("reporting.data.lineNumber"),
+                      report.project.projectNumber || t("reporting.notSet"),
                     ],
-                    ["Package shape", report.product.shape],
                     [
-                      "Package dimensions",
+                      t("reporting.data.productNumber"),
+                      report.project.productNumber || t("reporting.notSet"),
+                    ],
+                    [t("reporting.data.shape"), report.product.shape],
+                    [
+                      t("reporting.data.dimensions"),
                       `${report.product.dimensionsMm.length} × ${report.product.dimensionsMm.width} × ${report.product.dimensionsMm.height} mm`,
                     ],
                     [
-                      "Package weight",
+                      t("reporting.data.weight"),
                       report.product.weightKg === null
-                        ? "Unknown"
+                        ? t("reporting.unknown")
                         : `${report.product.weightKg} kg`,
                     ],
-                    ["Clearance", `${report.product.clearanceMm} mm`],
-                    ["Inlet orientation", report.product.inletOrientation],
                     [
-                      "Multipick",
-                      report.product.multiPickAllowed
-                        ? "Allowed"
-                        : "Not allowed",
+                      t("reporting.data.clearance"),
+                      `${report.product.clearanceMm} mm`,
                     ],
                     [
-                      "Pallet",
+                      t("reporting.data.inlet"),
+                      report.product.inletOrientation,
+                    ],
+                    [
+                      t("reporting.data.multipick"),
+                      report.product.multiPickAllowed
+                        ? t("reporting.data.allowed")
+                        : t("reporting.data.notAllowed"),
+                    ],
+                    [
+                      t("reporting.data.pallet"),
                       report.pallet
                         ? `${report.pallet.name} · ${report.pallet.dimensionsMm.length} × ${report.pallet.dimensionsMm.width} × ${report.pallet.dimensionsMm.height} mm`
-                        : "Unknown / not selected",
+                        : t("reporting.unknownNotSelected"),
                     ],
                     [
-                      "Selected gripper",
+                      t("reporting.data.gripper"),
                       report.selectedResources.gripperName ??
                         report.selectedResources.gripperId ??
-                        "Unknown / not selected",
+                        t("reporting.unknownNotSelected"),
                     ],
                     [
-                      "Selected station",
+                      t("reporting.data.station"),
                       report.selectedResources.stationName ??
                         report.selectedResources.stationId ??
-                        "Unknown / not selected",
+                        t("reporting.unknownNotSelected"),
                     ],
                   ].map(([label, value]) => (
                     <tr key={label} className="last:[&>*]:border-b-0!">
@@ -327,10 +342,10 @@ export function ReportWorkspace({
               className="report-section scroll-mt-4"
             >
               <summary className="text-ink text-body cursor-pointer font-semibold">
-                Geometry — no layers available yet
+                {t("reporting.geometry.emptySummary")}
               </summary>
               <p className="text-muted text-micro mt-2">
-                Finish the stack to render the 2D drawings and the 3D capture.
+                {t("reporting.geometry.emptyNote")}
               </p>
             </details>
           ) : (
@@ -340,7 +355,7 @@ export function ReportWorkspace({
             >
               <div>
                 <h2 className="text-ink text-body font-semibold">
-                  Deterministic 2D SVG
+                  {t("reporting.geometry.svgTitle")}
                 </h2>
                 <div className="mt-2 grid gap-3 sm:grid-cols-2">
                   {uniquePatterns.map((preview) => (
@@ -362,7 +377,7 @@ export function ReportWorkspace({
                   ))}
                   {uniquePatterns.length === 0 ? (
                     <p className="border-line text-muted text-micro border border-dashed p-3">
-                      No physical layer is available for a 2D report drawing.
+                      {t("reporting.geometry.noLayer")}
                     </p>
                   ) : null}
                 </div>
@@ -370,7 +385,7 @@ export function ReportWorkspace({
 
               <div>
                 <h2 className="text-ink text-body font-semibold">
-                  Fixed-view 3D capture
+                  {t("reporting.geometry.captureTitle")}
                 </h2>
                 <div className="report-capture-source no-print border-line bg-viewport mt-2 min-h-[360px] overflow-hidden border">
                   {previewData && previewData.layer_count > 0 ? (
@@ -385,7 +400,7 @@ export function ReportWorkspace({
                     />
                   ) : (
                     <div className="text-viewport-ink/60 text-micro flex min-h-[360px] items-center justify-center p-4 text-center">
-                      No stack is available for 3D capture.
+                      {t("reporting.geometry.noStack")}
                     </div>
                   )}
                 </div>
@@ -396,7 +411,7 @@ export function ReportWorkspace({
                       src={report.fixedView3d.dataUrl}
                       width={report.fixedView3d.width}
                       height={report.fixedView3d.height}
-                      alt="Fixed right-top 3D pallet view"
+                      alt={t("reporting.geometry.imageAlt")}
                       className="h-auto w-full"
                     />
                   ) : fallbackPreview ? (
@@ -409,18 +424,22 @@ export function ReportWorkspace({
                         showLabelSides
                       />
                       <p className="text-caution text-micro mt-2">
-                        3D fallback: {report.fixedView3d.message}
+                        {t("reporting.geometry.fallback", {
+                          message: report.fixedView3d.message,
+                        })}
                       </p>
                     </div>
                   ) : (
                     <p className="text-muted text-micro p-3">
-                      No 3D or 2D fallback image is available.
+                      {t("reporting.geometry.noFallback")}
                     </p>
                   )}
                 </div>
                 {report.fixedView3d.status === "captured" ? null : (
                   <p className="text-micro text-muted mt-2">
-                    Fallback reason: {report.fixedView3d.reason}
+                    {t("reporting.geometry.fallbackReason", {
+                      reason: report.fixedView3d.reason,
+                    })}
                   </p>
                 )}
               </div>
@@ -429,17 +448,27 @@ export function ReportWorkspace({
 
           <section id="report-metrics" className="report-section scroll-mt-4">
             <h2 className="text-ink text-body font-semibold">
-              Metrics and provenance
+              {t("reporting.metrics.title")}
             </h2>
             <div className="border-line mt-2 overflow-auto border">
               <table className="report-table ui-table w-full min-w-[860px] text-left">
                 <thead className="text-muted">
                   <tr>
-                    <th className="font-medium">Metric</th>
-                    <th className="font-medium">Value</th>
-                    <th className="font-medium">Status</th>
-                    <th className="font-medium">Source</th>
-                    <th className="font-medium">Formula operands / detail</th>
+                    <th className="font-medium">
+                      {t("reporting.metrics.metric")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.metrics.value")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.metrics.status")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.metrics.source")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.metrics.operands")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -447,7 +476,7 @@ export function ReportWorkspace({
                     <tr key={metric.id}>
                       <td className="text-ink">{metric.label}</td>
                       <td className="text-ink font-mono">
-                        {metricValue(metric.value, metric.unit)}
+                        {metricValue(metric.value, metric.unit, t)}
                       </td>
                       <td>{metric.provenance.status}</td>
                       <td className="text-micro font-mono">
@@ -455,7 +484,14 @@ export function ReportWorkspace({
                       </td>
                       <td className="text-muted">
                         {metric.numeratorName || metric.denominatorName
-                          ? `${metric.numeratorName ?? "value"} / ${metric.denominatorName ?? "no denominator"}. `
+                          ? t("reporting.metrics.operandsText", {
+                              numerator:
+                                metric.numeratorName ??
+                                t("reporting.metrics.operandValue"),
+                              denominator:
+                                metric.denominatorName ??
+                                t("reporting.metrics.noDenominator"),
+                            })
                           : ""}
                         {metric.provenance.detail}
                       </td>
@@ -468,20 +504,28 @@ export function ReportWorkspace({
 
           <section id="report-warnings" className="report-section scroll-mt-4">
             <h2 className="text-ink text-body font-semibold">
-              Warnings and validation
+              {t("reporting.warnings.title")}
             </h2>
             {report.warnings.length === 0 ? (
               <p className="text-muted text-micro mt-2">
-                No stack or robotics diagnostics were emitted.
+                {t("reporting.warnings.none")}
               </p>
             ) : (
               <table className="report-table ui-table mt-2 w-full text-left">
                 <thead className="text-muted">
                   <tr>
-                    <th className="font-medium">Severity</th>
-                    <th className="font-medium">Source</th>
-                    <th className="font-medium">Code</th>
-                    <th className="font-medium">Message / provenance</th>
+                    <th className="font-medium">
+                      {t("reporting.warnings.severity")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.warnings.source")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.warnings.code")}
+                    </th>
+                    <th className="font-medium">
+                      {t("reporting.warnings.message")}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -516,23 +560,27 @@ export function ReportWorkspace({
           </section>
 
           <section id="report-layers" className="report-section scroll-mt-4">
-            <h2 className="text-ink text-body font-semibold">Layer sequence</h2>
+            <h2 className="text-ink text-body font-semibold">
+              {t("reporting.layers.title")}
+            </h2>
             <div className="border-line mt-2 overflow-auto border">
               <table className="report-table ui-table w-full min-w-[760px] text-left">
                 <thead className="text-muted">
                   <tr>
-                    {[
-                      "Layer",
-                      "Pattern",
-                      "Packages",
-                      "Cycles",
-                      "Interlayers before",
-                      "Z bottom",
-                      "Z top",
-                      "Source",
-                    ].map((label) => (
+                    {(
+                      [
+                        "reporting.layers.layer",
+                        "reporting.layers.pattern",
+                        "reporting.layers.packages",
+                        "reporting.layers.cycles",
+                        "reporting.layers.interlayersBefore",
+                        "reporting.layers.zBottom",
+                        "reporting.layers.zTop",
+                        "reporting.layers.source",
+                      ] as const satisfies readonly MessageKey[]
+                    ).map((label) => (
                       <th key={label} className="font-medium">
-                        {label}
+                        {t(label)}
                       </th>
                     ))}
                   </tr>
@@ -546,7 +594,7 @@ export function ReportWorkspace({
                       </td>
                       <td className="font-mono">{layer.packageCount}</td>
                       <td className="font-mono">
-                        {layer.cycleCount ?? "Unknown"}
+                        {layer.cycleCount ?? t("reporting.unknown")}
                       </td>
                       <td className="font-mono">
                         {layer.interlayerBeforeCount}
@@ -567,11 +615,10 @@ export function ReportWorkspace({
               className="report-section scroll-mt-4"
             >
               <summary className="text-ink text-body cursor-pointer font-semibold">
-                Robot cycles — none calculated yet
+                {t("reporting.cycles.emptySummary")}
               </summary>
               <p className="text-muted text-micro mt-2">
-                Complete the stack and the Robotics preflight to calculate
-                pickup cycles.
+                {t("reporting.cycles.emptyNote")}
               </p>
             </details>
           ) : (
@@ -579,31 +626,37 @@ export function ReportWorkspace({
               id="report-robotics"
               className="report-section scroll-mt-4"
             >
-              <h2 className="text-ink text-body font-semibold">Robot cycles</h2>
+              <h2 className="text-ink text-body font-semibold">
+                {t("reporting.cycles.title")}
+              </h2>
               <p className="text-muted text-micro mt-1">
-                {report.robotCycles.cycleCount} cycles ·{" "}
-                {report.robotCycles.singleCount} single ·{" "}
-                {report.robotCycles.doubleCount} double ·{" "}
-                {report.robotCycles.largerMultipickCount} larger multipick
+                {t("reporting.cycles.summary", {
+                  count: report.robotCycles.cycleCount,
+                  single: report.robotCycles.singleCount,
+                  double: report.robotCycles.doubleCount,
+                  larger: report.robotCycles.largerMultipickCount,
+                })}
               </p>
               <div className="border-line mt-2 overflow-auto border">
                 <table className="report-table ui-table w-full min-w-[1120px] text-left">
                   <thead className="text-muted">
                     <tr>
-                      {[
-                        "#",
-                        "Layer",
-                        "Group",
-                        "Packages",
-                        "Pick X/Y/Z/yaw",
-                        "Transfer X/Y/Z/yaw",
-                        "Place X/Y/Z/yaw",
-                        "Gripper",
-                        "Station",
-                        "Source",
-                      ].map((label) => (
+                      {(
+                        [
+                          "#",
+                          "reporting.layers.layer",
+                          "reporting.cycles.group",
+                          "reporting.layers.packages",
+                          "reporting.cycles.pick",
+                          "reporting.cycles.transfer",
+                          "reporting.cycles.place",
+                          "reporting.cycles.gripper",
+                          "reporting.cycles.station",
+                          "reporting.layers.source",
+                        ] as const satisfies readonly (MessageKey | "#")[]
+                      ).map((label) => (
                         <th key={label} className="font-medium">
-                          {label}
+                          {label === "#" ? label : t(label)}
                         </th>
                       ))}
                     </tr>
@@ -628,10 +681,10 @@ export function ReportWorkspace({
                           </td>
                         ))}
                         <td className="text-micro font-mono">
-                          {cycle.gripperId ?? "Unknown"}
+                          {cycle.gripperId ?? t("reporting.unknown")}
                         </td>
                         <td className="text-micro font-mono">
-                          {cycle.stationId ?? "Unknown"}
+                          {cycle.stationId ?? t("reporting.unknown")}
                         </td>
                         <td>{cycle.source}</td>
                       </tr>
@@ -647,7 +700,7 @@ export function ReportWorkspace({
             className="report-footer border-line scroll-mt-4 border-t pt-3"
           >
             <h2 className="text-ink text-body font-semibold">
-              Provenance notes
+              {t("reporting.provenance.title")}
             </h2>
             <ul className="text-muted text-micro mt-2 list-disc space-y-1 pl-5 leading-5">
               {report.provenanceNotes.map((note) => (

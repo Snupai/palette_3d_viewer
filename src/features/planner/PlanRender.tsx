@@ -1,3 +1,4 @@
+import { useT } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import {
   layerZBottom,
@@ -13,7 +14,7 @@ export function PlanRender({
   preview,
   packageHeight = 180,
   palletHeight = 144,
-  title = "Palettenvorschau",
+  title,
   className = "",
   emptyPackage,
   palletSize,
@@ -27,6 +28,8 @@ export function PlanRender({
   emptyPackage?: { length: number; width: number; height: number };
   palletSize?: { length: number; width: number };
 }) {
+  const t = useT();
+  const planTitle = title ?? t("planner.render.defaultTitle");
   const bounds = preview?.palletBoundsMm;
   const L =
     data?.pallet?.width ??
@@ -53,7 +56,7 @@ export function PlanRender({
       z: H,
       preview: {
         id: "package",
-        label: "Paket",
+        label: t("planner.render.packageLabel"),
         palletBoundsMm: { minX: 0, minY: 0, maxX: L, maxY: W },
         metadata: {
           source: "pallet-layer",
@@ -270,10 +273,10 @@ export function PlanRender({
     <svg
       className={`plan-render ${className}`}
       role="img"
-      aria-label={title}
+      aria-label={planTitle}
       viewBox={`${minX} ${minY} ${maxX - minX} ${maxY - minY}`}
     >
-      <title>{title}</title>
+      <title>{planTitle}</title>
       <polygon
         points={points([
           [0, 0, -14],
