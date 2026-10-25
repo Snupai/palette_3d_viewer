@@ -3,21 +3,59 @@ import {
   extractPalletSheet,
   SheetExtractionError,
 } from "~/lib/sheetExtraction/ollamaSheetExtractor";
+import {
+  createAdmissionGate,
+  limitRequestBody,
+  RequestBodyTooLargeError,
+} from "~/lib/sheetExtraction/requestGuards";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+/** Multipart framing and small extra fields; anything beyond is rejected. */
+const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 256 * 1024;
+
+/**
+ * One vision inference at a time per process by default. Each call can hold
+ * the local Ollama server for minutes, so a saturated gate answers 429 at
+ * once instead of queueing requests behind it. Authentication is left to the
+ * deployment (the route is meant for the local line network).
+ */
+const admission = createAdmissionGate(env.SHEET_EXTRACTION_MAX_CONCURRENT);
 
 /**
  * POST multipart `image` → structured pallet sheet. Runs entirely against the
  * local Ollama server; the photo is not stored.
  */
 export async function POST(request: Request): Promise<Response> {
+  const release = admission.tryAcquire();
+  if (!release) {
+    return Response.json(
+      { error: "Sheet extraction is busy. Try again shortly." },
+      { status: 429, headers: { "retry-after": "10" } },
+    );
+  }
+  try {
+    return await handle(request);
+  } finally {
+    release();
+  }
+}
+
+async function handle(request: Request): Promise<Response> {
   let image: FormDataEntryValue | null;
   try {
-    image = (await request.formData()).get("image");
-  } catch {
+    image = (await limitRequestBody(request, MAX_BODY_BYTES).formData()).get(
+      "image",
+    );
+  } catch (cause) {
+    if (cause instanceof RequestBodyTooLargeError) {
+      return Response.json(
+        { error: "Photo is larger than 20 MB." },
+        { status: 413 },
+      );
+    }
     return Response.json(
       { error: "Expected multipart form data." },
       { status: 400 },

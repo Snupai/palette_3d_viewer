@@ -14,6 +14,8 @@ import {
   CALCULATED_CONVEYOR_OBSTACLE_ID,
   boundsContained,
   checkObstacleAlongSegment,
+  checkReachAlongSegment,
+  rotationSweptEnvelopeBounds,
   checkObstacleAtPose,
   checkReachBoundary,
   createRobotCycleMotionRoute,
@@ -900,6 +902,92 @@ describe("coordinate frames and safety boundaries", () => {
         obstacle,
       ),
     ).toBe(true);
+  });
+
+  it("covers intermediate orientations when a segment rotates the gripper", () => {
+    const envelope = {
+      negativeX: 100,
+      positiveX: 100,
+      negativeY: 10,
+      positiveY: 10,
+    };
+    // Sits beside the long axis at 0° and 180°, but inside the 90° footprint.
+    const obstacle = {
+      id: "post",
+      boundsMm: { minX: -5, minY: 75, maxX: 5, maxY: 85 },
+      minZMm: 0,
+      maxZMm: 100,
+    };
+    expect(checkObstacleAtPose(pose(0, 0, 50, 0), envelope, obstacle)).toBe(
+      false,
+    );
+    expect(checkObstacleAtPose(pose(0, 0, 50, 90), envelope, obstacle)).toBe(
+      true,
+    );
+    expect(
+      checkObstacleAlongSegment(
+        pose(0, 0, 50, 0),
+        pose(0, 0, 50, 180),
+        envelope,
+        obstacle,
+      ),
+    ).toBe(true);
+    expect(
+      checkObstacleAlongSegment(
+        pose(0, 0, 50, 0),
+        pose(0, 0, 50, 0),
+        envelope,
+        obstacle,
+      ),
+    ).toBe(false);
+    expect(rotationSweptEnvelopeBounds(pose(0, 0, 50, 0), envelope)).toEqual({
+      minX: -Math.hypot(100, 10),
+      maxX: Math.hypot(100, 10),
+      minY: -Math.hypot(100, 10),
+      maxY: Math.hypot(100, 10),
+    });
+  });
+
+  it("flags segments that cross the excluded inner radius between valid waypoints", () => {
+    const innerRadiusStation = station({
+      robotCenterMm: { x: 0, y: 0 },
+      robotRadiusMm: { min: 800, max: 3_000 },
+    });
+    const segmentReach = checkReachAlongSegment(
+      pose(1_000, 0, 500, 0),
+      pose(0, 1_000, 500, 0),
+      innerRadiusStation,
+    );
+    expect(segmentReach.status).toBe("checked");
+    expect(segmentReach.actual).toBeCloseTo(707.107, 3);
+    expect(segmentReach.status === "checked" && segmentReach.valid).toBe(false);
+
+    const diagnostics = validateCycleMotionBoundaries(
+      [
+        cycle(
+          "inner-crossing",
+          0,
+          pose(1_000, 0, 500, 0),
+          pose(0, 1_000, 500, 0),
+          pose(-1_000, 2_000, 500, 0),
+        ),
+      ],
+      innerRadiusStation,
+      { negativeX: 0, positiveX: 0, negativeY: 0, positiveY: 0 },
+    );
+    const waypointHits = diagnostics.filter(
+      ({ code, details }) =>
+        code === "reach-below-minimum" &&
+        details?.check !== "segment-minimum-radius",
+    );
+    const segmentHits = diagnostics.filter(
+      ({ details }) => details?.check === "segment-minimum-radius",
+    );
+    expect(waypointHits).toHaveLength(0);
+    expect(segmentHits.map(({ details }) => details?.phase)).toEqual([
+      "pick-traverse",
+    ]);
+    expect(segmentHits[0]?.details?.radiusMm).toBeCloseTo(707.107, 3);
   });
 
   it("builds carried and between-cycle motion with vertical approaches and elevated traversal", () => {

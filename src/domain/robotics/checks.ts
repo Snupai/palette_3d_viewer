@@ -141,7 +141,37 @@ export function checkObstacleAtPose(
   );
 }
 
-/** Conservative swept-AABB test for a linear TCP move. */
+function yawChanges(from: RobotPose, to: RobotPose): boolean {
+  const delta = (((to.yawDeg - from.yawDeg) % 360) + 360) % 360;
+  return delta > 1e-9 && Math.abs(delta - 360) > 1e-9;
+}
+
+/**
+ * Horizontal bounds the tool can reach at `pose` under any yaw: the square
+ * circumscribing the envelope's farthest corner. Used when a segment rotates,
+ * because the intermediate orientations are not covered by the endpoint AABBs.
+ */
+export function rotationSweptEnvelopeBounds(
+  pose: Pick<RobotPose, "positionMm">,
+  envelope: HorizontalEnvelopeMm,
+): HorizontalBoundsMm {
+  const radius = Math.hypot(
+    Math.max(envelope.negativeX, envelope.positiveX),
+    Math.max(envelope.negativeY, envelope.positiveY),
+  );
+  return {
+    minX: pose.positionMm.x - radius,
+    maxX: pose.positionMm.x + radius,
+    minY: pose.positionMm.y - radius,
+    maxY: pose.positionMm.y + radius,
+  };
+}
+
+/**
+ * Conservative swept-AABB test for a linear TCP move. When the yaw changes
+ * along the segment, both endpoints use the rotation-swept bounds so every
+ * intermediate orientation is inside the tested volume.
+ */
 export function checkObstacleAlongSegment(
   from: RobotPose,
   to: RobotPose,
@@ -153,8 +183,13 @@ export function checkObstacleAlongSegment(
     throw new Error("Obstacle checks require both segment poses in one frame.");
   }
   const tolerance = finiteTolerance(toleranceMm);
-  const fromBounds = horizontalEnvelopeBounds(from, toolEnvelope);
-  const toBounds = horizontalEnvelopeBounds(to, toolEnvelope);
+  const rotates = yawChanges(from, to);
+  const fromBounds = rotates
+    ? rotationSweptEnvelopeBounds(from, toolEnvelope)
+    : horizontalEnvelopeBounds(from, toolEnvelope);
+  const toBounds = rotates
+    ? rotationSweptEnvelopeBounds(to, toolEnvelope)
+    : horizontalEnvelopeBounds(to, toolEnvelope);
   const sweptBounds = {
     minX: Math.min(fromBounds.minX, toBounds.minX),
     minY: Math.min(fromBounds.minY, toBounds.minY),
@@ -170,6 +205,53 @@ export function checkObstacleAlongSegment(
     zOverlaps &&
     boundsOverlapInclusive(sweptBounds, obstacle.boundsMm, tolerance)
   );
+}
+
+/** Smallest XY distance from the robot centre to the straight TCP segment. */
+export function segmentMinimumRadius(
+  from: Pick<RobotPose, "positionMm">,
+  to: Pick<RobotPose, "positionMm">,
+  station: Pick<PalletStation, "robotCenterMm">,
+): number {
+  const ax = from.positionMm.x - station.robotCenterMm.x;
+  const ay = from.positionMm.y - station.robotCenterMm.y;
+  const dx = to.positionMm.x - from.positionMm.x;
+  const dy = to.positionMm.y - from.positionMm.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t =
+    lengthSquared === 0
+      ? 0
+      : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / lengthSquared));
+  return Math.hypot(ax + t * dx, ay + t * dy);
+}
+
+/**
+ * Reach check for a whole segment. The maximum radius is convex, so the
+ * waypoints already cover it; the minimum radius excludes a disc the segment
+ * can cross even when both endpoints are valid.
+ */
+export function checkReachAlongSegment(
+  from: Pick<RobotPose, "positionMm">,
+  to: Pick<RobotPose, "positionMm">,
+  station: Pick<PalletStation, "robotCenterMm" | "robotRadiusMm">,
+  toleranceMm = 0,
+): BoundaryCheck {
+  const tolerance = finiteTolerance(toleranceMm);
+  const minimumRadius = segmentMinimumRadius(from, to, station);
+  if (isUncalibratedRobotRadius(station)) {
+    return {
+      status: "not-checked",
+      reason: "zero-radius-sentinel",
+      actual: minimumRadius,
+    };
+  }
+  return {
+    status: "checked",
+    valid: minimumRadius >= station.robotRadiusMm.min - tolerance,
+    actual: minimumRadius,
+    minimum: station.robotRadiusMm.min,
+    maximum: station.robotRadiusMm.max,
+  };
 }
 
 function routeEntries(
@@ -323,6 +405,29 @@ export function validateCycleMotionBoundaries(
     }
 
     for (const segment of route.segments) {
+      const reach = checkReachAlongSegment(
+        segment.from.pose,
+        segment.to.pose,
+        station,
+        toleranceMm,
+      );
+      if (reach.status === "checked" && !reach.valid) {
+        diagnostics.push({
+          severity: "error",
+          phase: "reach",
+          code: "reach-below-minimum",
+          message: `Cycle "${cycle.id}" ${segment.kind} path passes ${reach.actual.toFixed(3)} mm from the robot centre, below station minimum ${reach.minimum} mm.`,
+          cycleId: cycle.id,
+          layerId: cycle.physicalLayerId,
+          resourceId: station.id,
+          details: {
+            phase: segment.kind,
+            check: "segment-minimum-radius",
+            radiusMm: reach.actual,
+            minimumMm: reach.minimum,
+          },
+        });
+      }
       for (const obstacle of obstacles) {
         if (
           !checkObstacleAlongSegment(
