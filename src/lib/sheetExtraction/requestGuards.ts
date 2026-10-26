@@ -18,6 +18,7 @@ export class RequestBodyTooLargeError extends Error {
 export function limitRequestBody(
   request: Request,
   limitBytes: number,
+  timeoutMs = 30_000,
 ): Request {
   const declared = Number(request.headers.get("content-length"));
   if (Number.isFinite(declared) && declared > limitBytes) {
@@ -37,6 +38,9 @@ export function limitRequestBody(
         controller.enqueue(chunk);
       },
     }),
+    {
+      signal: AbortSignal.any([request.signal, AbortSignal.timeout(timeoutMs)]),
+    },
   );
   return new Request(request.url, {
     method: request.method,

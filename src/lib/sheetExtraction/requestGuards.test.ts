@@ -38,6 +38,27 @@ describe("limitRequestBody", () => {
     ).rejects.toBeInstanceOf(Error);
   });
 
+  it("cancels a stalled multipart upload at its deadline", async () => {
+    let cancelled = false;
+    const request = new Request("http://localhost/upload", {
+      method: "POST",
+      headers: { "content-type": "multipart/form-data; boundary=test" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(new TextEncoder().encode("--test\r\n"));
+        },
+        cancel() {
+          cancelled = true;
+        },
+      }),
+      ...({ duplex: "half" } as object),
+    });
+    await expect(
+      limitRequestBody(request, 1024, 10).formData(),
+    ).rejects.toMatchObject({ name: "TimeoutError" });
+    expect(cancelled).toBe(true);
+  });
+
   it("passes a body within the limit through untouched", async () => {
     const request = multipart({
       image: new Blob([new Uint8Array([1, 2, 3])], { type: "image/png" }),

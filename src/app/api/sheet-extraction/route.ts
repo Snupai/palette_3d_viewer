@@ -24,6 +24,8 @@ const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 256 * 1024;
  * deployment (the route is meant for the local line network).
  */
 const admission = createAdmissionGate(env.SHEET_EXTRACTION_MAX_CONCURRENT);
+/** Bound multipart memory use separately from model concurrency. */
+const uploadAdmission = createAdmissionGate(4);
 
 function statusForExtractionError(kind: SheetExtractionErrorKind): number {
   switch (kind) {
@@ -50,22 +52,14 @@ function isAbortError(cause: unknown): boolean {
  * local Ollama server; the photo is not stored.
  */
 export async function POST(request: Request): Promise<Response> {
-  const release = admission.tryAcquire();
-  if (!release) {
+  let image: FormDataEntryValue | null;
+  const releaseUpload = uploadAdmission.tryAcquire();
+  if (!releaseUpload) {
     return Response.json(
-      { error: "Sheet extraction is busy. Try again shortly." },
+      { error: "Too many photo uploads. Try again shortly." },
       { status: 429, headers: { "retry-after": "10" } },
     );
   }
-  try {
-    return await handle(request);
-  } finally {
-    release();
-  }
-}
-
-async function handle(request: Request): Promise<Response> {
-  let image: FormDataEntryValue | null;
   try {
     image = (await limitRequestBody(request, MAX_BODY_BYTES).formData()).get(
       "image",
@@ -73,6 +67,12 @@ async function handle(request: Request): Promise<Response> {
   } catch (cause) {
     if (request.signal.aborted || isAbortError(cause)) {
       return new Response(null, { status: 499 });
+    }
+    if (cause instanceof Error && cause.name === "TimeoutError") {
+      return Response.json(
+        { error: "Photo upload timed out." },
+        { status: 408 },
+      );
     }
     if (cause instanceof RequestBodyTooLargeError) {
       return Response.json(
@@ -84,6 +84,8 @@ async function handle(request: Request): Promise<Response> {
       { error: "Expected multipart form data." },
       { status: 400 },
     );
+  } finally {
+    releaseUpload();
   }
   if (!(image instanceof File) || !image.type.startsWith("image/")) {
     return Response.json(
@@ -98,8 +100,18 @@ async function handle(request: Request): Promise<Response> {
     );
   }
 
-  const imageBase64 = Buffer.from(await image.arrayBuffer()).toString("base64");
+  if (request.signal.aborted) return new Response(null, { status: 499 });
+  const release = admission.tryAcquire();
+  if (!release) {
+    return Response.json(
+      { error: "Sheet extraction is busy. Try again shortly." },
+      { status: 429, headers: { "retry-after": "10" } },
+    );
+  }
   try {
+    const imageBase64 = Buffer.from(await image.arrayBuffer()).toString(
+      "base64",
+    );
     const result = await extractPalletSheet(imageBase64, {
       ollamaUrl: env.OLLAMA_URL,
       model: env.SHEET_EXTRACTION_MODEL,
@@ -121,5 +133,7 @@ async function handle(request: Request): Promise<Response> {
       { error: "Sheet extraction failed." },
       { status: 500 },
     );
+  } finally {
+    release();
   }
 }
