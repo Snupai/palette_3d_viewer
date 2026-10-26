@@ -68,6 +68,7 @@ export type RobotDiagnosticCode =
   | "missing-quantization-policy"
   | "non-integer-value"
   | "quantized-geometry-overlap"
+  | "quantized-pick-out-of-reach"
   | "invalid-orthogonal-yaw"
   | "missing-sign-convention"
   | "mixed-coordinate-frames"

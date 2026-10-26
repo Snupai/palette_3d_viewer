@@ -1,4 +1,5 @@
 import { safeMigrateProject } from "~/domain/project/projectMigration";
+import { checkReachBoundary } from "~/domain/robotics/checks";
 import { normalizeYawDeg } from "~/domain/robotics/frames";
 import { materializeRobotCycles } from "~/domain/robotics/materialize";
 import type {
@@ -534,6 +535,44 @@ function quantizedOverlapDiagnostics(data: PalletData): RobotDiagnostic[] {
   return diagnostics;
 }
 
+/**
+ * Rounding can also push a reachable pick TCP past the station radius; the
+ * exported integer pick coordinates have to stay within reach on their own.
+ */
+function quantizedPickReachDiagnostics(
+  data: PalletData,
+  station: RobotCycleMaterialization["station"],
+  convention: RobSignConvention,
+): RobotDiagnostic[] {
+  if (!station) return [];
+  const diagnostics: RobotDiagnostic[] = [];
+  for (const grips of Object.values(data.uniqueLayers)) {
+    for (const grip of grips) {
+      const reach = checkReachBoundary(
+        {
+          positionMm: {
+            x: grip.pickX * convention.xSign,
+            y: grip.pickY * convention.ySign,
+            z: 0,
+          },
+        },
+        station,
+      );
+      if (reach.status !== "checked" || reach.valid) continue;
+      diagnostics.push({
+        severity: "error",
+        phase: "export",
+        code: "quantized-pick-out-of-reach",
+        message: `Quantized pick of grip "${grip.id}" has TCP radius ${reach.actual.toFixed(3)} mm outside station reach ${reach.minimum}–${reach.maximum} mm; integer rounding broke the checked cycle.`,
+        cycleId: grip.id,
+        resourceId: station.id,
+        details: { radiusMm: reach.actual },
+      });
+    }
+  }
+  return diagnostics;
+}
+
 export function preflightProjectRobExport(
   materialization: RobotCycleMaterialization,
   options: RobExportOptions = {},
@@ -730,8 +769,15 @@ export function preflightProjectRobExport(
           diagnostics,
         )
       : null;
-  if (data) {
+  if (data && signConvention) {
     diagnostics.push(...quantizedOverlapDiagnostics(data));
+    diagnostics.push(
+      ...quantizedPickReachDiagnostics(
+        data,
+        materialization.station,
+        signConvention,
+      ),
+    );
   }
   const project = materialization.project;
   const manifest =

@@ -949,6 +949,52 @@ describe("coordinate frames and safety boundaries", () => {
     ).toEqual({ firstGripIndex: 0, secondGripIndex: 1 });
   });
 
+  it("blocks exports whose integer rounding moves a pick out of reach", () => {
+    // Pick at (600.6, 799.5) has radius 999.960 mm; rounded to (601, 800)
+    // it is 1000.600 mm, beyond a 1000 mm station maximum.
+    const project = calculatedProject({
+      placements: [placement("package-a", 0, 50, 25)],
+    });
+    const materialized = materializeRobotCycles(project, {
+      maxPackagesPerPick: 1,
+      pickReference: {
+        ...pickReference,
+        originMm: { x: 550.6, y: 824.5, z: 100 },
+      },
+    });
+    expect(materialized.valid).toBe(true);
+    expect(materialized.cycles[0]!.pickPose.positionMm).toMatchObject({
+      x: 600.6,
+      y: 799.5,
+    });
+    const options = identityExportOptions(
+      materialized.cycles.map(({ id }) => id),
+    );
+    options.quantization = { mode: "round-half-away-from-zero" };
+    const rounded = exportProjectRob(
+      {
+        ...materialized,
+        station: {
+          ...materialized.station!,
+          robotRadiusMm: { min: 0, max: 1_000 },
+        },
+      },
+      options,
+    );
+
+    expect(rounded.ok).toBe(false);
+    expect(rounded.text).toBeNull();
+    const reach = rounded.diagnostics.find(
+      ({ code }) => code === "quantized-pick-out-of-reach",
+    );
+    expect(reach).toMatchObject({
+      severity: "error",
+      phase: "export",
+      cycleId: materialized.cycles[0]!.id,
+    });
+    expect(reach?.details?.radiusMm).toBeCloseTo(1000.6, 3);
+  });
+
   it("exports crosswise canonical geometry in the infeed-relative .rob convention", () => {
     // Canonical 0° = length along X. With input direction 1 the legacy file
     // treats 0° as "as arrived" (length along Y), so the export must turn.

@@ -753,9 +753,12 @@ export function PlannerProjectWorkspace({
       const errors = result.diagnostics.filter(
         ({ severity }) => severity === "error",
       );
-      if (errors.length > 0 && result.projects.length === 0) {
+      // A partial import keeps the valid part but must still surface the
+      // entries it dropped.
+      if (errors.length > 0) {
         setError(errors.map(({ message }) => message).join("\n"));
-      } else {
+      }
+      if (result.projects.length > 0 || errors.length === 0) {
         setStatusMessage(
           `Imported ${result.projects.length} project(s) and ${result.resources.length} resource(s); skipped ${result.skippedProjects} project(s) and ${result.skippedResources} resource(s).`,
         );
