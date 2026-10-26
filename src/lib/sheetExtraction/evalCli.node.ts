@@ -10,9 +10,10 @@
  * Photos contain customer data and stay outside the repository; the report is
  * written next to them.
  */
-import { readFile, writeFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { lstat, readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { basename, isAbsolute, join } from "node:path";
 import { countSheetErrors, type PalletSheet } from "~/domain/sheetExtraction";
+import { pathIsWithinRoot } from "~/lib/parity/discovery.node";
 import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
 type Label = {
@@ -40,6 +41,32 @@ const FIELDS: readonly FieldName[] = [
   "perPallet",
   "productNumber",
 ];
+
+/** Same bound as the upload route; anything larger is not a sheet photo. */
+const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+
+/**
+ * Reads one labelled photo. `labels.json` keys are untrusted: only plain
+ * regular files directly inside the canonical corpus root are accepted, so a
+ * key or link cannot send other files to the model.
+ */
+async function readCorpusPhoto(root: string, file: string): Promise<Buffer> {
+  if (file !== basename(file) || file === "." || file === "..") {
+    throw new Error("Label key must be a plain file name inside the corpus.");
+  }
+  const path = join(root, file);
+  const stat = await lstat(path);
+  if (!stat.isFile()) {
+    throw new Error("Label key must name a regular file, not a link.");
+  }
+  if (stat.size > MAX_PHOTO_BYTES) {
+    throw new Error("Photo is larger than 20 MB.");
+  }
+  if (!pathIsWithinRoot(root, await realpath(path))) {
+    throw new Error("Photo resolves outside the corpus.");
+  }
+  return readFile(path);
+}
 
 const close = (a: number | null | undefined, b: number) =>
   a !== null && a !== undefined && Math.abs(a - b) <= 1;
@@ -80,8 +107,9 @@ async function main(): Promise<void> {
   const model = process.env.SHEET_EXTRACTION_MODEL ?? "qwen2.5vl:32b";
   const ollamaUrl = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434";
   const only = process.env.SHEET_EVAL_ONLY?.split(",");
+  const root = await realpath(corpusDir);
   const labels = JSON.parse(
-    await readFile(join(corpusDir, "labels.json"), "utf8"),
+    await readFile(join(root, "labels.json"), "utf8"),
   ) as Record<string, Label>;
 
   const rows: unknown[] = [];
@@ -95,8 +123,8 @@ async function main(): Promise<void> {
   const files = Object.keys(labels).filter((f) => !only || only.includes(f));
 
   for (const file of files) {
-    const image = (await readFile(join(corpusDir, file))).toString("base64");
     try {
+      const image = (await readCorpusPhoto(root, file)).toString("base64");
       const result = await extractPalletSheet(image, { ollamaUrl, model });
       const fields = score(result.sheet, labels[file]!);
       const correct = FIELDS.every((f) => fields[f]);
@@ -143,10 +171,16 @@ async function main(): Promise<void> {
     );
   }
   const reportPath = join(
-    corpusDir,
+    root,
     `report-${model.replace(/[^\w.-]/g, "_")}.json`,
   );
-  await writeFile(reportPath, JSON.stringify({ model, rows }, null, 2));
+  // Exclusive temp file + rename: a pre-placed link at either path is never
+  // followed, it is replaced (rename) or makes the write fail (wx).
+  const tempPath = `${reportPath}.${process.pid}.tmp`;
+  await writeFile(tempPath, JSON.stringify({ model, rows }, null, 2), {
+    flag: "wx",
+  });
+  await rename(tempPath, reportPath);
   console.log(`Report: ${reportPath}`);
 }
 

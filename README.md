@@ -83,6 +83,29 @@ never converts them into allowed-overhang policy. Source grip/cycle metrics are
 reported separately as observed and generated robotics parity remains blocked
 until group planning is available.
 
+## Sheet-photo extraction deployment
+
+`POST /api/sheet-extraction` sends an uploaded pallet-sheet photo to the Ollama
+server at `OLLAMA_URL`. The route has **no authentication and no per-caller rate
+limit** by design: it is meant for the local line network only. In-process
+guards bound each request (20 MB upload, upload timeout, 4 concurrent uploads,
+`SHEET_EXTRACTION_MAX_CONCURRENT` inferences, 5-minute model timeout, at most
+two model calls), but any caller that can reach the route can keep the
+inference slot busy.
+
+Deployment requirements:
+
+- Expose the app only on the trusted plant network, or behind a reverse proxy
+  that authenticates users and rate-limits `/api/sheet-extraction` per user.
+- Keep `OLLAMA_URL` on loopback or the same trusted network; photos contain
+  customer data and are sent to that endpoint.
+- Clients receive fixed error messages only; model URL and backend details are
+  written to the server log.
+
+`bun run sheet:eval` scores the extractor against a labelled photo folder
+(`SHEET_CORPUS_DIR`). It accepts only plain, regular files directly inside that
+folder and writes its report there without following links.
+
 ## Supported `.rob` invariants
 
 - Blank lines are positionally significant and are preserved while parsing.

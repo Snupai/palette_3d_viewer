@@ -20,8 +20,10 @@ const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 256 * 1024;
 /**
  * One vision inference at a time per process by default. Each call can hold
  * the local Ollama server for minutes, so a saturated gate answers 429 at
- * once instead of queueing requests behind it. Authentication is left to the
- * deployment (the route is meant for the local line network).
+ * once instead of queueing requests behind it. Authentication and per-caller
+ * rate limiting are deliberately left to the deployment: the route is meant
+ * for the local line network only, or behind an authenticating proxy (see
+ * README, "Sheet-photo extraction deployment").
  */
 const admission = createAdmissionGate(env.SHEET_EXTRACTION_MAX_CONCURRENT);
 /** Bound multipart memory use separately from model concurrency. */
@@ -36,6 +38,27 @@ function statusForExtractionError(kind: SheetExtractionErrorKind): number {
     case "model":
     case "invalid-response":
       return 502;
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+}
+
+/**
+ * Fixed client-facing text per failure kind. The detailed message carries the
+ * model URL, transport errors and backend bodies, so it is only logged.
+ */
+function publicExtractionError(kind: SheetExtractionErrorKind): string {
+  switch (kind) {
+    case "unreachable":
+      return "The sheet-reading model is not reachable.";
+    case "timeout":
+      return "The sheet-reading model timed out.";
+    case "model":
+      return "The sheet-reading model reported an error.";
+    case "invalid-response":
+      return "The sheet-reading model returned an unusable answer.";
     default: {
       const _exhaustive: never = kind;
       return _exhaustive;
@@ -123,8 +146,9 @@ export async function POST(request: Request): Promise<Response> {
       return new Response(null, { status: 499 });
     }
     if (cause instanceof SheetExtractionError) {
+      console.error("Sheet extraction failed", cause.message);
       return Response.json(
-        { error: cause.message },
+        { error: publicExtractionError(cause.kind) },
         { status: statusForExtractionError(cause.kind) },
       );
     }
