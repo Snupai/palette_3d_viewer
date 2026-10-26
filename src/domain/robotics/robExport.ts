@@ -7,7 +7,7 @@ import type {
   RobotCycleMaterializationOptions,
   RobotDiagnostic,
 } from "~/domain/robotics/types";
-import { gripsToBoxes } from "~/domain/palletGeometry";
+import { findGripCollision, gripsToBoxes } from "~/domain/palletGeometry";
 import type { Grip, PalletData } from "~/domain/palletTypes";
 import { parseRobText, serializeRobText } from "~/lib/robParser";
 
@@ -501,6 +501,39 @@ function buildPalletData(
   };
 }
 
+/**
+ * Integer quantization can turn a stack whose packages only touch into one
+ * whose exported boxes overlap. The checked materialization is unchanged, so
+ * the rounded .rob geometry has to be validated on its own terms.
+ */
+function quantizedOverlapDiagnostics(data: PalletData): RobotDiagnostic[] {
+  const diagnostics: RobotDiagnostic[] = [];
+  for (const [uniqueLayerId, grips] of Object.entries(data.uniqueLayers)) {
+    const collision = findGripCollision(
+      grips,
+      data.package.width,
+      data.package.length,
+      data.inputDirection,
+    );
+    if (!collision) continue;
+    const first = grips[collision.firstGripIndex];
+    const second = grips[collision.secondGripIndex];
+    diagnostics.push({
+      severity: "error",
+      phase: "export",
+      code: "quantized-geometry-overlap",
+      message: `Quantized .rob geometry of unique layer ${uniqueLayerId} overlaps between grips ${collision.firstGripIndex + 1} and ${collision.secondGripIndex + 1}; integer rounding broke the checked stack. Adjust package size or placements, or use a quantization policy that rejects decimals.`,
+      cycleId: first?.id,
+      details: {
+        uniqueLayerId: Number(uniqueLayerId),
+        firstGripId: first?.id ?? null,
+        secondGripId: second?.id ?? null,
+      },
+    });
+  }
+  return diagnostics;
+}
+
 export function preflightProjectRobExport(
   materialization: RobotCycleMaterialization,
   options: RobExportOptions = {},
@@ -697,6 +730,9 @@ export function preflightProjectRobExport(
           diagnostics,
         )
       : null;
+  if (data) {
+    diagnostics.push(...quantizedOverlapDiagnostics(data));
+  }
   const project = materialization.project;
   const manifest =
     project &&

@@ -67,6 +67,7 @@ export type RobotDiagnosticCode =
   | "materialization-invalid"
   | "missing-quantization-policy"
   | "non-integer-value"
+  | "quantized-geometry-overlap"
   | "invalid-orthogonal-yaw"
   | "missing-sign-convention"
   | "mixed-coordinate-frames"

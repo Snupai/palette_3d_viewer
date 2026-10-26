@@ -43,7 +43,7 @@ import {
   type RobotPose,
 } from "~/domain/robotics";
 import { parseRobText } from "~/lib/robParser";
-import { footprintSize } from "~/domain/palletGeometry";
+import { findGripCollision, footprintSize } from "~/domain/palletGeometry";
 
 function suctionGripper(id = "suction-1"): Gripper {
   return {
@@ -907,6 +907,46 @@ describe("coordinate frames and safety boundaries", () => {
     ).toBe(true);
   });
 
+  it("blocks exports whose integer rounding makes touching packages overlap", () => {
+    // 100.6 mm packages at 50.6 / 151.2 only touch; rounded to 101 mm at
+    // 51 / 151 they overlap by 1 mm.
+    const project = calculatedProject({
+      dimensionsMm: { length: 100.6, width: 50, height: 40 },
+      placements: [
+        placement("package-a", 0, 50.6, 25),
+        placement("package-b", 1, 151.2, 25),
+      ],
+    });
+    const materialized = materializeRobotCycles(project, {
+      maxPackagesPerPick: 1,
+    });
+    expect(materialized.valid).toBe(true);
+    const roundedOptions = identityExportOptions(
+      materialized.cycles.map(({ id }) => id),
+    );
+    roundedOptions.quantization = { mode: "round-half-away-from-zero" };
+    const rounded = exportProjectRob(materialized, roundedOptions);
+
+    expect(rounded.ok).toBe(false);
+    expect(rounded.text).toBeNull();
+    const overlap = rounded.diagnostics.find(
+      ({ code }) => code === "quantized-geometry-overlap",
+    );
+    expect(overlap).toMatchObject({
+      severity: "error",
+      phase: "export",
+      details: { uniqueLayerId: 1 },
+    });
+    expect(
+      findGripCollision(
+        rounded.data!.uniqueLayers[1]!,
+        rounded.data!.package.width,
+        rounded.data!.package.length,
+        rounded.data!.inputDirection,
+      ),
+    ).toEqual({ firstGripIndex: 0, secondGripIndex: 1 });
+  });
+
   it("exports crosswise canonical geometry in the infeed-relative .rob convention", () => {
     // Canonical 0° = length along X. With input direction 1 the legacy file
     // treats 0° as "as arrived" (length along Y), so the export must turn.
@@ -1275,7 +1315,7 @@ describe("project-derived .rob export", () => {
           ],
           placements: [
             { ...placement("package-a", 0, 10, 10), gripId: sharedGripId },
-            { ...placement("package-b", 1, 20, 10), gripId: sharedGripId },
+            { ...placement("package-b", 1, 120, 10), gripId: sharedGripId },
           ],
         },
       ],
@@ -1302,7 +1342,7 @@ describe("project-derived .rob export", () => {
           placementIds: ["package-b"],
           gripperId: "suction-1",
           pickPose: { x: 0, y: 0, z: 100, rotation: 0 },
-          placePose: { x: 20, y: 10, z: 40, rotation: 0 },
+          placePose: { x: 120, y: 10, z: 40, rotation: 0 },
           labelOffset: { x: 0, y: 0 },
         },
       ],
@@ -1328,7 +1368,7 @@ describe("project-derived .rob export", () => {
     expect(exported.ok).toBe(true);
     expect(
       parseRobText(exported.text!).uniqueLayers[1]?.map(({ x }) => x),
-    ).toEqual([10, 20]);
+    ).toEqual([10, 120]);
 
     const duplicateIdMaterialization = {
       ...materialized,
