@@ -441,6 +441,45 @@ describe("robotics workspace input validation", () => {
     expect(materializeRobotWorkspace(project, settings).valid).toBe(false);
   });
 
+  it.each([
+    ["only X entered", { pickX: "-1000" }],
+    [
+      "X/Y/Z entered but yaw cleared",
+      { pickX: "-1000", pickY: "100", pickZ: "300", pickYaw: "" },
+    ],
+    ["non-numeric Z", { pickX: "-1000", pickY: "100", pickZ: "abc" }],
+  ])(
+    "blocks an incomplete pickup point (%s) instead of using the derived one",
+    (_, change) => {
+      const project = projectFixture();
+      const settings = {
+        ...createInitialRobotWorkspaceSettings(project),
+        ...change,
+      };
+
+      expect(workspacePickReferenceComplete(settings)).toBe(false);
+      expect(materializationOptionsFromWorkspace(settings).pickReference).toBe(
+        undefined,
+      );
+      expect(validateRobotWorkspaceSettings(settings)).toContainEqual(
+        expect.objectContaining({
+          severity: "error",
+          phase: "pose",
+          code: "materialization-invalid",
+          path: ["robotics", "pickReference"],
+        }),
+      );
+      const materialization = materializeRobotWorkspace(project, settings);
+      expect(materialization.valid).toBe(false);
+      expect(
+        projectRobExportGate(
+          materialization,
+          createInitialRobotExportSettings(),
+        ).enabled,
+      ).toBe(false);
+    },
+  );
+
   it("blocks a checked pickup point without an evidence source", () => {
     const project = projectFixture();
     const settings = {

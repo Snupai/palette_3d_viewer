@@ -197,6 +197,20 @@ export function validateRobotWorkspaceSettings(
     });
   }
 
+  // A partially entered pickup must never fall back silently to the derived
+  // top-center: simulation, collision checks and export would then use
+  // coordinates the operator did not enter.
+  if (!workspacePickReferenceComplete(settings)) {
+    diagnostics.push({
+      severity: "error",
+      phase: "pose",
+      code: "materialization-invalid",
+      message:
+        "Pickup point is incomplete: enter X, Y, Z and yaw as numbers, or leave X, Y and Z blank to use the box-group top-center.",
+      path: ["robotics", "pickReference"],
+    });
+  }
+
   if (
     settings.pickReferenceStatus === "verified" &&
     settings.pickReferenceSource.trim() === ""
