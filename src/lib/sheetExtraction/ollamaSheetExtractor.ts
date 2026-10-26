@@ -15,6 +15,11 @@ export type OllamaSheetExtractorOptions = {
   /** Extra attempts when the answer fails the consistency checks. */
   maxRetries?: number;
   timeoutMs?: number;
+  /**
+   * Abort from the HTTP request (client disconnect / replaced upload). Combined
+   * with `timeoutMs` so a cancelled read frees the admission slot promptly.
+   */
+  signal?: AbortSignal;
   fetchImpl?: typeof fetch;
 };
 
@@ -30,14 +35,55 @@ type ChatMessage = {
   images?: string[];
 };
 
+export type SheetExtractionErrorKind =
+  | "unreachable"
+  | "timeout"
+  | "model"
+  | "invalid-response";
+
 export class SheetExtractionError extends Error {
   constructor(
     message: string,
-    readonly kind: "unreachable" | "model" | "invalid-response",
+    readonly kind: SheetExtractionErrorKind,
   ) {
     super(message);
     this.name = "SheetExtractionError";
   }
+}
+
+function isAbortError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "AbortError";
+}
+
+function isTimeoutError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "TimeoutError";
+}
+
+function abortError(reason?: unknown): Error {
+  if (reason instanceof Error && reason.name === "AbortError") return reason;
+  const error = new Error(
+    reason instanceof Error ? reason.message : "This operation was aborted",
+  );
+  error.name = "AbortError";
+  return error;
+}
+
+/** Prefer `AbortSignal.any` so timeout and caller abort share one fetch signal. */
+function chatSignal(timeoutMs: number, external?: AbortSignal): AbortSignal {
+  const timeout = AbortSignal.timeout(timeoutMs);
+  if (!external) return timeout;
+  if (typeof AbortSignal.any === "function") {
+    return AbortSignal.any([timeout, external]);
+  }
+  const controller = new AbortController();
+  const abort = () => controller.abort();
+  if (external.aborted || timeout.aborted) {
+    abort();
+    return controller.signal;
+  }
+  external.addEventListener("abort", abort, { once: true });
+  timeout.addEventListener("abort", abort, { once: true });
+  return controller.signal;
 }
 
 /**
@@ -53,6 +99,7 @@ export async function extractPalletSheet(
     model,
     maxRetries = 1,
     timeoutMs = 300_000,
+    signal,
     fetchImpl = fetch,
   }: OllamaSheetExtractorOptions,
 ): Promise<SheetExtractionResult> {
@@ -64,11 +111,15 @@ export async function extractPalletSheet(
   let best: ValidatedSheet | null = null;
   let attempts = 0;
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    if (signal?.aborted) {
+      throw abortError(signal.reason);
+    }
     attempts += 1;
     const answer = await chat(messages, {
       ollamaUrl,
       model,
       timeoutMs,
+      signal,
       fetchImpl,
     });
     const validated = validatePalletSheet(parseAnswer(answer));
@@ -119,8 +170,13 @@ async function chat(
     ollamaUrl,
     model,
     timeoutMs,
+    signal,
     fetchImpl,
-  }: Required<Omit<OllamaSheetExtractorOptions, "maxRetries">>,
+  }: Required<
+    Omit<OllamaSheetExtractorOptions, "maxRetries" | "signal">
+  > & {
+    signal?: AbortSignal;
+  },
 ): Promise<string> {
   let response: Response;
   try {
@@ -134,9 +190,18 @@ async function chat(
         options: { temperature: 0 },
         messages,
       }),
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: chatSignal(timeoutMs, signal),
     });
   } catch (cause) {
+    if (isTimeoutError(cause)) {
+      throw new SheetExtractionError(
+        `Local model at ${ollamaUrl} timed out after ${timeoutMs} ms.`,
+        "timeout",
+      );
+    }
+    if (isAbortError(cause) || signal?.aborted) {
+      throw isAbortError(cause) ? cause : abortError(signal?.reason ?? cause);
+    }
     throw new SheetExtractionError(
       `Local model server at ${ollamaUrl} is not reachable (${cause instanceof Error ? cause.message : String(cause)}). Is Ollama running?`,
       "unreachable",

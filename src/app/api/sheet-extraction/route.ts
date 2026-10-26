@@ -2,6 +2,7 @@ import { env } from "~/env";
 import {
   extractPalletSheet,
   SheetExtractionError,
+  type SheetExtractionErrorKind,
 } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 import {
   createAdmissionGate,
@@ -23,6 +24,26 @@ const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 256 * 1024;
  * deployment (the route is meant for the local line network).
  */
 const admission = createAdmissionGate(env.SHEET_EXTRACTION_MAX_CONCURRENT);
+
+function statusForExtractionError(kind: SheetExtractionErrorKind): number {
+  switch (kind) {
+    case "unreachable":
+      return 503;
+    case "timeout":
+      return 504;
+    case "model":
+    case "invalid-response":
+      return 502;
+    default: {
+      const _exhaustive: never = kind;
+      return _exhaustive;
+    }
+  }
+}
+
+function isAbortError(cause: unknown): boolean {
+  return cause instanceof Error && cause.name === "AbortError";
+}
 
 /**
  * POST multipart `image` → structured pallet sheet. Runs entirely against the
@@ -50,6 +71,9 @@ async function handle(request: Request): Promise<Response> {
       "image",
     );
   } catch (cause) {
+    if (request.signal.aborted || isAbortError(cause)) {
+      return new Response(null, { status: 499 });
+    }
     if (cause instanceof RequestBodyTooLargeError) {
       return Response.json(
         { error: "Photo is larger than 20 MB." },
@@ -79,13 +103,17 @@ async function handle(request: Request): Promise<Response> {
     const result = await extractPalletSheet(imageBase64, {
       ollamaUrl: env.OLLAMA_URL,
       model: env.SHEET_EXTRACTION_MODEL,
+      signal: request.signal,
     });
     return Response.json(result);
   } catch (cause) {
+    if (request.signal.aborted || isAbortError(cause)) {
+      return new Response(null, { status: 499 });
+    }
     if (cause instanceof SheetExtractionError) {
       return Response.json(
         { error: cause.message },
-        { status: cause.kind === "unreachable" ? 503 : 502 },
+        { status: statusForExtractionError(cause.kind) },
       );
     }
     console.error("Sheet extraction failed", cause);
