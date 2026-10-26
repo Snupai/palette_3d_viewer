@@ -633,11 +633,43 @@ export class ProjectRepository {
     };
   }
 
+  /**
+   * `legacyLocalStorageJson` is the pre-IndexedDB `saved_pallets_v1` list;
+   * like the store rows it is only read, and migration markers keep it from
+   * being imported twice.
+   */
   async migrateSavedPalletStore(
-    options: { conflictPolicy?: ProjectConflictPolicy } = {},
+    options: {
+      conflictPolicy?: ProjectConflictPolicy;
+      legacyLocalStorageJson?: string | null;
+    } = {},
   ): Promise<LegacyMigrationResult> {
-    const rows = await this.storage.list(PALLETS_STORE_NAME);
-    return this.migrateSavedPallets(rows, options);
+    const rows = [...(await this.storage.list(PALLETS_STORE_NAME))];
+    const legacyDiagnostics: RepositoryDiagnostic[] = [];
+    if (options.legacyLocalStorageJson) {
+      let legacyRows: unknown = null;
+      try {
+        legacyRows = JSON.parse(options.legacyLocalStorageJson);
+      } catch {
+        // Reported below like a non-list value.
+      }
+      if (Array.isArray(legacyRows)) {
+        rows.push(...(legacyRows as unknown[]));
+      } else {
+        legacyDiagnostics.push({
+          severity: "error",
+          code: "invalid-legacy-local-storage",
+          message:
+            "Saved pallets in legacy browser storage are not a valid pallet list and were not imported.",
+          store: PALLETS_STORE_NAME,
+          recordId: null,
+          path: [],
+        });
+      }
+    }
+    const result = await this.migrateSavedPallets(rows, options);
+    result.diagnostics.unshift(...legacyDiagnostics);
+    return result;
   }
 
   async listQuarantine(): Promise<QuarantineRecord[]> {

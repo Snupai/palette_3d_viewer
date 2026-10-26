@@ -311,6 +311,32 @@ describe("project repository", () => {
     ).toBe(semanticRobPlanFingerprint(legacy.data));
   });
 
+  it("migrates pallets from legacy localStorage JSON once", async () => {
+    const legacy = savedPallet();
+    const repository = new ProjectRepository(new MemoryPlannerRecordStorage());
+    const legacyLocalStorageJson = JSON.stringify([legacy]);
+
+    const first = await repository.migrateSavedPalletStore({
+      legacyLocalStorageJson,
+    });
+    const second = await repository.migrateSavedPalletStore({
+      legacyLocalStorageJson,
+    });
+    const invalid = await repository.migrateSavedPalletStore({
+      legacyLocalStorageJson: "{",
+    });
+
+    expect(first.migratedCount).toBe(1);
+    expect(first.projects[0]!.id).toBe(legacy.id);
+    expect(second).toMatchObject({ migratedCount: 0, skippedCount: 1 });
+    expect(invalid.diagnostics).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        code: "invalid-legacy-local-storage",
+      }),
+    ]);
+  });
+
   it("rejects malformed caller data instead of persisting it", async () => {
     const repository = new ProjectRepository(new MemoryPlannerRecordStorage());
 

@@ -337,7 +337,11 @@ export function PlannerProjectWorkspace({
     setRepositoryReady(false);
     setLoadingLibrary(true);
     void repository
-      .migrateSavedPalletStore({ conflictPolicy: "skip" })
+      .migrateSavedPalletStore({
+        conflictPolicy: "skip",
+        legacyLocalStorageJson:
+          globalThis.localStorage?.getItem("saved_pallets_v1") ?? null,
+      })
       .then((result) => {
         if (!active) return;
         const blockingDiagnostics = result.diagnostics.filter(
