@@ -25,6 +25,7 @@ import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
 import {
   advanceTimelineCursor,
   createSimulationFrame,
+  playbackStartCursor,
   stepTimelineCursor,
   timelinePhaseLabel,
   type PlaybackDirection,
@@ -311,7 +312,18 @@ export function SimulationWorkspace({
             type="button"
             className="ui-btn-primary"
             disabled={!canNavigate}
-            onClick={() => setPlaying((current) => !current)}
+            onClick={() => {
+              if (!playing) {
+                const start = playbackStartCursor(
+                  timeline,
+                  cursorRef.current,
+                  direction,
+                );
+                cursorRef.current = start;
+                setCursorMs(start);
+              }
+              setPlaying(!playing);
+            }}
           >
             {playing ? "Stopp" : "Start"}
           </button>

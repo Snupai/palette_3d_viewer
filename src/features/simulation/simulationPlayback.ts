@@ -64,6 +64,22 @@ export function advanceTimelineCursor(
   };
 }
 
+/**
+ * Cursor a new playback run starts from: a finished run restarts from the
+ * opposite end instead of stopping on its first frame.
+ */
+export function playbackStartCursor(
+  timeline: Pick<RobotTimeline, "durationMs">,
+  timeMs: number,
+  direction: PlaybackDirection,
+): number {
+  const time = clampTimelineCursor(timeline, timeMs);
+  if (direction === "forward") {
+    return time >= timeline.durationMs ? 0 : time;
+  }
+  return time <= 0 ? timeline.durationMs : time;
+}
+
 export function stepTimelineCursor(
   timeline: RobotTimeline,
   timeMs: number,

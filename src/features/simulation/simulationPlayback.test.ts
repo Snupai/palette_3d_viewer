@@ -10,6 +10,7 @@ import {
   advanceTimelineCursor,
   clampTimelineCursor,
   createSimulationFrame,
+  playbackStartCursor,
   stepTimelineCursor,
   timelinePhaseLabel,
 } from "~/features/simulation/simulationPlayback";
@@ -166,6 +167,25 @@ describe("simulation playback controls", () => {
     expect(clampTimelineCursor(timeline, timeline.durationMs + 10)).toBe(
       timeline.durationMs,
     );
+  });
+
+  it("restarts a finished run from the opposite end instead of stopping at once", () => {
+    const end = timeline.durationMs;
+    expect(playbackStartCursor(timeline, end, "forward")).toBe(0);
+    expect(playbackStartCursor(timeline, 0, "reverse")).toBe(end);
+    expect(playbackStartCursor(timeline, 120, "forward")).toBe(120);
+    expect(playbackStartCursor(timeline, 120, "reverse")).toBe(120);
+    expect(playbackStartCursor(timeline, 0, "forward")).toBe(0);
+    expect(playbackStartCursor(timeline, end, "reverse")).toBe(end);
+    expect(
+      advanceTimelineCursor(
+        timeline,
+        playbackStartCursor(timeline, end, "forward"),
+        50,
+        1,
+        "forward",
+      ),
+    ).toEqual({ timeMs: 50, reachedEnd: false });
   });
 
   it("uses exact previous/next boundaries and stable safe-route labels", () => {
