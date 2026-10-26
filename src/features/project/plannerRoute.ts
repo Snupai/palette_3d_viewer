@@ -60,6 +60,14 @@ export function parsePlannerRoute(pathname: string): PlannerRoute {
     if (second === "bearbeiten") {
       return { kind: "plan", id, stage: null, view: "edit" };
     }
+    if (second && (PRODUCTION_TOOLS as readonly string[]).includes(second)) {
+      return {
+        kind: "plan",
+        id,
+        stage: null,
+        view: second as ProductionTool,
+      };
+    }
     const stage = second ? (stageBySlug.get(second) ?? null) : null;
     const third = segments[3];
     const view =

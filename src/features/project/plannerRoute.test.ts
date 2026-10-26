@@ -23,6 +23,18 @@ describe("plannerRoute", () => {
     expect(parsePlannerRoute(path)).toEqual(route);
   });
 
+  it("round-trips direct tool views without stage", () => {
+    const route = {
+      kind: "plan",
+      id: "p 1/ä",
+      stage: null,
+      view: "robotics",
+    } as const;
+    const path = plannerRoutePath(route);
+    expect(path).toBe("/plan/p%201%2F%C3%A4/robotics");
+    expect(parsePlannerRoute(path)).toEqual(route);
+  });
+
   it("round-trips the edit dialog and a plan without stage", () => {
     expect(
       plannerRoutePath({ kind: "plan", id: "x", stage: null, view: "edit" }),
