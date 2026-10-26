@@ -561,10 +561,10 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
 
   it("restores the tool requested by the URL once the plan has loaded", async () => {
     const { repository, project } = await repositoryWithProject();
-    window.history.replaceState(null, "", `/plan/${project.id}/stapel/editor`);
+    window.history.replaceState(null, "", `/plan/${project.id}/build/editor`);
     render(<PlannerProjectWorkspace repository={repository} />);
     await screen.findByRole("dialog", { name: "Muster-Editor" });
-    expect(window.location.pathname).toBe(`/plan/${project.id}/stapel/editor`);
+    expect(window.location.pathname).toBe(`/plan/${project.id}/build/editor`);
   });
 
   it("re-reads the open plan after a package import replaces it", async () => {

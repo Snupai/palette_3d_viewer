@@ -188,6 +188,7 @@ describe("buildPalletSheet", () => {
     "includes deck sheets in the drawing and height dimensions ($expectedHeight mm)",
     ({ expectedHeight, ...trailing }) => {
       const withDeck = buildPalletSheet({
+        t: translateDe,
         data: { ...plan, ...trailing },
         storageHeightMm: 1500,
         productNumber: "synthetic",
