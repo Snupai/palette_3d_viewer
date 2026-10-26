@@ -134,6 +134,7 @@ function result(candidates: SolverCandidate[]): SolverResult {
         staircase: 0,
         "staircase-variable": 0,
         "staircase-exchange": 0,
+        multipack: 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,

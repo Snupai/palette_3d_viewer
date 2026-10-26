@@ -262,6 +262,7 @@ function emptyStatistics(): SolverStatistics {
       staircase: 0,
       "staircase-variable": 0,
       "staircase-exchange": 0,
+      multipack: 0,
       symmetry: 0,
     },
   };

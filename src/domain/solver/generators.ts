@@ -29,6 +29,10 @@ import { searchSteppedStripPatterns } from "~/domain/solver/steppedStrip";
 import { searchSteppedBlocks } from "~/domain/solver/steppedBlocks";
 import { searchSliceGrids } from "~/domain/solver/sliceGrids";
 import { searchMosaicGrids } from "~/domain/solver/mosaicGrids";
+import {
+  generateMultiPackLayers,
+  musterPackagesToPlacements,
+} from "~/domain/solver/multipack";
 import { searchStaircaseGrids } from "~/domain/solver/staircaseGrids";
 import {
   assessRectangularBlockPlacements,
@@ -538,6 +542,8 @@ class DraftCollector {
     private readonly family: GeneratorFamily,
     private readonly input: NormalizedLayerSolverInput,
     private readonly hooks: GeneratorHooks,
+    /** Keep generator-owned positions instead of re-centering the occupied bounds. */
+    private readonly preservePositions = false,
   ) {}
 
   canContinue(): boolean {
@@ -577,39 +583,40 @@ class DraftCollector {
     const provenance = isProvenanceList(provenanceInput)
       ? [...provenanceInput]
       : [provenanceInput];
-    const centered = centerOccupiedPlacementsInGenerationBounds(
-      placements,
-      this.input,
-    );
+    const centered = this.preservePositions
+      ? null
+      : centerOccupiedPlacementsInGenerationBounds(placements, this.input);
+    const positioned = centered?.placements ?? placements;
     if (this.input.constraints.requiredShape === "rectangular-block") {
       const assessment = assessRectangularBlockPlacements(
         this.input,
-        centered.placements,
+        positioned,
       );
       if (!assessment.valid) {
         this.rejectedRectangularShape += 1;
         return true;
       }
     }
-    const centeredProvenance = uniqueProvenance([
-      ...provenance,
-      {
-        family: this.family,
-        variant: "occupied-bounds-center-v1",
-        sourceGeometryKey: centered.sourceGeometryKey,
-        parameters: {
-          frame: "generationBoundsMm",
-          dxMm: centered.offsetX,
-          dyMm: centered.offsetY,
-          coordinateResolutionMm: SOLVER_GEOMETRY_EPSILON_MM,
-          afterExactCount: true,
-        },
-      },
-    ]);
-    const geometryKey = draftCollectionGeometryKey(
-      this.input,
-      centered.placements,
+    const centeredProvenance = uniqueProvenance(
+      centered === null
+        ? provenance
+        : [
+            ...provenance,
+            {
+              family: this.family,
+              variant: "occupied-bounds-center-v1",
+              sourceGeometryKey: centered.sourceGeometryKey,
+              parameters: {
+                frame: "generationBoundsMm",
+                dxMm: centered.offsetX,
+                dyMm: centered.offsetY,
+                coordinateResolutionMm: SOLVER_GEOMETRY_EPSILON_MM,
+                afterExactCount: true,
+              },
+            },
+          ],
     );
+    const geometryKey = draftCollectionGeometryKey(this.input, positioned);
     if (geometryKey === null) {
       this.rejectedUnauthorizedYaw += 1;
       return true;
@@ -656,7 +663,7 @@ class DraftCollector {
 
     const draftIndex = this.drafts.length;
     this.drafts.push({
-      placements: centered.placements.map((placement, placementIndex) => ({
+      placements: positioned.map((placement, placementIndex) => ({
         ...placement,
         positionMm: { ...placement.positionMm },
         transientId: `${this.family}-${draftIndex}-${placementIndex}`,
@@ -7518,6 +7525,45 @@ function generateEdgeRings(
   return collector.output();
 }
 
+/**
+ * MultiPack f�r Roboter layouts: enumerated solution records run through the
+ * ported optimizer, tiling and centering, kept at their legacy positions.
+ */
+function generateMultiPack(
+  input: NormalizedLayerSolverInput,
+  hooks: GeneratorHooks,
+): GeneratorOutput {
+  const collector = new DraftCollector("multipack", input, hooks, true);
+  const bounds = input.generationBoundsMm;
+  const toDmm = (mm: number) => Math.round(mm * 10);
+  const layers = generateMultiPackLayers({
+    paletteDmm: {
+      x: toDmm(rectangleBoundsLength(bounds)),
+      y: toDmm(rectangleBoundsWidth(bounds)),
+    },
+    package: {
+      length: toDmm(input.package.dimensionsMm.length),
+      width: toDmm(input.package.dimensionsMm.width),
+    },
+    clearanceDmm: toDmm(input.package.clearanceMm),
+  });
+  for (const layer of layers) {
+    if (!collector.checkCancellation()) break;
+    collector.add(
+      musterPackagesToPlacements(layer.packages, {
+        x: bounds.minX,
+        y: bounds.minY,
+      }),
+      {
+        family: "multipack",
+        variant: layer.variant,
+        parameters: { musterBlocks: layer.blockCount },
+      },
+    );
+  }
+  return collector.output();
+}
+
 export function generateCandidateFamily(
   input: NormalizedLayerSolverInput,
   family: BaseGeneratorFamily,
@@ -7621,6 +7667,7 @@ export function generateCandidateFamily(
     return collector.output();
   }
   if (family === "edge-ring") return generateEdgeRings(input, hooks);
+  if (family === "multipack") return generateMultiPack(input, hooks);
   return generateMixedOrientation(input, hooks);
 }
 

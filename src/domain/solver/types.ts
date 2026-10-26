@@ -31,6 +31,7 @@ export const BASE_GENERATOR_FAMILIES = [
   "staircase",
   "staircase-variable",
   "staircase-exchange",
+  "multipack",
 ] as const;
 
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];
