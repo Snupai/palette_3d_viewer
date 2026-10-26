@@ -1,4 +1,7 @@
-import { pickOffsetForCount } from "~/domain/palletGeometry";
+import {
+  legacyRotationFromCanonical,
+  pickOffsetForCount,
+} from "~/domain/palletGeometry";
 import type { Rotation } from "~/domain/palletTypes";
 import type {
   Gripper,
@@ -30,7 +33,7 @@ export function derivedPickReferenceFromPackage(
 ): PickReference {
   return {
     originMm: { x: 0, y: 0, z: packageSpec.dimensionsMm.height },
-    yawDeg: 0,
+    yawDeg: packageSpec.inletOrientation === "crosswise" ? 90 : 0,
     provenance: {
       status: "derived",
       source: PACKAGE_GROUP_TOP_CENTER_PICK_SOURCE,
@@ -86,7 +89,10 @@ function pickGripPoint(
       packageSpec.dimensionsMm.length,
       packageSpec.dimensionsMm.width,
       packageSpec.inletOrientation === "crosswise" ? 1 : 0,
-      orthogonalPickRotation(yawDeg),
+      legacyRotationFromCanonical(
+        orthogonalPickRotation(yawDeg),
+        packageSpec.inletOrientation === "crosswise" ? 1 : 0,
+      ),
       packageCount,
     );
     return {

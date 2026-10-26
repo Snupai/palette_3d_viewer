@@ -972,6 +972,13 @@ describe("coordinate frames and safety boundaries", () => {
     expect(exported.ok).toBe(true);
     const parsed = parseRobText(exported.text!);
     expect(parsed.inputDirection).toBe(1);
+    expect(materialized.cycles.map(({ pickPose }) => pickPose)).toEqual([
+      { frame: "station", positionMm: { x: 100, y: -200, z: 150 }, yawDeg: 90 },
+      { frame: "station", positionMm: { x: 100, y: -200, z: 150 }, yawDeg: 90 },
+    ]);
+    expect(
+      parsed.uniqueLayers[1]?.map(({ pickRotation }) => pickRotation),
+    ).toEqual([0, 0]);
     expect(parsed.uniqueLayers[1]?.map(({ rotation }) => rotation)).toEqual([
       270, 270,
     ]);
