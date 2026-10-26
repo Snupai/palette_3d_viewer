@@ -76,7 +76,8 @@ function chatSignal(timeoutMs: number, external?: AbortSignal): AbortSignal {
     return AbortSignal.any([timeout, external]);
   }
   const controller = new AbortController();
-  const abort = () => controller.abort();
+  const abort = () =>
+    controller.abort(external.aborted ? external.reason : timeout.reason);
   if (external.aborted || timeout.aborted) {
     abort();
     return controller.signal;
@@ -172,13 +173,12 @@ async function chat(
     timeoutMs,
     signal,
     fetchImpl,
-  }: Required<
-    Omit<OllamaSheetExtractorOptions, "maxRetries" | "signal">
-  > & {
+  }: Required<Omit<OllamaSheetExtractorOptions, "maxRetries" | "signal">> & {
     signal?: AbortSignal;
   },
 ): Promise<string> {
-  let response: Response;
+  let response: Response | undefined;
+  const requestSignal = chatSignal(timeoutMs, signal);
   try {
     response = await fetchImpl(new URL("/api/chat", ollamaUrl), {
       method: "POST",
@@ -190,10 +190,30 @@ async function chat(
         options: { temperature: 0 },
         messages,
       }),
-      signal: chatSignal(timeoutMs, signal),
+      signal: requestSignal,
     });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new SheetExtractionError(
+        `Ollama returned ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+        "model",
+      );
+    }
+    const body = (await response.json()) as { message?: { content?: unknown } };
+    if (typeof body.message?.content !== "string") {
+      throw new SheetExtractionError(
+        "Ollama response has no message content.",
+        "invalid-response",
+      );
+    }
+    return body.message.content;
   } catch (cause) {
-    if (isTimeoutError(cause)) {
+    if (cause instanceof SheetExtractionError) throw cause;
+    if (
+      isTimeoutError(cause) ||
+      (requestSignal.aborted && isTimeoutError(requestSignal.reason))
+    ) {
       throw new SheetExtractionError(
         `Local model at ${ollamaUrl} timed out after ${timeoutMs} ms.`,
         "timeout",
@@ -202,24 +222,15 @@ async function chat(
     if (isAbortError(cause) || signal?.aborted) {
       throw isAbortError(cause) ? cause : abortError(signal?.reason ?? cause);
     }
+    if (response) {
+      throw new SheetExtractionError(
+        "Ollama response body could not be read.",
+        "invalid-response",
+      );
+    }
     throw new SheetExtractionError(
       `Local model server at ${ollamaUrl} is not reachable (${cause instanceof Error ? cause.message : String(cause)}). Is Ollama running?`,
       "unreachable",
     );
   }
-  if (!response.ok) {
-    const detail = await response.text().catch(() => "");
-    throw new SheetExtractionError(
-      `Ollama returned ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
-      "model",
-    );
-  }
-  const body = (await response.json()) as { message?: { content?: unknown } };
-  if (typeof body.message?.content !== "string") {
-    throw new SheetExtractionError(
-      "Ollama response has no message content.",
-      "invalid-response",
-    );
-  }
-  return body.message.content;
 }

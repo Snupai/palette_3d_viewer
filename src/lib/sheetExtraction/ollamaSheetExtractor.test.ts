@@ -77,6 +77,47 @@ describe("extractPalletSheet abort and timeout handling", () => {
     expect(result.attempts).toBe(1);
   });
 
+  it("classifies a timeout while reading the response body", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(
+              new DOMException("Timed out during body read", "TimeoutError"),
+            );
+          },
+        }),
+      );
+    await expect(
+      extractPalletSheet("aaa", {
+        ollamaUrl: "http://127.0.0.1:11434",
+        model: "test-model",
+        fetchImpl,
+      }),
+    ).rejects.toMatchObject({ name: "SheetExtractionError", kind: "timeout" });
+  });
+
+  it("preserves caller cancellation while reading an error response body", async () => {
+    const fetchImpl: typeof fetch = async () =>
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.error(
+              new DOMException("Cancelled during body read", "AbortError"),
+            );
+          },
+        }),
+        { status: 500 },
+      );
+    await expect(
+      extractPalletSheet("aaa", {
+        ollamaUrl: "http://127.0.0.1:11434",
+        model: "test-model",
+        fetchImpl,
+      }),
+    ).rejects.toMatchObject({ name: "AbortError" });
+  });
+
   it("keeps genuine connection failures as unreachable", async () => {
     const fetchImpl = vi.fn(async () => {
       throw new TypeError("fetch failed");

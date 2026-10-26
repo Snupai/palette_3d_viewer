@@ -302,6 +302,9 @@ export type IsometricPalletInput = {
   pallet: { lengthX: number; widthY: number; height: number };
   /** Footprint for interlayer sheets (defaults to the pallet). */
   sheetFootprint?: { lengthX: number; widthY: number };
+  /** Combined thickness of deck sheets above the last package layer. */
+  trailingSheetHeightMm?: number;
+  trailingSheetFootprint?: { lengthX: number; widthY: number };
   frame: { x: number; y: number; width: number; height: number };
   formatMm: (value: number) => string;
 };
@@ -327,6 +330,8 @@ export function isometricPallet(input: IsometricPalletInput): SheetPrimitive[] {
       z: Math.max(...boxes.map(({ max }) => max.z)),
     },
   };
+  const trailingHeight = input.trailingSheetHeightMm ?? 0;
+  const blockTop = block.max.z + trailingHeight;
   const exploded = layers.length > 1;
   const gap = exploded ? explodeGapMm(block.max.z) : 0;
   const topIndex = layers.length - 1;
@@ -339,8 +344,23 @@ export function isometricPallet(input: IsometricPalletInput): SheetPrimitive[] {
       : box;
 
   const sheet = input.sheetFootprint ?? pallet;
+  const deckSheet = input.trailingSheetFootprint ?? sheet;
   const solids: Solid[] = [
     ...palletSolids(pallet),
+    ...(trailingHeight > 0
+      ? [
+          {
+            ...lift(
+              {
+                min: { x: 0, y: 0, z: block.max.z },
+                max: { x: deckSheet.lengthX, y: deckSheet.widthY, z: blockTop },
+              },
+              topIndex,
+            ),
+            shade: SHEET,
+          },
+        ]
+      : []),
     ...layers.flatMap((layer) => [
       ...layer.sheetsBelow
         .map(
@@ -429,7 +449,6 @@ export function isometricPallet(input: IsometricPalletInput): SheetPrimitive[] {
   );
 
   // Block height on the left, total height on the right (stack not lifted).
-  const blockTop = block.max.z;
   primitives.push(
     ...dimension(
       toPage({ x: block.max.x, y: block.min.y, z: 0 }),

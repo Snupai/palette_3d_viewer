@@ -21,6 +21,7 @@ import {
   projectEditorOrderModel,
   selectionCenteringDelta,
   stepProjectEditorFlow,
+  type ProjectEditorCommand,
 } from "~/features/editor/editorModel";
 
 function placement(
@@ -1204,4 +1205,43 @@ describe("Project editor canonical flow and history", () => {
         ?.positionMm.x,
     ).toBe(50);
   });
+});
+
+describe("deck interlayer command provenance", () => {
+  const commands = [
+    { type: "set-interlayer-thickness", thicknessMm: 5 },
+    { type: "set-trailing-interlayer", quantity: 2 },
+    { type: "set-trailing-interlayer-thickness", thicknessMm: 5 },
+  ] as const;
+
+  it.each(commands)("rejects a missing solution for $type", (command) => {
+    expect(() =>
+      applyProjectEditorCommand(importedGripProject(), {
+        ...command,
+        mode: "pattern",
+        solutionId: "missing",
+      }),
+    ).toThrow('Project solution "missing" does not exist.');
+  });
+
+  it.each(commands)(
+    "marks imported solutions edited for $type without rewriting source",
+    (command) => {
+      const project = importedGripProject();
+      const edited = applyProjectEditorCommand(project, {
+        ...command,
+        mode: "pattern",
+        solutionId: project.solutions[0]!.id,
+      } satisfies ProjectEditorCommand);
+      expect(edited.solutions[0]!.origin).toBe("manual");
+      expect(edited.source).toEqual(project.source);
+      expect(edited.solutions[0]!.stack).toMatchObject(
+        command.type === "set-trailing-interlayer"
+          ? { trailingInterlayer: 2 }
+          : command.type === "set-trailing-interlayer-thickness"
+            ? { trailingInterlayerThicknessMm: 5 }
+            : { interlayerThicknessMm: 5 },
+      );
+    },
+  );
 });

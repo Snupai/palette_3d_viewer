@@ -175,6 +175,39 @@ describe("buildPalletSheet", () => {
     );
   });
 
+  it.each([
+    { trailingZwischenlage: 2, expectedHeight: 406 },
+    {
+      trailingZwischenlage: 2,
+      trailingInterlayerThicknessesMm: [4, 5],
+      expectedHeight: 409,
+    },
+  ])(
+    "includes deck sheets in the drawing and height dimensions ($expectedHeight mm)",
+    ({ expectedHeight, ...trailing }) => {
+      const withDeck = buildPalletSheet({
+        data: { ...plan, ...trailing },
+        storageHeightMm: 1500,
+        productNumber: "synthetic",
+        lineNumber: "",
+        palletName: null,
+        date: "26.10.2026",
+      });
+      const heightLabels = withDeck.primitives.flatMap((primitive) =>
+        primitive.kind === "text" ? [primitive.text] : [],
+      );
+      expect(heightLabels).toContain(String(expectedHeight));
+      expect(heightLabels).toContain(String(expectedHeight + 144));
+      expect(heightLabels).not.toContain("544");
+      expect(
+        withDeck.primitives.filter(
+          (primitive) =>
+            primitive.kind === "polygon" && primitive.fill === "#f5f2e9",
+        ),
+      ).toHaveLength(1);
+    },
+  );
+
   it("keeps every drawn point on the A4 page", () => {
     const points = sheet.primitives.flatMap((primitive) =>
       primitive.kind === "polygon"

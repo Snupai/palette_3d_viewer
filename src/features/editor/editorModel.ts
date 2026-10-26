@@ -1960,6 +1960,11 @@ export function applyProjectEditorCommand(
       });
     }
     case "set-interlayer-thickness": {
+      if (!project.solutions.some(({ id }) => id === command.solutionId)) {
+        throw new ProjectEditorCommandError(
+          `Project solution "${command.solutionId}" does not exist.`,
+        );
+      }
       const thicknessMm = finite(command.thicknessMm, "Interlayer thickness");
       if (thicknessMm <= 0) {
         throw new ProjectEditorCommandError(
@@ -2026,6 +2031,11 @@ export function applyProjectEditorCommand(
       });
     }
     case "set-trailing-interlayer": {
+      if (!project.solutions.some(({ id }) => id === command.solutionId)) {
+        throw new ProjectEditorCommandError(
+          `Project solution "${command.solutionId}" does not exist.`,
+        );
+      }
       const quantity = nonNegativeInteger(
         command.quantity,
         "Deck interlayer quantity",
@@ -2036,6 +2046,7 @@ export function applyProjectEditorCommand(
           solution.id === command.solutionId
             ? {
                 ...solution,
+                origin: editedSolutionOrigin(solution.origin),
                 stack: { ...solution.stack, trailingInterlayer: quantity },
               }
             : solution,
@@ -2043,6 +2054,11 @@ export function applyProjectEditorCommand(
       });
     }
     case "set-trailing-interlayer-thickness": {
+      if (!project.solutions.some(({ id }) => id === command.solutionId)) {
+        throw new ProjectEditorCommandError(
+          `Project solution "${command.solutionId}" does not exist.`,
+        );
+      }
       const thicknessMm = finite(
         command.thicknessMm,
         "Deck interlayer thickness",
@@ -2058,6 +2074,7 @@ export function applyProjectEditorCommand(
           solution.id === command.solutionId
             ? {
                 ...solution,
+                origin: editedSolutionOrigin(solution.origin),
                 stack: {
                   ...solution.stack,
                   trailingInterlayerThicknessMm: thicknessMm,

@@ -1,3 +1,4 @@
+import { trailingInterlayerHeightMm } from "~/domain/palletGeometry";
 import type { PalletData } from "~/domain/palletTypes";
 import { isometricPallet } from "~/features/reporting/isometricPallet";
 import {
@@ -223,6 +224,13 @@ export function buildPalletSheet(input: PalletSheetInput): SheetDocument {
   primitives.push(
     ...isometricPallet({
       layers: sheetLayers(input.data),
+      trailingSheetHeightMm: trailingInterlayerHeightMm(input.data),
+      trailingSheetFootprint: input.data.trailingInterlayerDimensions
+        ? {
+            lengthX: input.data.trailingInterlayerDimensions.width,
+            widthY: input.data.trailingInterlayerDimensions.length,
+          }
+        : undefined,
       pallet: {
         lengthX: pallet.width,
         widthY: pallet.length,
