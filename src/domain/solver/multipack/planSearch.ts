@@ -316,9 +316,13 @@ class PlanSearch {
   yEntry1 = 0;
   yTableCount = 0;
 
-  /** `*ECX` / `*EBP+0x30` from `FUN_0051d78c`: aligned spans, larger side first. */
-  alignedMajor = 0;
-  alignedMinor = 0;
+  /**
+   * `*ECX` / `*EBP+0x30` from `FUN_0051d78c`, kept on their own axes. The
+   * original sorts them larger first, which only matches X/Y on landscape
+   * palettes.
+   */
+  alignedX = 0;
+  alignedY = 0;
   /** `*EBP+0x1C`, written by `FUN_0051d830`. */
   upperBound = 0;
   /** Real48 at frame `-0x170`, read by `FUN_00be647c`. */
@@ -363,8 +367,9 @@ class PlanSearch {
   run(): Plan[] {
     if (this.longSide <= 0 || this.shortSide <= 0) return [];
     const aligned = alignedSpans(this.usableX, this.usableY, this.shortSide, this.longSide);
-    this.alignedMajor = aligned.major;
-    this.alignedMinor = aligned.minor;
+    const landscape = this.usableX >= this.usableY;
+    this.alignedX = landscape ? aligned.major : aligned.minor;
+    this.alignedY = landscape ? aligned.minor : aligned.major;
     this.upperBound = areaUpperBound(aligned.major, aligned.minor, this.longSide, this.shortSide);
     this.xLong = idiv(this.usableX, this.longSide);
     this.xShort = idiv(this.usableX, this.shortSide);
@@ -579,7 +584,7 @@ class PlanSearch {
   /** Frame `-0x170`: aligned area minus `(best - 1)` packages, plus 100. */
   private resetWasteLimit(): void {
     this.wasteLimit =
-      this.alignedMajor * this.alignedMinor -
+      this.alignedX * this.alignedY -
       (this.best - 1) * this.longSide * this.shortSide +
       100;
   }
@@ -1339,8 +1344,8 @@ class PlanSearch {
       count,
       width: template.far,
       height: template.span,
-      restX: this.alignedMajor - template.far,
-      restY: this.alignedMinor - template.span,
+      restX: this.alignedX - template.far,
+      restY: this.alignedY - template.span,
     };
     const { restX, restY } = frame;
     const rest = { x: restX, y: restY };
@@ -1385,7 +1390,7 @@ class PlanSearch {
     if (!this.worth(count)) return;
     this.startTemplate(count, 2, frame).shape = 9;
     const far = larger(across * pitch, frame.width);
-    const rows = idiv(this.alignedMinor - frame.height, unit);
+    const rows = idiv(this.alignedY - frame.height, unit);
     this.fill(1, across, rows, rows * unit + frame.height, frame.height, far, 0, type, 6);
     this.accept(2, 10);
   }
@@ -1398,7 +1403,7 @@ class PlanSearch {
     const count = idiv(this.usableX - frame.width, unit) * down + frame.count;
     if (!this.worth(count)) return;
     this.startTemplate(count, 2, frame).shape = 3;
-    const columns = idiv(this.alignedMajor - frame.width, unit);
+    const columns = idiv(this.alignedX - frame.width, unit);
     const span = larger(down * pitch, frame.height);
     this.fill(1, columns, down, span, 0, columns * unit + frame.width, frame.width, type, 0x0c);
     this.accept(2, 10);
@@ -1409,7 +1414,7 @@ class PlanSearch {
     const long = this.longSide;
     const short = this.shortSide;
     const rows = idiv(frame.restY, short);
-    const deep = idiv(this.alignedMinor - short * rows, long);
+    const deep = idiv(this.alignedY - short * rows, long);
     const columns = idiv(frame.restX, short);
     const count = deep * columns + frame.count + this.xLong * rows;
     if (!this.worth(count)) return;
@@ -1426,7 +1431,7 @@ class PlanSearch {
     const long = this.longSide;
     const short = this.shortSide;
     const rows = idiv(frame.restY, long);
-    const deep = idiv(this.alignedMinor - long * rows, short);
+    const deep = idiv(this.alignedY - long * rows, short);
     const columns = idiv(frame.restX, long);
     const count = deep * columns + frame.count + this.xShort * rows;
     if (!this.worth(count)) return;
@@ -1449,11 +1454,11 @@ class PlanSearch {
     const long = this.longSide;
     const short = this.shortSide;
     const columns = idiv(frame.restX, short);
-    const across = idiv(this.alignedMajor - short * columns, long);
+    const across = idiv(this.alignedX - short * columns, long);
     const count = across * idiv(frame.restY, short) + frame.count + this.yLong * columns;
     if (!this.worth(count)) return;
     this.startTemplate(count, 3, frame);
-    const rows = idiv(this.alignedMinor - frame.height, short);
+    const rows = idiv(this.alignedY - frame.height, short);
     const right = larger(across * long, frame.width);
     const top = rows * short + frame.height;
     const span = larger(this.yLong * long, top);
@@ -1468,11 +1473,11 @@ class PlanSearch {
     const long = this.longSide;
     const short = this.shortSide;
     const columns = idiv(frame.restX, long);
-    const across = idiv(this.alignedMajor - long * columns, short);
+    const across = idiv(this.alignedX - long * columns, short);
     const count = across * idiv(frame.restY, long) + frame.count + this.yShort * columns;
     if (!this.worth(count)) return;
     this.startTemplate(count, 3, frame);
-    const rows = idiv(this.alignedMinor - frame.height, long);
+    const rows = idiv(this.alignedY - frame.height, long);
     const right = larger(across * short, frame.width);
     const top = rows * long + frame.height;
     const span = larger(this.yShort * short, top);
@@ -1497,8 +1502,8 @@ class PlanSearch {
     const short = this.shortSide;
     const rows = idiv(frame.restY, short);
     const columns = idiv(frame.restX, long);
-    const deep = idiv(this.alignedMinor - frame.height, long);
-    const fill = idiv(this.alignedMinor - long * deep, short);
+    const deep = idiv(this.alignedY - frame.height, long);
+    const fill = idiv(this.alignedY - long * deep, short);
     const steps = idiv(frame.width, long);
     for (let lead = 1; lead <= steps; lead += 1) {
       const across = tableAt(this.tableX, lead);
@@ -1552,7 +1557,7 @@ class PlanSearch {
     const short = this.shortSide;
     const rows = idiv(frame.restY, long);
     const columns = idiv(frame.restX, short);
-    const teeth = idiv(this.alignedMajor - frame.width, long);
+    const teeth = idiv(this.alignedX - frame.width, long);
     const across = tableAt(this.tableX, teeth);
     const steps = idiv(frame.height, long);
     for (let band = 1; band <= steps; band += 1) {
@@ -1611,11 +1616,11 @@ class PlanSearch {
     const halfX = Math.trunc((spanX + 1) / 2);
     const deepAt = (rows: number): number =>
       type === 1
-        ? idiv(this.alignedMinor - pitch * rows, run)
+        ? idiv(this.alignedY - pitch * rows, run)
         : tableAt(this.tableY, rows);
     const runAt = (columns: number): number =>
       type === 1
-        ? idiv(this.alignedMajor - pitch * columns, run)
+        ? idiv(this.alignedX - pitch * columns, run)
         : tableAt(this.tableX, columns);
     for (let bottom = 1; bottom <= halfY; bottom += 1) {
       const top = spanY - bottom;
@@ -1633,10 +1638,10 @@ class PlanSearch {
         const bottomEdge = this.scratch[1]!.span;
         this.fill(2, left, leftDeep, bottomEdge + run * leftDeep, bottomEdge, pitch * left, 0, crossType, 2);
         const leftEdge = this.scratch[2]!.far;
-        const topY = this.alignedMinor - pitch * top;
-        this.fill(3, topRun, top, this.alignedMinor, topY, leftEdge + run * topRun, leftEdge, type, 4);
-        const rightX = this.alignedMajor - pitch * right;
-        this.fill(4, right, rightDeep, run * rightDeep, 0, this.alignedMajor, rightX, crossType, 8);
+        const topY = this.alignedY - pitch * top;
+        this.fill(3, topRun, top, this.alignedY, topY, leftEdge + run * topRun, leftEdge, type, 4);
+        const rightX = this.alignedX - pitch * right;
+        this.fill(4, right, rightDeep, run * rightDeep, 0, this.alignedX, rightX, crossType, 8);
         slot0.shape = 0;
         slot0.origin = leftEdge;
         slot0.far = leftEdge + frame.width;

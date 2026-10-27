@@ -149,6 +149,23 @@ describe("MultiPack plan search", () => {
     ]);
   });
 
+  it("keeps the nested families inside a portrait palette", () => {
+    const portrait = { x: 8000, y: 12000 };
+    const plans = searchMultiPackPlans({
+      paletteDmm: portrait,
+      package: { length: 1200, width: 800 },
+      clearanceDmm: 0,
+    });
+    expect(plans).toHaveLength(117);
+    for (const { variant, solution } of plans) {
+      const packages = tileMuster(
+        generateMultiPackMuster({ ...solution, interactiveQuality: false }),
+      );
+      expect(packages).toHaveLength(recordCount(variant));
+      expect(isValidMusterLayer(packages, portrait, 0)).toBe(true);
+    }
+  });
+
   it("is independent of which side is passed as length", () => {
     const swapped = search(800, 1200).map(({ variant }) => variant);
     expect(swapped).toEqual(search(1200, 800).map(({ variant }) => variant));
