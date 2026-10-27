@@ -69,6 +69,25 @@ the LaengsSpiegel mirror the tiled placements are the same either way, but the
 block-level assertions (100 / 44 one-package blocks, the block-for-block
 comparison) and the mode-0 alternative depend on the reverse-fitted `on`.
 
+## Plan search
+
+`planSearch.ts` transcribes `FUN_00bea380` and every family it calls,
+including the interlock pinwheels (`be77d8`, `be7020`), the nested kombi
+blocks (`be6688` with the `be647c` helpers) and the stop-mode second pass
+(`be97f4`, `be9bf4`). There is no live capture of those families yet; the
+tests pin their output and check that every record tiles to its own package
+count without overlaps. Two details come from the instruction stream, not
+the decompile:
+
+- `FUN_0051d830` (the area bound that gates the pinwheel center block) ends
+  in a float loop whose residue tests hold by construction, so it runs once;
+  the bound is `Trunc((A·B − corner waste) / (L·S))`.
+- `FUN_00be3a4c` clears the tie byte and the type bytes of the scored slots
+  on every path, stored or rejected (`0x00be3f6b`).
+
+`FUN_00be97f4` pushes `j − S` as the near edge of its partial row instead of
+`(j − 1)·S`; the port keeps that.
+
 ## Not covered by the capture
 
 The capture has both replication flags off, so the mirror axis (Real48 at

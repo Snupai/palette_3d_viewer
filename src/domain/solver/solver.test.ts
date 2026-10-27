@@ -1845,8 +1845,8 @@ describe("candidate canonicalization and geometric deduplication", () => {
 
 describe("deterministic solve orchestration", () => {
   it.each([
-    { packageCount: 102, candidateCount: 369, groupCapacity: 3 },
-    { packageCount: 101, candidateCount: 552, groupCapacity: 2 },
+    { packageCount: 102, candidateCount: 372, groupCapacity: 3 },
+    { packageCount: 101, candidateCount: 555, groupCapacity: 2 },
   ])(
     "finds dense 121 × 76 mm layouts with exactly $packageCount packages on a EURO pallet",
     ({ packageCount, candidateCount, groupCapacity }) => {
@@ -1964,7 +1964,7 @@ describe("deterministic solve orchestration", () => {
     );
 
     expect(result.status).toBe("completed");
-    expect(result.candidates).toHaveLength(180);
+    expect(result.candidates).toHaveLength(187);
     expect(regionCandidates).toHaveLength(48);
     expect(
       regionCandidates.some(({ provenance }) =>
@@ -2450,7 +2450,7 @@ describe("observed MultiPack geometry", () => {
     );
 
     expect(maximum).toBe(55);
-    expect(maximumCandidates).toHaveLength(133);
+    expect(maximumCandidates).toHaveLength(144);
     expect(
       maximumCandidates.filter(({ provenance }) =>
         provenance.some(({ variant }) => variant === "balanced-capped-block"),
@@ -2603,7 +2603,7 @@ describe("observed MultiPack geometry", () => {
     const crossedCandidates = result.candidates.filter(({ provenance }) =>
       provenance.some(({ family }) => family === "crossed-strip"),
     );
-    expect(result.candidates).toHaveLength(144);
+    expect(result.candidates).toHaveLength(156);
     expect(crossedCandidates).toHaveLength(58);
     // Preserve the exact pre-existing clean-block inventory alongside the new family.
     const legacyCandidates = result.candidates.filter(
@@ -2625,7 +2625,8 @@ describe("observed MultiPack geometry", () => {
             family !== "staircase-variable" &&
             family !== "staircase-exchange" &&
             family !== "rounded-slice" &&
-            family !== "symmetry",
+            family !== "symmetry" &&
+            family !== "multipack",
         ),
     );
     const threeBlockCandidates = legacyCandidates.filter(({ provenance }) =>
