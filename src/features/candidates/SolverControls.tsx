@@ -274,8 +274,17 @@ function prepareSolverInput(
     );
     const input: LayerSolverInput = {
       ...baseInput,
+    // A positive allowance typed here authorizes that overhang for this run;
+    // the saved pallet policy stays unchanged.
+    const envelopeMm = {
+      minX: Math.min(baseInput.envelopeMm.minX, generationBoundsMm.minX),
+      minY: Math.min(baseInput.envelopeMm.minY, generationBoundsMm.minY),
+      maxX: Math.max(baseInput.envelopeMm.maxX, generationBoundsMm.maxX),
+      maxY: Math.max(baseInput.envelopeMm.maxY, generationBoundsMm.maxY),
+    };
       package: {
         ...baseInput.package,
+      envelopeMm,
         dimensionsMm: {
           length: packageDimensionsMm.length,
           width: packageDimensionsMm.width,

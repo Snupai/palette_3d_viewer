@@ -847,6 +847,39 @@ describe("SolverControls", () => {
     });
   });
 
+  it("authorizes a positive overhang typed beyond the pallet policy for this run only", async () => {
+    const sourceProject = project();
+
+    render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
+      target: { value: "12" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
+    );
+
+    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
+      envelopeMm: { minX: -6, minY: 0, maxX: 406, maxY: 300 },
+      generationBoundsMm: { minX: -6, minY: 0, maxX: 406, maxY: 300 },
+    });
+    expect(sourceProject.pallet?.allowedOverhangMm).toEqual({
+      length: 0,
+      width: 0,
+    });
+  });
+
   it("uses compact centered footprints when both allowances are zero, including negative zero", async () => {
     const sourceProject = project();
 
@@ -951,14 +984,12 @@ describe("SolverControls", () => {
     fireEvent.change(screen.getByLabelText("Über-/Unterstand Länge gesamt"), {
       target: { value: "1" },
     });
-    expect(screen.getByRole("alert").textContent).toContain(
-      "The requested generation envelope must fit inside the project-authorized pallet envelope.",
-    );
+    expect(screen.queryByRole("alert")).toBeNull();
     expect(
       screen.getByRole<HTMLButtonElement>("button", {
         name: "Eingaben übernehmen und lösen",
       }).disabled,
-    ).toBe(true);
+    ).toBe(false);
   });
   it("updates the profile-derived group capacity while preserving an explicit limit", () => {
     const base = project();
