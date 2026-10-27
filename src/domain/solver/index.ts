@@ -1,3 +1,4 @@
+export * from "~/domain/solver/appendResult";
 export * from "~/domain/solver/candidateIdentity";
 export * from "~/domain/solver/candidates";
 export * from "~/domain/solver/generators";

@@ -73,6 +73,7 @@ export type PlanningCaseWorkbenchProps = {
     projectId: string,
     result: SolverResult,
     input: LayerSolverInput,
+    appended?: boolean,
   ) => void;
   onResetSolver: () => void;
   onCandidateChange: (candidateId: string) => void;
@@ -211,8 +212,8 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 launchRequest={p.generatorLaunchRequest}
                 onLaunchRequestConsumed={p.onGeneratorLaunchRequestConsumed}
                 onApplyPackageInputs={p.onApplyGeneratorPackageInputs}
-                onResult={(result, input) =>
-                  p.onSolverResult(project.id, result, input)
+                onResult={(result, input, appended) =>
+                  p.onSolverResult(project.id, result, input, appended)
                 }
                 onReset={p.onResetSolver}
               />

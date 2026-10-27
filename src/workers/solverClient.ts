@@ -140,6 +140,7 @@ export class LayerSolverClient {
 
     const solverOptions: SolverWorkerOptions = {
       generatorOrder: options.generatorOrder,
+      generatorScope: options.generatorScope,
       includeSymmetryVariants: options.includeSymmetryVariants,
       regionTopologyBudget:
         options.regionTopologyBudget ?? PRODUCTION_REGION_SEARCH_BUDGET,

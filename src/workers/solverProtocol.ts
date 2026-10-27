@@ -12,6 +12,7 @@ export type SolverRunId = string;
 export type SolverWorkerOptions = Pick<
   SolverOptions,
   | "generatorOrder"
+  | "generatorScope"
   | "includeSymmetryVariants"
   | "regionTopologyBudget"
   | "progressBatchSize"

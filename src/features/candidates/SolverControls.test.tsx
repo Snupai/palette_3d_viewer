@@ -9,7 +9,11 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
 import type { Gripper, Project } from "~/domain/project/projectSchema";
-import type { LayerSolverInput, SolverResult } from "~/domain/solver";
+import {
+  solveLayer,
+  type LayerSolverInput,
+  type SolverResult,
+} from "~/domain/solver";
 import {
   SolverControls,
   type GeneratorPackageInputs,
@@ -28,6 +32,15 @@ vi.mock("~/workers/solverClient", () => ({
   }),
   SolverRunCancelledError: class SolverRunCancelledError extends Error {},
 }));
+
+/** Runs the user started; combined mode adds one legacy background run. */
+function primaryRuns() {
+  return clientMocks.run.mock.calls.filter(
+    ([, options]) =>
+      (options as { generatorScope?: string } | undefined)?.generatorScope !==
+      "legacy",
+  );
+}
 
 const completedResult: SolverResult = {
   status: "completed",
@@ -175,7 +188,7 @@ describe("SolverControls", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: { minX: 19, minY: 31, maxX: 1181, maxY: 769 },
       constraints: { minimumPackageCount: 38, maximumPackageCount: 38 },
@@ -284,7 +297,7 @@ describe("SolverControls", () => {
         multiPickAllowed: false,
       }),
     );
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     const solverInput = clientMocks.run.mock.calls[0]?.[0] as LayerSolverInput;
     expect(solverInput).toMatchObject({
       package: { dimensionsMm: { length: 100, width: 50 } },
@@ -376,7 +389,7 @@ describe("SolverControls", () => {
         multiPickAllowed: true,
       }),
     );
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       constraints: { provisionalPackagesPerCycle: 2 },
     });
@@ -421,7 +434,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       constraints: { provisionalPackagesPerCycle: 1 },
     });
@@ -457,7 +470,7 @@ describe("SolverControls", () => {
       />,
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(onLaunchRequestConsumed).toHaveBeenCalledTimes(1);
     expect(onLaunchRequestConsumed).toHaveBeenCalledWith(
       launchRequest.requestId,
@@ -470,7 +483,8 @@ describe("SolverControls", () => {
         provisionalPackagesPerCycle: 1,
       },
     });
-    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
+    // MultiPack result, then the result with the background legacy run appended.
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(2));
 
     view.rerender(
       <SolverControls
@@ -484,7 +498,7 @@ describe("SolverControls", () => {
     );
     await Promise.resolve();
 
-    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+    expect(primaryRuns()).toHaveLength(1);
     expect(onLaunchRequestConsumed).toHaveBeenCalledTimes(1);
     expect(onApplyPackageInputs).toHaveBeenCalledTimes(1);
   });
@@ -547,7 +561,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(
       screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     ).toHaveProperty("disabled", true);
@@ -560,6 +574,107 @@ describe("SolverControls", () => {
     expect(clientMocks.cancel).toHaveBeenCalledTimes(1);
     resolveResult(completedResult);
     await Promise.resolve();
+  });
+
+  it("shows MultiPack first and appends the legacy run from the background", async () => {
+    const [first, second] = solveLayer(
+      {
+        package: {
+          shape: "cuboid",
+          dimensionsMm: { length: 100, width: 50 },
+          clearanceMm: 0,
+        },
+        envelopeMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
+        constraints: { minimumPackageCount: 24, maximumPackageCount: 24 },
+      },
+      { generatorScope: "multipack" },
+    ).candidates;
+    let resolveLegacy!: (result: SolverResult) => void;
+    clientMocks.run
+      .mockReturnValueOnce({
+        runId: "multipack-run",
+        cancel: clientMocks.cancel,
+        result: Promise.resolve({ ...completedResult, candidates: [first!] }),
+      })
+      .mockReturnValueOnce({
+        runId: "legacy-run",
+        cancel: clientMocks.cancel,
+        result: new Promise<SolverResult>((resolve) => {
+          resolveLegacy = resolve;
+        }),
+      });
+    const sourceProject = project();
+    const onResult = vi.fn();
+
+    render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={onResult}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
+      target: { value: "24" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
+    );
+
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
+    expect(
+      clientMocks.run.mock.calls.map(
+        ([, options]) => (options as { generatorScope?: string }).generatorScope,
+      ),
+    ).toEqual(["multipack", "legacy"]);
+    expect(
+      screen.getByText(/Alter Generator läuft im Hintergrund/),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Eingaben übernehmen und lösen",
+      }).disabled,
+    ).toBe(false);
+
+    resolveLegacy({ ...completedResult, candidates: [first!, second!] });
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(2));
+    const merged = onResult.mock.calls[1]?.[0] as SolverResult;
+    expect(merged.candidates.map(({ id, rank }) => [id, rank])).toEqual([
+      [first!.id, 1],
+      [second!.id, 2],
+    ]);
+    expect(screen.queryByText(/Alter Generator läuft im Hintergrund/)).toBeNull();
+  });
+
+  it("runs only the legacy generators when selected", async () => {
+    const sourceProject = project();
+    const onResult = vi.fn();
+    render(
+      <SolverControls
+        project={sourceProject}
+        onApplyPackageInputs={async () => sourceProject}
+        onResult={onResult}
+        onReset={vi.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Generator"), {
+      target: { value: "legacy" },
+    });
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
+    );
+
+    await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
+    expect(
+      clientMocks.run.mock.calls.map(
+        ([, options]) => (options as { generatorScope?: string }).generatorScope,
+      ),
+    ).toEqual(["legacy"]);
   });
 
   it("discards a completed run when saved multipick authorization changes", async () => {
@@ -765,7 +880,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       physicalPalletBoundsMm: {
         minX: 0,
@@ -820,7 +935,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       physicalPalletBoundsMm: {
         minX: 0,
@@ -869,7 +984,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       envelopeMm: { minX: -6, minY: 0, maxX: 406, maxY: 300 },
       generationBoundsMm: { minX: -6, minY: 0, maxX: 406, maxY: 300 },
@@ -902,7 +1017,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
       constraints: {
@@ -938,7 +1053,7 @@ describe("SolverControls", () => {
       screen.getByRole("button", { name: "Eingaben übernehmen und lösen" }),
     );
 
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: {
         minX: 0,

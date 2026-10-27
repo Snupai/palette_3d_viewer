@@ -73,8 +73,21 @@ export function StackWorkspace({
   const [saveFailure, setSaveFailure] = useState<string | null>(null);
   const [saveMessage, setSaveMessage] = useState<string | null>(null);
   const editRevision = useRef(0);
+  const seededFrom = useRef({ projectId: project.id, candidateSignature });
+  const [seedSignature, setSeedSignature] = useState(candidateSignature);
 
   useEffect(() => {
+    const previous = seededFrom.current;
+    seededFrom.current = { projectId: project.id, candidateSignature };
+    // Patterns appended by a background solver run leave the seed intact.
+    if (
+      previous.projectId === project.id &&
+      previous.candidateSignature !== "" &&
+      candidateSignature.startsWith(`${previous.candidateSignature}|`)
+    ) {
+      return;
+    }
+    setSeedSignature(candidateSignature);
     editRevision.current += 1;
     setState(initialState());
     setDirty(false);
@@ -185,7 +198,7 @@ export function StackWorkspace({
   if (guided) {
     return (
       <GuidedStackWorkspace
-        key={`${project.id}:${candidateSignature}`}
+        key={`${project.id}:${seedSignature}`}
         project={project}
         candidates={candidates}
         solverInput={solverInput}

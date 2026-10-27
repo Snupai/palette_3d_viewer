@@ -173,6 +173,18 @@ export const candidatesEn = {
   "candidates.solver.advanced": "Advanced generation",
   "candidates.solver.candidatesSlash": "Candidates / generator",
   "candidates.solver.blockSymmetries": "Include block symmetries",
+  "candidates.solver.generatorMode": "Generator",
+  "candidates.solver.generatorMode.combined":
+    "Combined (MultiPack first, legacy generator in the background)",
+  "candidates.solver.generatorMode.multipack": "MultiPack only",
+  "candidates.solver.generatorMode.legacy": "Legacy generator only",
+  "candidates.solver.background.running":
+    "Legacy generator running in the background – more patterns will be appended.",
+  "candidates.solver.background.cancel": "Cancel",
+  "candidates.solver.background.cancelled":
+    "Legacy generator cancelled – showing MultiPack patterns only.",
+  "candidates.solver.background.failed":
+    "Legacy generator failed: {message}",
   "candidates.solver.cancel": "Cancel",
   "candidates.solver.applyAndSolve": "Apply inputs & solve",
   "candidates.solver.preflightFailed": "Preflight failed.",

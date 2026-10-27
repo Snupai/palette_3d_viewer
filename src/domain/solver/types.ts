@@ -293,6 +293,12 @@ export type SolverOptions = {
   /** Preserve directed placements and generated grip identities for oracle comparisons. */
   candidateEquivalence?: "pallet-symmetry" | "identity";
   generatorOrder?: readonly BaseGeneratorFamily[];
+  /**
+   * Restrict the run to the reverse-engineered MultiPack family
+   * (`"multipack"`) or to every other generator (`"legacy"`). Omitted runs
+   * both.
+   */
+  generatorScope?: "multipack" | "legacy";
   includeSymmetryVariants?: boolean;
   includeExperimentalIncompleteBlocks?: boolean;
   regionTopologyBudget?: RegionSearchBudget;

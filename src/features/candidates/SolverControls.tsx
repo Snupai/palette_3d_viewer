@@ -12,6 +12,7 @@ import type { Project } from "~/domain/project/projectSchema";
 import type { Side } from "~/domain/palletTypes";
 import { useT, type Translate } from "~/i18n";
 import {
+  appendSolverResult,
   createLayerSolverInputFromProject,
   validateAndNormalizeSolverInput,
   type LayerSolverInput,
@@ -49,11 +50,24 @@ export type SolverControlsProps = {
   launchRequest?: GeneratorLaunchRequest | null;
   onLaunchRequestConsumed?: (requestId: string) => void;
   onApplyPackageInputs: (inputs: GeneratorPackageInputs) => Promise<Project>;
-  onResult: (result: SolverResult, input: LayerSolverInput) => void;
+  /**
+   * `appended` marks a result that only adds the background legacy run's
+   * patterns after an earlier result of the same run.
+   */
+  onResult: (
+    result: SolverResult,
+    input: LayerSolverInput,
+    appended?: boolean,
+  ) => void;
   onReset: () => void;
 };
 
 type RunStatus = "idle" | "running" | "completed" | "cancelled" | "rejected";
+/**
+ * `combined` shows the fast MultiPack search first and appends the legacy
+ * generators' patterns once their background run finishes.
+ */
+type GeneratorMode = "combined" | "multipack" | "legacy";
 
 type SolverDraft = {
   packageLength: string;
@@ -422,6 +436,7 @@ export function SolverControls({
   const t = useT();
   const clientRef = useRef<LayerSolverClient | null>(null);
   const handleRef = useRef<SolverRunHandle | null>(null);
+  const backgroundRef = useRef<SolverRunHandle | null>(null);
   const generationRef = useRef(0);
   const hasRunRef = useRef(false);
   const claimedLaunchRequestIdsRef = useRef(new Set<string>());
@@ -443,6 +458,13 @@ export function SolverControls({
   const [allowMixedPackageOrientations, setAllowMixedPackageOrientations] =
     useState(true);
   const [includeSymmetryVariants, setIncludeSymmetryVariants] = useState(true);
+  const [generatorMode, setGeneratorMode] =
+    useState<GeneratorMode>("combined");
+  const [backgroundProgress, setBackgroundProgress] =
+    useState<SolverProgress | null>(null);
+  const [backgroundNotice, setBackgroundNotice] = useState<string | null>(
+    null,
+  );
   const currentRunKey = useMemo(
     () =>
       JSON.stringify([
@@ -450,12 +472,14 @@ export function SolverControls({
         draft,
         allowMixedPackageOrientations,
         includeSymmetryVariants,
+        generatorMode,
       ]),
     [
       allowMixedPackageOrientations,
       currentProjectKey,
       draft,
       includeSymmetryVariants,
+      generatorMode,
     ],
   );
   const runKeyRef = useRef(currentRunKey);
@@ -474,6 +498,7 @@ export function SolverControls({
     return () => {
       generationRef.current += 1;
       handleRef.current = null;
+      backgroundRef.current = null;
       client.dispose();
       clientRef.current = null;
     };
@@ -551,6 +576,10 @@ export function SolverControls({
     generationRef.current += 1;
     handleRef.current?.cancel();
     handleRef.current = null;
+    backgroundRef.current?.cancel();
+    backgroundRef.current = null;
+    setBackgroundProgress(null);
+    setBackgroundNotice(null);
     hasRunRef.current = false;
     runKeyRef.current = currentRunKey;
     setStatus("idle");
@@ -614,6 +643,10 @@ export function SolverControls({
     }
 
     generationRef.current += 1;
+    backgroundRef.current?.cancel();
+    backgroundRef.current = null;
+    setBackgroundProgress(null);
+    setBackgroundNotice(null);
     hasRunRef.current = true;
     const generation = generationRef.current;
     const runKey = runKeyRef.current;
@@ -678,6 +711,7 @@ export function SolverControls({
     });
     const handle = client.run(input, {
       includeSymmetryVariants,
+      generatorScope: generatorMode === "legacy" ? "legacy" : "multipack",
       progressBatchSize: 25,
       onProgress: ({ runId, progress: nextProgress }) => {
         if (
@@ -706,6 +740,9 @@ export function SolverControls({
         setProgress(null);
         setStatus(result.status === "cancelled" ? "cancelled" : "completed");
         onResult(result, input);
+        if (generatorMode === "combined" && result.status === "completed") {
+          appendLegacyRun(client, input, result, generation, runKey);
+        }
       })
       .catch((cause: unknown) => {
         if (
@@ -730,6 +767,113 @@ export function SolverControls({
         );
       });
   };
+
+  const appendLegacyRun = (
+    client: LayerSolverClient,
+    input: LayerSolverInput,
+    first: SolverResult,
+    generation: number,
+    runKey: string,
+  ) => {
+    const background = client.run(input, {
+      includeSymmetryVariants,
+      generatorScope: "legacy",
+      progressBatchSize: 25,
+      onProgress: ({ runId, progress: nextProgress }) => {
+        if (
+          generationRef.current === generation &&
+          runKeyRef.current === runKey &&
+          backgroundRef.current?.runId === runId
+        ) {
+          setBackgroundProgress(nextProgress);
+        }
+      },
+    });
+    backgroundRef.current = background;
+    setBackgroundProgress({
+      phase: "input-validation",
+      completed: 0,
+      total: 1,
+      message: t("candidates.solver.progress.starting"),
+    });
+    const current = () =>
+      generationRef.current === generation &&
+      runKeyRef.current === runKey &&
+      backgroundRef.current?.runId === background.runId;
+    void background.result
+      .then((later) => {
+        if (!current()) return;
+        backgroundRef.current = null;
+        setBackgroundProgress(null);
+        if (later.status === "cancelled") {
+          setBackgroundNotice(t("candidates.solver.background.cancelled"));
+          return;
+        }
+        const merged = appendSolverResult(first, later);
+        setResultSummary(merged);
+        onResult(merged, input, true);
+      })
+      .catch((cause: unknown) => {
+        if (!current()) return;
+        backgroundRef.current = null;
+        setBackgroundProgress(null);
+        if (cause instanceof SolverRunCancelledError) {
+          setBackgroundNotice(t("candidates.solver.background.cancelled"));
+          return;
+        }
+        console.error("Background solver run failed", cause);
+        setBackgroundNotice(
+          t("candidates.solver.background.failed", {
+            message: cause instanceof Error ? cause.message : String(cause),
+          }),
+        );
+      });
+  };
+
+  const cancelBackground = () => {
+    const background = backgroundRef.current;
+    if (!background) return;
+    backgroundRef.current = null;
+    background.cancel();
+    setBackgroundProgress(null);
+    setBackgroundNotice(t("candidates.solver.background.cancelled"));
+  };
+
+  const backgroundStatus = backgroundProgress ? (
+    <div className="generator-progress" role="status" aria-live="polite">
+      <progress
+        aria-label={t("candidates.solver.background.running")}
+        value={
+          backgroundProgress.total ? backgroundProgress.completed : undefined
+        }
+        max={backgroundProgress.total ?? 1}
+      />
+      <p>
+        {t("candidates.solver.background.running")}{" "}
+        <button type="button" className="text-action" onClick={cancelBackground}>
+          {t("candidates.solver.background.cancel")}
+        </button>
+      </p>
+    </div>
+  ) : backgroundNotice ? (
+    <p role="status" className="generator-hint">
+      {backgroundNotice}
+    </p>
+  ) : null;
+
+  const generatorModeOptions = (
+    <>
+      <option value="combined">
+        {t("candidates.solver.generatorMode.combined")}
+      </option>
+      <option value="multipack">
+        {t("candidates.solver.generatorMode.multipack")}
+      </option>
+      <option value="legacy">
+        {t("candidates.solver.generatorMode.legacy")}
+      </option>
+    </>
+  );
 
   useEffect(() => {
     startRef.current = start;
@@ -848,6 +992,7 @@ export function SolverControls({
             </p>
           </div>
         )}
+        {backgroundStatus}
         {resultSummary && !showSearchSettings && (
           <button
             type="button"
@@ -979,6 +1124,18 @@ export function SolverControls({
                   onChange={(e) => setIncludeSymmetryVariants(e.target.checked)}
                 />
                 {t("candidates.solver.guided.symmetry")}
+              </label>
+              <label className="generator-check">
+                {t("candidates.solver.generatorMode")}
+                <select
+                  value={generatorMode}
+                  disabled={inputsDisabled}
+                  onChange={(e) =>
+                    setGeneratorMode(e.target.value as GeneratorMode)
+                  }
+                >
+                  {generatorModeOptions}
+                </select>
               </label>
             </div>
             <p>{t("candidates.solver.guided.allowanceHint")}</p>
@@ -1212,6 +1369,18 @@ export function SolverControls({
               />
               {t("candidates.solver.blockSymmetries")}
             </label>
+            <label className="border-line text-micro text-ink col-span-2 flex h-8 items-center gap-2 border px-2.5">
+              {t("candidates.solver.generatorMode")}
+              <select
+                value={generatorMode}
+                disabled={inputsDisabled}
+                onChange={(e) =>
+                  setGeneratorMode(e.target.value as GeneratorMode)
+                }
+              >
+                {generatorModeOptions}
+              </select>
+            </label>
           </div>
         </details>
 
@@ -1280,6 +1449,7 @@ export function SolverControls({
         )}
 
         {progress ? <SolverProgressPanel progress={progress} /> : null}
+        {backgroundStatus}
 
         {resultSummary ? (
           <div

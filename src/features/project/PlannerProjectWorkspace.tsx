@@ -922,10 +922,17 @@ export function PlannerProjectWorkspace({
   };
 
   const onSolverResult = useCallback(
-    (projectId: string, result: SolverResult, input: LayerSolverInput) => {
+    (
+      projectId: string,
+      result: SolverResult,
+      input: LayerSolverInput,
+      appended = false,
+    ) => {
       if (selectedProjectIdRef.current !== projectId) return;
       setSolverResult(result);
       setSolverInput(input);
+      // Background patterns only extend the list; keep the user's selection.
+      if (appended) return;
       setSelectedCandidateId(result.candidates[0]?.id ?? null);
       setCurrentLayerIndex(0);
     },

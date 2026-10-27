@@ -355,48 +355,55 @@ export function solveLayer(
   );
 
   const drafts: GeneratedCandidateDraft[] = [];
-  if (
-    !progress.checkpoint(
-      "generation",
-      0,
-      null,
-      "Generating bounded region-topology candidates.",
-      undefined,
-      true,
-    )
-  ) {
-    return cancelledResult(diagnostics, exclusions, statistics);
-  }
-  const regionOutput = generateRegionTopologyDrafts(normalizedInput, {
-    targetCountPolicy: regionTargetCountPolicy(normalizedInput),
-    budget:
-      options.regionTopologyBudget ?? DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET,
-    shouldCancel: () => progress.cancelled(),
-  });
-  diagnostics.push(regionTopologyDiagnostic(regionOutput));
-  if (
-    regionOutput.status === "stopped" &&
-    regionOutput.reason === "cancelled"
-  ) {
-    return cancelledResult(diagnostics, exclusions, statistics);
-  }
-  drafts.push(...regionOutput.drafts);
-  recordRegionDraftStatistics(regionOutput.drafts, statistics);
-  if (
-    !progress.checkpoint(
-      "generation",
-      regionOutput.work.totalUsed,
-      regionOutput.work.budget.maxWorkUnits,
-      `Finished bounded region-topology generation after discovering ${regionOutput.work.discoveredDraftCount} drafts and retaining ${regionOutput.drafts.length}.`,
-      undefined,
-      true,
-    )
-  ) {
-    return cancelledResult(diagnostics, exclusions, statistics);
+  const scope = options.generatorScope;
+  if (scope !== "multipack") {
+    if (
+      !progress.checkpoint(
+        "generation",
+        0,
+        null,
+        "Generating bounded region-topology candidates.",
+        undefined,
+        true,
+      )
+    ) {
+      return cancelledResult(diagnostics, exclusions, statistics);
+    }
+    const regionOutput = generateRegionTopologyDrafts(normalizedInput, {
+      targetCountPolicy: regionTargetCountPolicy(normalizedInput),
+      budget:
+        options.regionTopologyBudget ??
+        DEFAULT_SOLVE_LAYER_REGION_SEARCH_BUDGET,
+      shouldCancel: () => progress.cancelled(),
+    });
+    diagnostics.push(regionTopologyDiagnostic(regionOutput));
+    if (
+      regionOutput.status === "stopped" &&
+      regionOutput.reason === "cancelled"
+    ) {
+      return cancelledResult(diagnostics, exclusions, statistics);
+    }
+    drafts.push(...regionOutput.drafts);
+    recordRegionDraftStatistics(regionOutput.drafts, statistics);
+    if (
+      !progress.checkpoint(
+        "generation",
+        regionOutput.work.totalUsed,
+        regionOutput.work.budget.maxWorkUnits,
+        `Finished bounded region-topology generation after discovering ${regionOutput.work.discoveredDraftCount} drafts and retaining ${regionOutput.drafts.length}.`,
+        undefined,
+        true,
+      )
+    ) {
+      return cancelledResult(diagnostics, exclusions, statistics);
+    }
   }
 
   const legacyDrafts: GeneratedCandidateDraft[] = [];
-  for (const family of normalizedGeneratorOrder(options.generatorOrder)) {
+  for (const family of normalizedGeneratorOrder(options.generatorOrder).filter(
+    (candidate) =>
+      scope === undefined || (scope === "multipack") === (candidate === "multipack"),
+  )) {
     if (
       !progress.checkpoint(
         "generation",

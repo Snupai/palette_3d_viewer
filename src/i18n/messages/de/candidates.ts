@@ -178,6 +178,18 @@ export const candidatesDe = {
   "candidates.solver.advanced": "Erweiterte Erzeugung",
   "candidates.solver.candidatesSlash": "Kandidaten / Generator",
   "candidates.solver.blockSymmetries": "Blocksymmetrien einbeziehen",
+  "candidates.solver.generatorMode": "Generator",
+  "candidates.solver.generatorMode.combined":
+    "Kombiniert (MultiPack zuerst, alter Generator im Hintergrund)",
+  "candidates.solver.generatorMode.multipack": "Nur MultiPack",
+  "candidates.solver.generatorMode.legacy": "Nur alter Generator",
+  "candidates.solver.background.running":
+    "Alter Generator läuft im Hintergrund – weitere Muster werden angehängt.",
+  "candidates.solver.background.cancel": "Abbrechen",
+  "candidates.solver.background.cancelled":
+    "Alter Generator abgebrochen – nur MultiPack-Muster angezeigt.",
+  "candidates.solver.background.failed":
+    "Alter Generator fehlgeschlagen: {message}",
   "candidates.solver.cancel": "Abbrechen",
   "candidates.solver.applyAndSolve": "Eingaben übernehmen und lösen",
   "candidates.solver.preflightFailed": "Vorprüfung fehlgeschlagen.",

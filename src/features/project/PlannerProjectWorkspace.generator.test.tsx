@@ -26,6 +26,15 @@ const clientMocks = vi.hoisted(() => ({
   cancel: vi.fn(),
 }));
 
+/** Runs the user started; combined mode adds one legacy background run. */
+function primaryRuns() {
+  return clientMocks.run.mock.calls.filter(
+    ([, options]) =>
+      (options as { generatorScope?: string } | undefined)?.generatorScope !==
+      "legacy",
+  );
+}
+
 vi.mock("~/workers/solverClient", () => ({
   createLayerSolverClient: () => ({
     run: clientMocks.run,
@@ -334,7 +343,7 @@ async function createAndGenerate(repository: ProjectRepository, count = "4") {
     target: { value: count },
   });
   fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
-  await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(primaryRuns()).toHaveLength(1));
   await screen.findByRole("region", { name: "Muster auswählen" });
 }
 async function openFirst(repository: ProjectRepository) {
@@ -420,7 +429,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     });
     await solveExisting(repository);
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     const cancels = clientMocks.cancel.mock.calls.length;
     fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
     expect(clientMocks.cancel).toHaveBeenCalledTimes(cancels);
@@ -432,7 +441,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
       (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
     );
     await screen.findByRole("region", { name: "Muster auswählen" });
-    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+    expect(primaryRuns()).toHaveLength(1);
   });
 
   it("checks geometry loss before saving and closes metadata inputs without discarding the stack", async () => {
@@ -702,7 +711,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     const { project, repository } = await repositoryWithProject();
     await solveExisting(repository);
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       generationBoundsMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
       constraints: {
@@ -731,7 +740,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
       screen.getByRole("checkbox", { name: "Mehrfachgriff erlauben" }),
     );
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(clientMocks.run.mock.calls[0]?.[0]).toMatchObject({
       package: { dimensionsMm: { length: 100, width: 50 } },
       generationBoundsMm: { minX: 50, minY: 50, maxX: 350, maxY: 250 },
@@ -751,11 +760,13 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     expect(saved.pallet?.allowedOverhangMm).toEqual({ length: 0, width: 0 });
   });
   it("keeps the selected candidate when composing the stack and changing filters", async () => {
-    clientMocks.run.mockReturnValueOnce({
-      runId: "many",
-      cancel: clientMocks.cancel,
-      result: Promise.resolve(candidateListResult(20)),
-    });
+    for (const runId of ["many", "many-legacy"]) {
+      clientMocks.run.mockReturnValueOnce({
+        runId,
+        cancel: clientMocks.cancel,
+        result: Promise.resolve(candidateListResult(20)),
+      });
+    }
     await createAndGenerate(emptyRepository(), "6");
     expect(
       screen.getAllByRole("button", {
@@ -778,7 +789,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     expect(
       screen.getByTestId("stack-candidate-ids").textContent?.split("|"),
     ).toHaveLength(20);
-    expect(clientMocks.run).toHaveBeenCalledTimes(1);
+    expect(primaryRuns()).toHaveLength(1);
   });
   it("keeps candidates when a pre-solve project save lands before the in-flight worker result", async () => {
     const { repository } = await repositoryWithProject();
@@ -796,7 +807,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
       target: { value: "100" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
-    await waitFor(() => expect(clientMocks.run).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(primaryRuns()).toHaveLength(1));
     expect(
       (await repository.getProject("generator-project")).project?.package
         .dimensionsMm.length,

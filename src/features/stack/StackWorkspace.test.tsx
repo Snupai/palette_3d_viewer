@@ -955,6 +955,24 @@ describe("StackWorkspace guided", () => {
     ).toBeNull();
   });
 
+  it("keeps the stack when a background run appends candidates", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(
+      <StackWorkspace {...props} guided candidates={[candidates[0]!]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        guided
+        candidates={[candidates[0]!, candidates[1]!]}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+  });
+
   it("builds from capacity, inserts a sheet, reviews, returns with the same stack, and saves", async () => {
     const onSave =
       vi.fn<
