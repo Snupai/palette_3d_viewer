@@ -3,17 +3,17 @@ import type { MusterBlock } from "~/domain/solver/multipack/muster";
 /**
  * Robot-order swap pass (`FUN_00a464a4`, 0x00a46b9e–0x00a46c91).
  *
- * The legacy loop walks the finalized blocks from index 1 and looks for a
- * later block that overlaps the current one:
+ * For every anchor except the last block, the legacy loop tracks a `last`
+ * block, starting at the anchor, and scans the candidates from the anchor
+ * onwards for a hit:
  *
- *   last.xMax > candidate.x && last.y < candidate.yMax
+ *   last.xMax > candidate.x && candidate.yMax > last.y
  *
- * The first hit is found 30 times because the inner scan restarts from the
- * current index while fewer than 30 hits were counted (asm `CMP
- * [EBP-0xac],0x1e`). After the 30th hit the scan continues from the hit,
- * so later hits chain onto that block. Finally the current block and the
- * last hit are swapped. A zeroed slot past the last block cannot satisfy the
- * test, so the port scans real entries only.
+ * A hit makes the candidate the new `last`. While fewer than 30 hits were
+ * counted the scan restarts at the anchor but keeps `last` (asm `MOV
+ * EDX,ECX` at 0x00a46c20 before `JL 0x00a46bde`), so hits chain; two
+ * mutually overlapping blocks ping-pong until the 30th hit. Afterwards the
+ * scan continues past the hit. Finally the anchor and `last` are swapped.
  */
 export const OVERLAP_RESTART_HITS = 30;
 
@@ -22,12 +22,11 @@ export function eliminateMusterOverlaps(
 ): MusterBlock[] {
   const result = blocks.map((block) => ({ ...block }));
   const count = result.length;
-  if (count <= 1) return result;
 
-  for (let index = 1; index < count; index += 1) {
-    let last = index;
+  for (let anchor = 0; anchor < count - 1; anchor += 1) {
+    let last = anchor;
     let hits = 0;
-    let candidate = index;
+    let candidate = anchor;
 
     while (candidate < count) {
       if (candidate !== last) {
@@ -35,13 +34,12 @@ export function eliminateMusterOverlaps(
         const candidateBlock = result[candidate]!;
         if (
           lastBlock.xMax > candidateBlock.x &&
-          lastBlock.y < candidateBlock.yMax
+          candidateBlock.yMax > lastBlock.y
         ) {
           last = candidate;
           hits += 1;
           if (hits < OVERLAP_RESTART_HITS) {
-            candidate = index;
-            last = index;
+            candidate = anchor;
             continue;
           }
         }
@@ -49,9 +47,9 @@ export function eliminateMusterOverlaps(
       candidate += 1;
     }
 
-    if (last !== index) {
-      const swap = result[index]!;
-      result[index] = result[last]!;
+    if (last !== anchor) {
+      const swap = result[anchor]!;
+      result[anchor] = result[last]!;
       result[last] = swap;
     }
   }

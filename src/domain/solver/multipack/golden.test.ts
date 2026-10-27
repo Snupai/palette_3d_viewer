@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import blocksGolden from "~/domain/solver/multipack/__fixtures__/golden-pattern-100pk.blocks.json";
 import golden from "~/domain/solver/multipack/__fixtures__/golden-pattern-100pk.json";
+import underhangGolden from "~/domain/solver/multipack/__fixtures__/golden-pattern-44pk-underhang.json";
 import {
   mirrorMusterBlocks,
   mirrorMusterPackages,
@@ -17,8 +18,8 @@ const PACKAGE = { length: 1120, width: 760 };
 /**
  * Reverse-fitted from the captured Muster; see `__fixtures__/README.md`.
  * Slot 1 is the 15x2 band at the bottom (type 2), slot 2 the 10x7 band
- * above it (type 1). The optimizer is forced into per-package emission by
- * its frame flag, and the capture has 100 one-package blocks.
+ * above it (type 1). Per-package emission (`interactiveQuality`) is a
+ * reverse-fitted input: the capture is a re-exported, always-1x1 record.
  */
 const goldenSolution: MultiPackSolution = {
   paletteDmm: PALETTE,
@@ -56,7 +57,7 @@ const goldenSolution: MultiPackSolution = {
 };
 
 describe("golden 100-package mpick32 layer", () => {
-  it("generates the captured 100 one-package blocks", () => {
+  it("emits 100 one-package blocks with per-package emission", () => {
     const muster = generateMultiPackMuster(goldenSolution);
     expect(muster.layerOrient).toBe(2);
     expect(muster.blocks).toHaveLength(100);
@@ -110,5 +111,81 @@ describe("golden 100-package mpick32 layer", () => {
         orient,
       ]),
     ).toEqual(golden.entries);
+  });
+});
+
+/**
+ * Second live capture (0xa154ce0): 157×110 mm package with the underhang
+ * globals set to -220 / -150. The pattern block is 11000 × 6910 and is
+ * centered on the full palette, so the underhang only bounds the block.
+ * The 7-package band spreads its 10 dmm of slack as 1 dmm edge-fill gaps.
+ */
+const underhangSolution: MultiPackSolution = {
+  ...goldenSolution,
+  blockDmm: { x: 11000, y: 6910 },
+  package: { length: 1570, width: 1100 },
+  slots: [
+    {
+      kind: "simple",
+      type: 2,
+      x0: 0,
+      x1: 11000,
+      y0: 0,
+      y1: 4710,
+      countX: 10,
+      countY: 3,
+    },
+    {
+      kind: "simple",
+      type: 1,
+      x0: 0,
+      x1: 11000,
+      y0: 4710,
+      y1: 6910,
+      countX: 7,
+      countY: 2,
+    },
+  ],
+};
+
+describe("golden 44-package mpick32 underhang layer", () => {
+  it("matches the captured tiled placements entry for entry", () => {
+    const muster = generateMultiPackMuster(underhangSolution);
+    const packages = mirrorMusterPackages(tileMuster(muster), 1, PALETTE);
+    expect(muster.blocks).toHaveLength(44);
+    expect(
+      packages.map(({ x, y, xMax, yMax, orient }) => [
+        x,
+        y,
+        xMax - x,
+        yMax - y,
+        orient,
+      ]),
+    ).toEqual(underhangGolden.entries);
+  });
+});
+
+describe("alignment and Verbund equivalence", () => {
+  const flatten = (solution: MultiPackSolution, verbund: 0 | 1 | 2 | 3) =>
+    mirrorMusterPackages(
+      tileMuster(generateMultiPackMuster(solution)),
+      verbund,
+      PALETTE,
+    ).map(({ x, y, xMax, yMax, orient }) => [x, y, xMax - x, yMax - y, orient]);
+
+  it("reproduces both captures with each alignment mode and its matching mirror", () => {
+    for (const [alignMode, verbund] of [
+      [0, 0],
+      [1, 1],
+      [2, 2],
+      [3, 3],
+    ] as const) {
+      expect(flatten({ ...goldenSolution, alignMode }, verbund)).toEqual(
+        golden.entries,
+      );
+      expect(flatten({ ...underhangSolution, alignMode }, verbund)).toEqual(
+        underhangGolden.entries,
+      );
+    }
   });
 });

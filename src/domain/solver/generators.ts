@@ -7526,8 +7526,12 @@ function generateEdgeRings(
 }
 
 /**
- * MultiPack f�r Roboter layouts: enumerated solution records run through the
+ * MultiPack für Roboter layouts: enumerated solution records run through the
  * ported optimizer, tiling and centering, kept at their legacy positions.
+ *
+ * The legacy model works in integer 0.1 mm. Package size and clearance round
+ * up and the generation bounds round down, so a layer that is valid in 0.1 mm
+ * stays free of overlaps and inside the bounds in real millimetres.
  */
 function generateMultiPack(
   input: NormalizedLayerSolverInput,
@@ -7535,31 +7539,33 @@ function generateMultiPack(
 ): GeneratorOutput {
   const collector = new DraftCollector("multipack", input, hooks, true);
   const bounds = input.generationBoundsMm;
-  const toDmm = (mm: number) => Math.round(mm * 10);
+  const ceilDmm = (mm: number) => Math.ceil(mm * 10 - 1e-6);
+  const floorDmm = (mm: number) => Math.floor(mm * 10 + 1e-6);
+  const packageDmm = {
+    length: ceilDmm(input.package.dimensionsMm.length),
+    width: ceilDmm(input.package.dimensionsMm.width),
+  };
   const layers = generateMultiPackLayers({
     paletteDmm: {
-      x: toDmm(rectangleBoundsLength(bounds)),
-      y: toDmm(rectangleBoundsWidth(bounds)),
+      x: floorDmm(rectangleBoundsLength(bounds)),
+      y: floorDmm(rectangleBoundsWidth(bounds)),
     },
-    package: {
-      length: toDmm(input.package.dimensionsMm.length),
-      width: toDmm(input.package.dimensionsMm.width),
-    },
-    clearanceDmm: toDmm(input.package.clearanceMm),
+    package: packageDmm,
+    clearanceDmm: ceilDmm(input.package.clearanceMm),
   });
   for (const layer of layers) {
     if (!collector.checkCancellation()) break;
-    collector.add(
-      musterPackagesToPlacements(layer.packages, {
-        x: bounds.minX,
-        y: bounds.minY,
-      }),
-      {
-        family: "multipack",
-        variant: layer.variant,
-        parameters: { musterBlocks: layer.blockCount },
-      },
+    const placements = musterPackagesToPlacements(
+      layer.packages,
+      { x: bounds.minX, y: bounds.minY },
+      packageDmm,
+      input.constraints.allowedRotations,
     );
+    collector.add(placements, {
+      family: "multipack",
+      variant: layer.variant,
+      parameters: { musterBlocks: layer.blockCount },
+    });
   }
   return collector.output();
 }

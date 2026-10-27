@@ -1,5 +1,4 @@
 import type {
-  KombiFamilySlot,
   MultiPackPackageDmm,
   SimpleFamilySlot,
   SlotType,
@@ -10,7 +9,9 @@ import type { MultiPackSolution } from "~/domain/solver/multipack/optimizer";
  * Bounded enumeration of MultiPack solution records. The legacy candidate
  * enumerator is not part of the reverse-engineered specification, so this
  * covers the slot shapes whose generation is specified: single-orientation
- * grids, two orthogonal bands and kombi staircases.
+ * grids and two orthogonal bands. Kombi staircases (`emitKombiFamily`) are
+ * not enumerated: a probe against the captured oracle exports reproduced one
+ * layout while adding hundreds of drafts per case.
  */
 export type MultiPackEnumerationInput = {
   paletteDmm: { x: number; y: number };
@@ -145,69 +146,6 @@ function bands(
             ],
           },
         });
-      }
-    }
-  }
-  return result;
-}
-
-/**
- * Kombi staircase candidates. Kept out of the default enumeration: against the
- * 1711 captured oracle exports they reproduce a single layout while adding
- * hundreds of drafts per case.
- */
-export function enumerateMultiPackKombiSolutions(
-  input: MultiPackEnumerationInput,
-): EnumeratedMultiPackSolution[] {
-  const { paletteDmm, clearanceDmm: c } = input;
-  const result: EnumeratedMultiPackSolution[] = [];
-  for (const type of TYPES) {
-    const main = extents(type, input.package);
-    const tooth = extents(type === 1 ? 2 : 1, input.package);
-    const maxColumns = fit(paletteDmm.x, main.x, c);
-    const maxRows = fit(paletteDmm.y, main.y, c);
-    for (let steps = 1; steps <= 4; steps += 1) {
-      for (
-        let rowsPerStep = 1;
-        rowsPerStep * steps <= maxRows;
-        rowsPerStep += 1
-      ) {
-        for (let columns = 1; columns * steps <= maxColumns; columns += 1) {
-          for (let toothColumns = 1; toothColumns <= 3; toothColumns += 1) {
-            for (let toothRows = 1; toothRows <= 3; toothRows += 1) {
-              const stepPitch = (main.x + c) * columns;
-              const height = used(maxRows, main.y, c);
-              const width = steps * stepPitch + used(toothColumns, tooth.x, c);
-              if (width > paletteDmm.x) continue;
-              for (const descending of [false, true]) {
-                const slot: KombiFamilySlot = {
-                  kind: "kombi",
-                  type,
-                  x0: 0,
-                  x1: width,
-                  y0: 0,
-                  y1: height,
-                  columns,
-                  ratio: rowsPerStep * steps,
-                  steps,
-                  toothColumns,
-                  toothRows,
-                  descending,
-                };
-                result.push({
-                  variant: `kombi:t${type}:s${steps}r${rowsPerStep}c${columns}t${toothColumns}${descending ? "d" : "a"}`,
-                  solution: {
-                    paletteDmm,
-                    blockDmm: { x: width, y: height },
-                    package: input.package,
-                    clearanceDmm: c,
-                    slots: [slot],
-                  },
-                });
-              }
-            }
-          }
-        }
       }
     }
   }

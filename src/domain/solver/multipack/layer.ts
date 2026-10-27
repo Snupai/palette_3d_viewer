@@ -1,7 +1,7 @@
+import type { Rotation } from "~/domain/palletTypes";
 import type { GeneratedPlacement } from "~/domain/solver/types";
 import {
   MUSTER_BLOCK_CAP,
-  musterOrientRotation,
   type Muster,
   type MusterPackage,
 } from "~/domain/solver/multipack/muster";
@@ -71,7 +71,11 @@ function mirrorRect(
   return { x, y, xMax, yMax };
 }
 
-/** Block-level Verbund mirror, applied before tiling like the legacy export. */
+/**
+ * Block-level Verbund mirror. The legacy code mirrors the tiled package list
+ * (`AssignFromLagenLoesung`: tiling, then `Mirror`); mirroring blocks first
+ * gives the same geometry and, for `1×1` blocks, the same order.
+ */
 export function mirrorMusterBlocks(
   muster: Muster,
   verbund: VerbundType,
@@ -98,18 +102,35 @@ export function mirrorMusterPackages(
   }));
 }
 
-/** Converts tiled packages to solver placements; `originMm` is the palette corner. */
+/**
+ * Converts tiled packages to solver placements; `originMm` is the palette
+ * corner. The rotation comes from the footprint, not the Orient byte: the
+ * solver's rotation 0 puts `packageDmm.length` along X, which the legacy
+ * Orient byte only matches when length ≥ width. Each package takes the first
+ * allowed rotation with its footprint; without one it keeps the base rotation
+ * (0 or 90) so the solver's yaw policy rejects and reports the layout.
+ */
 export function musterPackagesToPlacements(
   packages: readonly MusterPackage[],
   originMm: { x: number; y: number },
+  packageDmm: { length: number; width: number },
+  allowedRotations: readonly Rotation[],
 ): GeneratedPlacement[] {
-  return packages.map((item) => ({
-    positionMm: {
-      x: originMm.x + (item.x + item.xMax) / 20,
-      y: originMm.y + (item.y + item.yMax) / 20,
-    },
-    rotation: musterOrientRotation(item.orient),
-  }));
+  const square = packageDmm.length === packageDmm.width;
+  return packages.map((item) => {
+    const lengthAlongX = square || item.xMax - item.x === packageDmm.length;
+    const rotation =
+      allowedRotations.find(
+        (candidate) => square || (candidate % 180 === 0) === lengthAlongX,
+      ) ?? (lengthAlongX ? 0 : 90);
+    return {
+      positionMm: {
+        x: originMm.x + (item.x + item.xMax) / 20,
+        y: originMm.y + (item.y + item.yMax) / 20,
+      },
+      rotation,
+    };
+  });
 }
 
 /** Inside the palette and pairwise separated by at least `clearance` on one axis. */

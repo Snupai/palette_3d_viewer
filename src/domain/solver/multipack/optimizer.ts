@@ -17,6 +17,10 @@ import {
 import { eliminateMusterOverlaps } from "~/domain/solver/multipack/overlap";
 import { subOrientForBlock } from "~/domain/solver/multipack/orientation";
 import {
+  MIRROR_REFERENCE_X,
+  MIRROR_REFERENCE_Y,
+  REPLICATION_OFFSET_X,
+  REPLICATION_OFFSET_Y,
   replicateMirrorMuster,
   replicateMuster2x2,
 } from "~/domain/solver/multipack/replication";
@@ -84,11 +88,6 @@ export type MultiPackSolution = {
 
 export const MULTIPACK_SLOT_LIMIT = 5;
 
-const REPLICATION_REFERENCE_X = 6000;
-const REPLICATION_REFERENCE_Y = 4000;
-const MIRROR_REFERENCE_X = 8000;
-const MIRROR_REFERENCE_Y = 6000;
-
 /** Effective block extent and centering offset after the legacy pre-pass. */
 export type MultiPackCenteringFrame = {
   offsetX: number;
@@ -116,21 +115,19 @@ export function multiPackCenteringFrame(
   let spanY = solution.blockDmm.y;
 
   if (solution.replicate2x2) {
-    spanX =
-      spanX < 12001 ? spanX - REPLICATION_REFERENCE_X : delphiDiv(spanX, 2);
-    spanY =
-      spanY < 8001 ? spanY - REPLICATION_REFERENCE_Y : delphiDiv(spanY, 2);
+    spanX = spanX < 12001 ? spanX - REPLICATION_OFFSET_X : delphiDiv(spanX, 2);
+    spanY = spanY < 8001 ? spanY - REPLICATION_OFFSET_Y : delphiDiv(spanY, 2);
     return {
       spanX,
       spanY,
       offsetX:
-        spanX > REPLICATION_REFERENCE_X
-          ? REPLICATION_REFERENCE_X - spanX
-          : delphiDiv(REPLICATION_REFERENCE_X - spanX, 2),
+        spanX > REPLICATION_OFFSET_X
+          ? REPLICATION_OFFSET_X - spanX
+          : delphiDiv(REPLICATION_OFFSET_X - spanX, 2),
       offsetY:
-        spanY > REPLICATION_REFERENCE_Y
-          ? REPLICATION_REFERENCE_Y - spanY
-          : delphiDiv(REPLICATION_REFERENCE_Y - spanY, 2),
+        spanY > REPLICATION_OFFSET_Y
+          ? REPLICATION_OFFSET_Y - spanY
+          : delphiDiv(REPLICATION_OFFSET_Y - spanY, 2),
     };
   }
 

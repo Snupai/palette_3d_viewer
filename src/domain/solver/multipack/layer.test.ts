@@ -152,9 +152,45 @@ describe("package conversion and validation", () => {
     expect(
       musterPackagesToPlacements(
         [{ x: 300, y: 220, xMax: 1060, yMax: 1340, orient: 2 }],
-        { x: 0, y: 0 },
+        { x: 10, y: 5 },
+        { length: 1120, width: 760 },
+        [0, 90, 180, 270],
       ),
-    ).toEqual([{ positionMm: { x: 68, y: 78 }, rotation: 90 }]);
+    ).toEqual([{ positionMm: { x: 78, y: 83 }, rotation: 90 }]);
+  });
+
+  it("derives the rotation from the footprint when width exceeds length", () => {
+    expect(
+      musterPackagesToPlacements(
+        [
+          { x: 0, y: 0, xMax: 1120, yMax: 760, orient: 1 },
+          { x: 0, y: 760, xMax: 760, yMax: 1880, orient: 2 },
+        ],
+        { x: 0, y: 0 },
+        { length: 760, width: 1120 },
+        [0, 90, 180, 270],
+      ).map(({ rotation }) => rotation),
+    ).toEqual([90, 0]);
+  });
+
+  it("uses the first allowed rotation for square packages and keeps the base yaw otherwise", () => {
+    const square = [{ x: 0, y: 0, xMax: 500, yMax: 500, orient: 2 as const }];
+    expect(
+      musterPackagesToPlacements(
+        square,
+        { x: 0, y: 0 },
+        { length: 500, width: 500 },
+        [180],
+      ).map(({ rotation }) => rotation),
+    ).toEqual([180]);
+    expect(
+      musterPackagesToPlacements(
+        [{ x: 0, y: 0, xMax: 1120, yMax: 760, orient: 1 }],
+        { x: 0, y: 0 },
+        { length: 1120, width: 760 },
+        [90, 270],
+      ).map(({ rotation }) => rotation),
+    ).toEqual([0]);
   });
 
   it("accepts touching packages but rejects overlaps", () => {
