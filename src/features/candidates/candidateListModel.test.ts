@@ -428,6 +428,7 @@ describe("candidate list model", () => {
         includeSymmetryVariants: true,
         includeExperimentalIncompleteBlocks: true,
         progressBatchSize: 25,
+        generatorScope: "legacy",
       },
     );
 

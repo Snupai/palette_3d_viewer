@@ -144,6 +144,28 @@ describe("MultiPack solver family", () => {
     }
   });
 
+  it("finds layouts of an exact requested package count", () => {
+    const result = validateAndNormalizeSolverInput({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 200, width: 200 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 1200, maxY: 800 },
+      constraints: {
+        allowMixedPackageOrientations: true,
+        allowedRotations: [0, 90, 180, 270],
+        minimumPackageCount: 20,
+        maximumPackageCount: 20,
+      },
+    });
+    if (!result.normalized) throw new Error("invalid test input");
+    const output = generateCandidateFamily(result.normalized, "multipack");
+    expect(output.drafts.map(({ placements }) => placements.length)).toEqual([
+      20, 20,
+    ]);
+  });
+
   it("reports layouts that need a disallowed yaw", () => {
     const output = generateCandidateFamily(
       normalized(110, 157, [0]),

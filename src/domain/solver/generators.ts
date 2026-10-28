@@ -7545,14 +7545,27 @@ function generateMultiPack(
     length: ceilDmm(input.package.dimensionsMm.length),
     width: ceilDmm(input.package.dimensionsMm.width),
   };
-  const layers = generateMultiPackLayers({
+  const search = {
     paletteDmm: {
       x: floorDmm(rectangleBoundsLength(bounds)),
       y: floorDmm(rectangleBoundsWidth(bounds)),
     },
     package: packageDmm,
     clearanceDmm: ceilDmm(input.package.clearanceMm),
-  });
+  };
+  const layers = generateMultiPackLayers(search);
+  // Optimize's stop-and-trim pass builds layers of exactly the requested
+  // count; the collector drops geometric repeats of the full enumeration.
+  const exactCount = exactRequestedPackageCount(input);
+  if (exactCount !== null) {
+    layers.push(
+      ...generateMultiPackLayers({
+        ...search,
+        targetCount: exactCount,
+        stopAtTarget: true,
+      }),
+    );
+  }
   for (const layer of layers) {
     if (!collector.checkCancellation()) break;
     const placements = musterPackagesToPlacements(

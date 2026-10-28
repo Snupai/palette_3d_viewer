@@ -2043,6 +2043,7 @@ describe("deterministic solve orchestration", () => {
   it("merges synthetic region drafts through the production candidate contracts", () => {
     const result = solveLayer(syntheticRegionInput(), {
       includeSymmetryVariants: true,
+      generatorScope: "legacy",
     });
     const regionCandidates = result.candidates.filter(({ provenance }) =>
       provenance.some(
@@ -2205,6 +2206,7 @@ describe("deterministic solve orchestration", () => {
     ({ budget, expectedCode, expectedMessage }) => {
       const result = solveLayer(syntheticRegionInput(), {
         includeSymmetryVariants: false,
+        generatorScope: "legacy",
         regionTopologyBudget: budget,
       });
 
@@ -2224,6 +2226,7 @@ describe("deterministic solve orchestration", () => {
   it("reports saturated draft storage as a completed search", () => {
     const result = solveLayer(syntheticRegionInput(), {
       includeSymmetryVariants: false,
+      generatorScope: "legacy",
       regionTopologyBudget: {
         maxWorkUnits: 100_000,
         maxFrontierStates: 2_000,
@@ -2603,7 +2606,7 @@ describe("observed MultiPack geometry", () => {
     const crossedCandidates = result.candidates.filter(({ provenance }) =>
       provenance.some(({ family }) => family === "crossed-strip"),
     );
-    expect(result.candidates).toHaveLength(156);
+    expect(result.candidates).toHaveLength(157);
     expect(crossedCandidates).toHaveLength(58);
     // Preserve the exact pre-existing clean-block inventory alongside the new family.
     const legacyCandidates = result.candidates.filter(
