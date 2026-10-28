@@ -79,11 +79,13 @@ export function StackWorkspace({
   useEffect(() => {
     const previous = seededFrom.current;
     seededFrom.current = { projectId: project.id, candidateSignature };
-    // Patterns appended by a background solver run leave the seed intact.
+    // A background solver run that appends patterns, or none, leaves the
+    // seed intact.
     if (
       previous.projectId === project.id &&
       previous.candidateSignature !== "" &&
-      candidateSignature.startsWith(`${previous.candidateSignature}|`)
+      (candidateSignature === previous.candidateSignature ||
+        candidateSignature.startsWith(`${previous.candidateSignature}|`))
     ) {
       return;
     }

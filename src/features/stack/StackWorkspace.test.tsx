@@ -874,6 +874,25 @@ describe("StackWorkspace", () => {
     ).toBeNull();
   });
 
+  it("keeps edits when a background run adds no new candidates", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(<StackWorkspace {...props} candidates={candidates} />);
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
+      target: { value: "mirror-x" },
+    });
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        candidates={candidates.map((candidate) => ({ ...candidate }))}
+      />,
+    );
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Transformation von Lage 1")
+        .value,
+    ).toBe("mirror-x");
+    expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy();
+  });
+
   it("keeps newer edits dirty when an earlier async save finishes", async () => {
     let resolveSave!: () => void;
     const pendingSave = new Promise<void>((resolve) => {
