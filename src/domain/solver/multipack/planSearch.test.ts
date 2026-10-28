@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { tileMuster, isValidMusterLayer } from "~/domain/solver/multipack/layer";
+import {
+  tileMuster,
+  isValidMusterLayer,
+} from "~/domain/solver/multipack/layer";
 import { generateMultiPackMuster } from "~/domain/solver/multipack/optimizer";
 import { searchMultiPackPlans } from "~/domain/solver/multipack/planSearch";
 
@@ -66,7 +69,9 @@ describe("MultiPack plan search", () => {
   });
 
   it("emits the nested kombi block with a band beside it", () => {
-    const plan = search(1200, 800).find(({ variant }) => classes(variant) === "10");
+    const plan = search(1200, 800).find(
+      ({ variant }) => classes(variant) === "10",
+    );
     expect(plan?.variant).toBe("mp:39:c10:n100:12000x8000");
     expect(plan?.solution.slots).toEqual([
       {
@@ -97,12 +102,22 @@ describe("MultiPack plan search", () => {
   });
 
   it("emits the pinwheel with a center block", () => {
-    const plan = search(1200, 800).find(({ variant }) => classes(variant) === "8");
+    const plan = search(1200, 800).find(
+      ({ variant }) => classes(variant) === "8",
+    );
     expect(plan?.variant).toBe("mp:43:c8:n100:12000x8000");
     expect(
       plan?.solution.slots.map((slot) =>
         slot.kind === "simple"
-          ? [slot.type, slot.x0, slot.x1, slot.y0, slot.y1, slot.countX, slot.countY]
+          ? [
+              slot.type,
+              slot.x0,
+              slot.x1,
+              slot.y0,
+              slot.y1,
+              slot.countX,
+              slot.countY,
+            ]
           : [],
       ),
     ).toEqual([
@@ -122,7 +137,9 @@ describe("MultiPack plan search", () => {
       targetCount: 55,
       stopAtTarget: true,
     });
-    expect(plans.map(({ variant }) => variant)).toEqual(["mp:0:c1:n55:11660x7850"]);
+    expect(plans.map(({ variant }) => variant)).toEqual([
+      "mp:0:c1:n55:11660x7850",
+    ]);
   });
 
   it("cuts a larger grid to the target when no record matches it exactly", () => {

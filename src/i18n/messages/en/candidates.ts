@@ -183,8 +183,7 @@ export const candidatesEn = {
   "candidates.solver.background.cancel": "Cancel",
   "candidates.solver.background.cancelled":
     "Legacy generator cancelled – showing MultiPack patterns only.",
-  "candidates.solver.background.failed":
-    "Legacy generator failed: {message}",
+  "candidates.solver.background.failed": "Legacy generator failed: {message}",
   "candidates.solver.cancel": "Cancel",
   "candidates.solver.applyAndSolve": "Apply inputs & solve",
   "candidates.solver.preflightFailed": "Preflight failed.",

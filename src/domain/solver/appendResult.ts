@@ -56,8 +56,7 @@ export function appendSolverResult(
       validDraftCount:
         first.statistics.validDraftCount + later.statistics.validDraftCount,
       invalidDraftCount:
-        first.statistics.invalidDraftCount +
-        later.statistics.invalidDraftCount,
+        first.statistics.invalidDraftCount + later.statistics.invalidDraftCount,
       geometricDuplicateCount:
         first.statistics.geometricDuplicateCount +
         later.statistics.geometricDuplicateCount +

@@ -402,7 +402,8 @@ export function solveLayer(
   const legacyDrafts: GeneratedCandidateDraft[] = [];
   for (const family of normalizedGeneratorOrder(options.generatorOrder).filter(
     (candidate) =>
-      scope === undefined || (scope === "multipack") === (candidate === "multipack"),
+      scope === undefined ||
+      (scope === "multipack") === (candidate === "multipack"),
   )) {
     if (
       !progress.checkpoint(

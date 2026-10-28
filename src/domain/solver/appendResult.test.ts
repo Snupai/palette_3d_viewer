@@ -25,7 +25,9 @@ describe("appendSolverResult", () => {
     const merged = appendSolverResult(multipack, legacy);
 
     const first = new Set(
-      multipack.candidates.map(({ geometryFingerprint }) => geometryFingerprint),
+      multipack.candidates.map(
+        ({ geometryFingerprint }) => geometryFingerprint,
+      ),
     );
     const appended = legacy.candidates.filter(
       ({ geometryFingerprint }) => !first.has(geometryFingerprint),

@@ -458,13 +458,10 @@ export function SolverControls({
   const [allowMixedPackageOrientations, setAllowMixedPackageOrientations] =
     useState(true);
   const [includeSymmetryVariants, setIncludeSymmetryVariants] = useState(true);
-  const [generatorMode, setGeneratorMode] =
-    useState<GeneratorMode>("combined");
+  const [generatorMode, setGeneratorMode] = useState<GeneratorMode>("combined");
   const [backgroundProgress, setBackgroundProgress] =
     useState<SolverProgress | null>(null);
-  const [backgroundNotice, setBackgroundNotice] = useState<string | null>(
-    null,
-  );
+  const [backgroundNotice, setBackgroundNotice] = useState<string | null>(null);
   const currentRunKey = useMemo(
     () =>
       JSON.stringify([
@@ -850,7 +847,11 @@ export function SolverControls({
       />
       <p>
         {t("candidates.solver.background.running")}{" "}
-        <button type="button" className="text-action" onClick={cancelBackground}>
+        <button
+          type="button"
+          className="text-action"
+          onClick={cancelBackground}
+        >
           {t("candidates.solver.background.cancel")}
         </button>
       </p>

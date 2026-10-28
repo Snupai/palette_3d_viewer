@@ -115,7 +115,8 @@ function clonePlan(plan: Plan): Plan {
 
 /** `FUN_00be3030`: true when `candidate` should replace `champion`. */
 function candidateBeats(champion: Plan, candidate: Plan): boolean {
-  if (candidate.count !== champion.count) return candidate.count > champion.count;
+  if (candidate.count !== champion.count)
+    return candidate.count > champion.count;
   if (
     candidate.compactness === champion.compactness &&
     candidate.blocks !== champion.blocks
@@ -127,7 +128,8 @@ function candidateBeats(champion: Plan, candidate: Plan): boolean {
   }
   if (candidate.area !== champion.area) return champion.area > candidate.area;
   if (candidate.tie !== champion.tie) return candidate.tie > champion.tie;
-  if (candidate.blocks !== champion.blocks) return candidate.blocks < champion.blocks;
+  if (candidate.blocks !== champion.blocks)
+    return candidate.blocks < champion.blocks;
   return champion.density > candidate.density;
 }
 
@@ -183,11 +185,18 @@ function alignedSpans(
  * corner waste. The trailing float loop only re-checks residues that hold by
  * construction, so it runs once; the result is `Trunc`, stored as a word.
  */
-function areaUpperBound(major: number, minor: number, long: number, short: number): number {
+function areaUpperBound(
+  major: number,
+  minor: number,
+  long: number,
+  short: number,
+): number {
   const cornerWaste = (side: number): number => {
     const restA = major - idiv(major, side) * side;
     const restB = minor - idiv(minor, side) * side;
-    return side >= restA + restB ? restA * restB : (side - restA) * (side - restB);
+    return side >= restA + restB
+      ? restA * restB
+      : (side - restA) * (side - restB);
   };
   const waste = larger(cornerWaste(long), cornerWaste(short));
   return asShort(Math.trunc((major * minor - waste) / (long * short)));
@@ -225,7 +234,12 @@ function nestedPairFits(
 
 type RemainderTable = { values: number[]; count: number };
 
-function remainderTable(span: number, steps: number, step: number, unit: number): RemainderTable {
+function remainderTable(
+  span: number,
+  steps: number,
+  step: number,
+  unit: number,
+): RemainderTable {
   const values: number[] = [];
   let consumed = 0;
   const last = asShort(steps);
@@ -256,7 +270,10 @@ function slotCoverage(
   if (shape === 0) return null;
   if (extraA > 0) {
     let value =
-      countB * side10 + extraC * sideC + extraA * countA * sideC + extraB * side10;
+      countB * side10 +
+      extraC * sideC +
+      extraA * countA * sideC +
+      extraB * side10;
     if (shape === 3) value += extraA * countA * sideC + extraB * side10;
     if (shape === 9) value += countB * side10 + extraC * sideC;
     return { value, replace: false };
@@ -335,7 +352,10 @@ class PlanSearch {
   alternateBuckets = false;
   tie = 0;
 
-  private scratch: ScratchSlot[] = Array.from({ length: SLOT_COUNT }, emptySlot);
+  private scratch: ScratchSlot[] = Array.from(
+    { length: SLOT_COUNT },
+    emptySlot,
+  );
   private packageCount = 0;
   private blockCount = 1;
   private champion: Plan = emptyPlan();
@@ -366,11 +386,21 @@ class PlanSearch {
 
   run(): Plan[] {
     if (this.longSide <= 0 || this.shortSide <= 0) return [];
-    const aligned = alignedSpans(this.usableX, this.usableY, this.shortSide, this.longSide);
+    const aligned = alignedSpans(
+      this.usableX,
+      this.usableY,
+      this.shortSide,
+      this.longSide,
+    );
     const landscape = this.usableX >= this.usableY;
     this.alignedX = landscape ? aligned.major : aligned.minor;
     this.alignedY = landscape ? aligned.minor : aligned.major;
-    this.upperBound = areaUpperBound(aligned.major, aligned.minor, this.longSide, this.shortSide);
+    this.upperBound = areaUpperBound(
+      aligned.major,
+      aligned.minor,
+      this.longSide,
+      this.shortSide,
+    );
     this.xLong = idiv(this.usableX, this.longSide);
     this.xShort = idiv(this.usableX, this.shortSide);
     this.yLong = idiv(this.usableY, this.longSide);
@@ -382,7 +412,8 @@ class PlanSearch {
     } else {
       this.uniformGrids();
       if (this.stopped()) return this.finish();
-      if (!this.mixedFitsOneAxis() || this.longSide > this.usableY) return this.finish();
+      if (!this.mixedFitsOneAxis() || this.longSide > this.usableY)
+        return this.finish();
       this.floor = this.best - 0x0d;
       if (!(this.target <= 2 && this.stop)) this.twoBands();
       if (this.stopped()) return this.finish();
@@ -414,7 +445,8 @@ class PlanSearch {
       this.remapShapes = false;
       this.floor = this.best - 2;
       this.resetWasteLimit();
-      if (this.shortSide * 2 + this.longSide <= this.usableX) this.nestedBlocks();
+      if (this.shortSide * 2 + this.longSide <= this.usableX)
+        this.nestedBlocks();
     }
     return this.finish();
   }
@@ -439,8 +471,18 @@ class PlanSearch {
   }
 
   private buildRemainderTables(): void {
-    this.tableX = remainderTable(this.usableX, this.xLong, this.longSide, this.shortSide);
-    this.tableY = remainderTable(this.usableY, this.yLong, this.longSide, this.shortSide);
+    this.tableX = remainderTable(
+      this.usableX,
+      this.xLong,
+      this.longSide,
+      this.shortSide,
+    );
+    this.tableY = remainderTable(
+      this.usableY,
+      this.yLong,
+      this.longSide,
+      this.shortSide,
+    );
     this.xEntry1 = tableAt(this.tableX, 1);
     this.xTableCount = this.tableX.count;
     this.yEntry1 = tableAt(this.tableY, 1);
@@ -551,10 +593,7 @@ class PlanSearch {
       coverage = piece.replace ? piece.value : coverage + piece.value;
     }
     let compactness = (length * 2 + width * 2 - coverage) | 0;
-    if (
-      this.fingerprint &&
-      this.crossedPenalty(slotCount)
-    ) {
+    if (this.fingerprint && this.crossedPenalty(slotCount)) {
       compactness = -10015;
     }
     if (this.fingerprint && this.fingerprintForce) compactness = -10015;
@@ -643,7 +682,8 @@ class PlanSearch {
       return;
     }
     const last = this.direct[this.direct.length - 1];
-    if (last && plan.count > this.best) this.direct[this.direct.length - 1] = clonePlan(plan);
+    if (last && plan.count > this.best)
+      this.direct[this.direct.length - 1] = clonePlan(plan);
   }
 
   private storeBucket(bucket: Plan[], plan: Plan, cap: number): void {
@@ -703,13 +743,26 @@ class PlanSearch {
     const count = asShort(countX) * asShort(countY);
     if (count <= 0) return;
     this.begin(count, 1);
-    this.fill(0, countX, countY, countY * this.longSide, 0, countX * this.longSide, 0, 1, 0x0f);
+    this.fill(
+      0,
+      countX,
+      countY,
+      countY * this.longSide,
+      0,
+      countX * this.longSide,
+      0,
+      1,
+      0x0f,
+    );
     this.accept(1, 0);
   }
 
   /** `FUN_00be9428`. */
   private twoBands(): void {
-    const spanX = larger(this.xShort * this.shortSide, this.xLong * this.longSide);
+    const spanX = larger(
+      this.xShort * this.shortSide,
+      this.xLong * this.longSide,
+    );
     for (let row = 1; row <= this.tableY.count; row += 1) {
       const across = tableAt(this.tableY, row);
       const count = across * this.xLong + this.xShort * row;
@@ -717,10 +770,23 @@ class PlanSearch {
       const band = this.longSide * row;
       this.begin(count, 2);
       this.fill(0, this.xShort, row, band, 0, spanX, 0, 2, 9);
-      this.fill(1, this.xLong, across, across * this.shortSide + band, band, spanX, 0, 1, 6);
+      this.fill(
+        1,
+        this.xLong,
+        across,
+        across * this.shortSide + band,
+        band,
+        spanX,
+        0,
+        1,
+        6,
+      );
       this.accept(2, 2);
     }
-    const spanY = larger(this.yLong * this.longSide, this.yShort * this.shortSide);
+    const spanY = larger(
+      this.yLong * this.longSide,
+      this.yShort * this.shortSide,
+    );
     for (let column = 1; column <= this.tableX.count; column += 1) {
       const across = tableAt(this.tableX, column);
       const count = across * this.yLong + this.yShort * column;
@@ -745,7 +811,10 @@ class PlanSearch {
 
   /** `FUN_00be8a48`. */
   private steppedBands(): void {
-    const spanX = larger(this.xShort * this.shortSide, this.xLong * this.longSide);
+    const spanX = larger(
+      this.xShort * this.shortSide,
+      this.xLong * this.longSide,
+    );
     for (let row = 1; row <= this.tableY.count; row += 1) {
       const across = tableAt(this.tableY, row);
       const count = across * this.xLong + this.xShort * row;
@@ -757,8 +826,28 @@ class PlanSearch {
           const near = this.longSide * cut;
           this.begin(count, 3);
           this.fill(0, this.xShort, cut, near, 0, spanX, 0, 2, 9);
-          this.fill(1, this.xLong, across, near + this.shortSide * across, near, spanX, 0, 1, 0x0d);
-          this.fill(2, this.xShort, row - cut, farY, near + this.shortSide * across, spanX, 0, 2, 6);
+          this.fill(
+            1,
+            this.xLong,
+            across,
+            near + this.shortSide * across,
+            near,
+            spanX,
+            0,
+            1,
+            0x0d,
+          );
+          this.fill(
+            2,
+            this.xShort,
+            row - cut,
+            farY,
+            near + this.shortSide * across,
+            spanX,
+            0,
+            2,
+            6,
+          );
           this.accept(3, 4);
         }
       }
@@ -769,13 +858,36 @@ class PlanSearch {
           const near = this.shortSide * cut;
           this.begin(count, 3);
           this.fill(0, this.xLong, cut, near, 0, spanX, 0, 1, 9);
-          this.fill(1, this.xShort, row, near + this.longSide * row, near, spanX, 0, 2, 0x0d);
-          this.fill(2, this.xLong, across - cut, farY, near + this.longSide * row, spanX, 0, 1, 6);
+          this.fill(
+            1,
+            this.xShort,
+            row,
+            near + this.longSide * row,
+            near,
+            spanX,
+            0,
+            2,
+            0x0d,
+          );
+          this.fill(
+            2,
+            this.xLong,
+            across - cut,
+            farY,
+            near + this.longSide * row,
+            spanX,
+            0,
+            1,
+            6,
+          );
           this.accept(3, 4);
         }
       }
     }
-    const spanY = larger(this.yShort * this.shortSide, this.yLong * this.longSide);
+    const spanY = larger(
+      this.yShort * this.shortSide,
+      this.yLong * this.longSide,
+    );
     for (let column = 1; column <= this.tableX.count; column += 1) {
       const across = tableAt(this.tableX, column);
       const count = across * this.yLong + this.yShort * column;
@@ -787,8 +899,28 @@ class PlanSearch {
           const near = this.longSide * cut;
           this.begin(count, 3);
           this.fill(0, cut, this.yShort, spanY, 0, near, 0, 1, 3);
-          this.fill(1, across, this.yLong, spanY, 0, near + this.shortSide * across, near, 2, 0x0e);
-          this.fill(2, column - cut, this.yShort, spanY, 0, farX, near + this.shortSide * across, 1, 0x0c);
+          this.fill(
+            1,
+            across,
+            this.yLong,
+            spanY,
+            0,
+            near + this.shortSide * across,
+            near,
+            2,
+            0x0e,
+          );
+          this.fill(
+            2,
+            column - cut,
+            this.yShort,
+            spanY,
+            0,
+            farX,
+            near + this.shortSide * across,
+            1,
+            0x0c,
+          );
           this.accept(3, 4);
         }
       }
@@ -799,8 +931,28 @@ class PlanSearch {
           const near = this.shortSide * cut;
           this.begin(count, 3);
           this.fill(0, cut, this.yLong, spanY, 0, near, 0, 2, 3);
-          this.fill(1, column, this.yShort, spanY, 0, near + this.longSide * column, near, 1, 0x0e);
-          this.fill(2, across - cut, this.yLong, spanY, 0, farX, near + this.longSide * column, 2, 0x0c);
+          this.fill(
+            1,
+            column,
+            this.yShort,
+            spanY,
+            0,
+            near + this.longSide * column,
+            near,
+            1,
+            0x0e,
+          );
+          this.fill(
+            2,
+            across - cut,
+            this.yLong,
+            spanY,
+            0,
+            farX,
+            near + this.longSide * column,
+            2,
+            0x0c,
+          );
           this.accept(3, 4);
         }
       }
@@ -818,7 +970,17 @@ class PlanSearch {
     const halfReach = reach >> 1;
     if (long < short * 2) {
       const halfLong = long >> 1;
-      this.fill(1, 1, 1, long - halfLong + halfReach, halfReach - halfLong, short, 0, 2, 1);
+      this.fill(
+        1,
+        1,
+        1,
+        long - halfLong + halfReach,
+        halfReach - halfLong,
+        short,
+        0,
+        2,
+        1,
+      );
     } else {
       this.fill(1, 1, 1, reach - short, short, short, 0, 2, 1);
     }
@@ -850,7 +1012,17 @@ class PlanSearch {
     const half = reach >> 1;
     if (short * 2 < long) {
       const halfLong = long >> 1;
-      this.fill(2, 4, 1, half + (long - halfLong), half - halfLong, span - short, short, 2, 1);
+      this.fill(
+        2,
+        4,
+        1,
+        half + (long - halfLong),
+        half - halfLong,
+        span - short,
+        short,
+        2,
+        1,
+      );
     } else {
       this.fill(2, 4, 1, reach - short, short, span - short, short, 2, 1);
     }
@@ -866,15 +1038,22 @@ class PlanSearch {
       for (let row = 1; row <= this.yEntry1; row += 1) {
         const deep = idiv(this.usableY - this.shortSide * row, this.longSide);
         if (deep >= this.yLong) continue;
-        const count = column * row + this.xShort * deep + across * (this.yLong - deep);
+        const count =
+          column * row + this.xShort * deep + across * (this.yLong - deep);
         if (row !== tableAt(this.tableY, deep) || !this.worth(count)) continue;
         const band = this.longSide * column;
         const spanA = larger(
           this.shortSide * row + this.longSide * deep,
           this.yLong * this.longSide,
         );
-        const spanB = larger(across * this.shortSide + band, this.xShort * this.shortSide);
-        const spanC = larger(this.shortSide * row, (this.yLong - deep) * this.longSide);
+        const spanB = larger(
+          across * this.shortSide + band,
+          this.xShort * this.shortSide,
+        );
+        const spanC = larger(
+          this.shortSide * row,
+          (this.yLong - deep) * this.longSide,
+        );
         this.begin(count, 3);
         this.fill(0, column, row, spanC, 0, band, 0, 1, 1);
         this.fill(1, this.xShort, deep, spanA, spanC, spanB, 0, 2, 6);
@@ -882,22 +1061,46 @@ class PlanSearch {
         this.accept(3, 3);
       }
     }
-    let column = this.tableX.count === this.xLong ? tableAt(this.tableX, this.tableX.count) + 1 : 1;
+    let column =
+      this.tableX.count === this.xLong
+        ? tableAt(this.tableX, this.tableX.count) + 1
+        : 1;
     for (; column <= this.xEntry1; column += 1) {
       for (let row = 1; row <= this.yTableCount; row += 1) {
         const across = tableAt(this.tableY, row);
-        const deep = idiv(this.usableX - this.shortSide * column, this.longSide);
-        const count = column * row + this.yShort * deep + across * (this.xLong - deep);
-        if (tableAt(this.tableX, deep) !== column || !this.worth(count)) continue;
+        const deep = idiv(
+          this.usableX - this.shortSide * column,
+          this.longSide,
+        );
+        const count =
+          column * row + this.yShort * deep + across * (this.xLong - deep);
+        if (tableAt(this.tableX, deep) !== column || !this.worth(count))
+          continue;
         const spanA = larger(
           this.shortSide * column + this.longSide * deep,
           this.xLong * this.longSide,
         );
-        const spanB = larger(across * this.shortSide + this.longSide * row, this.yShort * this.shortSide);
-        const spanC = larger(this.shortSide * column, (this.xLong - deep) * this.longSide);
+        const spanB = larger(
+          across * this.shortSide + this.longSide * row,
+          this.yShort * this.shortSide,
+        );
+        const spanC = larger(
+          this.shortSide * column,
+          (this.xLong - deep) * this.longSide,
+        );
         this.begin(count, 3);
         this.fill(0, column, row, this.longSide * row, 0, spanC, 0, 2, 1);
-        this.fill(1, this.xLong - deep, across, spanB, this.longSide * row, spanC, 0, 1, 2);
+        this.fill(
+          1,
+          this.xLong - deep,
+          across,
+          spanB,
+          this.longSide * row,
+          spanC,
+          0,
+          1,
+          2,
+        );
         this.fill(2, deep, this.yShort, spanB, 0, spanA, spanC, 1, 0x0c);
         this.accept(3, 3);
       }
@@ -917,18 +1120,42 @@ class PlanSearch {
           const room = Math.min(lead, this.tableX.count - lead);
           for (let step = 1; step <= room; step += 1) {
             const rest = tableAt(this.tableX, step + lead);
-            const count = this.xShort * band + (step + lead) * across + rest * tail;
+            const count =
+              this.xShort * band + (step + lead) * across + rest * tail;
             if (!this.worth(count)) continue;
             const pitch = this.longSide * band;
             const spanA = larger(
               this.xShort * this.shortSide,
               (step + lead) * this.longSide + this.shortSide * rest,
             );
-            const spanB = larger(this.shortSide * across + pitch, this.longSide * tail + pitch);
+            const spanB = larger(
+              this.shortSide * across + pitch,
+              this.longSide * tail + pitch,
+            );
             this.begin(count, 4);
             this.fill(0, this.xShort, band, pitch, 0, spanA, 0, 2, 9);
-            this.fill(1, lead, across, spanB, pitch, this.longSide * lead, 0, 1, 2);
-            this.fill(3, step, across, spanB, pitch, spanA, spanA - this.longSide * step, 1, 4);
+            this.fill(
+              1,
+              lead,
+              across,
+              spanB,
+              pitch,
+              this.longSide * lead,
+              0,
+              1,
+              2,
+            );
+            this.fill(
+              3,
+              step,
+              across,
+              spanB,
+              pitch,
+              spanA,
+              spanA - this.longSide * step,
+              1,
+              4,
+            );
             this.fill(
               2,
               rest,
@@ -950,24 +1177,49 @@ class PlanSearch {
         const across = tableAt(this.tableY, band);
         const tail = this.yShort - across;
         let columns = this.tableX.count;
-        if (tableAt(this.tableX, this.tableX.count) < 2) columns = this.tableX.count - 1;
+        if (tableAt(this.tableX, this.tableX.count) < 2)
+          columns = this.tableX.count - 1;
         for (let lead = 1; lead <= columns; lead += 1) {
           const span = tableAt(this.tableX, lead);
           const half = span >> 1;
           for (let step = 1; step <= half; step += 1) {
             const rest = span - step;
-            const count = this.xLong * across + (rest + step) * band + lead * tail;
+            const count =
+              this.xLong * across + (rest + step) * band + lead * tail;
             if (!this.worth(count)) continue;
             const pitch = this.shortSide * across;
             const spanA = larger(
               this.xLong * this.longSide,
               (rest + step) * this.shortSide + this.longSide * lead,
             );
-            const spanB = larger(this.longSide * band + pitch, this.shortSide * tail + pitch);
+            const spanB = larger(
+              this.longSide * band + pitch,
+              this.shortSide * tail + pitch,
+            );
             this.begin(count, 4);
             this.fill(0, this.xLong, across, pitch, 0, spanA, 0, 1, 9);
-            this.fill(1, step, band, spanB, pitch, this.shortSide * step, 0, 2, 2);
-            this.fill(3, rest, band, spanB, pitch, spanA, spanA - this.shortSide * rest, 2, 4);
+            this.fill(
+              1,
+              step,
+              band,
+              spanB,
+              pitch,
+              this.shortSide * step,
+              0,
+              2,
+              2,
+            );
+            this.fill(
+              3,
+              rest,
+              band,
+              spanB,
+              pitch,
+              spanA,
+              spanA - this.shortSide * rest,
+              2,
+              4,
+            );
             this.fill(
               2,
               lead,
@@ -992,19 +1244,53 @@ class PlanSearch {
           const room = Math.min(lead, this.tableY.count - lead);
           for (let step = 1; step <= room; step += 1) {
             const rest = tableAt(this.tableY, step + lead);
-            const count = this.yShort * band + (step + lead) * across + tail * rest;
+            const count =
+              this.yShort * band + (step + lead) * across + tail * rest;
             if (!this.worth(count)) continue;
             const pitch = this.longSide * band;
             const spanA = larger(
               this.yShort * this.shortSide,
               (step + lead) * this.longSide + this.shortSide * rest,
             );
-            const spanB = larger(this.shortSide * across + pitch, this.longSide * tail + pitch);
+            const spanB = larger(
+              this.shortSide * across + pitch,
+              this.longSide * tail + pitch,
+            );
             this.begin(count, 4);
             this.fill(0, band, this.yShort, spanA, 0, pitch, 0, 1, 3);
-            this.fill(1, across, lead, this.longSide * lead, 0, spanB, pitch, 2, 8);
-            this.fill(3, across, step, spanA, spanA - this.longSide * step, spanB, pitch, 2, 4);
-            this.fill(2, tail, rest, spanA - this.longSide * step, this.longSide * lead, spanB, pitch, 1, 0x13);
+            this.fill(
+              1,
+              across,
+              lead,
+              this.longSide * lead,
+              0,
+              spanB,
+              pitch,
+              2,
+              8,
+            );
+            this.fill(
+              3,
+              across,
+              step,
+              spanA,
+              spanA - this.longSide * step,
+              spanB,
+              pitch,
+              2,
+              4,
+            );
+            this.fill(
+              2,
+              tail,
+              rest,
+              spanA - this.longSide * step,
+              this.longSide * lead,
+              spanB,
+              pitch,
+              1,
+              0x13,
+            );
             this.accept(4, 7);
           }
         }
@@ -1015,24 +1301,49 @@ class PlanSearch {
         const across = tableAt(this.tableX, band);
         const tail = this.xShort - across;
         let rows = this.tableY.count;
-        if (tableAt(this.tableY, this.tableY.count) < 2) rows = this.tableY.count - 1;
+        if (tableAt(this.tableY, this.tableY.count) < 2)
+          rows = this.tableY.count - 1;
         for (let lead = 1; lead <= rows; lead += 1) {
           const span = tableAt(this.tableY, lead);
           const half = span >> 1;
           for (let step = 1; step <= half; step += 1) {
             const rest = span - step;
-            const count = this.yLong * across + (rest + step) * band + tail * lead;
+            const count =
+              this.yLong * across + (rest + step) * band + tail * lead;
             if (!this.worth(count)) continue;
             const pitch = this.shortSide * across;
             const spanA = larger(
               this.yLong * this.longSide,
               (rest + step) * this.shortSide + this.longSide * lead,
             );
-            const spanB = larger(this.longSide * band + pitch, this.shortSide * tail + pitch);
+            const spanB = larger(
+              this.longSide * band + pitch,
+              this.shortSide * tail + pitch,
+            );
             this.begin(count, 4);
             this.fill(0, across, this.yLong, spanA, 0, pitch, 0, 2, 3);
-            this.fill(1, band, step, this.shortSide * step, 0, spanB, pitch, 1, 8);
-            this.fill(3, band, rest, spanA, spanA - this.shortSide * rest, spanB, pitch, 1, 4);
+            this.fill(
+              1,
+              band,
+              step,
+              this.shortSide * step,
+              0,
+              spanB,
+              pitch,
+              1,
+              8,
+            );
+            this.fill(
+              3,
+              band,
+              rest,
+              spanA,
+              spanA - this.shortSide * rest,
+              spanB,
+              pitch,
+              1,
+              4,
+            );
             this.fill(
               2,
               tail,
@@ -1119,7 +1430,8 @@ class PlanSearch {
     const midX = larger(p.i * long, leftTop);
     const midY = larger(bottom, p.m * long);
     this.begin(count, blocks);
-    if (p.i === p.k && p.b1 === p.b2 && p.j === p.m && p.a1 === p.a2) this.tie = 1;
+    if (p.i === p.k && p.b1 === p.b2 && p.j === p.m && p.a1 === p.a2)
+      this.tie = 1;
     this.fill(0, p.i, p.b1, bottom, 0, midX, 0, 1, 1);
     this.fill(1, p.a1, p.m, midY, 0, right, midX, 2, 8);
     this.fill(2, p.a2, p.j, top, bottom, leftTop, 0, 2, 2);
@@ -1127,8 +1439,18 @@ class PlanSearch {
   }
 
   /** `FUN_00be7760`: push the right and top arms clear of the center block. */
-  private liftQuadEdges(centerRight: number, centerTop: number, a1: number, b2: number): void {
-    const [, slot1, slot2, slot3] = this.scratch as [ScratchSlot, ScratchSlot, ScratchSlot, ScratchSlot];
+  private liftQuadEdges(
+    centerRight: number,
+    centerTop: number,
+    a1: number,
+    b2: number,
+  ): void {
+    const [, slot1, slot2, slot3] = this.scratch as [
+      ScratchSlot,
+      ScratchSlot,
+      ScratchSlot,
+      ScratchSlot,
+    ];
     if (slot3.near < centerTop) {
       slot3.near = centerTop;
       slot3.span = b2 * this.shortSide + centerTop;
@@ -1210,7 +1532,8 @@ class PlanSearch {
     const midX = larger(leftBottom, leftTop);
     const midY = larger(bottom, rightBottom);
     this.begin(count, blocks);
-    if (p.i === p.k && p.b1 === p.b2 && p.m === p.j && p.a1 === p.a2) this.tie = 1;
+    if (p.i === p.k && p.b1 === p.b2 && p.m === p.j && p.a1 === p.a2)
+      this.tie = 1;
     this.fill(0, p.i, p.b1, bottom, 0, leftBottom, 0, 1, 1);
     this.fill(1, p.a1, p.m, rightBottom, 0, right, leftBottom, 2, 8);
     this.fill(2, p.a2, p.j, top, midY, midX, 0, 2, 2);
@@ -1218,7 +1541,12 @@ class PlanSearch {
   }
 
   /** `FUN_00be6fa0`. */
-  private liftStripEdges(centerRight: number, centerTop: number, j: number, k: number): void {
+  private liftStripEdges(
+    centerRight: number,
+    centerTop: number,
+    j: number,
+    k: number,
+  ): void {
     const [, slot1, slot2, slot3, slot4] = this.scratch as [
       ScratchSlot,
       ScratchSlot,
@@ -1251,7 +1579,11 @@ class PlanSearch {
     for (let d = 1; d <= this.tableY.count; d += 1) {
       for (let i = 1; i <= this.tableX.count; i += 1) {
         for (let rows = 1; rows <= tableAt(this.tableY, d); rows += 1) {
-          for (let columns = 1; columns <= tableAt(this.tableX, i); columns += 1) {
+          for (
+            let columns = 1;
+            columns <= tableAt(this.tableX, i);
+            columns += 1
+          ) {
             const lead = long * i - short * columns;
             const side = long * d - short * rows;
             if (!nestedPairFits(lead, side, long, short, false)) continue;
@@ -1349,7 +1681,8 @@ class PlanSearch {
     };
     const { restX, restY } = frame;
     const rest = { x: restX, y: restY };
-    if (frame.width * frame.height - count * short * long > this.wasteLimit) return rest;
+    if (frame.width * frame.height - count * short * long > this.wasteLimit)
+      return rest;
     if (sideStrips) {
       if (restX < short && short <= restY) this.stripAbove(frame, 1);
       if (restX < short && long <= restY) this.stripAbove(frame, 2);
@@ -1374,8 +1707,15 @@ class PlanSearch {
   }
 
   /** Copies the template into slot 0; the block count is `steps * 3 + extra`. */
-  private startTemplate(count: number, extraBlocks: number, frame: NestedFrame): ScratchSlot {
-    this.begin(count, ((frame.template.extraA & 0xff) * 3 + extraBlocks) & 0xffff);
+  private startTemplate(
+    count: number,
+    extraBlocks: number,
+    frame: NestedFrame,
+  ): ScratchSlot {
+    this.begin(
+      count,
+      ((frame.template.extraA & 0xff) * 3 + extraBlocks) & 0xffff,
+    );
     const slot0 = cloneSlot(frame.template);
     this.scratch[0] = slot0;
     return slot0;
@@ -1386,12 +1726,23 @@ class PlanSearch {
     const unit = type === 1 ? this.shortSide : this.longSide;
     const across = type === 1 ? this.xLong : this.xShort;
     const pitch = type === 1 ? this.longSide : this.shortSide;
-    const count = idiv(this.usableY - frame.height, unit) * across + frame.count;
+    const count =
+      idiv(this.usableY - frame.height, unit) * across + frame.count;
     if (!this.worth(count)) return;
     this.startTemplate(count, 2, frame).shape = 9;
     const far = larger(across * pitch, frame.width);
     const rows = idiv(this.alignedY - frame.height, unit);
-    this.fill(1, across, rows, rows * unit + frame.height, frame.height, far, 0, type, 6);
+    this.fill(
+      1,
+      across,
+      rows,
+      rows * unit + frame.height,
+      frame.height,
+      far,
+      0,
+      type,
+      6,
+    );
     this.accept(2, 10);
   }
 
@@ -1405,7 +1756,17 @@ class PlanSearch {
     this.startTemplate(count, 2, frame).shape = 3;
     const columns = idiv(this.alignedX - frame.width, unit);
     const span = larger(down * pitch, frame.height);
-    this.fill(1, columns, down, span, 0, columns * unit + frame.width, frame.width, type, 0x0c);
+    this.fill(
+      1,
+      columns,
+      down,
+      span,
+      0,
+      columns * unit + frame.width,
+      frame.width,
+      type,
+      0x0c,
+    );
     this.accept(2, 10);
   }
 
@@ -1438,7 +1799,17 @@ class PlanSearch {
     this.startTemplate(count, 3, frame);
     const right = columns * long + frame.width;
     const far = larger(this.xShort * short, right);
-    this.fill(1, this.xShort, rows, frame.height + long * rows, frame.height, far, 0, 2, 6);
+    this.fill(
+      1,
+      this.xShort,
+      rows,
+      frame.height + long * rows,
+      frame.height,
+      far,
+      0,
+      2,
+      6,
+    );
     const top = larger(deep * short, frame.height);
     this.fill(2, columns, deep, top, 0, right, frame.width, 1, 8);
     const slot1 = this.scratch[1]!;
@@ -1455,14 +1826,25 @@ class PlanSearch {
     const short = this.shortSide;
     const columns = idiv(frame.restX, short);
     const across = idiv(this.alignedX - short * columns, long);
-    const count = across * idiv(frame.restY, short) + frame.count + this.yLong * columns;
+    const count =
+      across * idiv(frame.restY, short) + frame.count + this.yLong * columns;
     if (!this.worth(count)) return;
     this.startTemplate(count, 3, frame);
     const rows = idiv(this.alignedY - frame.height, short);
     const right = larger(across * long, frame.width);
     const top = rows * short + frame.height;
     const span = larger(this.yLong * long, top);
-    this.fill(1, columns, this.yLong, span, 0, frame.width + short * columns, frame.width, 2, 0x0c);
+    this.fill(
+      1,
+      columns,
+      this.yLong,
+      span,
+      0,
+      frame.width + short * columns,
+      frame.width,
+      2,
+      0x0c,
+    );
     this.fill(2, across, rows, top, frame.height, right, 0, 1, 2);
     this.shiftRightOf(right);
     this.accept(3, 11);
@@ -1474,14 +1856,25 @@ class PlanSearch {
     const short = this.shortSide;
     const columns = idiv(frame.restX, long);
     const across = idiv(this.alignedX - long * columns, short);
-    const count = across * idiv(frame.restY, long) + frame.count + this.yShort * columns;
+    const count =
+      across * idiv(frame.restY, long) + frame.count + this.yShort * columns;
     if (!this.worth(count)) return;
     this.startTemplate(count, 3, frame);
     const rows = idiv(this.alignedY - frame.height, long);
     const right = larger(across * short, frame.width);
     const top = rows * long + frame.height;
     const span = larger(this.yShort * short, top);
-    this.fill(1, columns, this.yShort, span, 0, frame.width + long * columns, frame.width, 1, 0x0c);
+    this.fill(
+      1,
+      columns,
+      this.yShort,
+      span,
+      0,
+      frame.width + long * columns,
+      frame.width,
+      1,
+      0x0c,
+    );
     this.fill(2, across, rows, top, frame.height, right, 0, 2, 2);
     this.shiftRightOf(right);
     this.accept(3, 11);
@@ -1514,9 +1907,15 @@ class PlanSearch {
       const midX = larger(leadX, frame.width);
       const midY = larger(short * fill, frame.height);
       const band = long * deep;
-      const top = larger(larger(short * fill + band, midY + band), frame.height + short * rows);
+      const top = larger(
+        larger(short * fill + band, midY + band),
+        frame.height + short * rows,
+      );
       this.fill(1, lead, rows, top, frame.height, leadX, 0, 1, 2);
-      const right = larger(frame.width + long * columns, short * across + leadX);
+      const right = larger(
+        frame.width + long * columns,
+        short * across + leadX,
+      );
       this.fill(2, columns, fill, midY, 0, right, midX, 1, 8);
       this.fill(3, across, deep, top, midY, right, this.scratch[1]!.far, 2, 4);
       this.accept(4, 12);
@@ -1531,7 +1930,11 @@ class PlanSearch {
     const columns = idiv(frame.restX, short);
     const teeth = idiv(short * columns, long) + 1;
     const across = tableAt(this.tableX, teeth);
-    for (let band = idiv(frame.height - 1, long) + 1; band <= this.tableY.count; band += 1) {
+    for (
+      let band = idiv(frame.height - 1, long) + 1;
+      band <= this.tableY.count;
+      band += 1
+    ) {
       const fill = tableAt(this.tableY, band);
       const count = frame.count + across * rows + teeth * fill + columns * band;
       if (!this.worth(count)) continue;
@@ -1541,7 +1944,10 @@ class PlanSearch {
         larger(leftX + long * teeth, frame.width + short * columns),
         (across + columns) * short,
       );
-      const top = larger(long * band + short * fill, frame.height + long * rows);
+      const top = larger(
+        long * band + short * fill,
+        frame.height + long * rows,
+      );
       const midY = larger(long * band, frame.height);
       const midX = larger(frame.width, leftX);
       this.fill(1, across, rows, top, frame.height, leftX, 0, 2, 2);
@@ -1585,7 +1991,11 @@ class PlanSearch {
     const columns = idiv(frame.restX, long);
     const deep = idiv(short * rows, long) + 1;
     const fill = tableAt(this.tableY, deep);
-    for (let lead = idiv(frame.width - 1, long) + 1; lead <= this.tableX.count; lead += 1) {
+    for (
+      let lead = idiv(frame.width - 1, long) + 1;
+      lead <= this.tableX.count;
+      lead += 1
+    ) {
       const across = tableAt(this.tableX, lead);
       const count = frame.count + lead * rows + across * deep + columns * fill;
       if (!this.worth(count)) continue;
@@ -1631,17 +2041,61 @@ class PlanSearch {
         const bottomRun = runAt(right);
         const topRun = runAt(left);
         const count =
-          frame.count + bottomRun * bottom + left * leftDeep + topRun * top + right * rightDeep;
+          frame.count +
+          bottomRun * bottom +
+          left * leftDeep +
+          topRun * top +
+          right * rightDeep;
         if (!this.worth(count)) continue;
         const slot0 = this.startTemplate(count, 5, frame);
-        this.fill(1, bottomRun, bottom, pitch * bottom, 0, run * bottomRun, 0, type, 1);
+        this.fill(
+          1,
+          bottomRun,
+          bottom,
+          pitch * bottom,
+          0,
+          run * bottomRun,
+          0,
+          type,
+          1,
+        );
         const bottomEdge = this.scratch[1]!.span;
-        this.fill(2, left, leftDeep, bottomEdge + run * leftDeep, bottomEdge, pitch * left, 0, crossType, 2);
+        this.fill(
+          2,
+          left,
+          leftDeep,
+          bottomEdge + run * leftDeep,
+          bottomEdge,
+          pitch * left,
+          0,
+          crossType,
+          2,
+        );
         const leftEdge = this.scratch[2]!.far;
         const topY = this.alignedY - pitch * top;
-        this.fill(3, topRun, top, this.alignedY, topY, leftEdge + run * topRun, leftEdge, type, 4);
+        this.fill(
+          3,
+          topRun,
+          top,
+          this.alignedY,
+          topY,
+          leftEdge + run * topRun,
+          leftEdge,
+          type,
+          4,
+        );
         const rightX = this.alignedX - pitch * right;
-        this.fill(4, right, rightDeep, run * rightDeep, 0, this.alignedX, rightX, crossType, 8);
+        this.fill(
+          4,
+          right,
+          rightDeep,
+          run * rightDeep,
+          0,
+          this.alignedX,
+          rightX,
+          crossType,
+          8,
+        );
         slot0.shape = 0;
         slot0.origin = leftEdge;
         slot0.far = leftEdge + frame.width;
@@ -1666,7 +2120,8 @@ class PlanSearch {
       for (let j = i + 1; j < plans.length; j += 1) {
         const challenger = plans[j];
         const current = plans[best];
-        if (challenger && current && candidateBeats(current, challenger)) best = j;
+        if (challenger && current && candidateBeats(current, challenger))
+          best = j;
       }
       if (best !== i) {
         const swap = plans[i];
@@ -1746,7 +2201,17 @@ class PlanSearch {
         this.fill(0, i, j - 1, (j - 1) * short, 0, long * i, 0, 1, 0x0f);
         // The original pushes `j - S` as the near edge of the partial row
         // (0x00be9a59), not `(j - 1) * S`.
-        this.fill(1, i - extra, 1, short * j, j - short, center + (i - extra) * long, center, 1, 0x0f);
+        this.fill(
+          1,
+          i - extra,
+          1,
+          short * j,
+          j - short,
+          center + (i - extra) * long,
+          center,
+          1,
+          0x0f,
+        );
         this.accept(2, 2);
         break;
       }
@@ -1759,7 +2224,17 @@ class PlanSearch {
         const center = Math.trunc((extra * long) / 2);
         this.begin(target, 2);
         this.fill(0, i - 1, j, long * j, 0, (i - 1) * short, 0, 2, 0x0f);
-        this.fill(1, 1, j - extra, center + (j - extra) * long, center, short * i, (i - 1) * short, 2, 0x0f);
+        this.fill(
+          1,
+          1,
+          j - extra,
+          center + (j - extra) * long,
+          center,
+          short * i,
+          (i - 1) * short,
+          2,
+          0x0f,
+        );
         this.accept(2, 2);
         break;
       }
@@ -1844,10 +2319,7 @@ function trimToTarget(plans: Plan[], target: number): Plan[] {
   return plans.slice(exact - 1, last);
 }
 
-function toSolution(
-  plan: Plan,
-  input: PlanSearchInput,
-): MultiPackSolution {
+function toSolution(plan: Plan, input: PlanSearchInput): MultiPackSolution {
   const slots: FamilySlot[] = [];
   for (const slot of plan.slots) {
     if (slot.type !== 1 && slot.type !== 2) continue;
@@ -1896,8 +2368,14 @@ export type SearchedMultiPackPlan = {
   solution: MultiPackSolution;
 };
 
-export function searchMultiPackPlans(input: PlanSearchInput): SearchedMultiPackPlan[] {
-  const plans = new PlanSearch(input, input.package.length, input.package.width).run();
+export function searchMultiPackPlans(
+  input: PlanSearchInput,
+): SearchedMultiPackPlan[] {
+  const plans = new PlanSearch(
+    input,
+    input.package.length,
+    input.package.width,
+  ).run();
   return plans.map((plan, index) => ({
     variant: `mp:${index}:c${plan.klass}:n${plan.count}:${plan.length}x${plan.width}`,
     solution: toSolution(plan, input),

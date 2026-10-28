@@ -625,7 +625,8 @@ describe("SolverControls", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
     expect(
       clientMocks.run.mock.calls.map(
-        ([, options]) => (options as { generatorScope?: string }).generatorScope,
+        ([, options]) =>
+          (options as { generatorScope?: string }).generatorScope,
       ),
     ).toEqual(["multipack", "legacy"]);
     expect(
@@ -644,7 +645,9 @@ describe("SolverControls", () => {
       [first!.id, 1],
       [second!.id, 2],
     ]);
-    expect(screen.queryByText(/Alter Generator läuft im Hintergrund/)).toBeNull();
+    expect(
+      screen.queryByText(/Alter Generator läuft im Hintergrund/),
+    ).toBeNull();
   });
 
   it("runs only the legacy generators when selected", async () => {
@@ -672,7 +675,8 @@ describe("SolverControls", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(1));
     expect(
       clientMocks.run.mock.calls.map(
-        ([, options]) => (options as { generatorScope?: string }).generatorScope,
+        ([, options]) =>
+          (options as { generatorScope?: string }).generatorScope,
       ),
     ).toEqual(["legacy"]);
   });

@@ -35,7 +35,9 @@ function normalized(
   return result.normalized;
 }
 
-function packageSpan(packages: { x: number; y: number; xMax: number; yMax: number }[]) {
+function packageSpan(
+  packages: { x: number; y: number; xMax: number; yMax: number }[],
+) {
   const minX = Math.min(...packages.map((item) => item.x));
   const minY = Math.min(...packages.map((item) => item.y));
   const maxX = Math.max(...packages.map((item) => item.xMax));
@@ -56,7 +58,13 @@ describe("MultiPack solver family", () => {
       (item) =>
         JSON.stringify(
           mirrorMusterPackages(item.packages, 1, PALETTE).map(
-            ({ x, y, xMax, yMax, orient }) => [x, y, xMax - x, yMax - y, orient],
+            ({ x, y, xMax, yMax, orient }) => [
+              x,
+              y,
+              xMax - x,
+              yMax - y,
+              orient,
+            ],
           ),
         ) === JSON.stringify(underhangGolden.entries),
     );
@@ -98,11 +106,13 @@ describe("MultiPack solver family", () => {
     const output = generateCandidateFamily(input, "multipack");
     expect(output.drafts).toHaveLength(49);
     const draft = output.drafts.find(({ placements }) => {
-      const first = placements.slice(0, 2).map(({ positionMm, rotation }) => [
-        positionMm.x,
-        positionMm.y,
-        rotation,
-      ]);
+      const first = placements
+        .slice(0, 2)
+        .map(({ positionMm, rotation }) => [
+          positionMm.x,
+          positionMm.y,
+          rotation,
+        ]);
       return (
         JSON.stringify(first) ===
         JSON.stringify([
