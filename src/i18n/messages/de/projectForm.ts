@@ -169,10 +169,6 @@ export const projectFormDe = {
   "projectForm.sheetAttempts": "{count} Versuche",
   "projectForm.sheetBlock": "Block",
   "projectForm.sheetCarton": "Karton",
-  "projectForm.sheetCropping": "Blatt wird zugeschnitten …",
-  "projectForm.sheetCroppingHint":
-    "Das Blatt wird im Foto gesucht, zugeschnitten und begradigt.",
-  "projectForm.sheetCut": "Zugeschnitten und begradigt. Falsch getroffen?",
   "projectForm.sheetGallery": "Aus Galerie wählen",
   "projectForm.sheetLayerSummary":
     "{perLayer} je Lage × {layers} Lagen = {total} Kartons",
@@ -183,7 +179,6 @@ export const projectFormDe = {
   "projectForm.sheetPallet": "Palette",
   "projectForm.sheetPhotoAlt": "Fotografiertes Palettenblatt",
   "projectForm.sheetProduct": "Produkt",
-  "projectForm.sheetReadOriginal": "Originalfoto lesen",
   "projectForm.sheetReading": "Blatt wird gelesen …",
   "projectForm.sheetReadingHint":
     "Das lokale Modell liest das Blatt. Das kann bis zu einer Minute dauern.",
@@ -192,8 +187,6 @@ export const projectFormDe = {
   "projectForm.sheetSeverityInfo": "Hinweis",
   "projectForm.sheetSeverityWarning": "Prüfen",
   "projectForm.sheetTake": "Foto aufnehmen",
-  "projectForm.sheetUncut":
-    "Kein Blattrand erkannt, das Originalfoto wurde verwendet.",
   "projectForm.side.bottom": "unten",
   "projectForm.side.left": "links",
   "projectForm.side.right": "rechts",

@@ -12,9 +12,6 @@
     "corpus:rob:oracle:setup": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/multipack-oracle/New-MultiPackOracleCopy.ps1",
     "corpus:rob:sentinel": "bun run src/lib/parity/sentinelCli.node.ts",
     "dev": "next dev --turbo",
-    "predev": "node scripts/copy-opencv.mjs",
-    "prebuild": "node scripts/copy-opencv.mjs",
-    "postinstall": "node scripts/copy-opencv.mjs",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,md,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,md,mdx}\" --cache",
     "lint": "eslint .",
@@ -29,7 +26,6 @@
   },
   "dependencies": {
     "@t3-oss/env-nextjs": "^0.12.0",
-    "@techstark/opencv-js": "^5.0.0-release.1",
     "next": "15.5.21",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",

@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "~/i18n";
 import type { SheetIssue } from "~/domain/sheetExtraction";
 import { requestSheetExtraction } from "~/features/project/sheetImport";
-import { scanDocument } from "~/lib/sheetExtraction/documentScan";
 import type { SheetExtractionResult } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
 export type SheetPhotoImportProps = {
@@ -53,10 +52,6 @@ export function SheetPhotoImport({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SheetExtractionResult | null>(null);
-  const [original, setOriginal] = useState<File | null>(null);
-  const [scan, setScan] = useState<"scanning" | "cut" | "uncut" | "raw" | null>(
-    null,
-  );
 
   useEffect(
     () => () => {
@@ -76,35 +71,17 @@ export function SheetPhotoImport({
     onBusyChange?.(next);
   };
 
-  /**
-   * Cuts the sheet out of the photo (perspective-corrected, scanner look)
-   * before sending it, unless the user asked for the untouched photo.
-   */
-  const read = async (file: File, mode: "scan" | "raw") => {
+  const read = async (file: File) => {
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
-    setOriginal(file);
     setPhotoUrl(URL.createObjectURL(file));
     setError(null);
     setResult(null);
-    setScan(mode === "scan" ? "scanning" : "raw");
     setBusyState(true);
     try {
-      let upload = file;
-      if (mode === "scan") {
-        const scanned = await scanDocument(file);
-        if (controller.signal.aborted) return;
-        setScan(scanned.detected ? "cut" : "uncut");
-        if (scanned.detected) {
-          upload = new File([scanned.blob], "sheet.jpg", {
-            type: "image/jpeg",
-          });
-          setPhotoUrl(URL.createObjectURL(upload));
-        }
-      }
       const extracted = await requestSheetExtraction(
-        upload,
+        file,
         controller.signal,
         t,
       );
@@ -121,10 +98,7 @@ export function SheetPhotoImport({
 
   const sheet = result?.sheet;
 
-  const busyLabel =
-    scan === "scanning"
-      ? t("projectForm.sheetCropping")
-      : t("projectForm.sheetReading");
+  const busyLabel = t("projectForm.sheetReading");
 
   return (
     <fieldset className="border-line bg-surface grid gap-3 border p-4">
@@ -141,7 +115,7 @@ export function SheetPhotoImport({
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
-            if (file) void read(file, "scan");
+            if (file) void read(file);
           }}
         />
         <input
@@ -152,7 +126,7 @@ export function SheetPhotoImport({
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = "";
-            if (file) void read(file, "scan");
+            if (file) void read(file);
           }}
         />
         <button
@@ -194,31 +168,9 @@ export function SheetPhotoImport({
                 {error}
               </div>
             ) : null}
-            {busy && scan === "scanning" ? (
-              <div className="text-muted">
-                {t("projectForm.sheetCroppingHint")}
-              </div>
-            ) : busy ? (
+            {busy ? (
               <div className="text-muted">
                 {t("projectForm.sheetReadingHint")}
-              </div>
-            ) : null}
-            {!busy && scan === "uncut" ? (
-              <div className="text-muted text-xs">
-                {t("projectForm.sheetUncut")}
-              </div>
-            ) : null}
-            {!busy && scan === "cut" && original ? (
-              <div className="text-muted text-xs">
-                {t("projectForm.sheetCut")}{" "}
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => void read(original, "raw")}
-                  className="text-ink cursor-pointer underline"
-                >
-                  {t("projectForm.sheetReadOriginal")}
-                </button>
               </div>
             ) : null}
             {sheet && result ? (

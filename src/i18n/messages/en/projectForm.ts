@@ -167,10 +167,6 @@ export const projectFormEn = {
   "projectForm.sheetAttempts": "{count} attempts",
   "projectForm.sheetBlock": "Block",
   "projectForm.sheetCarton": "Carton",
-  "projectForm.sheetCropping": "Cropping sheet …",
-  "projectForm.sheetCroppingHint":
-    "The sheet is being located in the photo, cropped and straightened.",
-  "projectForm.sheetCut": "Cropped and straightened. Wrong result?",
   "projectForm.sheetGallery": "Choose from gallery",
   "projectForm.sheetLayerSummary":
     "{perLayer} per layer × {layers} layers = {total} cartons",
@@ -181,7 +177,6 @@ export const projectFormEn = {
   "projectForm.sheetPallet": "Pallet",
   "projectForm.sheetPhotoAlt": "Photographed pallet sheet",
   "projectForm.sheetProduct": "Product",
-  "projectForm.sheetReadOriginal": "Read original photo",
   "projectForm.sheetReading": "Reading sheet …",
   "projectForm.sheetReadingHint":
     "The local model is reading the sheet. This can take up to a minute.",
@@ -190,8 +185,6 @@ export const projectFormEn = {
   "projectForm.sheetSeverityInfo": "Note",
   "projectForm.sheetSeverityWarning": "Check",
   "projectForm.sheetTake": "Take photo",
-  "projectForm.sheetUncut":
-    "No sheet edge detected, the original photo was used.",
   "projectForm.side.bottom": "bottom",
   "projectForm.side.left": "left",
   "projectForm.side.right": "right",

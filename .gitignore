@@ -60,5 +60,3 @@ yarn-error.log*
 
 # local tool state
 /.cursor/hooks/state/
-# OpenCV.js copied from node_modules by scripts/copy-opencv.mjs
-/public/vendor/opencv/
