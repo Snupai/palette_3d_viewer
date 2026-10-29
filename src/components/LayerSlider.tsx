@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type PointerEvent } from "react";
+import { useRef, useState, type CSSProperties, type PointerEvent } from "react";
 import { useT } from "~/i18n";
 
 type LayerSliderProps = {
@@ -54,6 +54,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
 
   return (
     <div
+      style={{ "--layer-count": layerCount } as CSSProperties}
       className="layer-rail flex shrink-0 flex-col items-center justify-center gap-2 self-center"
       role="slider"
       aria-label={t("components.slider.visibleLayers")}

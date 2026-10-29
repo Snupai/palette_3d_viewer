@@ -110,9 +110,15 @@
     min-height: 44px;
   }
 
-  /* Layer rail: wider tick pitch for fingers, clear of the back-gesture edge. */
+  /* Layer rail: up to a 24px tick pitch for fingers, shrinking so every tick
+     still fits the 60lvh rail (pitch 8px + 2 × padding, 10px rail overhead);
+     dense stacks fall back to the tight pitch and finger scrubbing. */
   .layer-rail [data-toc-item-index] {
-    padding-block: 8px;
+    padding-block: clamp(
+      2px,
+      ((60lvh - 10px) / var(--layer-count, 1) - 8px) / 2,
+      8px
+    );
   }
   .layer-rail {
     margin-right: 12px;
@@ -226,7 +232,7 @@
     padding-bottom: 180px;
   }
   /* A focused field scrolls into view clear of the fixed and sticky bars. */
-  html:has(.generation-actions) {
+  html:has(.planning-case-grid.is-generating) {
     scroll-padding-top: 140px;
     scroll-padding-bottom: 180px;
   }
