@@ -28,22 +28,22 @@ The Next.js dev "N" badge (bottom left) is visible in every screenshot. It cover
 | stack-review (`before-stack-review.png`) | Zurück | 2278 | 2370 | 30 | **yes**, 37 px inside |
 | stack-review (`before-stack-review.png`) | Plan speichern | 2278 | 2370 | 30 | **yes**, 37 px inside |
 
-## AFTER (34f91de)
+## AFTER (b27738b)
 
 | Screen (file) | Button | top y | bottom y | to bottom | gesture zone (y ≥ 2333) |
 |---|---|---:|---:|---:|---|
-| new (`after-new.png`) | Abbrechen | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| new (`after-new.png`) | Nur speichern | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| new (`after-new.png`) | Muster erzeugen | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| new-scrolled (`after-new-scrolled.png`) | Abbrechen | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| new-scrolled (`after-new-scrolled.png`) | Nur speichern | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| new-scrolled (`after-new-scrolled.png`) | Muster erzeugen | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| patterns (`after-patterns.png`) | Eingaben ändern | 2254 | 2347 | 53 | **yes**, 14 px inside |
-| patterns (`after-patterns.png`) | Stapel aufbauen | 2145 | 2237 | 163 | no (96 px clear) |
-| stack (`after-stack.png`) | Zurück | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| stack (`after-stack.png`) | Prüfen & speichern | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| stack-review (`after-stack-review.png`) | Zurück | 2258 | 2351 | 49 | **yes**, 18 px inside |
-| stack-review (`after-stack-review.png`) | Plan speichern | 2258 | 2351 | 49 | **yes**, 18 px inside |
+| new (`after-new.png`) | Abbrechen | 2233 | 2326 | 74 | no (7 px clear) |
+| new (`after-new.png`) | Nur speichern | 2233 | 2326 | 74 | no (7 px clear) |
+| new (`after-new.png`) | Muster erzeugen | 2233 | 2326 | 74 | no (7 px clear) |
+| new-scrolled (`after-new-scrolled.png`) | Abbrechen | 2233 | 2326 | 74 | no (7 px clear) |
+| new-scrolled (`after-new-scrolled.png`) | Nur speichern | 2233 | 2326 | 74 | no (7 px clear) |
+| new-scrolled (`after-new-scrolled.png`) | Muster erzeugen | 2233 | 2326 | 74 | no (7 px clear) |
+| patterns (`after-patterns.png`) | Eingaben ändern | 2229 | 2321 | 79 | no (12 px clear) |
+| patterns (`after-patterns.png`) | Stapel aufbauen | 2120 | 2212 | 188 | no (121 px clear) |
+| stack (`after-stack.png`) | Zurück | 2233 | 2326 | 74 | no (7 px clear) |
+| stack (`after-stack.png`) | Prüfen & speichern | 2233 | 2326 | 74 | no (7 px clear) |
+| stack-review (`after-stack-review.png`) | Zurück | 2233 | 2326 | 74 | no (7 px clear) |
+| stack-review (`after-stack-review.png`) | Plan speichern | 2233 | 2326 | 74 | no (7 px clear) |
 
 The /plan/<id>/build page after saving has no bottom bar. Its only match was the in-page "Weitere Muster erzeugen" button below the fold, which is left out of the tables.
 
