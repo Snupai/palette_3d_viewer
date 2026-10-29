@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   findGripCollision,
+  footprintSize,
   gripsToBoxes,
+  layerInterlayerHeightMm,
   layerPlaceZ,
   layerZBottom,
   parseBlueLine,
+  trailingInterlayerHeightMm,
   pickOffsetForCount,
   toRobInt,
 } from "~/domain/palletGeometry";
@@ -58,6 +61,34 @@ describe("pallet Z geometry", () => {
       ZWISCHENLAGE_HEIGHT_MM * 2 + packageHeight * 2,
     );
   });
+
+  it("uses exact variable sheet thicknesses when a materialized preview supplies them", () => {
+    const layers: Layer[] = [
+      {
+        unique_layer_id: 1,
+        boxes: [],
+        zwischenlage: 1,
+        interlayerThicknessesMm: [5],
+      },
+      {
+        unique_layer_id: 2,
+        boxes: [],
+        zwischenlage: 2,
+        interlayerThicknessesMm: [2, 7],
+      },
+    ];
+
+    expect(layerInterlayerHeightMm(layers[0])).toBe(5);
+    expect(layerInterlayerHeightMm(layers[1])).toBe(9);
+    expect(layerZBottom(layers, 0, 100)).toBe(5);
+    expect(layerZBottom(layers, 1, 100)).toBe(114);
+    expect(
+      trailingInterlayerHeightMm({
+        trailingZwischenlage: 2,
+        trailingInterlayerThicknessesMm: [4, 6],
+      }),
+    ).toBe(10);
+  });
 });
 
 describe("grip and package geometry", () => {
@@ -110,11 +141,53 @@ describe("grip and package geometry", () => {
     ]);
   });
 
-  it("maps delta signs to the existing blue-line sides and corners", () => {
-    expect(parseBlueLine(0, 0)).toBeNull();
-    expect(parseBlueLine(1, 0)).toBe("left");
-    expect(parseBlueLine(-1, 1)).toBe("bottom_right");
-    expect(parseBlueLine(1, -1)).toBe("top_right");
+  it("uses the crosswise package span and required quarter-turn semantics for grouped input-direction-1 grips", () => {
+    const boxes = gripsToBoxes(
+      [
+        grip("crosswise", 1128, 102, {
+          rotation: 90,
+          numPackages: 2,
+        }),
+      ],
+      136,
+      94,
+      151,
+      1,
+    );
+
+    expect(boxes.map((box) => [box.rect.x, box.rect.y])).toEqual([
+      [1128, 55],
+      [1128, 149],
+    ]);
+    expect(boxes[1]!.rect.y - boxes[0]!.rect.y).toBe(94);
+    expect(boxes.map((box) => footprintSize(box))).toEqual([
+      { width: 136, length: 94 },
+      { width: 136, length: 94 },
+    ]);
+  });
+
+  it("marks the descent side opposite every delta movement", () => {
+    expect([
+      [0, 0, parseBlueLine(0, 0)],
+      [0, 1, parseBlueLine(0, 1)],
+      [0, -1, parseBlueLine(0, -1)],
+      [1, 0, parseBlueLine(1, 0)],
+      [-1, 0, parseBlueLine(-1, 0)],
+      [1, 1, parseBlueLine(1, 1)],
+      [1, -1, parseBlueLine(1, -1)],
+      [-1, 1, parseBlueLine(-1, 1)],
+      [-1, -1, parseBlueLine(-1, -1)],
+    ]).toEqual([
+      [0, 0, null],
+      [0, 1, "bottom"],
+      [0, -1, "top"],
+      [1, 0, "left"],
+      [-1, 0, "right"],
+      [1, 1, "bottom_left"],
+      [1, -1, "top_left"],
+      [-1, 1, "bottom_right"],
+      [-1, -1, "top_right"],
+    ]);
   });
 
   it("truncates half-millimeter ROB coordinate candidates", () => {

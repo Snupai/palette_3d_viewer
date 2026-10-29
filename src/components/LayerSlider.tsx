@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useT } from "~/i18n";
 
 type LayerSliderProps = {
   layerCount: number;
@@ -25,6 +26,7 @@ function pushOffset(index: number, hoveredIndex: number | null): number {
  * Selecting N shows layers 1..N (from bottom); layers above are hidden.
  */
 export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
+  const t = useT();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
 
   if (layerCount <= 0) return null;
@@ -35,11 +37,14 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
     <div
       className="flex shrink-0 flex-col items-center justify-center gap-2 self-center"
       role="slider"
-      aria-label="Visible layers"
+      aria-label={t("components.slider.visibleLayers")}
       aria-valuemin={1}
       aria-valuemax={layerCount}
       aria-valuenow={clamped}
-      aria-valuetext={`Layer ${clamped} of ${layerCount}`}
+      aria-valuetext={t("components.slider.valueText", {
+        current: clamped,
+        total: layerCount,
+      })}
       tabIndex={0}
       onKeyDown={(e) => {
         if (e.key === "ArrowUp" || e.key === "ArrowRight") {
@@ -70,7 +75,9 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
               <button
                 key={layerFromBottom}
                 type="button"
-                aria-label={`Layer ${layerFromBottom}`}
+                aria-label={t("components.slider.layer", {
+                  number: layerFromBottom,
+                })}
                 data-toc-item-index={i}
                 data-toc-active={active ? "" : undefined}
                 onClick={() => onChange(layerFromBottom)}
@@ -79,19 +86,19 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
                   transform: `translateY(${pushOffset(i, hoveredIndex)}px)`,
                 }}
                 // ::before widens the hit area past the layout box, keeping ticks tightly spaced
-                className="relative flex w-9 shrink-0 cursor-pointer items-center justify-center py-0.5 transition-transform duration-150 ease-out before:absolute before:inset-x-0 before:-inset-y-[3px] before:content-['']"
+                className="relative flex w-9 shrink-0 items-center justify-center py-0.5 transition-transform duration-150 ease-out before:absolute before:inset-x-0 before:-inset-y-[3px] before:content-['']"
               >
                 <span
-                  className={`shrink-0 rounded-full transition-all duration-150 ease-out ${
+                  className={`shrink-0 transition-all duration-150 ease-out ${
                     hovered ? "h-[3px] w-7" : "h-0.5 w-4.5"
                   } ${
                     active
-                      ? "bg-zinc-100"
+                      ? "bg-ink"
                       : hovered
-                        ? "bg-zinc-300"
+                        ? "bg-ink/70"
                         : included
-                          ? "bg-zinc-500"
-                          : "bg-zinc-700"
+                          ? "bg-muted"
+                          : "bg-line"
                   }`}
                 />
               </button>
@@ -99,7 +106,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
           })}
         </div>
       </div>
-      <span className="font-mono text-[10px] text-zinc-500 tabular-nums">
+      <span className="text-micro text-muted font-mono tabular-nums">
         {clamped}/{layerCount}
       </span>
     </div>

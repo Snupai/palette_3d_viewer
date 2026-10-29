@@ -468,9 +468,10 @@ export function serializeRobText(
     ),
   ];
 
+  const serializedUniqueLayerBlockCount = Math.max(1, numUniqueLayers);
   for (
     let uniqueLayerId = 1;
-    uniqueLayerId <= numUniqueLayers;
+    uniqueLayerId <= serializedUniqueLayerBlockCount;
     uniqueLayerId++
   ) {
     const grips =

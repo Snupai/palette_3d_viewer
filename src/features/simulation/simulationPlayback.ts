@@ -1,0 +1,252 @@
+import type { Translate } from "~/i18n";
+import {
+  nextRobotTimelineBoundary,
+  normalizeYawDeg,
+  previousRobotTimelineBoundary,
+  rotateVector2,
+  seekRobotTimeline,
+  type RobotCycleMaterialization,
+  type RobotTimeline,
+  type RobotTimelineSegmentKind,
+} from "~/domain/robotics";
+import type {
+  ViewerScenePose,
+  ViewerSimulationPackage,
+  ViewerSimulationState,
+} from "~/components/rob-viewer/viewerTypes";
+import {
+  composeViewerPoses,
+  IDENTITY_VIEWER_POSE,
+} from "~/components/rob-viewer/viewerPoseMath";
+
+export type PlaybackDirection = "forward" | "reverse";
+
+export type TimelineCursorAdvance = {
+  timeMs: number;
+  reachedEnd: boolean;
+};
+
+export type SimulationFrame = ViewerSimulationState & {
+  cycleId: string | null;
+  phase: RobotTimelineSegmentKind | null;
+  tcpPose: ViewerScenePose | null;
+  completedPlacementIds: ReadonlySet<string>;
+  feedPlacementIds: readonly string[];
+  attachedPlacementIds: readonly string[];
+};
+
+export function clampTimelineCursor(
+  timeline: Pick<RobotTimeline, "durationMs">,
+  timeMs: number,
+): number {
+  if (!Number.isFinite(timeMs)) throw new Error("timeMs must be finite.");
+  return Math.max(0, Math.min(timeline.durationMs, timeMs));
+}
+
+export function advanceTimelineCursor(
+  timeline: Pick<RobotTimeline, "durationMs">,
+  timeMs: number,
+  elapsedRealMs: number,
+  speed: number,
+  direction: PlaybackDirection,
+): TimelineCursorAdvance {
+  if (!Number.isFinite(elapsedRealMs) || elapsedRealMs < 0) {
+    throw new Error("elapsedRealMs must be finite and non-negative.");
+  }
+  if (!Number.isFinite(speed) || speed <= 0) {
+    throw new Error("speed must be positive and finite.");
+  }
+  const delta = elapsedRealMs * speed * (direction === "forward" ? 1 : -1);
+  const time = clampTimelineCursor(timeline, timeMs + delta);
+  return {
+    timeMs: time,
+    reachedEnd:
+      direction === "forward" ? time >= timeline.durationMs : time <= 0,
+  };
+}
+
+/**
+ * Cursor a new playback run starts from: a finished run restarts from the
+ * opposite end instead of stopping on its first frame.
+ */
+export function playbackStartCursor(
+  timeline: Pick<RobotTimeline, "durationMs">,
+  timeMs: number,
+  direction: PlaybackDirection,
+): number {
+  const time = clampTimelineCursor(timeline, timeMs);
+  if (direction === "forward") {
+    return time >= timeline.durationMs ? 0 : time;
+  }
+  return time <= 0 ? timeline.durationMs : time;
+}
+
+export function stepTimelineCursor(
+  timeline: RobotTimeline,
+  timeMs: number,
+  direction: PlaybackDirection,
+): number {
+  return direction === "forward"
+    ? nextRobotTimelineBoundary(timeline, timeMs)
+    : previousRobotTimelineBoundary(timeline, timeMs);
+}
+
+function carriedPackagePose(
+  finalPose: ViewerScenePose,
+  finalTcpPose: ViewerScenePose,
+  currentTcpPose: ViewerScenePose,
+): ViewerScenePose {
+  const localPosition = rotateVector2(
+    {
+      x: finalPose.positionMm.x - finalTcpPose.positionMm.x,
+      y: finalPose.positionMm.y - finalTcpPose.positionMm.y,
+    },
+    -finalTcpPose.yawDeg,
+  );
+  const currentOffset = rotateVector2(localPosition, currentTcpPose.yawDeg);
+  return {
+    positionMm: {
+      x: currentTcpPose.positionMm.x + currentOffset.x,
+      y: currentTcpPose.positionMm.y + currentOffset.y,
+      z:
+        currentTcpPose.positionMm.z +
+        (finalPose.positionMm.z - finalTcpPose.positionMm.z),
+    },
+    yawDeg: normalizeYawDeg(
+      currentTcpPose.yawDeg +
+        normalizeYawDeg(finalPose.yawDeg - finalTcpPose.yawDeg),
+    ),
+  };
+}
+
+/**
+ * Derives package state only from the absolute cursor timestamp. Playback
+ * direction never changes the physical state returned for the same time.
+ */
+export function createSimulationFrame(
+  timeline: RobotTimeline,
+  requestedTimeMs: number,
+  materialization: Pick<RobotCycleMaterialization, "cycles" | "stack">,
+  toViewerPose: (
+    pose: RobotCycleMaterialization["cycles"][number]["pickPose"],
+  ) => ViewerScenePose,
+  palletPose: ViewerScenePose = IDENTITY_VIEWER_POSE,
+): SimulationFrame {
+  const timeMs = clampTimelineCursor(timeline, requestedTimeMs);
+  const sample = seekRobotTimeline(timeline, timeMs, "forward");
+  const activeWindow = timeline.cycleWindows.find(
+    ({ startMs, endMs }) => timeMs >= startMs && timeMs < endMs,
+  );
+  const activeCycle = activeWindow
+    ? (materialization.cycles[activeWindow.cycleIndex] ?? null)
+    : null;
+  const completedPlacementIds = new Set<string>();
+  for (const window of timeline.cycleWindows) {
+    if (timeMs < window.placeMs) continue;
+    const cycle = materialization.cycles[window.cycleIndex];
+    cycle?.placementIds.forEach((placementId) =>
+      completedPlacementIds.add(placementId),
+    );
+  }
+
+  const completedPackageLayerIndexes = (
+    materialization.stack?.packageLayers ?? []
+  ).flatMap((layer) =>
+    layer.placements.length > 0 &&
+    layer.placements.every(({ id }) => completedPlacementIds.has(id))
+      ? [layer.packageLayerIndex]
+      : [],
+  );
+  const feedPlacementIds =
+    activeCycle && activeWindow && timeMs < activeWindow.pickupMs
+      ? [...activeCycle.placementIds]
+      : [];
+  const attachedPlacementIds =
+    activeCycle &&
+    activeWindow &&
+    timeMs >= activeWindow.pickupMs &&
+    timeMs < activeWindow.placeMs
+      ? [...activeCycle.placementIds]
+      : [];
+  const feedSet = new Set(feedPlacementIds);
+  const attachedSet = new Set(attachedPlacementIds);
+  const currentTcpPose = sample ? toViewerPose(sample.pose) : null;
+  const finalTcpPose = activeCycle ? toViewerPose(activeCycle.placePose) : null;
+  const feedTcpPose = activeCycle ? toViewerPose(activeCycle.pickPose) : null;
+  const packages: ViewerSimulationPackage[] = [];
+
+  for (const layer of materialization.stack?.packageLayers ?? []) {
+    for (const placement of layer.placements) {
+      const finalPose = composeViewerPoses(palletPose, {
+        positionMm: {
+          x: placement.positionMm.x,
+          y: placement.positionMm.y,
+          z: (layer.zBottomMm + layer.zTopMm) / 2,
+        },
+        yawDeg: placement.rotation,
+      });
+      if (completedPlacementIds.has(placement.id)) {
+        packages.push({
+          placementId: placement.id,
+          phase: "placed",
+          pose: finalPose,
+        });
+      } else if (feedSet.has(placement.id) && finalTcpPose && feedTcpPose) {
+        packages.push({
+          placementId: placement.id,
+          phase: "feed",
+          pose: carriedPackagePose(finalPose, finalTcpPose, feedTcpPose),
+        });
+      } else if (
+        attachedSet.has(placement.id) &&
+        finalTcpPose &&
+        currentTcpPose
+      ) {
+        packages.push({
+          placementId: placement.id,
+          phase: "attached",
+          pose: carriedPackagePose(finalPose, finalTcpPose, currentTcpPose),
+        });
+      }
+    }
+  }
+
+  return {
+    cycleId: activeCycle?.id ?? sample?.segment.cycleId ?? null,
+    phase: sample?.segment.kind ?? null,
+    tcpPose: currentTcpPose,
+    completedPlacementIds,
+    feedPlacementIds,
+    attachedPlacementIds,
+    packages,
+    completedPackageLayerIndexes,
+  };
+}
+
+export function timelinePhaseLabel(
+  kind: RobotTimelineSegmentKind,
+  t: Translate,
+): string {
+  switch (kind) {
+    case "cycle-retract":
+      return t("simulation.phase.cycleRetract");
+    case "cycle-traverse":
+      return t("simulation.phase.cycleTraverse");
+    case "pick-approach":
+      return t("simulation.phase.pickApproach");
+    case "pick-dwell":
+      return t("simulation.phase.pickDwell");
+    case "pick-lift":
+      return t("simulation.phase.pickLift");
+    case "pick-traverse":
+      return t("simulation.phase.pickTraverse");
+    case "transfer-traverse":
+      return t("simulation.phase.transferTraverse");
+    case "place-approach":
+      return t("simulation.phase.placeApproach");
+    case "place-dwell":
+      return t("simulation.phase.placeDwell");
+    case "between-cycle-dwell":
+      return t("simulation.phase.betweenCycleDwell");
+  }
+}

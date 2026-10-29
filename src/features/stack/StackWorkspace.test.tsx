@@ -1,0 +1,1074 @@
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { createProject, updateProject } from "~/domain/project/projectFactory";
+import { getPalletTemplate } from "~/domain/project/palletTemplates";
+import { materializeRobotCycles } from "~/domain/robotics";
+import type { LayerSolverInput, SolverCandidate } from "~/domain/solver";
+import {
+  materializeProjectSolutionStack,
+  type MaterializedStackResult,
+  type StackLayerTransform,
+} from "~/domain/stack";
+import { StackWorkspace } from "~/features/stack/StackWorkspace";
+import {
+  candidatePatternRef,
+  createInitialStackWorkspaceState,
+  materializeStackWorkspace,
+  projectWithPersistedStack,
+  rebuildStackSequence,
+  type StackWorkspaceState,
+} from "~/features/stack/stackWorkspaceModel";
+
+vi.mock("~/components/RobViewer", () => ({
+  RobViewer: () => <div data-testid="rob-viewer" />,
+}));
+
+afterEach(cleanup);
+
+const solverInput: LayerSolverInput = {
+  package: {
+    shape: "cuboid",
+    dimensionsMm: { length: 100, width: 100 },
+    clearanceMm: 0,
+  },
+  envelopeMm: { minX: 0, minY: 0, maxX: 1200, maxY: 800 },
+};
+
+function candidate(rank: number, count: number): SolverCandidate {
+  return {
+    rank,
+    id: `stack-candidate-${rank}`,
+    geometryId: `stack-geometry-${rank}`,
+    identityFingerprint: `identity-${rank}`,
+    geometryFingerprint: `geometry-${rank}`,
+    orderDependencies: [],
+    placements: Array.from({ length: count }, (_, index) => ({
+      sequence: index,
+      positionMm: { x: 100 + index * 150, y: 100 },
+      rotation: 0 as const,
+      labelSide: index % 2 === 0 ? ("top" as const) : ("right" as const),
+      gripId: `generated-grip:${index + 1}`,
+    })),
+    grips: Array.from({ length: count }, (_, index) => ({
+      id: `generated-grip:${index + 1}`,
+      groupNumber: index + 1,
+      sequence: index,
+      pickX: 0,
+      pickY: 0,
+      pickRotation: 0 as const,
+      x: 100 + index * 150,
+      y: 100,
+      rotation: 0 as const,
+      numPackages: 1,
+      dx: 0,
+      dy: 0,
+    })),
+    provenance: [],
+    validation: { valid: true, issues: [] },
+    metrics: {
+      packageCount: count,
+      occupiedAreaMm2: count * 10_000,
+      utilization: count / 96,
+      utilizationPercent: (count / 96) * 100,
+      boundingBlockLengthMm: count * 150,
+      boundingBlockWidthMm: 100,
+      boundingBlockAreaMm2: count * 15_000,
+      provisionalCycleCount: count,
+      provisionalCycleBasis: "generated-grip-groups",
+      multiPackBlocks: null,
+      multiPackBlocksVerification: "unverified",
+    },
+    score: {
+      value: count,
+      packageCount: count,
+      utilizationMillionths: Math.round((count / 96) * 1_000_000),
+      provisionalCycleCount: count,
+      boundingBlockAreaMm2: count * 15_000,
+      boundingBlockPerimeterMm: count * 300,
+      multiPackBlocks: null,
+    },
+  };
+}
+
+const candidates = [candidate(1, 1), candidate(2, 2)];
+const euro = getPalletTemplate("euro");
+const project = createProject(
+  {
+    id: "stack-project",
+    package: {
+      dimensionsMm: { length: 100, width: 100, height: 100 },
+      weightKg: 1,
+    },
+    pallet: {
+      ...euro,
+      storageEnvelopeMm: { length: 1200, width: 800, height: 350 },
+    },
+  },
+  { now: () => 1, createId: (kind) => `${kind}-stack` },
+);
+
+function materializedPlacementGeometry(result: MaterializedStackResult) {
+  return result.packageLayers.map((layer) => ({
+    id: layer.id,
+    placements: layer.placements.map((placement) => ({
+      sequence: placement.sequence,
+      positionMm: placement.positionMm,
+      rotation: placement.rotation,
+      labelSide: placement.labelSide,
+    })),
+  }));
+}
+
+const persistedTransforms: StackLayerTransform[] = [
+  "mirror-x",
+  "mirror-y",
+  "rotate-90",
+  "rotate-180",
+  "rotate-270",
+];
+
+describe("stack workspace persistence", () => {
+  it.each(persistedTransforms)(
+    "bakes %s geometry so save and reopen preserve exact placements",
+    (transform) => {
+      const initial = createInitialStackWorkspaceState(candidates);
+      const state: StackWorkspaceState = {
+        ...initial,
+        layers: initial.layers.map((layer) => ({ ...layer, transform })),
+      };
+      const materialized = materializeStackWorkspace(
+        project,
+        candidates,
+        solverInput,
+        state,
+      );
+
+      const persisted = projectWithPersistedStack(
+        project,
+        candidates,
+        solverInput,
+        state,
+      );
+      const reopened = materializeProjectSolutionStack(persisted);
+      const solution = persisted.solutions.find(
+        ({ id }) => id === persisted.activeSolutionId,
+      )!;
+
+      expect(materializedPlacementGeometry(reopened)).toEqual(
+        materializedPlacementGeometry(materialized),
+      );
+      expect(solution.patterns).toHaveLength(1);
+      expect(solution.patterns[0]?.name).toContain(transform);
+      expect(solution.patterns[0]?.gripPlanningSource).toBe("solver-generated");
+      expect(solution.stack.layers[0]?.patternId).toBe(
+        solution.patterns[0]?.id,
+      );
+    },
+  );
+
+  it("persists generated deltas across layout gaps when clearance is zero", () => {
+    const gapCandidate = candidate(5, 2);
+    const gripPositions = [
+      { x: 200, y: 50 },
+      { x: 50, y: 50 },
+    ] as const;
+    const generatedCandidate: SolverCandidate = {
+      ...gapCandidate,
+      placements: gapCandidate.placements.map((placement, index) => ({
+        ...placement,
+        positionMm: gripPositions[index]!,
+      })),
+      grips: gapCandidate.grips.map((grip, index) => ({
+        ...grip,
+        ...gripPositions[index]!,
+      })),
+    };
+    const state = createInitialStackWorkspaceState([generatedCandidate]);
+
+    const persisted = projectWithPersistedStack(
+      project,
+      [generatedCandidate],
+      solverInput,
+      state,
+    );
+    const solution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const reopened = materializeProjectSolutionStack(persisted);
+
+    expect(
+      solution.patterns[0]?.grips.map(({ groupNumber, dx, dy }) => ({
+        groupNumber,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 1, dx: 0, dy: 0 },
+      { groupNumber: 2, dx: -1, dy: 0 },
+    ]);
+    expect(
+      reopened.packageLayers[0]?.grips.map(({ groupNumber, dx, dy }) => ({
+        groupNumber,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 1, dx: 0, dy: 0 },
+      { groupNumber: 2, dx: -1, dy: 0 },
+    ]);
+  });
+
+  it("persists the same physical label face through a transformed layer", () => {
+    const labelInput: LayerSolverInput = {
+      ...solverInput,
+      constraints: {
+        allowedRotations: [0, 180],
+        unrotatedPackageLabelSide: "top",
+      },
+    };
+    const labelCandidate: SolverCandidate = {
+      ...candidate(1, 1),
+      placements: [
+        {
+          sequence: 0,
+          positionMm: { x: 100, y: 100 },
+          rotation: 0,
+          labelSide: "top",
+          gripId: "generated-grip:1",
+        },
+      ],
+    };
+    const initial = createInitialStackWorkspaceState([labelCandidate]);
+    const state: StackWorkspaceState = {
+      ...initial,
+      layers: initial.layers.map((layer) => ({
+        ...layer,
+        transform: "mirror-y" as const,
+      })),
+    };
+
+    const materialized = materializeStackWorkspace(
+      project,
+      [labelCandidate],
+      labelInput,
+      state,
+    );
+    const persisted = projectWithPersistedStack(
+      project,
+      [labelCandidate],
+      labelInput,
+      state,
+    );
+    const reopened = materializeProjectSolutionStack(persisted);
+    const persistedSolution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = persistedSolution.patterns[0]!;
+
+    expect(materialized.packageLayers[0]?.placements[0]).toMatchObject({
+      positionMm: { x: 100, y: 700 },
+      rotation: 180,
+      labelSide: "bottom",
+    });
+    expect(materializedPlacementGeometry(reopened)).toEqual(
+      materializedPlacementGeometry(materialized),
+    );
+    expect(persistedPattern.grips).toHaveLength(1);
+    expect(persistedPattern.grips[0]?.rotation).toBe(180);
+    expect(persistedPattern.placements[0]?.gripId).toBe(
+      persistedPattern.grips[0]?.id,
+    );
+    expect(persistedSolution.robotCycles).toEqual([]);
+    expect(reopened.packageLayers[0]?.grips[0]?.rotation).toBe(180);
+  });
+
+  it("persists transformed generated grip planning and Robotics follows the physical order", () => {
+    const baseCandidate = candidate(4, 4);
+    const gripGeometry = [
+      ["right-bottom", 150, 50, 1, 0, 0],
+      ["right-top", 150, 150, 2, 0, -1],
+      ["left-bottom", 50, 50, 3, 1, 0],
+      ["left-top", 50, 150, 4, 1, -1],
+    ] as const;
+    const gridCandidate: SolverCandidate = {
+      ...baseCandidate,
+      placements: gripGeometry.map(([id, x, y], sequence) => ({
+        sequence,
+        positionMm: { x, y },
+        rotation: 0,
+        labelSide: null,
+        gripId: id,
+      })),
+      grips: gripGeometry.map(([id, x, y, groupNumber, dx, dy], sequence) => ({
+        id,
+        groupNumber,
+        sequence,
+        pickX: 0,
+        pickY: 0,
+        pickRotation: 0,
+        x,
+        y,
+        rotation: 0,
+        numPackages: 1,
+        dx,
+        dy,
+      })),
+      orderDependencies: [
+        { beforeGripId: "right-bottom", afterGripId: "right-top" },
+        { beforeGripId: "right-bottom", afterGripId: "left-bottom" },
+        { beforeGripId: "right-top", afterGripId: "left-top" },
+        { beforeGripId: "left-bottom", afterGripId: "left-top" },
+      ],
+    };
+    const initial = createInitialStackWorkspaceState([gridCandidate]);
+    const state: StackWorkspaceState = {
+      ...initial,
+      layers: initial.layers.map((layer) => ({
+        ...layer,
+        transform: "mirror-x" as const,
+      })),
+    };
+
+    const persisted = projectWithPersistedStack(
+      project,
+      [gridCandidate],
+      solverInput,
+      state,
+    );
+    const solution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = solution.patterns[0]!;
+    const reopened = materializeProjectSolutionStack(persisted);
+    const reopenedLayer = reopened.packageLayers[0]!;
+    const robotics = materializeRobotCycles(persisted, {
+      pickReference: {
+        originMm: { x: -1_000, y: 0, z: 100 },
+        yawDeg: 0,
+        provenance: {
+          status: "verified",
+          source: "transformed grip planning fixture",
+        },
+      },
+    });
+
+    expect(
+      persistedPattern.grips.map(({ groupNumber, x, y, dx, dy }) => ({
+        groupNumber,
+        x,
+        y,
+        dx,
+        dy,
+      })),
+    ).toEqual([
+      { groupNumber: 1, x: 1150, y: 50, dx: 0, dy: 0 },
+      { groupNumber: 2, x: 1150, y: 150, dx: 0, dy: 1 },
+      { groupNumber: 3, x: 1050, y: 50, dx: -1, dy: 0 },
+      { groupNumber: 4, x: 1050, y: 150, dx: -1, dy: 1 },
+    ]);
+    expect(persistedPattern.groupOrder).toEqual(
+      persistedPattern.grips.map(({ id }) => id),
+    );
+    expect(reopenedLayer.groupOrder).toEqual(persistedPattern.groupOrder);
+    expect(robotics.cycles.map(({ groupNumber }) => groupNumber)).toEqual([
+      1, 2, 3, 4,
+    ]);
+    expect(
+      robotics.diagnostics.filter(
+        ({ code }) => code === "order-dependency-violation",
+      ),
+    ).toEqual([]);
+  });
+
+  it("persists generated multipick grips and Robotics consumes them without project robot cycles", () => {
+    const baseCandidate = candidate(3, 3);
+    const multipickCandidate: SolverCandidate = {
+      ...baseCandidate,
+      placements: [
+        {
+          sequence: 0,
+          positionMm: { x: 50, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:1+2",
+        },
+        {
+          sequence: 1,
+          positionMm: { x: 150, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:1+2",
+        },
+        {
+          sequence: 2,
+          positionMm: { x: 250, y: 100 },
+          rotation: 0,
+          labelSide: null,
+          gripId: "generated-grip:3",
+        },
+      ],
+      grips: [
+        {
+          id: "generated-grip:1+2",
+          groupNumber: 1,
+          sequence: 0,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 100,
+          y: 100,
+          rotation: 0,
+          numPackages: 2,
+          dx: 0,
+          dy: 0,
+        },
+        {
+          id: "generated-grip:3",
+          groupNumber: 2,
+          sequence: 1,
+          pickX: 0,
+          pickY: 0,
+          pickRotation: 0,
+          x: 250,
+          y: 100,
+          rotation: 0,
+          numPackages: 1,
+          dx: 0,
+          dy: 0,
+        },
+      ],
+      orderDependencies: [
+        {
+          beforeGripId: "generated-grip:1+2",
+          afterGripId: "generated-grip:3",
+        },
+      ],
+      metrics: {
+        ...baseCandidate.metrics,
+        provisionalCycleCount: 2,
+      },
+      score: {
+        ...baseCandidate.score,
+        provisionalCycleCount: 2,
+      },
+    };
+    const authorizedProject = updateProject(project, {
+      package: {
+        ...project.package,
+        multiPickAllowed: true,
+      },
+    });
+    const state = createInitialStackWorkspaceState([multipickCandidate]);
+
+    const persisted = projectWithPersistedStack(
+      authorizedProject,
+      [multipickCandidate],
+      solverInput,
+      state,
+    );
+    const persistedSolution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const persistedPattern = persistedSolution.patterns[0]!;
+    const reopened = materializeProjectSolutionStack(persisted);
+    const reopenedLayer = reopened.packageLayers[0]!;
+    const robotics = materializeRobotCycles(persisted, {
+      maxPackagesPerPick: 1,
+      pickReference: {
+        originMm: { x: -1_000, y: 0, z: 100 },
+        yawDeg: 0,
+        provenance: {
+          status: "verified",
+          source: "stack multipick persistence fixture",
+        },
+      },
+    });
+
+    expect(
+      multipickCandidate.grips.map(({ numPackages }) => numPackages),
+    ).toEqual([2, 1]);
+    expect(multipickCandidate.placements.map(({ gripId }) => gripId)).toEqual([
+      "generated-grip:1+2",
+      "generated-grip:1+2",
+      "generated-grip:3",
+    ]);
+    expect(persistedSolution.robotCycles).toEqual([]);
+    expect(
+      persistedPattern.grips.map(({ numPackages }) => numPackages),
+    ).toEqual([1, 2]);
+    expect(persistedPattern.groupOrder).toEqual(
+      persistedPattern.grips.map(({ id }) => id),
+    );
+    expect(persistedPattern.orderDependencies).toEqual([
+      {
+        beforeGripId: persistedPattern.grips[0]!.id,
+        afterGripId: persistedPattern.grips[1]!.id,
+        source: "inferred",
+      },
+    ]);
+    expect(persistedPattern.placements.map(({ gripId }) => gripId)).toEqual([
+      persistedPattern.grips[1]!.id,
+      persistedPattern.grips[1]!.id,
+      persistedPattern.grips[0]!.id,
+    ]);
+    expect(reopened.robotCycles).toEqual([]);
+    expect(reopenedLayer.robotCycles).toEqual([]);
+    expect(reopenedLayer.grips.map(({ numPackages }) => numPackages)).toEqual([
+      1, 2,
+    ]);
+    expect(reopenedLayer.placements.map(({ gripId }) => gripId)).toEqual([
+      reopenedLayer.grips[1]!.id,
+      reopenedLayer.grips[1]!.id,
+      reopenedLayer.grips[0]!.id,
+    ]);
+    expect(robotics.cycles.map(({ packageCount }) => packageCount)).toEqual([
+      1, 2,
+    ]);
+    expect(
+      robotics.cycles.map(({ sequenceInLayer }) => sequenceInLayer),
+    ).toEqual([0, 1]);
+    expect(
+      robotics.diagnostics.filter(
+        ({ code }) => code === "order-dependency-violation",
+      ),
+    ).toEqual([]);
+    expect(
+      robotics.cycles.map(({ provenance }) => provenance.groupingSource),
+    ).toEqual(["explicit-pattern-grip", "explicit-pattern-grip"]);
+    expect(
+      robotics.cycles.map(({ provenance }) => provenance.cycleSource),
+    ).toEqual(["calculated-suction-cycle", "calculated-suction-cycle"]);
+    expect(
+      robotics.cycles.every(
+        ({ provenance }) => provenance.sourceCycleId === null,
+      ),
+    ).toBe(true);
+    expect(robotics.cycles.map(({ placementIds }) => placementIds)).toEqual(
+      reopenedLayer.grips.map(({ id }) =>
+        reopenedLayer.placements
+          .filter(({ gripId }) => gripId === id)
+          .map(({ id: placementId }) => placementId),
+      ),
+    );
+  });
+
+  it("persists transforms around the requested generation frame", () => {
+    const framedInput: LayerSolverInput = {
+      ...solverInput,
+      generationBoundsMm: { minX: 100, minY: 50, maxX: 300, maxY: 250 },
+    };
+    const initial = createInitialStackWorkspaceState(candidates);
+    const state: StackWorkspaceState = {
+      ...initial,
+      layers: initial.layers.map((layer) => ({
+        ...layer,
+        transform: "rotate-90" as const,
+      })),
+    };
+    const materialized = materializeStackWorkspace(
+      project,
+      candidates,
+      framedInput,
+      state,
+    );
+
+    const persisted = projectWithPersistedStack(
+      project,
+      candidates,
+      framedInput,
+      state,
+    );
+    const reopened = materializeProjectSolutionStack(persisted);
+
+    expect(materializedPlacementGeometry(reopened)).toEqual(
+      materializedPlacementGeometry(materialized),
+    );
+  });
+
+  it("deduplicates composition variants and preserves a transformed special top layer", () => {
+    const initial = createInitialStackWorkspaceState(candidates);
+    const composed = rebuildStackSequence({
+      ...initial,
+      patternBRef: candidatePatternRef(candidates[1]!),
+      compositionMode: "longitudinal-mirror",
+      requestedLayerCount: 4,
+    });
+    const state: StackWorkspaceState = {
+      ...composed,
+      specialTopEnabled: true,
+      specialTopPatternRef: candidatePatternRef(candidates[0]!),
+      specialTopTransform: "rotate-270",
+    };
+    const materialized = materializeStackWorkspace(
+      project,
+      candidates,
+      solverInput,
+      state,
+    );
+
+    const persisted = projectWithPersistedStack(
+      project,
+      candidates,
+      solverInput,
+      state,
+    );
+    const reopened = materializeProjectSolutionStack(persisted);
+    const solution = persisted.solutions.find(
+      ({ id }) => id === persisted.activeSolutionId,
+    )!;
+    const repeated = projectWithPersistedStack(
+      project,
+      candidates,
+      solverInput,
+      state,
+    );
+    const repeatedSolution = repeated.solutions.find(
+      ({ id }) => id === repeated.activeSolutionId,
+    )!;
+    const patternIds = solution.patterns.map(({ id }) => id);
+    const placementIds = solution.patterns.flatMap(({ placements }) =>
+      placements.map(({ id }) => id),
+    );
+
+    expect(
+      materialized.resolvedLayers.map(({ transform }) => transform),
+    ).toEqual(["identity", "mirror-y", "identity", "rotate-270"]);
+    expect(materialized.packageLayers.at(-1)?.layerProvenance.kind).toBe(
+      "special-top",
+    );
+    expect(materializedPlacementGeometry(reopened)).toEqual(
+      materializedPlacementGeometry(materialized),
+    );
+    expect(solution.stack.layers.map(({ id }) => id)).toEqual(
+      materialized.resolvedLayers.map(({ id }) => id),
+    );
+    expect(solution.patterns.map(({ name }) => name)).toEqual([
+      expect.stringContaining("Candidate 1 · identity"),
+      expect.stringContaining("Candidate 2 · mirror-y"),
+      expect.stringContaining("Candidate 1 · rotate-270"),
+    ]);
+    expect(patternIds).toHaveLength(3);
+    expect(new Set(patternIds).size).toBe(patternIds.length);
+    expect(new Set(placementIds).size).toBe(placementIds.length);
+    expect(repeatedSolution.patterns.map(({ id }) => id)).toEqual(patternIds);
+    expect(solution.stack.layers[0]?.patternId).toBe(
+      solution.stack.layers[2]?.patternId,
+    );
+    expect(solution.stack.layers[3]?.patternId).not.toBe(
+      solution.stack.layers[0]?.patternId,
+    );
+  });
+});
+
+describe("StackWorkspace", () => {
+  it("builds, reorders, edits interlayers, and saves the materialized sequence", async () => {
+    const onSave =
+      vi.fn<
+        (
+          state: StackWorkspaceState,
+          materialized: MaterializedStackResult,
+        ) => void
+      >();
+    const onDirtyChange = vi.fn();
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+
+    // Pattern B starts as "Use pattern A"; pick the second candidate.
+    expect(screen.getByLabelText<HTMLSelectElement>("Muster B").value).toBe("");
+    fireEvent.change(screen.getByLabelText("Muster B"), {
+      target: { value: candidatePatternRef(candidates[1]!) },
+    });
+    // New stacks start without interlayers.
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Zwischenlagen-Regel").value,
+    ).toBe("none");
+    fireEvent.change(screen.getByLabelText("Verbundart"), {
+      target: { value: "rotation" },
+    });
+    fireEvent.change(screen.getByLabelText("Gewünschte Lagen"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "A/B-Folge aufbauen" }));
+
+    expect(document.querySelectorAll("[data-layer-id]")).toHaveLength(3);
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(true));
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Muster von Lage 2").value,
+    ).toBe(candidatePatternRef(candidates[1]!));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Lage 2 nach oben verschieben" }),
+    );
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Muster von Lage 1").value,
+    ).toBe(candidatePatternRef(candidates[1]!));
+
+    fireEvent.change(screen.getByLabelText("Zwischenlagen-Regel"), {
+      target: { value: "individual" },
+    });
+    fireEvent.click(screen.getByLabelText("Zwischenlage vor Lage 2"));
+    fireEvent.change(
+      screen.getByLabelText("Dicke der Zwischenlage vor Lage 2"),
+      { target: { value: "7" } },
+    );
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Bodenblatt aktivieren" }),
+    );
+    fireEvent.change(screen.getByLabelText("Dicke Bodenblatt"), {
+      target: { value: "5" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Deckblatt aktivieren" }),
+    );
+    fireEvent.change(screen.getByLabelText("Dicke Deckblatt"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: "Physisch oberste Lage ersetzen",
+      }),
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Stapel speichern und weiter zur Robotik",
+      }),
+    );
+
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(onDirtyChange).toHaveBeenLastCalledWith(false));
+    const [state, materialized] = onSave.mock.calls[0]!;
+    expect(state.interlayerMode).toBe("individual");
+    expect(state.layers[0]?.patternRef).toBe(
+      candidatePatternRef(candidates[1]!),
+    );
+    expect(Object.values(state.individualBeforeLayer)).toContainEqual({
+      enabled: true,
+      thicknessMm: 7,
+    });
+    expect(materialized.packageLayers).toHaveLength(3);
+    expect(
+      materialized.sheets.map(
+        (sheet: { thicknessMm: number }) => sheet.thicknessMm,
+      ),
+    ).toEqual([5, 7, 4]);
+    expect(materialized.packageLayers.at(-1)?.layerProvenance.kind).toBe(
+      "special-top",
+    );
+  });
+
+  it.each([
+    {
+      name: "length-axis mirror",
+      transform: "mirror-y" as const,
+      label: "Spiegeln entlang der Palettenlänge (Y spiegeln)",
+      expected: { positionMm: { x: 100, y: 700 }, rotation: 0 },
+    },
+    {
+      name: "width-axis mirror",
+      transform: "mirror-x" as const,
+      label: "Spiegeln entlang der Palettenbreite (X spiegeln)",
+      expected: { positionMm: { x: 1100, y: 100 }, rotation: 180 },
+    },
+    {
+      name: "180-degree rotation",
+      transform: "rotate-180" as const,
+      label: "180° drehen",
+      expected: { positionMm: { x: 1100, y: 700 }, rotation: 180 },
+    },
+  ])(
+    "keeps one physical layer and applies the $name",
+    async ({ transform, label, expected }) => {
+      const onSave =
+        vi.fn<
+          (
+            state: StackWorkspaceState,
+            materialized: MaterializedStackResult,
+          ) => void
+        >();
+      render(
+        <StackWorkspace
+          project={project}
+          candidates={candidates}
+          solverInput={solverInput}
+          onSave={onSave}
+        />,
+      );
+
+      fireEvent.change(screen.getByLabelText("Gewünschte Lagen"), {
+        target: { value: "1" },
+      });
+      fireEvent.click(
+        screen.getByRole("button", { name: "A/B-Folge aufbauen" }),
+      );
+      expect(document.querySelectorAll("[data-layer-id]")).toHaveLength(1);
+
+      const transformSelect = screen.getByLabelText<HTMLSelectElement>(
+        "Transformation von Lage 1",
+      );
+      expect(
+        Array.from(transformSelect.options).find(
+          (option) => option.value === transform,
+        )?.textContent,
+      ).toBe(label);
+      fireEvent.change(transformSelect, { target: { value: transform } });
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Stapel speichern und weiter zur Robotik",
+        }),
+      );
+
+      await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+      const [state, materialized] = onSave.mock.calls[0]!;
+      expect(state.requestedLayerCount).toBe(1);
+      expect(state.layers).toHaveLength(1);
+      expect(state.layers[0]?.transform).toBe(transform);
+      expect(materialized.resolvedLayers).toHaveLength(1);
+      expect(materialized.resolvedLayers[0]?.transform).toBe(transform);
+      expect(materialized.packageLayers).toHaveLength(1);
+      expect(materialized.packageLayers[0]?.placements[0]).toMatchObject(
+        expected,
+      );
+    },
+  );
+
+  it("keeps an explicitly cancelled replacement dirty without a success message", async () => {
+    const onSave = vi.fn(() => "cancelled" as const);
+    const onDirtyChange = vi.fn();
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
+      target: { value: "mirror-x" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Stapel speichern und weiter zur Robotik",
+      }),
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+    expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy();
+    expect(
+      screen.queryByText("Stapel im Projektarchiv gespeichert."),
+    ).toBeNull();
+  });
+
+  it("keeps edits when a background run adds no new candidates", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(<StackWorkspace {...props} candidates={candidates} />);
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
+      target: { value: "mirror-x" },
+    });
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        candidates={candidates.map((candidate) => ({ ...candidate }))}
+      />,
+    );
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Transformation von Lage 1")
+        .value,
+    ).toBe("mirror-x");
+    expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy();
+  });
+
+  it("keeps newer edits dirty when an earlier async save finishes", async () => {
+    let resolveSave!: () => void;
+    const pendingSave = new Promise<void>((resolve) => {
+      resolveSave = resolve;
+    });
+    const onSave = vi.fn<
+      (
+        state: StackWorkspaceState,
+        materialized: MaterializedStackResult,
+      ) => Promise<void>
+    >(() => pendingSave);
+    const onDirtyChange = vi.fn();
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
+      target: { value: "mirror-x" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Stapel speichern und weiter zur Robotik",
+      }),
+    );
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+
+    fireEvent.change(screen.getByLabelText("Transformation von Lage 1"), {
+      target: { value: "rotate-90" },
+    });
+    expect(
+      screen.getByLabelText<HTMLSelectElement>("Transformation von Lage 1")
+        .value,
+    ).toBe("rotate-90");
+
+    await act(async () => {
+      resolveSave();
+      await pendingSave;
+    });
+
+    await waitFor(() =>
+      expect(screen.getByText("Ungespeicherte Stapeländerungen")).toBeTruthy(),
+    );
+    expect(onSave.mock.calls[0]?.[0].layers[0]?.transform).toBe("mirror-x");
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+    expect(screen.getByRole("status").textContent).toMatch(
+      /Neuere Änderungen sind noch nicht gespeichert/i,
+    );
+  });
+});
+
+describe("StackWorkspace guided", () => {
+  it("returns to composition when a different candidate becomes pattern A", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(
+      <StackWorkspace {...props} guided candidates={candidates} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        guided
+        candidates={[candidates[1]!, candidates[0]!]}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Stapel aufbauen" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeNull();
+  });
+
+  it("keeps the stack when a background run appends candidates", () => {
+    const props = { project, solverInput, onSave: vi.fn() };
+    const view = render(
+      <StackWorkspace {...props} guided candidates={[candidates[0]!]} />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    view.rerender(
+      <StackWorkspace
+        {...props}
+        guided
+        candidates={[candidates[0]!, candidates[1]!]}
+      />,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+  });
+
+  it("builds from capacity, inserts a sheet, reviews, returns with the same stack, and saves", async () => {
+    const onSave =
+      vi.fn<
+        (state: StackWorkspaceState, result: MaterializedStackResult) => void
+      >();
+    const onDirtyChange = vi.fn();
+    const onEditProject = vi.fn();
+    const onSubstepChange = vi.fn();
+    render(
+      <StackWorkspace
+        guided
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={onSave}
+        onDirtyChange={onDirtyChange}
+        onBack={() => undefined}
+        onEditProject={onEditProject}
+        onSubstepChange={onSubstepChange}
+      />,
+    );
+
+    expect(screen.getByText("3 Schichten gestapelt")).toBeTruthy();
+    expect(screen.getByText("Bis zu 3 passen in 350 mm.")).toBeTruthy();
+    expect(
+      screen
+        .getByRole("button", { name: "Maximum (3)" })
+        .getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.queryByTestId("rob-viewer")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Eine Schicht mehr" }));
+    expect(screen.getByText("4 Schichten gestapelt")).toBeTruthy();
+    expect(
+      screen.getAllByText("Ladehöhe 400 mm liegt über der Lagerhöhe 350 mm.")
+        .length,
+    ).toBeGreaterThan(0);
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(true);
+
+    fireEvent.click(screen.getByLabelText("Einzeln in der Schichtfolge"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Zwischenlage unter Schicht 2 einfügen",
+      }),
+    );
+    expect(screen.getByText("Zwischenlage 3 mm")).toBeTruthy();
+    expect(screen.getByText("Ablage-Z 203")).toBeTruthy();
+    expect(screen.getByText("Ablage-Z 403")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    expect(
+      screen.getByRole("heading", { name: "Prüfen und speichern" }),
+    ).toBeTruthy();
+    expect(onSubstepChange.mock.calls.at(-1)?.[0]).toBe("review");
+    expect(screen.getByText("Zwischenlage vor Schicht 2")).toBeTruthy();
+    // The sheet has no known weight, so gross weight stays unknown.
+    expect(
+      screen.getByText("4 Pakete, 403 mm, Bruttogewicht unbekannt"),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Paket ändern" }));
+    expect(onEditProject).toHaveBeenCalledWith("package");
+
+    fireEvent.click(screen.getByRole("button", { name: "Stapel ändern" }));
+    expect(screen.getByText("4 Schichten gestapelt")).toBeTruthy();
+    expect(screen.getByText("Zwischenlage 3 mm")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Prüfen & speichern" }));
+    fireEvent.click(screen.getByRole("button", { name: "Plan speichern" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const [savedState, savedResult] = onSave.mock.calls[0]!;
+    expect(savedState.layers).toHaveLength(4);
+    expect(savedState.individualBeforeLayer).toEqual({
+      "composed-layer-2": { enabled: true, thicknessMm: 3 },
+    });
+    expect(savedResult.metrics.height.loadStackHeightMm).toBe(403);
+    expect(await screen.findByText("Plan gespeichert.")).toBeTruthy();
+    expect(onDirtyChange.mock.calls.at(-1)?.[0]).toBe(false);
+  });
+});

@@ -3,6 +3,7 @@ import { footprintSize } from "~/domain/palletGeometry";
 import { createResourceTracker } from "~/components/rob-viewer/sceneResources";
 import { isPickEntryVisible } from "~/components/rob-viewer/sceneVisibility";
 import type { BoxPickEntry } from "~/components/rob-viewer/viewerTypes";
+import { SCENE_THEME } from "~/components/rob-viewer/sceneTheme";
 
 export type ViewerHighlighter = {
   highlightGroup: THREE.Group;
@@ -47,7 +48,7 @@ export function createViewerHighlighter({
   const temporaryResources = createResourceTracker();
   const highlightMaterial = persistentResources.trackMaterial(
     new THREE.MeshBasicMaterial({
-      color: 0xffdd33,
+      color: SCENE_THEME.selection,
       transparent: true,
       opacity: 0.35,
       depthTest: true,
@@ -57,7 +58,7 @@ export function createViewerHighlighter({
   );
   const highlightEdgeMaterial = persistentResources.trackMaterial(
     new THREE.LineBasicMaterial({
-      color: 0xffee66,
+      color: SCENE_THEME.selectionEdge,
       transparent: true,
       opacity: 0.95,
       depthTest: true,
@@ -66,7 +67,7 @@ export function createViewerHighlighter({
   );
   const placeMarkerMaterial = persistentResources.trackMaterial(
     new THREE.MeshBasicMaterial({
-      color: 0xffcc00,
+      color: SCENE_THEME.placeMarker,
       depthTest: true,
       depthWrite: false,
     }),

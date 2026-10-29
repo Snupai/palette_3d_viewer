@@ -1,0 +1,382 @@
+{
+  "schemaVersion": 2,
+  "id": "synthetic-square-grid",
+  "title": "Synthetic square-package orientation baseline",
+  "provenance": {
+    "kind": "synthetic",
+    "description": "Hand-constructed repository fixture for candidate ordering and conservative orientation identity. It has no MultiPack provenance."
+  },
+  "artifacts": [],
+  "input": {
+    "kind": "project",
+    "project": {
+      "schemaVersion": 2,
+      "id": "synthetic-square-grid-project",
+      "projectNumber": "SYN-M0-001",
+      "productNumber": "SQUARE-200",
+      "createdAt": 0,
+      "updatedAt": 0,
+      "source": { "kind": "new" },
+      "package": {
+        "shape": "cuboid",
+        "dimensionsMm": { "length": 200, "width": 200, "height": 100 },
+        "weightKg": 1,
+        "clearanceMm": 0,
+        "multiPickAllowed": false,
+        "inletOrientation": "lengthwise",
+        "palletizingDirection": null,
+        "labelSidesAtPickup": []
+      },
+      "pallet": {
+        "id": "synthetic-pallet-800-600",
+        "name": "Synthetic 800 x 600 pallet",
+        "kind": "custom",
+        "dimensionsMm": { "length": 800, "width": 600, "height": 144 },
+        "storageEnvelopeMm": null,
+        "allowedOverhangMm": { "length": 0, "width": 0 },
+        "tareKg": null,
+        "maxGrossKg": null,
+        "subPalletPattern": "none"
+      },
+      "grippers": [],
+      "palletStations": [],
+      "selectedGripperId": null,
+      "selectedPalletStationId": null,
+      "solutions": [],
+      "activeSolutionId": null
+    }
+  },
+  "expected": {
+    "candidates": {
+      "evidence": {
+        "status": "Golden",
+        "asOf": "2026-08-05",
+        "basis": "The two candidates and their order are declared synthetic contract data, not reproduced MultiPack output.",
+        "artifactIds": []
+      },
+      "value": {
+        "identitySchemaVersion": 1,
+        "geometryEqualitySchemaVersion": 1,
+        "totalCandidates": 2,
+        "orderedCandidateIds": [
+          "candidate-v1-15c499ae3be2e8d3",
+          "candidate-v1-d3075d18acf87a23"
+        ],
+        "candidates": [
+          {
+            "id": "candidate-v1-15c499ae3be2e8d3",
+            "geometryId": "geometry-v1-a1acee596b7b8805",
+            "placements": [
+              {
+                "sequence": 0,
+                "positionMm": { "x": 100, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 1,
+                "positionMm": { "x": 300, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 2,
+                "positionMm": { "x": 500, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 3,
+                "positionMm": { "x": 700, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 4,
+                "positionMm": { "x": 100, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 5,
+                "positionMm": { "x": 300, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 6,
+                "positionMm": { "x": 500, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 7,
+                "positionMm": { "x": 700, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 8,
+                "positionMm": { "x": 100, "y": 500 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 9,
+                "positionMm": { "x": 300, "y": 500 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 10,
+                "positionMm": { "x": 500, "y": 500 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 11,
+                "positionMm": { "x": 700, "y": 500 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": null
+              }
+            ],
+            "grips": [],
+            "metrics": {
+              "packageCount": 12,
+              "footprintAreaMm2": 480000,
+              "blockLengthMm": 800,
+              "blockWidthMm": 600
+            }
+          },
+          {
+            "id": "candidate-v1-d3075d18acf87a23",
+            "geometryId": "geometry-v1-8ded81d62349e015",
+            "placements": [
+              {
+                "sequence": 0,
+                "positionMm": { "x": 100, "y": 100 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 1,
+                "positionMm": { "x": 300, "y": 100 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 2,
+                "positionMm": { "x": 500, "y": 100 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 3,
+                "positionMm": { "x": 700, "y": 100 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 4,
+                "positionMm": { "x": 100, "y": 300 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 5,
+                "positionMm": { "x": 300, "y": 300 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 6,
+                "positionMm": { "x": 500, "y": 300 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 7,
+                "positionMm": { "x": 700, "y": 300 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 8,
+                "positionMm": { "x": 100, "y": 500 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 9,
+                "positionMm": { "x": 300, "y": 500 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 10,
+                "positionMm": { "x": 500, "y": 500 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              },
+              {
+                "sequence": 11,
+                "positionMm": { "x": 700, "y": 500 },
+                "rotation": 90,
+                "labelSide": null,
+                "gripId": null
+              }
+            ],
+            "grips": [],
+            "metrics": {
+              "packageCount": 12,
+              "footprintAreaMm2": 480000,
+              "blockLengthMm": 800,
+              "blockWidthMm": 600
+            }
+          }
+        ]
+      }
+    },
+    "metrics": {
+      "usableLoadLengthMm": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Exact synthetic project dimensions.",
+          "artifactIds": []
+        },
+        "value": 800,
+        "unit": "mm"
+      },
+      "usableLoadWidthMm": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Exact synthetic project dimensions.",
+          "artifactIds": []
+        },
+        "value": 600,
+        "unit": "mm"
+      },
+      "maximumPackageCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Declared hand-constructed 4 x 3 square grid.",
+          "artifactIds": []
+        },
+        "value": 12,
+        "unit": "packages"
+      },
+      "candidatesAtMaximum": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Both declared orientation variants contain twelve packages.",
+          "artifactIds": []
+        },
+        "value": 2,
+        "unit": "candidates"
+      },
+      "areaUtilizationPercent": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "12 x 200 x 200 mm equals the 800 x 600 mm load area.",
+          "artifactIds": []
+        },
+        "value": 100,
+        "unit": "percent",
+        "tolerance": 0
+      }
+    }
+  },
+  "scorecard": {
+    "input": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "ProjectV2 input is committed and schema-valid.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "geometry": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "All centers and orientations are exact synthetic values.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "diversity": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "Orientation remains distinct under geometry equality v1.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "ranking": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "The two-entry order is an explicit fixture contract.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "stack": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "This single-layer candidate fixture has no stack expectation.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "robotics": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "Grip and cycle planning are outside this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "export": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No export is expected for this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "usability": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No UI workflow is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "performance": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No runtime baseline is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    }
+  }
+}

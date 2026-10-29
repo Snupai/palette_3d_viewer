@@ -1,0 +1,419 @@
+{
+  "schemaVersion": 2,
+  "id": "synthetic-identity-variants",
+  "title": "Synthetic geometry, label, and grip identity variants",
+  "provenance": {
+    "kind": "synthetic",
+    "description": "Hand-constructed identity fixture that separates geometric equality from labels and grip grouping. It has no MultiPack provenance."
+  },
+  "artifacts": [],
+  "input": {
+    "kind": "project",
+    "project": {
+      "schemaVersion": 2,
+      "id": "synthetic-identity-project",
+      "projectNumber": "SYN-M0-002",
+      "productNumber": "RECT-300-200",
+      "createdAt": 0,
+      "updatedAt": 0,
+      "source": { "kind": "new" },
+      "package": {
+        "shape": "cuboid",
+        "dimensionsMm": { "length": 300, "width": 200, "height": 100 },
+        "weightKg": 2,
+        "clearanceMm": 0,
+        "multiPickAllowed": true,
+        "inletOrientation": "lengthwise",
+        "palletizingDirection": null,
+        "labelSidesAtPickup": ["top"]
+      },
+      "pallet": {
+        "id": "synthetic-pallet-600-400",
+        "name": "Synthetic 600 x 400 pallet",
+        "kind": "custom",
+        "dimensionsMm": { "length": 600, "width": 400, "height": 120 },
+        "storageEnvelopeMm": null,
+        "allowedOverhangMm": { "length": 0, "width": 0 },
+        "tareKg": null,
+        "maxGrossKg": null,
+        "subPalletPattern": "none"
+      },
+      "grippers": [],
+      "palletStations": [],
+      "selectedGripperId": null,
+      "selectedPalletStationId": null,
+      "solutions": [],
+      "activeSolutionId": null
+    }
+  },
+  "expected": {
+    "candidates": {
+      "evidence": {
+        "status": "Golden",
+        "asOf": "2026-08-05",
+        "basis": "All three candidates are explicit synthetic identity-contract inputs and outputs.",
+        "artifactIds": []
+      },
+      "value": {
+        "identitySchemaVersion": 1,
+        "geometryEqualitySchemaVersion": 1,
+        "totalCandidates": 3,
+        "orderedCandidateIds": [
+          "candidate-v1-920d5b6f11c48145",
+          "candidate-v1-1ffda2ff79803748",
+          "candidate-v1-18460f602d3de220"
+        ],
+        "candidates": [
+          {
+            "id": "candidate-v1-920d5b6f11c48145",
+            "geometryId": "geometry-v1-badd4560f12f8f03",
+            "placements": [
+              {
+                "sequence": 0,
+                "positionMm": { "x": 150, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-a-1"
+              },
+              {
+                "sequence": 1,
+                "positionMm": { "x": 450, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-a-2"
+              },
+              {
+                "sequence": 2,
+                "positionMm": { "x": 150, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-a-3"
+              },
+              {
+                "sequence": 3,
+                "positionMm": { "x": 450, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-a-4"
+              }
+            ],
+            "grips": [
+              {
+                "id": "single-a-1",
+                "sequence": 0,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 150,
+                "y": 100,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-a-2",
+                "sequence": 1,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 450,
+                "y": 100,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-a-3",
+                "sequence": 2,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 150,
+                "y": 300,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-a-4",
+                "sequence": 3,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 450,
+                "y": 300,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              }
+            ],
+            "metrics": { "packageCount": 4, "robotCycleCount": 4 }
+          },
+          {
+            "id": "candidate-v1-1ffda2ff79803748",
+            "geometryId": "geometry-v1-badd4560f12f8f03",
+            "placements": [
+              {
+                "sequence": 0,
+                "positionMm": { "x": 150, "y": 100 },
+                "rotation": 0,
+                "labelSide": "top",
+                "gripId": "single-b-1"
+              },
+              {
+                "sequence": 1,
+                "positionMm": { "x": 450, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-b-2"
+              },
+              {
+                "sequence": 2,
+                "positionMm": { "x": 150, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-b-3"
+              },
+              {
+                "sequence": 3,
+                "positionMm": { "x": 450, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "single-b-4"
+              }
+            ],
+            "grips": [
+              {
+                "id": "single-b-1",
+                "sequence": 0,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 150,
+                "y": 100,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-b-2",
+                "sequence": 1,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 450,
+                "y": 100,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-b-3",
+                "sequence": 2,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 150,
+                "y": 300,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "single-b-4",
+                "sequence": 3,
+                "pickX": 150,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 450,
+                "y": 300,
+                "rotation": 0,
+                "numPackages": 1,
+                "dx": 0,
+                "dy": 0
+              }
+            ],
+            "metrics": { "packageCount": 4, "robotCycleCount": 4 }
+          },
+          {
+            "id": "candidate-v1-18460f602d3de220",
+            "geometryId": "geometry-v1-badd4560f12f8f03",
+            "placements": [
+              {
+                "sequence": 0,
+                "positionMm": { "x": 150, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "double-row-1"
+              },
+              {
+                "sequence": 1,
+                "positionMm": { "x": 450, "y": 100 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "double-row-1"
+              },
+              {
+                "sequence": 2,
+                "positionMm": { "x": 150, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "double-row-2"
+              },
+              {
+                "sequence": 3,
+                "positionMm": { "x": 450, "y": 300 },
+                "rotation": 0,
+                "labelSide": null,
+                "gripId": "double-row-2"
+              }
+            ],
+            "grips": [
+              {
+                "id": "double-row-1",
+                "sequence": 0,
+                "pickX": 300,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 300,
+                "y": 100,
+                "rotation": 0,
+                "numPackages": 2,
+                "dx": 0,
+                "dy": 0
+              },
+              {
+                "id": "double-row-2",
+                "sequence": 1,
+                "pickX": 300,
+                "pickY": -100,
+                "pickRotation": 0,
+                "x": 300,
+                "y": 300,
+                "rotation": 0,
+                "numPackages": 2,
+                "dx": 0,
+                "dy": 0
+              }
+            ],
+            "metrics": { "packageCount": 4, "robotCycleCount": 2 }
+          }
+        ]
+      }
+    },
+    "metrics": {
+      "packageCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Each explicit synthetic candidate has four placements.",
+          "artifactIds": []
+        },
+        "value": 4,
+        "unit": "packages"
+      },
+      "distinctGeometryCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "All candidates share exact centers and orientations under geometry equality v1.",
+          "artifactIds": []
+        },
+        "value": 1,
+        "unit": "geometries"
+      },
+      "distinctIdentityCount": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "Label state and grip partition remain identity-bearing under candidate identity v1.",
+          "artifactIds": []
+        },
+        "value": 3,
+        "unit": "identities"
+      },
+      "robotCycleCounts": {
+        "evidence": {
+          "status": "Golden",
+          "asOf": "2026-08-05",
+          "basis": "The two single-grip variants have four groups; the double-grip variant has two.",
+          "artifactIds": []
+        },
+        "value": [4, 4, 2],
+        "unit": "cycles"
+      }
+    }
+  },
+  "scorecard": {
+    "input": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "ProjectV2 input is committed and schema-valid.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "geometry": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "Exact placement equality is machine-readable.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "diversity": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "One geometry and three operational identities are explicit.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "ranking": {
+      "status": "Golden",
+      "asOf": "2026-08-05",
+      "basis": "The candidate order is an explicit synthetic contract.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "stack": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No physical stack is part of this identity fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "robotics": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "Grip grouping is identity data here, not a validated robot plan.",
+      "artifactIds": [],
+      "applicable": true
+    },
+    "export": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No export baseline exists for this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "usability": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No UI workflow is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    },
+    "performance": {
+      "status": "Open",
+      "asOf": "2026-08-05",
+      "basis": "No runtime baseline is attached to this fixture.",
+      "artifactIds": [],
+      "applicable": false
+    }
+  }
+}

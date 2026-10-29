@@ -6,6 +6,7 @@ import {
 } from "~/components/rob-viewer/sceneVisibility";
 import type {
   InterlayerRender,
+  LayerLabelRender,
   LayerRender,
 } from "~/components/rob-viewer/viewerTypes";
 
@@ -48,10 +49,15 @@ describe("viewer layer visibility", () => {
     const aboveFirst = interlayerRender(0, true);
     const aboveSecond = interlayerRender(1, true);
     const aboveThird = interlayerRender(2, true);
+    const labels: LayerLabelRender[] = [0, 1, 2].map((layerNum) => ({
+      layerNum,
+      object: new THREE.Group(),
+    }));
 
     const maxVisible = applyLayerVisibility({
       layerRenders: layers,
       interlayerRenders: [bottom, aboveFirst, aboveSecond, aboveThird],
+      layerLabels: labels,
       visibleUpToLayer: 2,
       layerCount: 3,
     });
@@ -73,5 +79,10 @@ describe("viewer layer visibility", () => {
     expect(aboveSecond.mesh.renderOrder).toBe(1);
     expect(aboveThird.mesh.visible).toBe(false);
     expect(aboveThird.edges.visible).toBe(false);
+    expect(labels.map(({ object }) => object.visible)).toEqual([
+      true,
+      true,
+      false,
+    ]);
   });
 });

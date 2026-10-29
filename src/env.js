@@ -8,6 +8,12 @@ export const env = createEnv({
    */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
+    /** Local Ollama server used to read photographed pallet sheets. */
+    OLLAMA_URL: z.string().url().default("http://127.0.0.1:11434"),
+    /** Local vision model for sheet extraction (`ollama pull <name>`). */
+    SHEET_EXTRACTION_MODEL: z.string().default("qwen2.5vl:32b"),
+    /** Concurrent sheet-extraction inferences per process; others get 429. */
+    SHEET_EXTRACTION_MAX_CONCURRENT: z.coerce.number().int().min(1).default(1),
   },
 
   /**
@@ -25,6 +31,10 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    OLLAMA_URL: process.env.OLLAMA_URL,
+    SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
+    SHEET_EXTRACTION_MAX_CONCURRENT:
+      process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
     // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
   },
   /**

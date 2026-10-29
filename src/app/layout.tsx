@@ -1,49 +1,70 @@
 import "~/styles/globals.css";
 
 import { type Metadata } from "next";
-import { Geist } from "next/font/google";
+import localFont from "next/font/local";
+import { LocaleProvider } from "~/i18n";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "https://rob.snupai.dev",
   ),
   title: {
-    default: "Pallet 3D Viewer",
-    template: "%s | Pallet 3D Viewer",
+    default: "Palettenplaner",
+    template: "%s | Palettenplaner",
   },
-  description: "Visualize .rob pallet layouts in 3D.",
+  description:
+    "Palettierpläne erstellen, passende Lagenmuster finden und vorhandene .rob-Pläne ansehen.",
   openGraph: {
-    title: "Pallet 3D Viewer",
-    description: "Visualize .rob pallet layouts in 3D.",
-    siteName: "Pallet 3D Viewer",
+    title: "Palettenplaner",
+    description:
+      "Palettierpläne erstellen, passende Lagenmuster finden und vorhandene .rob-Pläne ansehen.",
+    siteName: "Palettenplaner",
     images: [
       {
         url: "/opengraph-image",
         width: 1200,
         height: 630,
-        alt: "Pallet 3D Viewer",
+        alt: "Palettenplaner",
       },
     ],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Pallet 3D Viewer",
-    description: "Visualize .rob pallet layouts in 3D.",
+    title: "Palettenplaner",
+    description:
+      "Palettierpläne erstellen, passende Lagenmuster finden und vorhandene .rob-Pläne ansehen.",
     images: ["/opengraph-image"],
   },
 };
 
-const geist = Geist({
-  subsets: ["latin"],
-  variable: "--font-geist-sans",
+const barlow = localFont({
+  src: [
+    { path: "../../public/fonts/barlow-400.ttf", weight: "400" },
+    { path: "../../public/fonts/barlow-500.ttf", weight: "500" },
+    { path: "../../public/fonts/barlow-600.ttf", weight: "600" },
+    { path: "../../public/fonts/barlow-700.ttf", weight: "700" },
+  ],
+  variable: "--font-barlow",
+  display: "swap",
+});
+const condensed = localFont({
+  src: [
+    { path: "../../public/fonts/barlow-condensed-500.ttf", weight: "500" },
+    { path: "../../public/fonts/barlow-condensed-600.ttf", weight: "600" },
+    { path: "../../public/fonts/barlow-condensed-700.ttf", weight: "700" },
+  ],
+  variable: "--font-barlow-condensed",
+  display: "swap",
 });
 
 export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${geist.variable}`}>
-      <body className="bg-zinc-950">{children}</body>
+    <html lang="de" className={`${barlow.variable} ${condensed.variable}`}>
+      <body className="bg-canvas text-ink">
+        <LocaleProvider>{children}</LocaleProvider>
+      </body>
     </html>
   );
 }

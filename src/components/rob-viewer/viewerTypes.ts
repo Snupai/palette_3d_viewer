@@ -1,5 +1,189 @@
 import type * as THREE from "three";
+import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { Box, PalletData } from "~/domain/palletTypes";
+
+export const VIEWER_CAMERA_PRESETS = ["top", "front", "right-top"] as const;
+export type ViewerCameraPreset = (typeof VIEWER_CAMERA_PRESETS)[number];
+
+/** Coordinates are already transformed into the viewer's X/Y pallet, Z-up frame. */
+export type ViewerScenePose = {
+  positionMm: { x: number; y: number; z: number };
+  yawDeg: number;
+};
+
+export type ViewerTemporaryCalibrationTarget = "pallet" | "pickup";
+export type ViewerTemporaryCalibrationMode = "translate" | "rotate";
+
+export type ViewerSceneCalibrationConfig = {
+  robotCellRevision: string;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
+export type ViewerTemporaryCalibrationConfig = {
+  resetKey: string;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
+export type ViewerTemporaryCalibrationState = {
+  activeTarget: ViewerTemporaryCalibrationTarget;
+  mode: ViewerTemporaryCalibrationMode;
+  palletPose: ViewerScenePose;
+  pickupPose: ViewerScenePose;
+};
+
+export type ViewerSimulationPackagePhase = "feed" | "attached" | "placed";
+
+export type ViewerSimulationPackage = {
+  placementId: string;
+  phase: ViewerSimulationPackagePhase;
+  pose: ViewerScenePose;
+};
+
+export type ViewerSimulationState = {
+  packages: readonly ViewerSimulationPackage[];
+  completedPackageLayerIndexes: readonly number[];
+};
+
+export type ViewerConveyorConfig = {
+  centerMm: { x: number; y: number; z: number };
+  dimensionsMm: { length: number; width: number; height: number };
+  travelAxis?: "x" | "y";
+};
+
+export type ViewerGripperEnvelopeMm = {
+  negativeX: number;
+  positiveX: number;
+  negativeY: number;
+  positiveY: number;
+  belowZ: number;
+  aboveZ: number;
+};
+
+export type ViewerSelectedGripperConfig = {
+  pose?: ViewerScenePose | null;
+  envelopeMm?: ViewerGripperEnvelopeMm | null;
+  showModel?: boolean;
+};
+
+export type ViewerRobotConfig = {
+  baseMm: { x: number; y: number; z: number };
+  baseHeightMm: number;
+  upperArmLengthMm: number;
+  forearmLengthMm: number;
+  homePose?: ViewerScenePose | null;
+};
+
+export type ViewerRobotCellAssetConfig = {
+  readonly assetUrl: string;
+  readonly revision: string;
+  readonly nodes: {
+    readonly root: string;
+    readonly fixed: string;
+    readonly liftCarriage: string;
+    /**
+     * Static CAD arm mesh group. It carries no joint frames, so it is hidden
+     * whenever the animated procedural arm takes over.
+     */
+    readonly staticArm?: string;
+  };
+  /**
+   * CAD-derived mount of the robot on the lift carriage, in viewer coordinates
+   * at zero lift travel. Present only when the arm placement was measured.
+   */
+  readonly robotMount?: {
+    readonly baseMm: {
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    };
+    readonly baseHeightMm: number;
+    readonly upperArmLengthMm: number;
+    readonly forearmLengthMm: number;
+  };
+  readonly liftTravelMm: {
+    readonly min: number;
+    readonly max: number;
+  };
+  readonly sourceToViewer: {
+    readonly scaleMmPerMeter: number;
+    readonly rotationXRad: number;
+    readonly translationMm: {
+      readonly x: number;
+      readonly y: number;
+      readonly z: number;
+    };
+  };
+  readonly replacesProcedural: {
+    readonly robot: boolean;
+    readonly conveyor: boolean;
+  };
+  readonly evidence: {
+    readonly geometry: string;
+    readonly lift: string;
+    readonly limitations: string;
+    /** How the viewer placement was derived, when it has been calibrated. */
+    readonly placement?: string;
+  };
+};
+
+/** Neutral scene equipment DTO. Robotics and stack calculations stay outside Three.js. */
+export type ViewerEquipmentConfig = {
+  conveyor?: ViewerConveyorConfig | null;
+  selectedGripper?: ViewerSelectedGripperConfig | null;
+  robot?: ViewerRobotConfig | null;
+  robotCell?: ViewerRobotCellAssetConfig | null;
+};
+
+export type ViewerSceneBuildOptions = {
+  /** Generic per-layer render offsets; RobViewer uses the final entry for lifted-top display. */
+  layerOffsetsZMm?: readonly number[];
+  showLayerLabels?: boolean;
+  palletPose?: ViewerScenePose;
+};
+
+export type ViewerSceneOptions = ViewerSceneBuildOptions & {
+  equipment?: ViewerEquipmentConfig;
+};
+
+export type ViewerCaptureOptions = {
+  width?: number;
+  height?: number;
+  cameraPreset?: ViewerCameraPreset;
+};
+
+export type ViewerCaptureResult =
+  | {
+      status: "captured";
+      dataUrl: string;
+      width: number;
+      height: number;
+      cameraPreset: ViewerCameraPreset;
+    }
+  | {
+      status: "fallback";
+      reason:
+        | "viewer-unavailable"
+        | "canvas-capture-unavailable"
+        | "empty-canvas-capture"
+        | "canvas-capture-failed";
+      fallback: "layer-pattern-svg";
+      message: string;
+    };
+
+export type RobViewerReportCaptureResult =
+  | Extract<ViewerCaptureResult, { status: "captured" }>
+  | (Extract<ViewerCaptureResult, { status: "fallback" }> & {
+      layerPattern: LayerPatternPreview | null;
+    });
+
+export type RobViewerHandle = {
+  setCameraPreset(preset: ViewerCameraPreset): void;
+  captureReportFrame(
+    options?: ViewerCaptureOptions & { fallbackLayerIndex?: number },
+  ): Promise<RobViewerReportCaptureResult>;
+};
 
 export type BoxSelection = {
   layerIndex: number;
@@ -21,8 +205,18 @@ export type BoxSelection = {
 export type RobViewerProps = {
   data: PalletData;
   cameraResetKey?: string | null;
+  cameraPreset?: ViewerCameraPreset | null;
   /** 1-based from bottom: layers 1..N solid, above hidden. */
   visibleUpToLayer: number;
+  liftTopLayerMm?: number;
+  showLayerLabels?: boolean;
+  showSceneControls?: boolean;
+  equipment?: ViewerEquipmentConfig;
+  liftCarriageMm?: number | null;
+  simulationPose?: ViewerScenePose | null;
+  simulationState?: ViewerSimulationState | null;
+  sceneCalibration?: ViewerSceneCalibrationConfig;
+  temporaryCalibration?: ViewerTemporaryCalibrationConfig;
   onBoxSelect?: (selection: BoxSelection | null) => void;
 };
 
@@ -64,11 +258,18 @@ export type InterlayerRender = {
   exposedMaterial: THREE.Material;
 };
 
+export type LayerLabelRender = {
+  layerNum: number;
+  object: THREE.Group;
+};
+
 export type BuiltViewerScene = {
   root: THREE.Group;
   bounds: THREE.Box3 | null;
   layerRenders: LayerRender[];
   interlayerRenders: InterlayerRender[];
+  layerLabels: LayerLabelRender[];
   pickEntries: BoxPickEntry[];
+  setSimulationState(state: ViewerSimulationState | null): void;
   dispose(): void;
 };

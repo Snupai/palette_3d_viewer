@@ -1,8 +1,291 @@
 @import "tailwindcss";
+@import "./fable.css";
+@import "./fable-workflow.css";
+@import "./fable-editor.css";
 
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif,
+  --font-sans:
+    var(--font-barlow), ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-mono:
+    var(--font-barlow-condensed), ui-monospace, SFMono-Regular, Menlo, Monaco,
+    Consolas, "Liberation Mono", "Courier New", monospace;
+
+  /* Type scale (docs/DESIGN.md): micro for captions/labels, body for chrome. */
+  --text-micro: 11px;
+  --text-micro--line-height: 16px;
+  --text-body: 13px;
+  --text-body--line-height: 18px;
+}
+
+/* Colour utilities backed by the runtime tokens: bg-surface, text-muted, … */
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-hover: var(--surface-hover);
+  --color-ink: var(--ink);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-on: var(--brand-on);
+  --color-accent: var(--accent);
+  --color-mist: var(--mist);
+  --color-ok: var(--ok);
+  --color-caution: var(--caution);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+  --color-focus: var(--focus);
+  --color-measure: var(--measure);
+  --color-plan-fill: var(--plan-fill);
+  --color-plan-stroke: var(--plan-stroke);
+  --color-viewport: var(--viewport);
+  --color-viewport-ink: var(--viewport-ink);
+  --color-viewport-line: var(--viewport-line);
+}
+
+:root {
+  /* Hallenboden: Fable production palette. */
+  --canvas: #e7e9e4;
+  --surface: #f8f8f5;
+  --surface-hover: #dddfd8;
+  --ink: #1d1b18;
+  --muted: #62625a;
+  --line: #c9ccc3;
+  /* Szaidel Cosmetics brand navy (szaidel-cosmetics.de). */
+  --brand: #173159;
+  --brand-hover: #0c1f3c;
+  --brand-on: #ffffff;
+  --accent: #a66d2f;
+  --mist: #e4d0ad;
+  --ok: #3d7a4e;
+  --caution: #94630b;
+  --danger: #dc143c;
+  --info: #2f6a8f;
+  --focus: #173159;
+  --plan-fill: rgba(23, 49, 89, 0.1);
+  --plan-stroke: #9c6c31;
+  --measure: #a66d2f;
+
+  /* The 3D/canvas stage stays dark in both schemes so geometry reads clearly. */
+  --viewport: #111a26;
+  --viewport-ink: #e8eef4;
+  --viewport-line: #2c3d55;
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --canvas: #1a1b19;
+    --surface: #242623;
+    --surface-hover: #30332d;
+    --ink: #ecebe6;
+    --muted: #b1b4a9;
+    --line: #41453b;
+    /* Szaidel steel blue keeps the navy family legible on dark surfaces. */
+    --brand: #8bb0c9;
+    --brand-hover: #b8dde1;
+    --brand-on: #0c1f3c;
+    --accent: #e4d0ad;
+    --mist: #a66d2f;
+    --ok: #a9d4b2;
+    --caution: #e2b45a;
+    --danger: #f07178;
+    --info: #a66d2f;
+    --focus: #8bb0c9;
+    --plan-fill: rgba(139, 176, 201, 0.14);
+    --plan-stroke: #dfb779;
+    --measure: #e4d0ad;
+    color-scheme: dark;
+  }
+}
+
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--canvas);
+  color: var(--ink);
+}
+
+button,
+input,
+select,
+textarea {
+  border-radius: 0;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="option"],
+[role="tab"],
+summary {
+  cursor: pointer;
+}
+
+/* Component classes live in the components layer so Tailwind utilities on
+   the same element (px-2, text-muted, …) still override them. */
+@layer components {
+  .ui-input {
+    width: 100%;
+    border: 1px solid var(--line);
+    background: var(--canvas);
+    padding: 8px 10px;
+    color: var(--ink);
+    outline: none;
+  }
+
+  .ui-input:focus {
+    border-color: var(--focus);
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 28%, transparent);
+  }
+
+  .ui-btn {
+    min-height: 32px;
+    border: 1px solid var(--line);
+    background: var(--surface);
+    padding: 6px 10px;
+    color: var(--ink);
+    outline: none;
+  }
+
+  .ui-btn:hover:not(:disabled) {
+    background: var(--surface-hover);
+  }
+
+  .ui-btn:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
+  }
+
+  .ui-btn:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+  }
+
+  .ui-btn-primary {
+    min-height: 32px;
+    border: 1px solid var(--brand);
+    background: var(--brand);
+    padding: 6px 10px;
+    font-weight: 600;
+    color: var(--brand-on);
+    outline: none;
+  }
+
+  .ui-btn-primary:hover:not(:disabled) {
+    background: var(--brand-hover);
+    border-color: var(--brand-hover);
+  }
+
+  .ui-btn-primary:focus-visible {
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--focus) 45%, transparent);
+  }
+
+  .ui-btn-primary:disabled {
+    cursor: not-allowed;
+    border-color: var(--line);
+    background: var(--surface-hover);
+    color: var(--muted);
+  }
+
+  .ui-btn,
+  .ui-btn-primary {
+    transition:
+      background-color 120ms ease,
+      border-color 120ms ease;
+  }
+
+  /* Size and tone modifiers; declared after the base classes so they win. */
+  .ui-btn-sm {
+    min-height: 26px;
+    padding: 2px 8px;
+    font-size: var(--text-micro);
+  }
+
+  .ui-btn-touch {
+    min-height: 44px;
+    padding: 10px 14px;
+  }
+
+  .ui-btn-ghost {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .ui-btn-danger {
+    border-color: color-mix(in srgb, var(--danger) 55%, var(--line));
+    color: var(--danger);
+  }
+
+  .ui-btn-danger:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--danger) 10%, var(--surface));
+  }
+
+  .ui-input:disabled {
+    cursor: not-allowed;
+    color: var(--muted);
+  }
+
+  .ui-input[aria-invalid="true"] {
+    border-color: var(--danger);
+  }
+
+  /* Data tables: dense, mono numbers, sticky header. */
+  .ui-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--text-micro);
+    color: var(--ink);
+  }
+
+  .ui-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    border-bottom: 1px solid var(--line);
+    background: var(--surface);
+    padding: 6px 8px;
+    text-align: left;
+    font-weight: 600;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+
+  .ui-table td {
+    border-bottom: 1px solid var(--line);
+    padding: 6px 8px;
+    vertical-align: top;
+  }
+
+  .ui-table tbody tr:hover {
+    background: var(--surface-hover);
+  }
+
+  .ui-table tr[aria-selected="true"],
+  .ui-table tbody tr[aria-selected="true"]:hover {
+    background: var(--plan-fill);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0ms !important;
+    animation-duration: 0ms !important;
+  }
+}
+
+.planning-ledger details[open] > summary {
+  background: var(--surface-hover);
+}
+
+.planning-ledger summary::-webkit-details-marker {
+  display: none;
+}
+
+.planning-plan-field svg text {
+  user-select: none;
 }
 
 /* Custom scrollbar for modern browsers */
@@ -11,18 +294,138 @@
   width: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--canvas);
 }
 .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.25);
+  background-color: color-mix(in srgb, var(--muted) 45%, transparent);
   border-radius: 8px;
 }
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(255, 255, 255, 0.35);
+  background-color: color-mix(in srgb, var(--muted) 70%, transparent);
 }
 
 /* Firefox */
 .scrollbar-thin {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.25) rgba(255, 255, 255, 0.06);
+  scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent)
+    var(--canvas);
+}
+
+.report-capture-output {
+  min-height: 180px;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  html,
+  body {
+    background: #f8f8f5 !important;
+    color: #18181b !important;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .app-chrome,
+  .no-print {
+    display: none !important;
+  }
+
+  main,
+  .planner-workspace-shell,
+  .planner-workspace-content,
+  .planner-workspace-grid {
+    display: block !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #f8f8f5 !important;
+  }
+
+  .planner-workspace-grid {
+    padding: 0 !important;
+  }
+
+  .print-report {
+    display: block !important;
+    border: 0 !important;
+    padding: 0 !important;
+    background: #f8f8f5 !important;
+    color: #18181b !important;
+  }
+
+  .print-report header,
+  .print-report footer,
+  .print-report section,
+  .print-report div,
+  .print-report table,
+  .print-report thead,
+  .print-report tbody,
+  .print-report tr,
+  .print-report th,
+  .print-report td,
+  .print-report figure {
+    border-color: #d4d4d8 !important;
+    background: #f8f8f5 !important;
+    color: #18181b !important;
+  }
+
+  .print-report h1,
+  .print-report h2,
+  .print-report h3,
+  .print-report p,
+  .print-report li,
+  .print-report dt,
+  .print-report dd,
+  .print-report span,
+  .print-report figcaption {
+    color: #18181b !important;
+  }
+
+  .print-report .report-header,
+  .print-report .report-footer,
+  .print-report .report-section {
+    margin-bottom: 7mm;
+  }
+
+  .print-report .report-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 8pt !important;
+  }
+
+  .print-report .report-table th,
+  .print-report .report-table td {
+    padding: 1.5mm 2mm !important;
+  }
+
+  .print-report tr,
+  .print-report figure,
+  .print-report .break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  .print-report [data-layer-pattern-id] > rect {
+    fill: #f8f8f5 !important;
+    stroke: #52525b !important;
+  }
+
+  .print-report [data-pattern-item] rect {
+    fill: #f4f4f5 !important;
+    stroke: #52525b !important;
+  }
+
+  .print-report [data-pattern-item] text {
+    fill: #18181b !important;
+  }
+
+  .report-capture-output {
+    min-height: 0;
+  }
 }
