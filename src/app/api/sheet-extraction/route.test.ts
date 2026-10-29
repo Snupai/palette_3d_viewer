@@ -16,6 +16,8 @@ vi.mock(
     extractPalletSheet: vi.fn(async () => ({ ok: true })),
   }),
 );
+const aiFeatures = vi.hoisted(() => ({ aiFeaturesEnabled: true }));
+vi.mock("~/lib/aiFeatures", () => aiFeatures);
 import { POST } from "./route";
 import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
@@ -52,6 +54,29 @@ describe("sheet extraction upload admission", () => {
     } finally {
       controller.abort();
       expect((await pending).status).toBe(499);
+    }
+  });
+
+  it("answers 404 without calling the model when AI features are disabled", async () => {
+    aiFeatures.aiFeaturesEnabled = false;
+    vi.mocked(extractPalletSheet).mockClear();
+    try {
+      const form = new FormData();
+      form.set(
+        "image",
+        new Blob(["image"], { type: "image/png" }),
+        "photo.png",
+      );
+      const response = await POST(
+        new Request("http://localhost/api/sheet-extraction", {
+          method: "POST",
+          body: form,
+        }),
+      );
+      expect(response.status).toBe(404);
+      expect(extractPalletSheet).not.toHaveBeenCalled();
+    } finally {
+      aiFeatures.aiFeaturesEnabled = true;
     }
   });
 });

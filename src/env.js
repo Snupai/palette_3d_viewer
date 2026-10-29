@@ -22,7 +22,13 @@ export const env = createEnv({
    * `NEXT_PUBLIC_`.
    */
   client: {
-    // NEXT_PUBLIC_CLIENTVAR: z.string(),
+    /**
+     * Set to `true`/`1` to deploy without AI: hides the sheet-photo import and
+     * turns `/api/sheet-extraction` off. Inlined at build time.
+     */
+    NEXT_PUBLIC_DISABLE_AI_FEATURES: z
+      .enum(["true", "false", "1", "0"])
+      .optional(),
   },
 
   /**
@@ -35,7 +41,8 @@ export const env = createEnv({
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
     SHEET_EXTRACTION_MAX_CONCURRENT:
       process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
-    // NEXT_PUBLIC_CLIENTVAR: process.env.NEXT_PUBLIC_CLIENTVAR,
+    NEXT_PUBLIC_DISABLE_AI_FEATURES:
+      process.env.NEXT_PUBLIC_DISABLE_AI_FEATURES,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially

@@ -102,6 +102,11 @@ Deployment requirements:
 - Clients receive fixed error messages only; model URL and backend details are
   written to the server log.
 
+To deploy without AI, build with `NEXT_PUBLIC_DISABLE_AI_FEATURES=true`: the
+photo import disappears from the project forms and the route answers 404
+without contacting Ollama. The value is inlined at build time, so set it for
+`next build`, not only at runtime.
+
 `bun run sheet:eval` scores the extractor against a labelled photo folder
 (`SHEET_CORPUS_DIR`). It accepts only plain, regular files directly inside that
 folder and writes its report there without following links.

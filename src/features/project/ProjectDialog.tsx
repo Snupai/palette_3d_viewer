@@ -23,6 +23,7 @@ import {
   type ProjectFormValues,
 } from "~/features/project/projectForm";
 import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
+import { aiFeaturesEnabled } from "~/lib/aiFeatures";
 import { applySheetToFormValues } from "~/features/project/sheetImport";
 
 export type ProjectGenerationIntent = {
@@ -264,7 +265,7 @@ function ModalProjectDialog({
                 </div>
               ) : null}
 
-              {project === null && open ? (
+              {aiFeaturesEnabled && project === null && open ? (
                 <SheetPhotoImport
                   disabled={saving}
                   onBusyChange={setReadingSheet}
