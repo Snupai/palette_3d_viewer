@@ -54,7 +54,7 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
 
   return (
     <div
-      className="flex shrink-0 flex-col items-center justify-center gap-2 self-center"
+      className="layer-rail flex shrink-0 flex-col items-center justify-center gap-2 self-center"
       role="slider"
       aria-label={t("components.slider.visibleLayers")}
       aria-valuemin={1}

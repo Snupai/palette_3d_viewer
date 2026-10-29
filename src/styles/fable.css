@@ -1500,3 +1500,11 @@ h3 {
     min-height: 44px;
   }
 }
+
+/* Wide report tables scroll inside their wrapper instead of widening the sheet. */
+.report-sheet {
+  grid-template-columns: minmax(0, 1fr);
+}
+details:has(> .report-sheet) {
+  min-width: 0;
+}
