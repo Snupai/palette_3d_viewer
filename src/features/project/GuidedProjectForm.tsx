@@ -41,6 +41,7 @@ import {
 import type { ProjectDialogSubmission } from "~/features/project/ProjectDialog";
 import { applySheetToFormValues } from "~/features/project/sheetImport";
 import { SheetPhotoImport } from "~/features/project/SheetPhotoImport";
+import { aiFeaturesEnabled } from "~/lib/aiFeatures";
 import type { PalletSheet } from "~/domain/sheetExtraction";
 import {
   buildProjectFromForm,
@@ -785,7 +786,7 @@ export function GuidedProjectForm({
             </div>
           ) : null}
 
-          {creating ? (
+          {creating && aiFeaturesEnabled ? (
             <SheetPhotoImport
               disabled={saving}
               onBusyChange={setReadingSheet}

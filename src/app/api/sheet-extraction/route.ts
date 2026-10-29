@@ -1,4 +1,5 @@
 import { env } from "~/env";
+import { aiFeaturesEnabled } from "~/lib/aiFeatures";
 import {
   extractPalletSheet,
   SheetExtractionError,
@@ -75,6 +76,12 @@ function isAbortError(cause: unknown): boolean {
  * local Ollama server; the photo is not stored.
  */
 export async function POST(request: Request): Promise<Response> {
+  if (!aiFeaturesEnabled) {
+    return Response.json(
+      { error: "Sheet extraction is disabled." },
+      { status: 404 },
+    );
+  }
   let image: FormDataEntryValue | null;
   const releaseUpload = uploadAdmission.tryAcquire();
   if (!releaseUpload) {
