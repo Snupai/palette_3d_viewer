@@ -1490,13 +1490,13 @@ h3 {
     margin-top: 2px;
   }
 }
-.fable-app [aria-label="3D-Ansicht"] button {
+.fable-app .viewer-toolbar button {
   font-size: 12px;
   min-height: 36px;
   padding: 6px 8px;
 }
 @media (pointer: coarse) {
-  .fable-app [aria-label="3D-Ansicht"] button {
+  .fable-app .viewer-toolbar button {
     min-height: 44px;
   }
 }

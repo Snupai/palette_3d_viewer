@@ -1,0 +1,318 @@
+/* Phone portrait (iPhone 11, 414px) and touch refinements. Loaded last so
+   these narrow overrides win over the page styles they adjust. Hit areas grow
+   through min-height or invisible ::after extenders; the visible look stays. */
+
+/* ---------- Touch hit areas (any width) ---------- */
+@media (pointer: coarse) {
+  /* The drawer close button fills its 44px header without growing visibly. */
+  .fable-app .app-chrome > .ui-btn-sm {
+    position: relative;
+  }
+  .fable-app .app-chrome > .ui-btn-sm::after {
+    content: "";
+    position: absolute;
+    inset: -9px -4px;
+  }
+  .fable-app .report-sheet nav .ui-btn-sm {
+    min-height: 44px;
+  }
+
+  .fable-logo {
+    min-height: 44px;
+    min-width: 44px;
+    margin-block: -7px;
+  }
+  .fable-header .text-action {
+    min-height: 44px;
+    padding-inline: 6px;
+    margin-inline: -6px;
+  }
+  /* 16px keeps iOS Safari from zooming the page when a field is focused. */
+  .language-switcher {
+    min-height: 44px;
+    font-size: 16px;
+    padding-block: 6px;
+  }
+  .sort-field select,
+  .filter-content input,
+  .filter-content select {
+    font-size: 16px;
+  }
+
+  .library-extra > summary,
+  .library-transfer > summary,
+  .generator-options > summary,
+  .ranking-note > summary {
+    padding-block: 12px;
+    margin-block: -12px;
+  }
+  .plan-actions > summary,
+  .plan-actions button {
+    min-height: 44px;
+  }
+  .plan-row-title button {
+    min-height: 44px;
+    margin-block: -10px;
+  }
+  .fw-stage-toggle {
+    position: relative;
+  }
+  .fw-stage-toggle::after {
+    content: "";
+    position: absolute;
+    inset: -8px -10px;
+  }
+
+  .generator-option-fields .generator-check {
+    min-height: 44px;
+    gap: 10px;
+  }
+  .generator-option-fields select {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  /* Tool drawers: editor, robotics, simulation. */
+  .ed .ui-input,
+  .ed select,
+  .ed-field .ui-input,
+  .ed-table .ui-input,
+  .ed-dep-form .ed-field .ui-input {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .ed-check {
+    min-height: 44px;
+  }
+  .ed-check input {
+    flex: none;
+  }
+  .ed input[type="range"] {
+    min-height: 44px;
+  }
+  .ed-actions {
+    gap: 10px;
+  }
+  .ed-actions .ui-btn,
+  .ed-actions .ui-btn-primary,
+  .ed-toolbar .ui-btn,
+  .ed-toolbar .ui-btn-primary,
+  .ed-bar-actions .ui-btn,
+  .ed-bar-actions .ui-btn-primary,
+  .ed-bar .fw-seg span {
+    min-height: 44px;
+  }
+  .ed-grip-tools .ui-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* 3D viewer overlays. */
+  .fable-app .viewer-calibration button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* ---------- Phone layout ---------- */
+@media (max-width: 767px) {
+  /* With a plan open the wordmark gives way so the header stays one row;
+     the cube and the home aria-label remain. */
+  .fable-header:has(.fable-tool-menu) .fable-logo {
+    font-size: 0;
+    gap: 0;
+  }
+  .fable-tool-menu summary {
+    padding: 8px 10px;
+  }
+
+  /* Both entry doors reach the first viewport. */
+  .welcome-door > .plan-render,
+  .welcome-pallets {
+    height: 130px;
+    margin: 10px 0;
+  }
+  .welcome-door h2 {
+    font-size: 26px;
+  }
+
+  /* The whole filter box toggles, not just its title line. */
+  .library-filters {
+    padding: 0;
+  }
+  .library-filters > summary {
+    padding: 14px;
+  }
+  .library-filters .filter-content {
+    margin: 6px 14px 14px;
+  }
+  .plan-row-bottom > .ui-btn,
+  .plan-row-bottom > .ui-btn-primary {
+    flex: 1 1 auto;
+    margin-left: 0;
+  }
+  /* "Weitere Aktionen" gets its own row so its menu opens within the page. */
+  .plan-row-bottom > .plan-actions {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  /* Guided form: one-row action bar; sticky bars step aside while typing. */
+  .fw-footer {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 4px 6px;
+    padding: 8px 16px calc(8px + env(safe-area-inset-bottom));
+  }
+  .fw-footer-hint {
+    flex-basis: 100%;
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fw-footer-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    gap: 6px;
+  }
+  .fw-footer-actions > .ui-btn {
+    padding-inline: 10px;
+  }
+  .fw-footer-actions > .ui-btn-primary {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 12px;
+  }
+  .fw:has(input:focus, select:focus, textarea:focus) .fw-stage {
+    position: relative;
+  }
+  .fw:has(input:focus, select:focus, textarea:focus) .fw-footer {
+    position: static;
+  }
+
+  /* Pattern step: primary action first and full width. */
+  .generation-actions > p {
+    font-size: 12px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .generation-actions .button-row {
+    flex-wrap: wrap;
+    gap: 8px;
+    width: 100%;
+    margin-left: 0;
+  }
+  .generation-actions .button-row > .ui-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    padding-inline: 8px;
+  }
+  .generation-actions .button-row > .ui-btn-primary {
+    flex-basis: 100%;
+    order: -1;
+  }
+  .planning-case-grid.is-generating {
+    padding-bottom: 140px;
+  }
+
+  /* A long generator mode option must not widen the page. */
+  .generator-option-fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .generator-option-fields .generator-check {
+    flex-wrap: wrap;
+  }
+  .generator-option-fields select {
+    min-width: 0;
+    max-width: 100%;
+    flex: 1 1 100%;
+  }
+
+  /* 3D toolbar: one row scrolling within itself instead of covering the scene. */
+  .fable-app .viewer-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .fable-app .viewer-toolbar > * {
+    flex: none;
+    white-space: nowrap;
+  }
+  .sim-viewer {
+    min-height: min(560px, 55dvh);
+  }
+  .fable-app .viewer-calibration {
+    max-height: 55%;
+    overflow-y: auto;
+  }
+
+  /* Tool drawers. */
+  .ed-toolbar-gap {
+    display: none;
+  }
+  .ed-toolbar-count {
+    flex-basis: 100%;
+    text-align: right;
+  }
+  .ed-grid2:has(> label > select) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ed-grid3,
+  .ed-grid4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ed-grid3 > .ed-check,
+  .ed-grid4 > .ed-check,
+  .ed-grid3 > label:has(select) {
+    grid-column: 1 / -1;
+  }
+  .ed-grip-pick,
+  .ed-grip-tools {
+    grid-column: 1 / -1;
+  }
+  .ed-grip-tools {
+    justify-content: flex-end;
+    flex-wrap: wrap;
+  }
+  .ed-dep-form {
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+  .ed-dep-form > .ui-btn,
+  .ed-dep-form > .ui-btn-sm {
+    grid-column: 1 / -1;
+  }
+  /* Simulation: the five transport buttons share one row. */
+  .ed-bar-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .ed-bar-actions[role="toolbar"] {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+  .ed-bar-actions[role="toolbar"] .ui-btn,
+  .ed-bar-actions[role="toolbar"] .ui-btn-primary {
+    padding-inline: 4px;
+  }
+  /* Wide engineering tables scroll inside their box and keep their key column. */
+  .ed-table-wide {
+    max-height: 60dvh;
+  }
+  .ed-table-wide .ed-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+  }
+  .ed-table-wide .ed-table th:first-child,
+  .ed-table-wide .ed-table td:first-child {
+    position: sticky;
+    left: 0;
+    background: var(--surface);
+  }
+  .ed-table-wide .ed-table th:first-child {
+    z-index: 2;
+  }
+}

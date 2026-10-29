@@ -24,7 +24,7 @@ export function Candidate3DWorkspace({
           showSceneControls
         />
       ) : (
-        <div className="text-body text-viewport-ink/60 flex h-full items-center justify-center">
+        <div className="text-body text-viewport-ink/60 flex h-full items-center justify-center px-6 text-center">
           {t("project.candidate3d.empty")}
         </div>
       )}

@@ -2,6 +2,7 @@
 @import "./fable.css";
 @import "./fable-workflow.css";
 @import "./fable-editor.css";
+@import "./fable-mobile.css";
 
 @theme {
   --font-sans:

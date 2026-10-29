@@ -1,6 +1,6 @@
 import "~/styles/globals.css";
 
-import { type Metadata } from "next";
+import { type Metadata, type Viewport } from "next";
 import localFont from "next/font/local";
 import { LocaleProvider } from "~/i18n";
 
@@ -35,6 +35,13 @@ export const metadata: Metadata = {
       "Palettierpläne erstellen, passende Lagenmuster finden und vorhandene .rob-Pläne ansehen.",
     images: ["/opengraph-image"],
   },
+};
+
+/** Let the on-screen keyboard shrink the layout so dialogs stay scrollable. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  interactiveWidget: "resizes-content",
 };
 
 const barlow = localFont({

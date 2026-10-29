@@ -315,7 +315,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
           <div
             role="toolbar"
             aria-label={t("components.viewer.toolbar")}
-            className="border-viewport-line bg-viewport absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 border p-1"
+            className="viewer-toolbar border-viewport-line bg-viewport absolute top-2 left-2 z-10 flex max-w-[calc(100%-1rem)] flex-wrap items-center gap-1 border p-1"
           >
             {cameraPresetLabelKeys.map(([preset, labelKey]) => (
               <button
@@ -376,7 +376,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
             aria-label={t("components.calibration.panel")}
             data-testid="temporary-calibration-panel"
             data-calibration-values={calibrationValues}
-            className="border-viewport-line bg-viewport/95 text-viewport-ink absolute bottom-2 left-2 z-20 w-[min(360px,calc(100%-1rem))] border p-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.1)] backdrop-blur"
+            className="viewer-calibration border-viewport-line bg-viewport/95 text-viewport-ink absolute bottom-2 left-2 z-20 w-[min(360px,calc(100%-1rem))] border p-2.5 shadow-[0_2px_8px_rgba(0,0,0,0.1)] backdrop-blur"
           >
             <div className="flex items-start justify-between gap-3">
               <div>

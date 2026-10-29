@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState, type PointerEvent } from "react";
 import { useT } from "~/i18n";
 
 type LayerSliderProps = {
@@ -28,10 +28,29 @@ function pushOffset(index: number, hoveredIndex: number | null): number {
 export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
   const t = useT();
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const scrubbing = useRef(false);
 
   if (layerCount <= 0) return null;
 
   const clamped = Math.min(Math.max(1, value), layerCount);
+
+  /** Touch scrubbing: the tick under the finger, as ticks are too thin to tap. */
+  const scrubTo = (event: PointerEvent<HTMLDivElement>) => {
+    const ticks = event.currentTarget.querySelectorAll<HTMLElement>(
+      "[data-toc-item-index]",
+    );
+    let nearest = -1;
+    let nearestDistance = Infinity;
+    ticks.forEach((tick, index) => {
+      const rect = tick.getBoundingClientRect();
+      const distance = Math.abs(rect.top + rect.height / 2 - event.clientY);
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = index;
+      }
+    });
+    if (nearest >= 0) onChange(layerCount - nearest);
+  };
 
   return (
     <div
@@ -61,10 +80,27 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
           onChange(layerCount);
         }
       }}
-      onMouseLeave={() => setHoveredIndex(null)}
+      onPointerLeave={() => setHoveredIndex(null)}
     >
       {/* py leaves room so pushed-away edge ticks stay inside the clip box */}
-      <div className="max-h-[60lvh] w-9 overflow-clip">
+      <div
+        className="max-h-[60lvh] w-9 touch-none overflow-clip"
+        onPointerDown={(event) => {
+          if (event.pointerType === "mouse") return;
+          scrubbing.current = true;
+          event.currentTarget.setPointerCapture?.(event.pointerId);
+          scrubTo(event);
+        }}
+        onPointerMove={(event) => {
+          if (scrubbing.current) scrubTo(event);
+        }}
+        onPointerUp={() => {
+          scrubbing.current = false;
+        }}
+        onPointerCancel={() => {
+          scrubbing.current = false;
+        }}
+      >
         <div className="flex flex-col items-center gap-1.5 py-2">
           {Array.from({ length: layerCount }, (_, i) => {
             const layerFromBottom = layerCount - i;
@@ -81,7 +117,10 @@ export function LayerSlider({ layerCount, value, onChange }: LayerSliderProps) {
                 data-toc-item-index={i}
                 data-toc-active={active ? "" : undefined}
                 onClick={() => onChange(layerFromBottom)}
-                onMouseEnter={() => setHoveredIndex(i)}
+                onPointerEnter={(event) => {
+                  // Touch taps emulate hover without a matching leave.
+                  if (event.pointerType === "mouse") setHoveredIndex(i);
+                }}
                 style={{
                   transform: `translateY(${pushOffset(i, hoveredIndex)}px)`,
                 }}
