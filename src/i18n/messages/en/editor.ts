@@ -154,4 +154,23 @@ export const editorEn = {
   "editor.diag.numberDuplicate": "Two grips share the same number ({grips}).",
   "editor.diag.invalidOrder": "Order invalid: {message}",
   "editor.diag.invalidProject": "Project invalid: {message}",
+  "editor.reason.empty": "A grip needs at least one package.",
+  "editor.reason.multiPick":
+    "This project does not allow multi-picks (one package per grip).",
+  "editor.reason.rotation": "All packages of a grip must share one rotation.",
+  "editor.reason.crossAxis":
+    "The packages must sit in one row on the same cross axis.",
+  "editor.reason.adjacent":
+    "The packages must touch face to face along their length.",
+  "editor.selection.title": "Selection",
+  "editor.selection.empty":
+    "Click a package to select its grip, click again for just that package. Ctrl/Cmd-click adds or removes packages.",
+  "editor.selection.packages": "Packages: {packages}",
+  "editor.selection.grips": "from {grips}",
+  "editor.selection.ungrouped": "ungrouped",
+  "editor.selection.isGrip": "Matches grip {grip} exactly.",
+  "editor.selection.valid": "Can be formed into a new grip.",
+  "editor.selection.invalid": "Not a valid grip: {reason}",
+  "editor.selection.invalidRemainder":
+    "The rest of grip {grip} would be invalid: {reason}",
 } as const satisfies Record<keyof typeof editorDe, string>;

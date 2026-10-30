@@ -209,10 +209,10 @@ describe("PatternCanvas", () => {
       clientX: 80,
       clientY: 50,
     });
+    // The grip p1+p2 is already selected, so picking p1 narrows to it.
     fireEvent.keyDown(first, { key: "Enter" });
     expect([...callbacks.onSelectionChange.mock.calls.at(-1)![0]]).toEqual([
       "p1",
-      "p2",
     ]);
     for (const key of [
       "Delete",

@@ -1854,6 +1854,39 @@ export function validateProjectEditor(
   ];
 }
 
+/**
+ * Dry run of "create grip from selection": the diagnostic that would reject
+ * it, or null when the selection forms a valid grip (or is empty).
+ */
+export function previewGripFromSelection(
+  project: Project,
+  solutionId: string,
+  patternId: string,
+  placementIds: readonly string[],
+): ProjectEditorDiagnostic | null {
+  if (placementIds.length === 0) return null;
+  try {
+    applyProjectEditorCommand(project, {
+      type: "create-group",
+      mode: "order",
+      solutionId,
+      patternId,
+      placementIds,
+    });
+    return null;
+  } catch (cause) {
+    if (!(cause instanceof ProjectEditorCommandError)) throw cause;
+    return (
+      cause.diagnostics[0] ?? {
+        severity: "error",
+        code: "invalid-group-geometry",
+        message: cause.message,
+        placementIds,
+      }
+    );
+  }
+}
+
 export function describeProjectEditorCommand(
   command: ProjectEditorCommand,
 ): string {

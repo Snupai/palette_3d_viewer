@@ -18,6 +18,7 @@ import {
   applyProjectEditorCommand,
   createProjectEditorFlow,
   placementIdsInMarquee,
+  previewGripFromSelection,
   projectEditorOrderModel,
   selectionCenteringDelta,
   stepProjectEditorFlow,
@@ -1094,6 +1095,67 @@ describe("Project editor groups and order", () => {
       projectEditorOrderModel(project, "solution-1", "pattern-1")
         .unassignedPlacementIds.length,
     ).toBeGreaterThan(0);
+  });
+});
+
+describe("grip selection preview", () => {
+  it("accepts a valid selection and explains a rejected one", () => {
+    const project = editorProject();
+    expect(
+      previewGripFromSelection(project, "solution-1", "pattern-1", []),
+    ).toBeNull();
+    expect(
+      previewGripFromSelection(project, "solution-1", "pattern-1", [
+        "p1",
+        "p2",
+      ]),
+    ).toBeNull();
+    const problem = previewGripFromSelection(
+      project,
+      "solution-1",
+      "pattern-1",
+      ["p1", "p3"],
+    );
+    expect(problem?.code).toBe("invalid-group-geometry");
+    expect(problem?.message).toBe(
+      "Grouped packages must be aligned on one cross axis.",
+    );
+    expect(problem?.placementIds).toEqual(["p1", "p3"]);
+  });
+
+  it("flags the remainder when a package is taken out of a grip's middle", () => {
+    let project = applyProjectEditorCommand(editorProject(), {
+      type: "move-placements",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p3"],
+      deltaMm: { x: 200, y: -100 },
+    });
+    project = applyProjectEditorCommand(project, {
+      type: "create-group",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2", "p3"],
+    });
+    const row = pattern(project).placements.find(({ id }) => id === "p1")!;
+
+    const problem = previewGripFromSelection(
+      project,
+      "solution-1",
+      "pattern-1",
+      ["p2"],
+    );
+    expect(problem?.message).toBe(
+      "Grouped packages must be face-adjacent along their local length axis.",
+    );
+    expect(problem?.gripIds).toEqual([row.gripId]);
+    expect(problem?.placementIds).toEqual(["p1", "p3"]);
+    // Taking the end package out leaves an adjacent pair.
+    expect(
+      previewGripFromSelection(project, "solution-1", "pattern-1", ["p3"]),
+    ).toBeNull();
   });
 });
 

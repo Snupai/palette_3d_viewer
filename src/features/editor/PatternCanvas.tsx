@@ -46,6 +46,8 @@ export type PatternCanvasProps = {
   pattern: LayerPattern;
   groups: readonly ProjectEditorGroup[];
   selectedPlacementIds: ReadonlySet<string>;
+  /** Packages that make the attempted grip edit invalid. */
+  invalidPlacementIds?: readonly string[];
   fineStepMm: number;
   coarseStepMm: number;
   onSelectionChange: (placementIds: ReadonlySet<string>) => void;
@@ -77,6 +79,7 @@ export function PatternCanvas({
   pattern,
   groups,
   selectedPlacementIds,
+  invalidPlacementIds,
   fineStepMm,
   coarseStepMm,
   onSelectionChange,
@@ -145,6 +148,31 @@ export function PatternCanvas({
     if (!placement?.gripId) return [placementId];
     return gripPlacementIds.get(placement.gripId) ?? [placementId];
   };
+  const invalidIds = new Set(invalidPlacementIds ?? []);
+
+  // Grip selection: the first click picks the whole grip, a click on a package
+  // of the grip that is already selected narrows the selection to it.
+  const clickSelection = (placementId: string): Set<string> => {
+    const unit = selectionUnit(placementId);
+    const unitIsSelection =
+      interactionMode === "select" &&
+      unit.length > 1 &&
+      selectedPlacementIds.size === unit.length &&
+      unit.every((id) => selectedPlacementIds.has(id));
+    return new Set(unitIsSelection ? [placementId] : unit);
+  };
+  // Grip selection: modifier clicks add whole grips, but once a grip is
+  // (partly) selected they toggle its single packages.
+  const toggledSelection = (placementId: string): Set<string> => {
+    const unit = selectionUnit(placementId);
+    const touched =
+      interactionMode === "select" &&
+      unit.some((id) => selectedPlacementIds.has(id));
+    return toggleSelectionUnit(
+      selectedPlacementIds,
+      touched ? [placementId] : unit,
+    );
+  };
 
   const pointFromClient = (clientX: number, clientY: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
@@ -184,13 +212,16 @@ export function PatternCanvas({
   ) => {
     event.stopPropagation();
     if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (interactionMode === "select") {
+      onSelectionChange(clickSelection(placementId));
+      return;
+    }
     const unit = selectionUnit(placementId);
     const unitSelected = unit.every((id) => selectedPlacementIds.has(id));
     const selection = unitSelected
       ? new Set(selectedPlacementIds)
       : new Set(unit);
     if (!unitSelected) onSelectionChange(selection);
-    if (interactionMode === "select") return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
     capture(event);
@@ -211,9 +242,7 @@ export function PatternCanvas({
   ) => {
     if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return;
     event.stopPropagation();
-    onSelectionChange(
-      toggleSelectionUnit(selectedPlacementIds, selectionUnit(placementId)),
-    );
+    onSelectionChange(toggledSelection(placementId));
   };
 
   const updatePointer = (
@@ -445,6 +474,7 @@ export function PatternCanvas({
 
           {pattern.placements.map((placement) => {
             const isSelected = selectedPlacementIds.has(placement.id);
+            const isInvalid = invalidIds.has(placement.id);
             const dragged = draggingIds.has(placement.id);
             const previewPlacement = dragged
               ? {
@@ -497,8 +527,15 @@ export function PatternCanvas({
                     },
                   )}
                   fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
-                  stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
-                  strokeWidth={isSelected ? 3 : 1.5}
+                  stroke={
+                    isInvalid
+                      ? "var(--danger)"
+                      : isSelected
+                        ? "var(--brand)"
+                        : "var(--plan-stroke)"
+                  }
+                  strokeWidth={isSelected || isInvalid ? 3 : 1.5}
+                  data-invalid={isInvalid ? "true" : undefined}
                   vectorEffect="non-scaling-stroke"
                   className={`focus-visible:stroke-brand focus:outline-none ${interactionMode === "select" ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`}
                   onPointerDown={(event) => startPlacement(event, placement.id)}
@@ -509,7 +546,7 @@ export function PatternCanvas({
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
-                    onSelectionChange(new Set(selectionUnit(placement.id)));
+                    onSelectionChange(clickSelection(placement.id));
                   }}
                 >
                   <title>
@@ -596,8 +633,32 @@ export function PatternCanvas({
               selectedPlacementIds.has(placementId),
             );
 
+            const outline = {
+              left: Math.min(...footprints.map(({ left }) => left)),
+              right: Math.max(...footprints.map(({ right }) => right)),
+              top: Math.min(...footprints.map(({ top }) => top)),
+              bottom: Math.max(...footprints.map(({ bottom }) => bottom)),
+            };
+
             return (
               <g key={`grip-overlay-${grip.id}`} pointerEvents="none">
+                {placements.length > 1 || isSelected ? (
+                  <rect
+                    data-testid={`grip-outline-${grip.id}`}
+                    data-selected={isSelected ? "true" : undefined}
+                    x={outline.left}
+                    y={outline.top}
+                    width={outline.right - outline.left}
+                    height={outline.bottom - outline.top}
+                    rx={6}
+                    fill="none"
+                    stroke="var(--brand)"
+                    strokeWidth={isSelected ? 2.5 : 1.5}
+                    strokeDasharray={isSelected ? undefined : "6 4"}
+                    opacity={isSelected ? 0.9 : 0.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
                 {deltaArrow ? (
                   <g data-testid={`grip-delta-${grip.id}`} aria-hidden="true">
                     <line

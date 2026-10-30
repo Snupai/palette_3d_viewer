@@ -425,6 +425,16 @@
   border-left-color: var(--danger);
   background: color-mix(in srgb, var(--danger) 8%, var(--surface));
 }
+.ed-selection-check {
+  padding: 8px 10px;
+  border-left: 3px solid var(--ok);
+  background: color-mix(in srgb, var(--ok) 8%, var(--surface));
+  font-size: 14px;
+}
+.ed-selection-check[data-severity="error"] {
+  border-left-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 8%, var(--surface));
+}
 .ed-ok {
   display: flex;
   align-items: center;
