@@ -95,8 +95,12 @@ export function DocumentCamera({
         },
       })
       .then((granted) => {
+        // Closed while the permission prompt was open: release the camera.
+        if (cancelled) {
+          granted.getTracks().forEach((track) => track.stop());
+          return;
+        }
         stream = granted;
-        if (cancelled) return;
         video.srcObject = granted;
         return video.play();
       })
