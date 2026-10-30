@@ -154,4 +154,24 @@ export const editorDe = {
     "Zwei Griffe tragen dieselbe Nummer ({grips}).",
   "editor.diag.invalidOrder": "Reihenfolge ungültig: {message}",
   "editor.diag.invalidProject": "Projekt ungültig: {message}",
+  "editor.reason.empty": "Ein Griff braucht mindestens ein Paket.",
+  "editor.reason.multiPick":
+    "Dieses Projekt erlaubt keine Mehrfachgriffe (nur ein Paket pro Griff).",
+  "editor.reason.rotation":
+    "Alle Pakete eines Griffs müssen gleich gedreht sein.",
+  "editor.reason.crossAxis":
+    "Die Pakete müssen in einer Reihe auf derselben Querachse liegen.",
+  "editor.reason.adjacent":
+    "Die Pakete müssen entlang ihrer Länge lückenlos aneinanderstoßen.",
+  "editor.selection.title": "Auswahl",
+  "editor.selection.empty":
+    "Paket anklicken wählt seinen Griff, ein zweiter Klick nur dieses Paket. Strg-/Cmd-Klick fügt Pakete hinzu oder nimmt sie heraus.",
+  "editor.selection.packages": "Pakete: {packages}",
+  "editor.selection.grips": "aus {grips}",
+  "editor.selection.ungrouped": "ohne Griff",
+  "editor.selection.isGrip": "Entspricht genau Griff {grip}.",
+  "editor.selection.valid": "Kann als neuer Griff gebildet werden.",
+  "editor.selection.invalid": "Kein gültiger Griff: {reason}",
+  "editor.selection.invalidRemainder":
+    "Der Rest von Griff {grip} wäre ungültig: {reason}",
 } as const;

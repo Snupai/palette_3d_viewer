@@ -5,9 +5,14 @@ import type {
   LayerPattern,
   PlanningSolution,
 } from "~/domain/project/projectSchema";
-import { gripLabel } from "~/features/editor/editorLabels";
+import {
+  describeGripSelectionProblem,
+  gripLabel,
+  packageLabel,
+} from "~/features/editor/editorLabels";
 import type {
   ProjectEditorCommand,
+  ProjectEditorDiagnostic,
   ProjectEditorOrderModel,
 } from "~/features/editor/editorModel";
 import { useT } from "~/i18n";
@@ -17,6 +22,8 @@ export type OrderPanelProps = {
   pattern: LayerPattern;
   orderModel: ProjectEditorOrderModel;
   selectedPlacementIds: ReadonlySet<string>;
+  /** Why the selection cannot form a grip; null when it can. */
+  selectionProblem: ProjectEditorDiagnostic | null;
   onSelectionChange: (placementIds: ReadonlySet<string>) => void;
   execute: (command: ProjectEditorCommand) => void;
 };
@@ -27,6 +34,7 @@ export function OrderPanel({
   pattern,
   orderModel,
   selectedPlacementIds,
+  selectionProblem,
   onSelectionChange,
   execute,
 }: OrderPanelProps) {
@@ -52,9 +60,73 @@ export function OrderPanel({
   const isSelected = (placementIds: readonly string[]) =>
     placementIds.length > 0 &&
     placementIds.every((id) => selectedPlacementIds.has(id));
+  const packageList = (placementIds: readonly string[]) =>
+    placementIds.map((id) => packageLabel(pattern, id)).join(", ");
+  const selectedIds = pattern.placements.flatMap(({ id }) =>
+    selectedPlacementIds.has(id) ? [id] : [],
+  );
+  const touchedGroups = groups.filter((group) =>
+    group.placementIds.some((id) => selectedPlacementIds.has(id)),
+  );
+  const hasUngrouped = selectedIds.some(
+    (id) => !groups.some((group) => group.placementIds.includes(id)),
+  );
+  const exactGroup =
+    touchedGroups.length === 1 &&
+    !hasUngrouped &&
+    touchedGroups[0]!.placementIds.length === selectedIds.length
+      ? touchedGroups[0]!
+      : null;
 
   return (
     <>
+      <section
+        className="ed-panel"
+        aria-labelledby="ed-selection-title"
+        data-testid="grip-selection"
+      >
+        <div className="ed-panel-head">
+          <h3 id="ed-selection-title">{t("editor.selection.title")}</h3>
+        </div>
+        {selectedIds.length === 0 ? (
+          <p className="ed-panel-note">{t("editor.selection.empty")}</p>
+        ) : (
+          <>
+            <p className="ed-panel-note">
+              {t("editor.selection.packages", {
+                packages: packageList(selectedIds),
+              })}{" "}
+              ·{" "}
+              {t("editor.selection.grips", {
+                grips: [
+                  ...touchedGroups.map(({ id }) => gripLabel(groups, id)),
+                  ...(hasUngrouped ? [t("editor.selection.ungrouped")] : []),
+                ].join(", "),
+              })}
+            </p>
+            {selectionProblem ? (
+              <p className="ed-selection-check" data-severity="error">
+                {describeGripSelectionProblem(
+                  selectionProblem,
+                  pattern,
+                  groups,
+                  selectedPlacementIds,
+                  t,
+                )}
+              </p>
+            ) : (
+              <p className="ed-selection-check" data-severity="ok">
+                {exactGroup
+                  ? t("editor.selection.isGrip", {
+                      grip: gripLabel(groups, exactGroup.id),
+                    })
+                  : t("editor.selection.valid")}
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
       <section className="ed-panel" aria-labelledby="ed-grips-title">
         <div className="ed-panel-head">
           <h3 id="ed-grips-title">{t("editor.order.title")}</h3>
@@ -92,7 +164,8 @@ export function OrderPanel({
                       <span>
                         {t("editor.packageCount", {
                           count: group.placementIds.length,
-                        })}
+                        })}{" "}
+                        · {packageList(group.placementIds)}
                       </span>
                       <small>
                         {t("editor.order.center", {

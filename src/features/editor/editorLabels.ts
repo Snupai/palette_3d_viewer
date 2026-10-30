@@ -81,7 +81,7 @@ export function describeDiagnostic(
     case "invalid-group-geometry":
       return t("editor.diag.groupGeometry", {
         grip,
-        reason: geometryReason(diagnostic.message),
+        reason: geometryReason(diagnostic.message, t),
       });
     case "group-label-mismatch":
       return t("editor.diag.labelMismatch", { grip });
@@ -98,7 +98,54 @@ export function describeDiagnostic(
   }
 }
 
-function geometryReason(message: string): string {
+const geometryReasonKeys = {
+  "A group must contain at least one package placement.": "editor.reason.empty",
+  "This project does not allow multiple packages in one grip group.":
+    "editor.reason.multiPick",
+  "Grouped packages must use the same placement rotation.":
+    "editor.reason.rotation",
+  "Grouped packages must be aligned on one cross axis.":
+    "editor.reason.crossAxis",
+  "Grouped packages must be face-adjacent along their local length axis.":
+    "editor.reason.adjacent",
+} as const;
+
+function geometryReason(message: string, t: Translate): string {
   const colon = message.indexOf(": ");
-  return colon >= 0 ? message.slice(colon + 2) : message;
+  const reason = colon >= 0 ? message.slice(colon + 2) : message;
+  const key =
+    geometryReasonKeys[reason as keyof typeof geometryReasonKeys] ?? null;
+  return key ? t(key) : reason;
+}
+
+/**
+ * Why the current selection cannot become a grip, for the order view. The
+ * problem is the selection itself, what it would leave behind of a partly
+ * selected grip, or an existing grip that is already invalid.
+ */
+export function describeGripSelectionProblem(
+  diagnostic: ProjectEditorDiagnostic,
+  pattern: PatternLike,
+  groups: readonly ProjectEditorGroup[],
+  selectedPlacementIds: ReadonlySet<string>,
+  t: Translate,
+): string {
+  if (diagnostic.code !== "invalid-group-geometry") {
+    return describeDiagnostic(diagnostic, pattern, groups, t);
+  }
+  const existing = groups.find(({ id }) => diagnostic.gripIds?.includes(id));
+  if (!existing) {
+    return t("editor.selection.invalid", {
+      reason: geometryReason(diagnostic.message, t),
+    });
+  }
+  const selectedCount = existing.placementIds.filter((id) =>
+    selectedPlacementIds.has(id),
+  ).length;
+  return selectedCount > 0 && selectedCount < existing.placementIds.length
+    ? t("editor.selection.invalidRemainder", {
+        grip: gripLabel(groups, existing.id),
+        reason: geometryReason(diagnostic.message, t),
+      })
+    : describeDiagnostic(diagnostic, pattern, groups, t);
 }

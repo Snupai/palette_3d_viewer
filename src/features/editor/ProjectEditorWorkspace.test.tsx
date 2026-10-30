@@ -435,8 +435,12 @@ describe("ProjectEditorWorkspace order and persistence", () => {
     expect(screen.getByText("4 Pakete · 2 Griffe")).toBeTruthy();
 
     // A package click selects its whole grip; two grips enable merging.
+    fireEvent.keyDown(screen.getByTestId("project-editor-workspace"), {
+      key: "Escape",
+    });
     selectPlacement("p1");
     expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    expect(screen.getByText("Entspricht genau Griff G1.")).toBeTruthy();
     fireEvent.click(placementRect("p3"), { ctrlKey: true });
     expect(screen.getByText("4 ausgewählt")).toBeTruthy();
     expect(
@@ -444,6 +448,63 @@ describe("ProjectEditorWorkspace order and persistence", () => {
         name: "Griffe zusammenlegen (2)",
       }).disabled,
     ).toBe(false);
+  });
+
+  it("narrows a grip to single packages and explains invalid selections", () => {
+    renderEditor();
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
+    const selection = screen.getByTestId("grip-selection");
+    selectPlacement("p1");
+    fireEvent.click(placementRect("p2"), { ctrlKey: true });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Griff aus Auswahl bilden (2)" }),
+    );
+
+    // The new grip stays selected; a second click picks only the package.
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    selectPlacement("p1", 2);
+    expect(screen.getByText("1 ausgewählt")).toBeTruthy();
+    expect(selection.textContent).toContain("Pakete: #1 · aus G1");
+    expect(selection.textContent).toContain(
+      "Kann als neuer Griff gebildet werden.",
+    );
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Griffe zusammenlegen (1)",
+      }).disabled,
+    ).toBe(true);
+
+    // Ctrl-click on an untouched grip adds all of it; p1 and p3/p4 do not
+    // share a row, so the edit is blocked and the packages are marked.
+    fireEvent.click(placementRect("p3"), { ctrlKey: true });
+    expect(screen.getByText("3 ausgewählt")).toBeTruthy();
+    expect(selection.textContent).toContain(
+      "Kein gültiger Griff: Die Pakete müssen in einer Reihe auf derselben Querachse liegen.",
+    );
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Griff aus Auswahl bilden (3)",
+      }).disabled,
+    ).toBe(true);
+    expect(
+      ["p1", "p2", "p3", "p4"].filter(
+        (id) => placementRect(id).getAttribute("data-invalid") === "true",
+      ),
+    ).toEqual(["p1", "p3", "p4"]);
+
+    // Ctrl-click on a package of a touched grip removes only that package.
+    fireEvent.click(placementRect("p1"), { ctrlKey: true });
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+    expect(selection.textContent).toContain("Entspricht genau Griff G2.");
+
+    // A package taken out of a grip becomes a grip of its own.
+    selectPlacement("p2", 3);
+    selectPlacement("p2", 4);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Griff aus Auswahl bilden (1)" }),
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("4 Pakete · 3 Griffe")).toBeTruthy();
   });
 
   it("shows invalid dependency feedback and applies the automatic suggestion", async () => {

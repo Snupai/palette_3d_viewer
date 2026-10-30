@@ -22,6 +22,7 @@ import { describeDiagnostic } from "~/features/editor/editorLabels";
 import {
   activeEditorPattern,
   activeEditorSolution,
+  previewGripFromSelection,
   projectEditorOrderModel,
   suggestProjectEditorOrder,
   validateProjectEditor,
@@ -188,9 +189,12 @@ export function ProjectEditorWorkspace({
     ].includes(phase),
   );
 
-  // A click on a package always selects its whole grip.
+  // In the arrangement a selection always covers whole grips, so grips move
+  // together. The grip order view keeps single packages selectable, so a grip
+  // can be built from part of another one.
   const effectiveSelection = useMemo(() => {
     if (!pattern) return new Set<string>();
+    if (view === "order") return new Set(selectedPlacementIds);
     const next = new Set(selectedPlacementIds);
     const gripIds = new Set(
       pattern.placements.flatMap((placement) =>
@@ -203,7 +207,7 @@ export function ProjectEditorWorkspace({
       }
     }
     return next;
-  }, [pattern, selectedPlacementIds]);
+  }, [pattern, selectedPlacementIds, view]);
   const selectedGripIds = useMemo(
     () =>
       new Set(
@@ -214,6 +218,24 @@ export function ProjectEditorWorkspace({
         ),
       ),
     [effectiveSelection, pattern],
+  );
+  // Merging takes whole grips, so it needs every touched grip fully selected.
+  const canMergeGrips =
+    selectedGripIds.size >= 2 &&
+    (pattern?.placements ?? []).every(
+      (placement) =>
+        !placement.gripId ||
+        !selectedGripIds.has(placement.gripId) ||
+        effectiveSelection.has(placement.id),
+    );
+  const selectionProblem = useMemo(
+    () =>
+      view === "order" && solution && pattern
+        ? previewGripFromSelection(history.present, solution.id, pattern.id, [
+            ...effectiveSelection,
+          ])
+        : null,
+    [effectiveSelection, history.present, pattern, solution, view],
   );
 
   const execute = (command: ProjectEditorCommand) => {
@@ -302,7 +324,7 @@ export function ProjectEditorWorkspace({
   };
   const mergeGroups = () => {
     const base = orderBase();
-    if (!base || selectedGripIds.size < 2) return;
+    if (!base || !canMergeGrips) return;
     execute({ type: "merge-groups", ...base, gripIds: [...selectedGripIds] });
   };
   const applySuggestedOrder = () => {
@@ -601,7 +623,7 @@ export function ProjectEditorWorkspace({
                 <button
                   type="button"
                   className="ui-btn"
-                  disabled={selectedCount === 0}
+                  disabled={selectedCount === 0 || selectionProblem !== null}
                   onClick={createGroup}
                 >
                   {t("editor.createGrip", { count: selectedCount })}
@@ -609,7 +631,7 @@ export function ProjectEditorWorkspace({
                 <button
                   type="button"
                   className="ui-btn"
-                  disabled={selectedGripIds.size < 2}
+                  disabled={!canMergeGrips}
                   onClick={mergeGroups}
                 >
                   {t("editor.mergeGrips", { count: selectedGripIds.size })}
@@ -634,6 +656,7 @@ export function ProjectEditorWorkspace({
               pattern={pattern}
               groups={orderModel.groups}
               selectedPlacementIds={effectiveSelection}
+              invalidPlacementIds={selectionProblem?.placementIds}
               fineStepMm={positiveStep(fineStepDraft, 1)}
               coarseStepMm={positiveStep(coarseStepDraft, 10)}
               onSelectionChange={(ids) => setSelectedPlacementIds(new Set(ids))}
@@ -662,6 +685,7 @@ export function ProjectEditorWorkspace({
                 pattern={pattern}
                 orderModel={orderModel}
                 selectedPlacementIds={effectiveSelection}
+                selectionProblem={selectionProblem}
                 onSelectionChange={setSelectedPlacementIds}
                 execute={execute}
               />
