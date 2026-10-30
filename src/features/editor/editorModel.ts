@@ -13,6 +13,7 @@ import {
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
+  deriveGripDeltasForPlacementOrder,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
 import {
@@ -20,6 +21,7 @@ import {
   legacyRotationFromCanonical,
   pickOffsetForCount,
 } from "~/domain/palletGeometry";
+import { resolveAutomaticSuctionGroupLimit } from "~/domain/project/equipmentProfiles";
 import {
   projectSchema,
   type LayerPattern,
@@ -179,6 +181,12 @@ export type ProjectEditorCommand =
       solutionId: string;
       patternId: string;
       gripIds: readonly string[];
+    }
+  | {
+      type: "recalculate-groups";
+      mode: "order";
+      solutionId: string;
+      patternId: string;
     }
   | {
       type: "reorder-group";
@@ -620,19 +628,25 @@ function gripFromPlacements(
   };
 }
 
+/** Same pickup limit as Robotics' automatic grouping for the selected gripper. */
 function maxPackagesPerAutomaticGroup(project: Project): number {
-  if (!project.package.multiPickAllowed) return 1;
-  const selectedGripper = project.grippers.find(
-    ({ id }) => id === project.selectedGripperId,
+  const selectedGripper =
+    project.grippers.find(({ id }) => id === project.selectedGripperId) ?? null;
+  const groupLimit = resolveAutomaticSuctionGroupLimit(
+    project.package,
+    selectedGripper,
   );
   const pickupSpan =
     project.package.inletOrientation === "lengthwise"
       ? project.package.dimensionsMm.length
       : project.package.dimensionsMm.width;
-  if (!selectedGripper?.maxPickupLengthMm) return 2;
+  if (!selectedGripper?.maxPickupLengthMm) return groupLimit;
   return Math.max(
     1,
-    Math.min(2, Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan)),
+    Math.min(
+      groupLimit,
+      Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan),
+    ),
   );
 }
 
@@ -873,10 +887,23 @@ function ensurePatternGroups(
     placements,
     project.package.dimensionsMm,
   );
-  const orderedGrips = orderGripsByDependencies(
+  const sequencedGrips = orderGripsByDependencies(
     grips,
     verticalDependencies,
   ).map((grip, index) => ({ ...grip, groupNumber: index + 1 }));
+  // Like solver-generated grips, a blue line may only reference a grip that
+  // is already placed; label-derived offsets could form dependency cycles.
+  const derived = deriveGripDeltasForPlacementOrder(
+    sequencedGrips,
+    project.package.dimensionsMm.length,
+    project.package.dimensionsMm.width,
+    project.package.inletOrientation === "crosswise" ? 1 : 0,
+  );
+  const orderedGrips = sequencedGrips.map((grip, index) => ({
+    ...grip,
+    dx: derived.deltas[index]?.dx ?? 0,
+    dy: derived.deltas[index]?.dy ?? 0,
+  }));
   return {
     ...pattern,
     grips: orderedGrips,
@@ -1882,6 +1909,8 @@ export function describeProjectEditorCommand(
       return "Split grip group";
     case "merge-groups":
       return "Merge grip groups";
+    case "recalculate-groups":
+      return "Recalculate grip groups";
     case "reorder-group":
       return "Reorder grip group";
     case "apply-suggested-order":
@@ -2336,6 +2365,28 @@ export function applyProjectEditorCommand(
         command.solutionId,
         previousPattern,
         mergeGroups(project, previousPattern, command.gripIds),
+      );
+    }
+    case "recalculate-groups": {
+      // Discards manual grips and their explicit order so the automatic
+      // calculation starts from the current package geometry. The cleared
+      // pattern is also the sync baseline, so recalculated grips with
+      // unchanged ids keep no old pick or dx/dy data.
+      const ungrouped: LayerPattern = {
+        ...previousPattern,
+        grips: [],
+        placements: previousPattern.placements.map((placement) => ({
+          ...placement,
+          gripId: null,
+        })),
+        groupOrder: [],
+        orderDependencies: [],
+      };
+      return replacePattern(
+        project,
+        command.solutionId,
+        ungrouped,
+        ensurePatternGroups(project, ungrouped),
       );
     }
     case "reorder-group": {

@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  createMultipackEquipmentProfileResources,
+  MULTIPACK_GRIPPER_ID,
+} from "~/domain/project/equipmentProfiles";
 import { createProject } from "~/domain/project/projectFactory";
 import {
   projectSchema,
@@ -749,6 +753,146 @@ describe("Project editor pattern geometry", () => {
 });
 
 describe("Project editor groups and order", () => {
+  function projectWithPlacements(
+    placements: PackagePlacement[],
+    overrides: (project: Project) => Partial<Project> = () => ({}),
+  ): Project {
+    const base = editorProject();
+    const solution = base.solutions[0]!;
+    const sourcePattern = solution.patterns[0]!;
+    return projectSchema.parse({
+      ...base,
+      solutions: [
+        {
+          ...solution,
+          patterns: [{ ...sourcePattern, grips: [], placements }],
+        },
+      ],
+      ...overrides(base),
+    });
+  }
+
+  function automaticGroups(project: Project): string[][] {
+    return projectEditorOrderModel(project, "solution-1", "pattern-1")
+      .groups.map(({ placementIds }) => [...placementIds])
+      .sort((left, right) => left[0]!.localeCompare(right[0]!));
+  }
+
+  it("sizes automatic grips by the selected gripper like Robotics does", () => {
+    const placements = Array.from({ length: 7 }, (_, index) =>
+      placement(`p${index + 1}`, index, 66 + index * 132, 55),
+    );
+    const project = projectWithPlacements(placements, (base) => ({
+      package: {
+        ...base.package,
+        dimensionsMm: { length: 132, width: 110, height: 185 },
+      },
+      pallet: {
+        ...base.pallet!,
+        dimensionsMm: { ...base.pallet!.dimensionsMm, length: 1000 },
+        storageEnvelopeMm: { length: 1000, width: 300, height: 500 },
+      },
+      grippers: [
+        ...base.grippers,
+        ...createMultipackEquipmentProfileResources().grippers,
+      ],
+      selectedGripperId: MULTIPACK_GRIPPER_ID,
+    }));
+
+    // 450 mm pickup length fits three 132 mm packages instead of doubles.
+    expect(automaticGroups(project)).toEqual([
+      ["p1", "p2", "p3"],
+      ["p4", "p5", "p6"],
+      ["p7"],
+    ]);
+  });
+
+  it("calculates acyclic grip dependencies for labelled packages", () => {
+    const project = projectWithPlacements(
+      [
+        placement("p1", 0, 50, 50),
+        placement("p2", 1, 150, 50),
+        placement("p3", 2, 50, 150),
+        placement("p4", 3, 150, 150),
+      ].map((item) => ({ ...item, labelSide: "top" as const })),
+    );
+    const model = projectEditorOrderModel(project, "solution-1", "pattern-1");
+
+    expect(automaticGroups(project)).toEqual([
+      ["p1", "p2"],
+      ["p3", "p4"],
+    ]);
+    expect(model.diagnostics).toEqual([]);
+  });
+
+  it("does not carry old grip data into recalculated grips", () => {
+    const recalculate = (project: Project) =>
+      applyProjectEditorCommand(project, {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      });
+    const calculated = recalculate(editorProject());
+    // Same placement groups (and grip ids), but a grip edited by the user.
+    const edited = applyProjectEditorCommand(calculated, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      labelSide: "left",
+    });
+    const grips = (project: Project) =>
+      project.solutions[0]!.patterns[0]!.grips;
+
+    expect(grips(edited)).not.toEqual(grips(calculated));
+    expect(grips(recalculate(edited))).toEqual(grips(calculated));
+  });
+
+  it("recalculates grips from the package geometry as one undoable step", () => {
+    const initial = editorProject();
+    const firstGripId = projectEditorOrderModel(
+      initial,
+      "solution-1",
+      "pattern-1",
+    ).groups.find(({ placementIds }) => placementIds.includes("p1"))!.id;
+    let history = createProjectEditorHistory(initial);
+    history = projectEditorHistoryReducer(history, {
+      type: "execute",
+      command: {
+        type: "split-group",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        gripId: firstGripId,
+      },
+    });
+    const edited = automaticGroups(history.present);
+    expect(edited).toEqual([["p1"], ["p2"], ["p3", "p4"]]);
+
+    history = projectEditorHistoryReducer(history, {
+      type: "execute",
+      command: {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      },
+    });
+    expect(automaticGroups(history.present)).toEqual([
+      ["p1", "p2"],
+      ["p3", "p4"],
+    ]);
+    expect(
+      projectEditorOrderModel(history.present, "solution-1", "pattern-1")
+        .diagnostics,
+    ).toEqual([]);
+
+    history = projectEditorHistoryReducer(history, { type: "undo" });
+    expect(automaticGroups(history.present)).toEqual(edited);
+  });
+
   it("centers an automatic singleton in a vertical five-package run", () => {
     const base = editorProject();
     const pallet = base.pallet;

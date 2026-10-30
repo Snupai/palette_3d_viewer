@@ -37,6 +37,7 @@ export const editorDe = {
   "editor.selectedCount": "{count} ausgewählt",
   "editor.createGrip": "Griff aus Auswahl bilden ({count})",
   "editor.mergeGrips": "Griffe zusammenlegen ({count})",
+  "editor.recalculateGrips": "Griffe neu berechnen",
   "editor.autoOrder": "Automatisch ordnen",
   "editor.check": "Prüfung",
   "editor.noHints": "keine Hinweise",

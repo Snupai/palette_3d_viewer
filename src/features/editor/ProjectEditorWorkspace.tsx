@@ -305,6 +305,11 @@ export function ProjectEditorWorkspace({
     if (!base || selectedGripIds.size < 2) return;
     execute({ type: "merge-groups", ...base, gripIds: [...selectedGripIds] });
   };
+  const recalculateGroups = () => {
+    const base = orderBase();
+    if (!base) return;
+    execute({ type: "recalculate-groups", ...base });
+  };
   const applySuggestedOrder = () => {
     const base = orderBase();
     if (!base) return;
@@ -615,6 +620,14 @@ export function ProjectEditorWorkspace({
                   {t("editor.mergeGrips", { count: selectedGripIds.size })}
                 </button>
                 <span className="ed-toolbar-gap" aria-hidden="true" />
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={!pattern || pattern.placements.length === 0}
+                  onClick={recalculateGroups}
+                >
+                  {t("editor.recalculateGrips")}
+                </button>
                 <button
                   type="button"
                   className="ui-btn-primary"
