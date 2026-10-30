@@ -86,7 +86,6 @@ export function PatternResults({
     return (
       <div className="fable-panel">
         <h2>{t("planner.results.noneTitle")}</h2>
-        <p>{t("planner.results.noneText")}</p>
       </div>
     );
   return (
@@ -94,12 +93,10 @@ export function PatternResults({
       className="pattern-results"
       aria-label={t("planner.results.label")}
     >
-      {!selection && <p role="status">{t("planner.results.noneSelected")}</p>}
       {compare && selection ? (
         <div className="pattern-comparison">
           <header>
             <div>
-              <p className="muted">{t("planner.results.directCompare")}</p>
               <h2>{t("planner.results.selectedVs", { rank: compare.rank })}</h2>
             </div>
             <button className="ui-btn" onClick={() => setCompareId(null)}>
@@ -162,15 +159,6 @@ export function PatternResults({
                 })}
               </h2>
               {metrics(selected)}
-              <p className="pattern-reason">
-                {reason(
-                  t,
-                  selected,
-                  candidates[
-                    candidates.findIndex((c) => c.id === selected.id) + 1
-                  ] ?? null,
-                ) ?? t("planner.results.fitsDefault")}
-              </p>
               {!selection && (
                 <button
                   className="ui-btn-primary"
@@ -236,7 +224,6 @@ export function PatternResults({
       {shown.length === 0 ? (
         <div className="fable-panel">
           <h3>{t("planner.results.noPatternWith", { exact })}</h3>
-          <p>{t("planner.results.searchFoundOthers")}</p>
           <button
             className="text-action"
             onClick={() => {
@@ -316,10 +303,6 @@ export function PatternResults({
           })}
         </button>
       )}
-      <details className="ranking-note">
-        <summary>{t("planner.results.rankingSummary")}</summary>
-        <p>{t("planner.results.rankingNote")}</p>
-      </details>
     </section>
   );
 }

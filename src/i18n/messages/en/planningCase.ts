@@ -20,14 +20,9 @@ export const planningCaseEn = {
   "planningCase.diagnosticsSummary": "Diagnostics and more views",
   "planningCase.searchDiagnostics": "Search diagnostics",
   "planningCase.viewLayer3d": "View layer in 3D",
-  "planningCase.firstLayerPattern":
-    "Pattern {rank} becomes the first layer of your stack.",
-  "planningCase.selectAfterCalc": "Select a pattern after the calculation.",
   "planningCase.viewSavedPlan": "View saved plan",
   "planningCase.changeInputs": "Change inputs",
   "planningCase.yourPalletPlan": "Your pallet plan",
-  "planningCase.importedPlan": "Imported plan",
-  "planningCase.stackSaved": "Stack saved",
   "planningCase.downloadRob": "Download .rob",
   "planningCase.overview": "Plan overview",
   "planningCase.packageLwh": "Package L × W × H",
@@ -55,8 +50,6 @@ export const planningCaseEn = {
   "planningCase.pickPackages_one": "{count} package",
   "planningCase.pickPackages_other": "{count} packages",
   "planningCase.pickPlace": "Place X {x} / Y {y} / Z {z} mm",
-  "planningCase.pickEmpty":
-    "Select a package to inspect the grip and place coordinates.",
   // Tool gates (model)
   "planningCase.gate.noPlan": "No plan selected.",
   "planningCase.gate.toInputs": "Go to inputs",

@@ -324,10 +324,10 @@ export function ReportWorkspace({
                     ],
                   ].map(([label, value]) => (
                     <tr key={label} className="last:[&>*]:border-b-0!">
-                      <th className="static! w-[220px] font-medium!">
+                      <th className="static! w-[40%] font-medium! sm:w-[220px]">
                         {label}
                       </th>
-                      <td className="text-ink">{value}</td>
+                      <td className="text-ink break-words">{value}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -541,7 +541,9 @@ export function ReportWorkspace({
                         {warning.severity}
                       </td>
                       <td>{warning.source}</td>
-                      <td className="text-micro font-mono">{warning.code}</td>
+                      <td className="text-micro font-mono break-all">
+                        {warning.code}
+                      </td>
                       <td className="text-ink">
                         {warning.message}
                         {warning.provenance ? (

@@ -318,12 +318,19 @@ export function PlanLibrary(
                                 : t("planner.library.badgeDraft")}
                         </span>
                       </div>
-                      <p className="plan-subtitle">
-                        {pr.projectNumber || t("planner.library.noOrder")}
-                        {pr.source.kind === "rob-import"
-                          ? ` · ${pr.source.fileName}`
-                          : ""}
-                      </p>
+                      {(pr.projectNumber ||
+                        pr.source.kind === "rob-import") && (
+                        <p className="plan-subtitle">
+                          {[
+                            pr.projectNumber,
+                            pr.source.kind === "rob-import"
+                              ? pr.source.fileName
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      )}
                       <dl className="plan-facts">
                         <div>
                           <dt>{t("planner.library.factPackage")}</dt>

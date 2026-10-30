@@ -197,7 +197,7 @@ export function GripperEditor({
         </legend>
         <div className="ed-actions">
           {([0, 90, 180, 270] as const).map((rotation) => (
-            <label key={rotation} className="flex items-center gap-1.5">
+            <label key={rotation} className="ed-check">
               <input
                 type="checkbox"
                 checked={value.allowedPlaceRotations.includes(rotation)}

@@ -19,15 +19,9 @@ export const planningCaseDe = {
   "planningCase.diagnosticsSummary": "Diagnosen und weitere Ansichten",
   "planningCase.searchDiagnostics": "Suchdiagnosen",
   "planningCase.viewLayer3d": "Lage in 3D ansehen",
-  "planningCase.firstLayerPattern":
-    "Muster {rank} wird die erste Lage Ihres Stapels.",
-  "planningCase.selectAfterCalc":
-    "Wählen Sie nach der Berechnung ein Muster aus.",
   "planningCase.viewSavedPlan": "Gespeicherten Plan ansehen",
   "planningCase.changeInputs": "Eingaben ändern",
   "planningCase.yourPalletPlan": "Ihr Palettenplan",
-  "planningCase.importedPlan": "Importierter Plan",
-  "planningCase.stackSaved": "Stapel gespeichert",
   "planningCase.downloadRob": ".rob herunterladen",
   "planningCase.overview": "Plan im Überblick",
   "planningCase.packageLwh": "Paket L × B × H",
@@ -55,8 +49,6 @@ export const planningCaseDe = {
   "planningCase.pickPackages_one": "{count} Pakete",
   "planningCase.pickPackages_other": "{count} Pakete",
   "planningCase.pickPlace": "Ablage X {x} / Y {y} / Z {z} mm",
-  "planningCase.pickEmpty":
-    "Paket auswählen, um Griff und Ablagekoordinaten zu prüfen.",
   // Tool gates (model)
   "planningCase.gate.noPlan": "Kein Plan ausgewählt.",
   "planningCase.gate.toInputs": "Zu den Eingaben",

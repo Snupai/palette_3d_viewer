@@ -944,15 +944,6 @@ export function SolverControls({
                   ? t("candidates.solver.guided.titleDone")
                   : t("candidates.solver.guided.titleIdle")}
             </h2>
-            <p>
-              {t("candidates.solver.guided.subtitle", {
-                length: project.package.dimensionsMm.length,
-                width: project.package.dimensionsMm.width,
-                pallet:
-                  project.pallet?.name ??
-                  t("candidates.solver.guided.palletFallback"),
-              })}
-            </p>
           </div>
           <span className="generator-state">
             {status === "running"
@@ -1139,7 +1130,6 @@ export function SolverControls({
                 </select>
               </label>
             </div>
-            <p>{t("candidates.solver.guided.allowanceHint")}</p>
             <PackageLabelFacePicker
               packageLengthMm={Number(draft.packageLength)}
               packageWidthMm={Number(draft.packageWidth)}
@@ -1155,12 +1145,8 @@ export function SolverControls({
             />
           </details>
         </div>
-        {preflightIssues.length > 0 && (
-          <p className="generator-hint">
-            {draft.packageCount.trim() === ""
-              ? t("candidates.solver.guided.enterCount")
-              : preflightIssues.join(" ")}
-          </p>
+        {preflightIssues.length > 0 && draft.packageCount.trim() !== "" && (
+          <p className="generator-hint">{preflightIssues.join(" ")}</p>
         )}
         {failure && (
           <p role="alert" className="fable-notice">

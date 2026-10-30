@@ -1410,7 +1410,6 @@ export function PlannerProjectWorkspace({
       </header>
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
-          planCount={projects.length}
           onCreate={createNew}
           onBrowse={browsePlans}
           onResume={

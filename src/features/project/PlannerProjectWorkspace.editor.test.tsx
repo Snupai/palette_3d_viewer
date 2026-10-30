@@ -214,7 +214,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { timeout: 5_000 },
       ),
     ).toBeTruthy();
-    expect(await screen.findAllByText("Importierter Plan")).toHaveLength(2);
+    expect(await screen.findAllByText("Importierter Plan")).toHaveLength(1);
     expect(
       screen.getByRole("heading", { name: "Plan im Überblick" }),
     ).toBeTruthy();

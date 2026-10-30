@@ -537,10 +537,6 @@ export function GuidedStackWorkspace({
       <section className="fw-row" aria-labelledby="fw-stack-mode">
         <div className="fw-row-label">
           <h2 id="fw-stack-mode">{t("stack.mode.title")}</h2>
-          <span>
-            {t("stack.mode.desc")}
-            {layerCount < 2 ? ` ${t("stack.mode.fromSecond")}` : ""}
-          </span>
         </div>
         <div className="fw-row-ctl">
           <div
@@ -591,7 +587,6 @@ export function GuidedStackWorkspace({
       <section className="fw-row" aria-labelledby="fw-stack-sheets">
         <div className="fw-row-label">
           <h2 id="fw-stack-sheets">{t("stack.sheets.title")}</h2>
-          <span>{t("stack.sheets.hint")}</span>
         </div>
         <div className="fw-row-ctl">
           <fieldset className="fw-seg-field">
@@ -1005,7 +1000,7 @@ export function GuidedStackWorkspace({
         [project.productNumber, project.projectNumber]
           .filter((part) => part.trim() !== "")
           .join(", ") || t("stack.review.notSpecified"),
-      detail: t("stack.review.metaDetail"),
+      detail: "",
       action: onEditProject
         ? {
             label: t("stack.review.changeMeta"),
@@ -1132,15 +1127,13 @@ export function GuidedStackWorkspace({
       </div>
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
-          {substep === "review"
-            ? t("stack.footer.afterSave")
-            : !canReview
-              ? t("stack.footer.needLayer")
-              : dirty
-                ? t("stack.footer.dirty")
-                : limitWarnings.length > 0
-                  ? t("stack.footer.limits")
-                  : t("stack.footer.ready")}
+          {substep === "stack" && canReview
+            ? dirty
+              ? t("stack.footer.dirty")
+              : limitWarnings.length > 0
+                ? t("stack.footer.limits")
+                : null
+            : null}
         </p>
         <div className="fw-footer-actions">
           {substep === "review" ? (

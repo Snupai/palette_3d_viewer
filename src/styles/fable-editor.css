@@ -471,6 +471,9 @@
 }
 
 /* ---------- Shared by the other tool drawers (robotics, simulation) ---------- */
+.sim-viewer {
+  min-height: 560px;
+}
 .ed-main {
   display: grid;
   gap: 12px;

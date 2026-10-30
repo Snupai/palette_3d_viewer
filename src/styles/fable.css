@@ -233,7 +233,7 @@ h3 {
   display: flex;
   gap: 16px;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
   border-top: 1px solid var(--line);
   padding-top: 20px;
@@ -387,6 +387,10 @@ h3 {
   font-size: 14px;
   color: var(--muted);
   margin: 6px 0 18px;
+}
+/* Plans without order or file name skip the subtitle line. */
+.plan-row-title:not(:has(+ .plan-subtitle)) {
+  margin-bottom: 18px;
 }
 .plan-facts {
   display: grid;
@@ -1490,13 +1494,21 @@ h3 {
     margin-top: 2px;
   }
 }
-.fable-app [aria-label="3D-Ansicht"] button {
+.fable-app .viewer-toolbar button {
   font-size: 12px;
   min-height: 36px;
   padding: 6px 8px;
 }
 @media (pointer: coarse) {
-  .fable-app [aria-label="3D-Ansicht"] button {
+  .fable-app .viewer-toolbar button {
     min-height: 44px;
   }
+}
+
+/* Wide report tables scroll inside their wrapper instead of widening the sheet. */
+.report-sheet {
+  grid-template-columns: minmax(0, 1fr);
+}
+details:has(> .report-sheet) {
+  min-width: 0;
 }

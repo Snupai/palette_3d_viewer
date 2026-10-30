@@ -455,7 +455,7 @@ export function SimulationWorkspace({
                 : "–"}
             </span>
           </div>
-          <div className="bg-viewport" style={{ minHeight: 560 }}>
+          <div className="bg-viewport sim-viewer">
             {previewData && previewData.layer_count > 0 ? (
               <RobViewer
                 data={previewData}
@@ -472,7 +472,7 @@ export function SimulationWorkspace({
                 temporaryCalibration={temporaryCalibration}
               />
             ) : (
-              <div className="ed-empty" style={{ minHeight: 560 }}>
+              <div className="ed-empty sim-viewer">
                 {t("simulation.emptyPreview")}
               </div>
             )}

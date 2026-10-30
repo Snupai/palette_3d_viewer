@@ -249,11 +249,6 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
             {preview}
           </div>
           <div className="fable-actions generation-actions">
-            <p>
-              {selected
-                ? t("planningCase.firstLayerPattern", { rank: selected.rank })
-                : t("planningCase.selectAfterCalc")}
-            </p>
             <div className="button-row">
               {stackSaved && (
                 <button
@@ -295,11 +290,6 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                   (value) => value?.trim(),
                 ) ?? t("planningCase.yourPalletPlan")}
               </h1>
-              <p>
-                {imported
-                  ? t("planningCase.importedPlan")
-                  : t("planningCase.stackSaved")}
-              </p>
             </div>
             <button className="ui-btn-primary" onClick={p.onDownloadRob}>
               {t("planningCase.downloadRob")}

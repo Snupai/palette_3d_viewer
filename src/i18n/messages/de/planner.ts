@@ -4,13 +4,9 @@ export const plannerDe = {
   "planner.welcome.title": "Womit möchten Sie beginnen?",
   "planner.welcome.createTitle": "Neuen Plan erstellen",
   "planner.welcome.createIllustration": "Ein Paket auf einer leeren Palette",
-  "planner.welcome.stepByStep": "Schritt für Schritt zum Plan",
   "planner.welcome.start": "＋ Starten",
   "planner.welcome.browseTitle": "Vorhandene Pläne ansehen",
   "planner.welcome.stackIllustration": "Illustration eines Palettenstapels",
-  "planner.welcome.plansSaved": "{count} Pläne lokal gespeichert",
-  "planner.welcome.plansSaved_one": "{count} Plan lokal gespeichert",
-  "planner.welcome.plansSaved_other": "{count} Pläne lokal gespeichert",
   "planner.open": "Öffnen",
   "planner.welcome.resume": "Zum geöffneten Plan zurück",
   // Plan render
@@ -22,12 +18,7 @@ export const plannerDe = {
   "planner.results.provisionalCycles": "Vorläufige Zyklen",
   "planner.results.blockSize": "Blockmaß",
   "planner.results.noneTitle": "Kein passendes Muster gefunden",
-  "planner.results.noneText":
-    "Ändern Sie die gewünschte Paketanzahl, die Maße oder den zulässigen Überstand und berechnen Sie erneut.",
   "planner.results.label": "Muster auswählen",
-  "planner.results.noneSelected":
-    "Noch kein Muster ausgewählt. Bitte ein Muster übernehmen.",
-  "planner.results.directCompare": "Direktvergleich",
   "planner.results.selectedVs": "Gewählt gegen Muster {rank}",
   "planner.results.closeCompare": "Vergleich schließen",
   "planner.results.yourChoice": "Ihre Auswahl",
@@ -38,8 +29,6 @@ export const plannerDe = {
   "planner.results.packagesOnLayer": "{count} Pakete auf einer Lage",
   "planner.results.packagesOnLayer_one": "{count} Pakete auf einer Lage",
   "planner.results.packagesOnLayer_other": "{count} Pakete auf einer Lage",
-  "planner.results.fitsDefault":
-    "Dieses Muster passt zu den vorgegebenen Maßen.",
   "planner.results.viewRecommendation": "Empfehlung ansehen",
   "planner.results.morePatterns": "Weitere Muster",
   "planner.results.all": "Alle",
@@ -48,8 +37,6 @@ export const plannerDe = {
   "planner.results.exactAria": "Genau Pakete je Lage",
   "planner.results.packagesUnit": "Pakete",
   "planner.results.noPatternWith": "Kein Muster mit {exact} Paketen",
-  "planner.results.searchFoundOthers":
-    "Die Suche hat andere Belegungen gefunden.",
   "planner.results.showAll": "Alle Muster anzeigen",
   "planner.results.pickAria": "Muster {rank} mit {count} Paketen wählen",
   "planner.results.pickAria_one": "Muster {rank} mit {count} Paketen wählen",
@@ -70,9 +57,6 @@ export const plannerDe = {
   "planner.results.showMore": "Weitere {count} Muster anzeigen",
   "planner.results.showMore_one": "Weitere {count} Muster anzeigen",
   "planner.results.showMore_other": "Weitere {count} Muster anzeigen",
-  "planner.results.rankingSummary": "Wie entsteht die Empfehlung?",
-  "planner.results.rankingNote":
-    "Die feste Rangfolge bevorzugt mehr Pakete, dann höhere Flächennutzung, weniger vorläufige Roboterzyklen und ein kleineres Blockmaß. Bei Gleichstand entscheidet die Geometrie-Kennung. Eine mechanische Stabilitätsprüfung ist damit nicht verbunden.",
   // Plan library
   "planner.library.label": "Planbibliothek",
   "planner.library.title": "Vorhandene Pläne",
@@ -130,7 +114,6 @@ export const plannerDe = {
   "planner.library.badgeRob": ".rob",
   "planner.library.badgeStack": "Stapel",
   "planner.library.badgeDraft": "Entwurf",
-  "planner.library.noOrder": "Ohne Auftrag",
   "planner.library.factPackage": "Paket · L × B × H",
   "planner.library.factPackagesPerLayer": "Pakete / Lage",
   "planner.library.factTotal": "Gesamt",

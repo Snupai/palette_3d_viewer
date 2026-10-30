@@ -45,33 +45,29 @@ export function FinishedStack3D({
             }}
           />
         </div>
-        <div className="viewer-pick-info" aria-live="polite">
-          {selection ? (
-            <>
-              <strong>
-                {t("planningCase.pickLayerGrip", {
-                  layer: selection.layerIndex + 1,
-                  grip: selection.blueNumber,
-                })}
-              </strong>
-              <span>
-                {t("planningCase.pickPackages", {
-                  count: selection.numPackages,
-                })}
-              </span>
-              <span>
-                {t("planningCase.pickPlace", {
-                  x: selection.placeX,
-                  y: selection.placeY,
-                  z: selection.placeZ,
-                })}
-              </span>
-              <span>{selection.rotation}°</span>
-            </>
-          ) : (
-            <span>{t("planningCase.pickEmpty")}</span>
-          )}
-        </div>
+        {selection ? (
+          <div className="viewer-pick-info" aria-live="polite">
+            <strong>
+              {t("planningCase.pickLayerGrip", {
+                layer: selection.layerIndex + 1,
+                grip: selection.blueNumber,
+              })}
+            </strong>
+            <span>
+              {t("planningCase.pickPackages", {
+                count: selection.numPackages,
+              })}
+            </span>
+            <span>
+              {t("planningCase.pickPlace", {
+                x: selection.placeX,
+                y: selection.placeY,
+                z: selection.placeZ,
+              })}
+            </span>
+            <span>{selection.rotation}°</span>
+          </div>
+        ) : null}
       </div>
       <LayerSlider
         layerCount={data.layer_count}

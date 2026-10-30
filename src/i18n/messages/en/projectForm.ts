@@ -90,27 +90,16 @@ export const projectFormEn = {
     "Please correct the marked entries and enter the packages per layer.",
   "projectForm.failure.save": "Saving failed.",
   "projectForm.failure.saveWithReason": "Saving failed: {reason}",
-  "projectForm.footer.allValid": "All entries valid.",
-  "projectForm.footer.enterCount":
-    "Enter packages per layer, then generate patterns.",
-  "projectForm.footer.enterDimensions":
-    "Enter the package length, width and height.",
   "projectForm.footer.geometryReview":
     "Changed height or handling: patterns are kept. Saved solutions stay locked for robotics and export until they are rebuilt.",
-  "projectForm.footer.notAllValid": "Not all entries are valid yet.",
   "projectForm.footer.patternsDiscarded":
     "Changed dimensions or infeed settings: generated patterns are discarded. Saved solutions are kept for review and stay locked for robotics and export until they are rebuilt.",
-  "projectForm.footer.patternsKept":
-    "These changes do not affect the patterns; they are kept.",
-  "projectForm.footer.someInvalid": "Some entries are still invalid.",
   "projectForm.fromSimpleGrid": "{count} from the simple grid",
   "projectForm.generate": "Generate patterns",
   "projectForm.height": "Height",
   "projectForm.infeed": "Infeed",
   "projectForm.label": "Label",
   "projectForm.labelEdgeAria": "Label {side}",
-  "projectForm.labelEdgeHint":
-    "Tap the edge where the label sits at the infeed.",
   "projectForm.larger": "Larger",
   "projectForm.length": "Length",
   "projectForm.lengthwise": "Lengthwise",
@@ -125,7 +114,6 @@ export const projectFormEn = {
   "projectForm.noOverhang": "no overhang",
   "projectForm.noPreference": "no preference",
   "projectForm.noPreferenceButton": "No preference",
-  "projectForm.noPreferenceCurrent": "Currently no preference.",
   "projectForm.onePackageOnPallet": "One package on the pallet",
   "projectForm.overhangLength": "Overhang length",
   "projectForm.overhangPerSideHint":
@@ -172,8 +160,6 @@ export const projectFormEn = {
     "{perLayer} per layer × {layers} layers = {total} cartons",
   "projectForm.sheetLayers": "Layers",
   "projectForm.sheetLegend": "From pallet sheet photo",
-  "projectForm.sheetLocalNote":
-    "Read locally on your own server. The values are a suggestion and must be checked against the sheet.",
   "projectForm.sheetPallet": "Pallet",
   "projectForm.sheetPhotoAlt": "Photographed pallet sheet",
   "projectForm.sheetProduct": "Product",

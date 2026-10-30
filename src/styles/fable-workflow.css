@@ -1254,3 +1254,8 @@
     flex: 1 1 160px;
   }
 }
+
+/* The footer hint only carries warnings; without one it takes no row. */
+.fw-footer-hint:empty {
+  display: none;
+}
