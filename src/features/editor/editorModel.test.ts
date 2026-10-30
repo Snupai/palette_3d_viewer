@@ -825,6 +825,31 @@ describe("Project editor groups and order", () => {
     expect(model.diagnostics).toEqual([]);
   });
 
+  it("does not carry old grip data into recalculated grips", () => {
+    const recalculate = (project: Project) =>
+      applyProjectEditorCommand(project, {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      });
+    const calculated = recalculate(editorProject());
+    // Same placement groups (and grip ids), but a grip edited by the user.
+    const edited = applyProjectEditorCommand(calculated, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      labelSide: "left",
+    });
+    const grips = (project: Project) =>
+      project.solutions[0]!.patterns[0]!.grips;
+
+    expect(grips(edited)).not.toEqual(grips(calculated));
+    expect(grips(recalculate(edited))).toEqual(grips(calculated));
+  });
+
   it("recalculates grips from the package geometry as one undoable step", () => {
     const initial = editorProject();
     const firstGripId = projectEditorOrderModel(

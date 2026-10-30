@@ -2369,21 +2369,24 @@ export function applyProjectEditorCommand(
     }
     case "recalculate-groups": {
       // Discards manual grips and their explicit order so the automatic
-      // calculation starts from the current package geometry.
+      // calculation starts from the current package geometry. The cleared
+      // pattern is also the sync baseline, so recalculated grips with
+      // unchanged ids keep no old pick or dx/dy data.
+      const ungrouped: LayerPattern = {
+        ...previousPattern,
+        grips: [],
+        placements: previousPattern.placements.map((placement) => ({
+          ...placement,
+          gripId: null,
+        })),
+        groupOrder: [],
+        orderDependencies: [],
+      };
       return replacePattern(
         project,
         command.solutionId,
-        previousPattern,
-        ensurePatternGroups(project, {
-          ...previousPattern,
-          grips: [],
-          placements: previousPattern.placements.map((placement) => ({
-            ...placement,
-            gripId: null,
-          })),
-          groupOrder: [],
-          orderDependencies: [],
-        }),
+        ungrouped,
+        ensurePatternGroups(project, ungrouped),
       );
     }
     case "reorder-group": {
