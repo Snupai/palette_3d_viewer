@@ -73,8 +73,12 @@ describe("detectDocumentQuad", () => {
     ).toBeNull();
   });
 
-  it("reports no document when the sheet is too small or fills the frame", () => {
+  it("reports no document when the sheet is too small, cut off, or fills the frame", () => {
     expect(detectDocumentQuad(sheet(70, 50, 90, 70), WIDTH, HEIGHT)).toBeNull();
+    expect(detectDocumentQuad(sheet(0, 30, 120, 90), WIDTH, HEIGHT)).toBeNull();
+    expect(
+      detectDocumentQuad(sheet(40, 0, 120, 120), WIDTH, HEIGHT),
+    ).toBeNull();
     expect(detectDocumentQuad(sheet(0, 0, 160, 118), WIDTH, HEIGHT)).toBeNull();
   });
 

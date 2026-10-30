@@ -15,8 +15,6 @@ export const DETECTION_WIDTH = 160;
 
 /** The sheet must cover at least this share of the frame to count. */
 const MIN_AREA_FRACTION = 0.1;
-/** Above this the whole frame is bright and no sheet edge is visible. */
-const MAX_AREA_FRACTION = 0.95;
 /** Region pixels / quad area must stay within this of 1; rejects bright blobs that are not quadrilaterals. */
 const MAX_FILL_DEVIATION = 0.15;
 /** Otsu between-class separation (in luminance units) a sheet needs over its background. */
@@ -122,7 +120,7 @@ function isConvex(points: readonly Point[]): boolean {
 
 /**
  * Finds the document in a luminance frame, or `null` when no sheet is visible
- * (too little contrast, too small, filling the whole frame, or not four-cornered).
+ * (too little contrast, too small, cut off at the frame edge, or not four-cornered).
  */
 export function detectDocumentQuad(
   luminance: Uint8Array,
@@ -138,13 +136,7 @@ export function detectDocumentQuad(
   }
   const region = largestRegion(mask, width, height);
   const frameArea = width * height;
-  const regionFraction = region.length / frameArea;
-  if (
-    regionFraction < MIN_AREA_FRACTION ||
-    regionFraction > MAX_AREA_FRACTION
-  ) {
-    return null;
-  }
+  if (region.length / frameArea < MIN_AREA_FRACTION) return null;
 
   // Extreme points along the diagonals are the corners of a sheet held
   // roughly upright (up to about ±40° of rotation).
@@ -155,6 +147,10 @@ export function detectDocumentQuad(
   for (const index of region) {
     const x = index % width;
     const y = (index - x) / width;
+    // A region touching the frame edge is a sheet cut off by the camera.
+    if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+      return null;
+    }
     if (x + y < topLeft.score) topLeft = { x, y, score: x + y };
     if (x + y > bottomRight.score) bottomRight = { x, y, score: x + y };
     if (x - y > topRight.score) topRight = { x, y, score: x - y };
