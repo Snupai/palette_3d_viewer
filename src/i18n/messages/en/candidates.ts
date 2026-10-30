@@ -120,8 +120,6 @@ export const candidatesEn = {
   "candidates.solver.guided.titleRunning": "Searching for matching patterns",
   "candidates.solver.guided.titleDone": "Search complete",
   "candidates.solver.guided.titleIdle": "Calculate patterns",
-  "candidates.solver.guided.subtitle": "{length} × {width} mm on {pallet}",
-  "candidates.solver.guided.palletFallback": "Pallet",
   "candidates.solver.guided.stateRunning": "Calculating",
   "candidates.solver.cancelled": "Cancelled",
   "candidates.solver.guided.stateDistinct": "{count} distinct patterns",
@@ -150,10 +148,6 @@ export const candidatesEn = {
     "Combine lengthwise and crosswise",
   "candidates.solver.multipick": "Allow multipick",
   "candidates.solver.guided.symmetry": "Include mirrored variants",
-  "candidates.solver.guided.allowanceHint":
-    "The overhang / underhang is split equally between both sides. The search parameters do not change the saved pallet allowance.",
-  "candidates.solver.guided.enterCount":
-    "Enter the desired number of packages per layer.",
   "candidates.solver.guided.cancelledNotice":
     "Calculation cancelled. No incomplete patterns were applied.",
   "candidates.solver.guided.stale":

@@ -125,8 +125,6 @@ export const candidatesDe = {
   "candidates.solver.guided.titleRunning": "Passende Muster werden gesucht",
   "candidates.solver.guided.titleDone": "Suche abgeschlossen",
   "candidates.solver.guided.titleIdle": "Muster berechnen",
-  "candidates.solver.guided.subtitle": "{length} × {width} mm auf {pallet}",
-  "candidates.solver.guided.palletFallback": "Palette",
   "candidates.solver.guided.stateRunning": "Berechnung läuft",
   "candidates.solver.cancelled": "Abgebrochen",
   "candidates.solver.guided.stateDistinct": "{count} unterschiedliche Muster",
@@ -154,10 +152,6 @@ export const candidatesDe = {
   "candidates.solver.guided.mixOrientations": "Längs und quer kombinieren",
   "candidates.solver.multipick": "Mehrfachgriff erlauben",
   "candidates.solver.guided.symmetry": "Gespiegelte Varianten einbeziehen",
-  "candidates.solver.guided.allowanceHint":
-    "Der Über-/Unterstand wird gleichmäßig auf beide Seiten verteilt. Die Suchparameter ändern die gespeicherte Palettenfreigabe nicht.",
-  "candidates.solver.guided.enterCount":
-    "Geben Sie die gewünschte Anzahl Pakete je Lage ein.",
   "candidates.solver.guided.cancelledNotice":
     "Berechnung abgebrochen. Es wurden keine unvollständigen Muster übernommen.",
   "candidates.solver.guided.stale":

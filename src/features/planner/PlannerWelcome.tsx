@@ -38,12 +38,10 @@ export function PlannerWelcome({
   onCreate,
   onBrowse,
   onResume,
-  planCount,
 }: {
   onCreate: () => void;
   onBrowse: () => void;
   onResume?: () => void;
-  planCount: number;
 }) {
   const t = useT();
   return (
@@ -61,7 +59,6 @@ export function PlannerWelcome({
             title={t("planner.welcome.createIllustration")}
           />
           <span className="door-foot">
-            <span>{t("planner.welcome.stepByStep")}</span>
             <strong className="primary-label">
               {t("planner.welcome.start")}
             </strong>
@@ -81,7 +78,6 @@ export function PlannerWelcome({
             ))}
           </div>
           <span className="door-foot">
-            <span>{t("planner.welcome.plansSaved", { count: planCount })}</span>
             <strong>{t("planner.open")}</strong>
           </span>
         </button>

@@ -363,9 +363,8 @@ function LabelEdgePicker({
           <path d="M0 6h20M15 1l6 5-6 5" fill="none" stroke="currentColor" />
         </svg>
       </div>
-      <p className="fw-hint">
-        {t("projectForm.labelEdgeHint")}{" "}
-        {selectedEdge ? (
+      {selectedEdge ? (
+        <p className="fw-hint">
           <button
             type="button"
             className="fw-link"
@@ -374,10 +373,8 @@ function LabelEdgePicker({
           >
             {t("projectForm.noPreferenceButton")}
           </button>
-        ) : (
-          t("projectForm.noPreferenceCurrent")
-        )}
-      </p>
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -726,7 +723,6 @@ export function GuidedProjectForm({
   const changesGeometry = project
     ? geometryReviewChanges(project, values)
     : null;
-  const openErrorCount = Object.keys(schemaErrors).length;
 
   const footerHint = (() => {
     if (failure) return null;
@@ -737,17 +733,8 @@ export function GuidedProjectForm({
       if (changesPatterns === false && changesGeometry === true) {
         return t("projectForm.footer.geometryReview");
       }
-      if (changesPatterns === false) {
-        return t("projectForm.footer.patternsKept");
-      }
-      return t("projectForm.footer.notAllValid");
     }
-    if (!box) return t("projectForm.footer.enterDimensions");
-    if (openErrorCount > 0) return t("projectForm.footer.someInvalid");
-    if (parsedCount === null) {
-      return t("projectForm.footer.enterCount");
-    }
-    return t("projectForm.footer.allValid");
+    return null;
   })();
 
   const field = (

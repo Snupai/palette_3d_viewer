@@ -215,11 +215,7 @@ describe("GuidedProjectForm (inline ProjectDialog)", () => {
     expect(document.activeElement).toBe(screen.getByLabelText("Artikelnummer"));
 
     type("Artikelnummer", "A-41820");
-    expect(
-      screen.getByText(
-        "Diese Änderungen betreffen die Muster nicht; sie bleiben erhalten.",
-      ),
-    ).toBeTruthy();
+    expect(screen.queryByText(/Muster werden verworfen/)).toBeNull();
     type("Länge", "410");
     expect(
       screen.getByText(

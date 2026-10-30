@@ -207,12 +207,6 @@
   .generation-actions {
     padding-bottom: calc(10px + max(28px, env(safe-area-inset-bottom)));
   }
-  .generation-actions > p {
-    font-size: 12px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
   .generation-actions .button-row {
     flex-wrap: wrap;
     gap: 8px;

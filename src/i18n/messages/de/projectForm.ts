@@ -93,27 +93,16 @@ export const projectFormDe = {
     "Bitte die markierten Angaben korrigieren und die Pakete je Schicht eintragen.",
   "projectForm.failure.save": "Speichern fehlgeschlagen.",
   "projectForm.failure.saveWithReason": "Speichern fehlgeschlagen: {reason}",
-  "projectForm.footer.allValid": "Alle Angaben gültig.",
-  "projectForm.footer.enterCount":
-    "Pakete je Schicht eintragen, dann Muster erzeugen.",
-  "projectForm.footer.enterDimensions":
-    "Länge, Breite und Höhe des Pakets eintragen.",
   "projectForm.footer.geometryReview":
     "Geänderte Höhe oder Handhabung: Muster bleiben erhalten. Gespeicherte Lösungen sind bis zum Neuaufbau für Robotik und Export gesperrt.",
-  "projectForm.footer.notAllValid": "Noch nicht alle Angaben sind gültig.",
   "projectForm.footer.patternsDiscarded":
     "Geänderte Maße oder Einlaufangaben: erzeugte Muster werden verworfen. Gespeicherte Lösungen bleiben zur Prüfung erhalten und sind bis zum Neuaufbau für Robotik und Export gesperrt.",
-  "projectForm.footer.patternsKept":
-    "Diese Änderungen betreffen die Muster nicht; sie bleiben erhalten.",
-  "projectForm.footer.someInvalid": "Einige Angaben sind noch ungültig.",
   "projectForm.fromSimpleGrid": "{count} aus dem einfachen Raster",
   "projectForm.generate": "Muster erzeugen",
   "projectForm.height": "Höhe",
   "projectForm.infeed": "Einlauf",
   "projectForm.label": "Etikett",
   "projectForm.labelEdgeAria": "Etikett {side}",
-  "projectForm.labelEdgeHint":
-    "Kante antippen, an der das Etikett am Einlauf sitzt.",
   "projectForm.larger": "Größer",
   "projectForm.length": "Länge",
   "projectForm.lengthwise": "Längs",
@@ -127,7 +116,6 @@ export const projectFormDe = {
   "projectForm.noOverhang": "ohne Überstand",
   "projectForm.noPreference": "ohne Vorgabe",
   "projectForm.noPreferenceButton": "Ohne Vorgabe",
-  "projectForm.noPreferenceCurrent": "Aktuell ohne Vorgabe.",
   "projectForm.onePackageOnPallet": "Ein Paket auf der Palette",
   "projectForm.overhangLength": "Überstand Länge",
   "projectForm.overhangPerSideHint":
@@ -174,8 +162,6 @@ export const projectFormDe = {
     "{perLayer} je Lage × {layers} Lagen = {total} Kartons",
   "projectForm.sheetLayers": "Lagen",
   "projectForm.sheetLegend": "Aus Palettenblatt-Foto",
-  "projectForm.sheetLocalNote":
-    "Wird lokal auf dem eigenen Server gelesen. Die Werte sind ein Vorschlag und müssen mit dem Blatt abgeglichen werden.",
   "projectForm.sheetPallet": "Palette",
   "projectForm.sheetPhotoAlt": "Fotografiertes Palettenblatt",
   "projectForm.sheetProduct": "Produkt",

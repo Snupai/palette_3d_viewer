@@ -149,7 +149,6 @@ export function SheetPhotoImport({
         >
           {busy ? busyLabel : t("projectForm.sheetGallery")}
         </button>
-        <span className="fw-note">{t("projectForm.sheetLocalNote")}</span>
       </div>
 
       {photoUrl || error ? (
