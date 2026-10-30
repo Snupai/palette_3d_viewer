@@ -470,6 +470,24 @@ describe("ProjectEditorWorkspace order and persistence", () => {
     ).toBeTruthy();
   });
 
+  it("recalculates imported grips automatically for inspection and editing", () => {
+    const onDraftChange = vi.fn();
+    renderEditor({ project: importedGripProject(), onDraftChange });
+    fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Griffe neu berechnen" }),
+    );
+
+    const draft = onDraftChange.mock.calls.at(-1)?.[0] as Project | null;
+    const grips = draft?.solutions[0]?.patterns[0]?.grips ?? [];
+    expect(grips.map(({ id }) => id)).not.toContain("g1");
+    expect(grips.map(({ numPackages }) => numPackages)).toEqual([2, 2]);
+    expect(screen.getByText("Ungespeicherte Änderungen")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Griff G1 auswählen" }));
+    expect(screen.getByText("2 ausgewählt")).toBeTruthy();
+  });
+
   it("renders inferred legacy dependencies as immutable and selects grips from the list", () => {
     renderEditor({ project: importedGripProject() });
     fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
