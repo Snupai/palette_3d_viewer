@@ -28,7 +28,7 @@ The Next.js dev "N" badge (bottom left) is visible in every screenshot. It cover
 | stack-review (`before-stack-review.png`) | Zurück | 2278 | 2370 | 30 | **yes**, 37 px inside |
 | stack-review (`before-stack-review.png`) | Plan speichern | 2278 | 2370 | 30 | **yes**, 37 px inside |
 
-## AFTER (b27738b)
+## AFTER (cd061de)
 
 | Screen (file) | Button | top y | bottom y | to bottom | gesture zone (y ≥ 2333) |
 |---|---|---:|---:|---:|---|
@@ -42,8 +42,8 @@ The Next.js dev "N" badge (bottom left) is visible in every screenshot. It cover
 | patterns (`after-patterns.png`) | Stapel aufbauen | 2120 | 2212 | 188 | no (121 px clear) |
 | stack (`after-stack.png`) | Zurück | 2233 | 2326 | 74 | no (7 px clear) |
 | stack (`after-stack.png`) | Prüfen & speichern | 2233 | 2326 | 74 | no (7 px clear) |
-| stack-review (`after-stack-review.png`) | Zurück | 2233 | 2326 | 74 | no (7 px clear) |
-| stack-review (`after-stack-review.png`) | Plan speichern | 2233 | 2326 | 74 | no (7 px clear) |
+| stack-review (`after-stack-review.png`) | Zurück | 2098 | 2190 | 210 | no (143 px clear) |
+| stack-review (`after-stack-review.png`) | Plan speichern | 2098 | 2190 | 210 | no (143 px clear) |
 
 The /plan/<id>/build page after saving has no bottom bar. Its only match was the in-page "Weitere Muster erzeugen" button below the fold, which is left out of the tables.
 
