@@ -1,8 +1,8 @@
 /**
  * Live document detection for the sheet camera. Works on a small luminance
- * frame (≈160 px wide): a paper sheet is the largest bright, roughly
- * quadrilateral region against a darker background. Pure, so it runs in tests
- * without a camera or canvas.
+ * frame (≈160 px wide): a paper sheet is a bright, four-cornered region that
+ * stands out from what surrounds it. Pure, so it runs in tests without a
+ * camera or canvas.
  */
 
 export type Point = { x: number; y: number };
@@ -15,10 +15,16 @@ export const DETECTION_WIDTH = 160;
 
 /** The sheet must cover at least this share of the frame to count. */
 const MIN_AREA_FRACTION = 0.1;
-/** Region pixels / quad area must stay within this of 1; rejects bright blobs that are not quadrilaterals. */
-const MAX_FILL_DEVIATION = 0.15;
-/** Otsu between-class separation (in luminance units) a sheet needs over its background. */
-const MIN_CONTRAST = 40;
+/** Share of the quad the region must cover; text and windows leave holes. */
+const MIN_INSIDE_FILL = 0.75;
+/** Region pixels outside the quad, relative to its area; rejects discs and blobs. */
+const MAX_OUTSIDE_FILL = 0.1;
+/** Luminance step between the sheet edge and just outside it. */
+const MIN_EDGE_CONTRAST = 30;
+/** Brightness cut-offs tried, brightest first: paper is not always the brightest thing in view. */
+const THRESHOLDS = Array.from({ length: 26 }, (_, index) => 240 - index * 8);
+/** Distance in pixels from the edge at which inside and outside are sampled. */
+const EDGE_SAMPLE_OFFSET = 2;
 
 /** Rec. 601 luma of an RGBA buffer, e.g. from `getImageData`. */
 export function rgbaToLuminance(rgba: ArrayLike<number>): Uint8Array {
@@ -29,69 +35,6 @@ export function rgbaToLuminance(rgba: ArrayLike<number>): Uint8Array {
       (rgba[o]! * 77 + rgba[o + 1]! * 150 + rgba[o + 2]! * 29) >> 8;
   }
   return luminance;
-}
-
-/** Otsu threshold plus the mean gap between the two classes it splits. */
-function otsu(luminance: Uint8Array): { threshold: number; contrast: number } {
-  const histogram = new Array<number>(256).fill(0);
-  let sum = 0;
-  for (const value of luminance) {
-    histogram[value]!++;
-    sum += value;
-  }
-  const total = luminance.length;
-  let backgroundCount = 0;
-  let backgroundSum = 0;
-  let best = { threshold: 0, contrast: 0, variance: -1 };
-  for (let t = 0; t < 256; t++) {
-    backgroundCount += histogram[t]!;
-    if (backgroundCount === 0) continue;
-    const foregroundCount = total - backgroundCount;
-    if (foregroundCount === 0) break;
-    backgroundSum += t * histogram[t]!;
-    const backgroundMean = backgroundSum / backgroundCount;
-    const foregroundMean = (sum - backgroundSum) / foregroundCount;
-    const gap = foregroundMean - backgroundMean;
-    const variance = backgroundCount * foregroundCount * gap * gap;
-    if (variance > best.variance)
-      best = { threshold: t, contrast: gap, variance };
-  }
-  return { threshold: best.threshold, contrast: best.contrast };
-}
-
-/** Pixel indices of the largest 4-connected region where `mask` is set. */
-function largestRegion(
-  mask: Uint8Array,
-  width: number,
-  height: number,
-): Int32Array {
-  const visited = new Uint8Array(mask.length);
-  const queue = new Int32Array(mask.length);
-  let best = new Int32Array(0);
-  for (let start = 0; start < mask.length; start++) {
-    if (!mask[start] || visited[start]) continue;
-    let head = 0;
-    let tail = 0;
-    queue[tail++] = start;
-    visited[start] = 1;
-    while (head < tail) {
-      const index = queue[head++]!;
-      const x = index % width;
-      const neighbours = [
-        x > 0 ? index - 1 : -1,
-        x < width - 1 ? index + 1 : -1,
-        index >= width ? index - width : -1,
-        index < width * (height - 1) ? index + width : -1,
-      ];
-      for (const next of neighbours) {
-        if (next < 0 || !mask[next] || visited[next]) continue;
-        visited[next] = 1;
-        queue[tail++] = next;
-      }
-    }
-    if (tail > best.length) best = queue.slice(0, tail);
-  }
-  return best;
 }
 
 function polygonArea(points: readonly Point[]): number {
@@ -118,26 +61,152 @@ function isConvex(points: readonly Point[]): boolean {
   return true;
 }
 
-/**
- * Finds the document in a luminance frame, or `null` when no sheet is visible
- * (too little contrast, too small, cut off at the frame edge, or not four-cornered).
- */
-export function detectDocumentQuad(
+/** Corners in image coordinates run clockwise, so inside is right of every edge. */
+function insideQuad(corners: readonly Point[], x: number, y: number): boolean {
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]!;
+    const b = corners[(i + 1) % 4]!;
+    if ((b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) < 0) return false;
+  }
+  return true;
+}
+
+/** Mean luminance step from just inside to just outside the quad's edges. */
+function edgeContrast(
   luminance: Uint8Array,
   width: number,
   height: number,
-): DocumentQuad | null {
-  const { threshold, contrast } = otsu(luminance);
-  if (contrast < MIN_CONTRAST) return null;
-
-  const mask = new Uint8Array(luminance.length);
-  for (let i = 0; i < luminance.length; i++) {
-    mask[i] = luminance[i]! > threshold ? 1 : 0;
+  corners: readonly Point[],
+): number {
+  const sample = (x: number, y: number) =>
+    luminance[
+      Math.min(height - 1, Math.max(0, Math.floor(y))) * width +
+        Math.min(width - 1, Math.max(0, Math.floor(x)))
+    ]!;
+  let total = 0;
+  let count = 0;
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]!;
+    const b = corners[(i + 1) % 4]!;
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    // Outward normal of a clockwise edge in image coordinates.
+    const nx = ((b.y - a.y) / length) * EDGE_SAMPLE_OFFSET;
+    const ny = (-(b.x - a.x) / length) * EDGE_SAMPLE_OFFSET;
+    for (let step = 1; step < 10; step++) {
+      const x = a.x + ((b.x - a.x) * step) / 10;
+      const y = a.y + ((b.y - a.y) * step) / 10;
+      total += sample(x - nx, y - ny) - sample(x + nx, y + ny);
+      count++;
+    }
   }
-  const region = largestRegion(mask, width, height);
-  const frameArea = width * height;
-  if (region.length / frameArea < MIN_AREA_FRACTION) return null;
+  return total / count;
+}
 
+/** How far (pixels) each side may move when it is snapped to the strongest edge. */
+const REFINE_SEARCH = 12;
+
+/**
+ * Snaps each side to the strongest bright→dark step along its middle half and
+ * intersects the fitted lines. Uneven light can clip a corner at any single
+ * brightness cut-off; the sides themselves stay straight.
+ */
+function refineCorners(
+  luminance: Uint8Array,
+  width: number,
+  height: number,
+  corners: readonly Point[],
+): Point[] {
+  const sample = (x: number, y: number) =>
+    luminance[
+      Math.min(height - 1, Math.max(0, Math.floor(y))) * width +
+        Math.min(width - 1, Math.max(0, Math.floor(x)))
+    ]!;
+  const lines: { point: Point; direction: Point }[] = [];
+  for (let i = 0; i < 4; i++) {
+    const a = corners[i]!;
+    const b = corners[(i + 1) % 4]!;
+    const length = Math.hypot(b.x - a.x, b.y - a.y);
+    const dx = (b.x - a.x) / length;
+    const dy = (b.y - a.y) / length;
+    // Outward normal of a clockwise edge in image coordinates.
+    const nx = dy;
+    const ny = -dx;
+    const points: Point[] = [];
+    for (let step = 0; step <= 16; step++) {
+      const t = 0.25 + (0.5 * step) / 16;
+      const x = a.x + (b.x - a.x) * t;
+      const y = a.y + (b.y - a.y) * t;
+      let bestStep = -Infinity;
+      let bestOffset = 0;
+      for (let k = -REFINE_SEARCH; k <= REFINE_SEARCH; k++) {
+        // Pixel just inside vs just outside a boundary at offset k.
+        const value =
+          sample(x + nx * (k - 0.5), y + ny * (k - 0.5)) -
+          sample(x + nx * (k + 0.5), y + ny * (k + 0.5));
+        if (value > bestStep) {
+          bestStep = value;
+          bestOffset = k;
+        }
+      }
+      if (bestStep >= MIN_EDGE_CONTRAST) {
+        points.push({ x: x + nx * bestOffset, y: y + ny * bestOffset });
+      }
+    }
+    if (points.length < 6) return [...corners];
+    // Least-squares line: centroid plus principal direction.
+    const cx = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+    const cy = points.reduce((sum, point) => sum + point.y, 0) / points.length;
+    let sxx = 0;
+    let sxy = 0;
+    let syy = 0;
+    for (const point of points) {
+      sxx += (point.x - cx) ** 2;
+      sxy += (point.x - cx) * (point.y - cy);
+      syy += (point.y - cy) ** 2;
+    }
+    const angle = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+    lines.push({
+      point: { x: cx, y: cy },
+      direction: { x: Math.cos(angle), y: Math.sin(angle) },
+    });
+  }
+  const refined: Point[] = [];
+  for (let i = 0; i < 4; i++) {
+    // Corner i joins the side ending there (i − 1) and the side starting there (i).
+    const p = lines[(i + 3) % 4]!;
+    const q = lines[i]!;
+    const cross = p.direction.x * q.direction.y - p.direction.y * q.direction.x;
+    if (Math.abs(cross) < 0.2) return [...corners];
+    const t =
+      ((q.point.x - p.point.x) * q.direction.y -
+        (q.point.y - p.point.y) * q.direction.x) /
+      cross;
+    const corner = {
+      x: p.point.x + p.direction.x * t,
+      y: p.point.y + p.direction.y * t,
+    };
+    const rough = corners[i]!;
+    if (
+      Math.hypot(corner.x - rough.x, corner.y - rough.y) > REFINE_SEARCH * 2 ||
+      corner.x < 0 ||
+      corner.y < 0 ||
+      corner.x > width ||
+      corner.y > height
+    ) {
+      return [...corners];
+    }
+    refined.push(corner);
+  }
+  return isConvex(refined) ? refined : [...corners];
+}
+
+/** Quad of one bright region, or null when the region does not look like a sheet. */
+function regionQuad(
+  region: Int32Array,
+  luminance: Uint8Array,
+  width: number,
+  height: number,
+): Point[] | null {
   // Extreme points along the diagonals are the corners of a sheet held
   // roughly upright (up to about ±40° of rotation).
   let topLeft = { x: 0, y: 0, score: Infinity };
@@ -165,9 +234,76 @@ export function detectDocumentQuad(
   ];
   if (!isConvex(corners)) return null;
   const quadArea = polygonArea(corners);
-  if (quadArea / frameArea < MIN_AREA_FRACTION) return null;
-  if (Math.abs(region.length / quadArea - 1) > MAX_FILL_DEVIATION) return null;
+  if (quadArea / (width * height) < MIN_AREA_FRACTION) return null;
+  let inside = 0;
+  for (const index of region) {
+    const x = index % width;
+    if (insideQuad(corners, x + 0.5, (index - x) / width + 0.5)) inside++;
+  }
+  if (inside / quadArea < MIN_INSIDE_FILL) return null;
+  if ((region.length - inside) / quadArea > MAX_OUTSIDE_FILL) return null;
+  if (edgeContrast(luminance, width, height, corners) < MIN_EDGE_CONTRAST) {
+    return null;
+  }
+  return corners;
+}
 
+/**
+ * Finds the document in a luminance frame, or `null` when no sheet is visible
+ * (too little contrast, too small, cut off at the frame edge, or not four-cornered).
+ * Tries several brightness cut-offs, because a bright tablecloth or wall can
+ * merge with the sheet at one cut-off and separate from it at a higher one;
+ * the largest sheet-like region wins.
+ */
+export function detectDocumentQuad(
+  luminance: Uint8Array,
+  width: number,
+  height: number,
+): DocumentQuad | null {
+  const minRegion = MIN_AREA_FRACTION * width * height;
+  const visited = new Uint8Array(luminance.length);
+  const queue = new Int32Array(luminance.length);
+  let best: { corners: Point[]; area: number } | null = null;
+  for (const threshold of THRESHOLDS) {
+    visited.fill(0);
+    for (let start = 0; start < luminance.length; start++) {
+      if (visited[start] || luminance[start]! <= threshold) continue;
+      // Flood-fill one 4-connected bright region.
+      let head = 0;
+      let tail = 0;
+      queue[tail++] = start;
+      visited[start] = 1;
+      while (head < tail) {
+        const index = queue[head++]!;
+        const x = index % width;
+        const neighbours = [
+          x > 0 ? index - 1 : -1,
+          x < width - 1 ? index + 1 : -1,
+          index >= width ? index - width : -1,
+          index < width * (height - 1) ? index + width : -1,
+        ];
+        for (const next of neighbours) {
+          if (next < 0 || visited[next] || luminance[next]! <= threshold) {
+            continue;
+          }
+          visited[next] = 1;
+          queue[tail++] = next;
+        }
+      }
+      if (tail < minRegion) continue;
+      const corners = regionQuad(
+        queue.subarray(0, tail),
+        luminance,
+        width,
+        height,
+      );
+      if (!corners) continue;
+      const area = polygonArea(corners);
+      if (!best || area > best.area) best = { corners, area };
+    }
+  }
+  if (!best) return null;
+  const corners = refineCorners(luminance, width, height, best.corners);
   const [a, b, c, d] = corners.map((point) => ({
     x: point.x / width,
     y: point.y / height,

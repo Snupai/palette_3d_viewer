@@ -39,7 +39,7 @@ describe("detectDocumentQuad", () => {
   });
 
   it("follows a tilted sheet", () => {
-    // Sheet rotated ~20°: corners (60,10) (140,40) (100,110) (20,80); detection lands within 1 px.
+    // Sheet rotated ~20°: corners (60,10) (140,40) (100,110) (20,80); detection lands on them.
     const corners = [
       { x: 60, y: 10 },
       { x: 140, y: 40 },
@@ -60,16 +60,42 @@ describe("detectDocumentQuad", () => {
       quad?.map(({ x, y }) => [Math.round(x * WIDTH), Math.round(y * HEIGHT)]),
     ).toEqual([
       [60, 10],
-      [139, 39],
-      [101, 109],
+      [140, 40],
+      [100, 110],
       [20, 80],
+    ]);
+  });
+
+  it("finds an unevenly lit sheet between a bright cloth and a bright floor", () => {
+    // Wood table (77) with a cloth in the top-left corner (125), a dark table
+    // edge (50) and a light floor (170) below it that is larger than the sheet. The sheet darkens from 190
+    // to 128 towards its top-left corner, so no single cut-off fits it.
+    const scene = frame(77, (x, y) => {
+      if (y >= 80) return 170;
+      if (y >= 74) return 50;
+      if (x >= 30 && x < 130 && y >= 15 && y < 70) {
+        return Math.round(128 + ((x - 30 + (y - 15)) / 153) * 62);
+      }
+      if (x + y < 40) return 125;
+      return null;
+    });
+    expect(
+      detectDocumentQuad(scene, WIDTH, HEIGHT)?.map(({ x, y }) => [
+        Math.round(x * WIDTH),
+        Math.round(y * HEIGHT),
+      ]),
+    ).toEqual([
+      [30, 15],
+      [130, 15],
+      [130, 70],
+      [30, 70],
     ]);
   });
 
   it("reports no document without contrast", () => {
     expect(detectDocumentQuad(frame(128), WIDTH, HEIGHT)).toBeNull();
     expect(
-      detectDocumentQuad(sheet(40, 30, 120, 90, 70), WIDTH, HEIGHT),
+      detectDocumentQuad(sheet(40, 30, 120, 90, 60), WIDTH, HEIGHT),
     ).toBeNull();
   });
 
