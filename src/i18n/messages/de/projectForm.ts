@@ -1,6 +1,29 @@
 /** Namespace `projectForm` — German source strings. */
 export const projectFormDe = {
   "projectForm.allowMultiGrip": "Mehrfachgriff erlauben",
+  "projectForm.camera.captureFailed":
+    "Das Foto konnte nicht aufgenommen werden.",
+  "projectForm.camera.close": "Schließen",
+  "projectForm.camera.detected": "Blatt erkannt – jetzt aufnehmen",
+  "projectForm.camera.error.busy":
+    "Die Kamera wird gerade von einer anderen App verwendet.",
+  "projectForm.camera.error.denied":
+    "Kein Kamerazugriff. Bitte die Kamera für diese Seite in den Browser-Einstellungen erlauben.",
+  "projectForm.camera.error.failed":
+    "Die Kamera konnte nicht gestartet werden.",
+  "projectForm.camera.error.notFound": "Keine Kamera gefunden.",
+  "projectForm.camera.error.unsupported":
+    "Dieser Browser bietet keine Live-Vorschau (HTTPS nötig).",
+  "projectForm.camera.fallback": "Kamera-App verwenden",
+  "projectForm.camera.noDocument":
+    "Kein Blatt erkannt. Das ganze Blatt auf dunklem Untergrund ins Bild halten.",
+  "projectForm.camera.retake": "Neu aufnehmen",
+  "projectForm.camera.retry": "Erneut versuchen",
+  "projectForm.camera.reviewAlt": "Aufgenommenes Foto",
+  "projectForm.camera.shutter": "Aufnehmen",
+  "projectForm.camera.starting": "Kamera wird gestartet …",
+  "projectForm.camera.title": "Palettenblatt fotografieren",
+  "projectForm.camera.use": "Foto verwenden",
   "projectForm.cancel": "Abbrechen",
   "projectForm.change": "Ändern",
   "projectForm.collapse": "Zuklappen",

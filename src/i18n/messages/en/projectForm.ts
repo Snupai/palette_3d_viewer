@@ -2,6 +2,26 @@ import type { projectFormDe } from "../de/projectForm";
 
 export const projectFormEn = {
   "projectForm.allowMultiGrip": "Allow multi-pick",
+  "projectForm.camera.captureFailed": "The photo could not be taken.",
+  "projectForm.camera.close": "Close",
+  "projectForm.camera.detected": "Sheet detected – take the photo",
+  "projectForm.camera.error.busy": "The camera is in use by another app.",
+  "projectForm.camera.error.denied":
+    "No camera access. Please allow the camera for this site in the browser settings.",
+  "projectForm.camera.error.failed": "The camera could not be started.",
+  "projectForm.camera.error.notFound": "No camera found.",
+  "projectForm.camera.error.unsupported":
+    "This browser offers no live preview (HTTPS required).",
+  "projectForm.camera.fallback": "Use camera app",
+  "projectForm.camera.noDocument":
+    "No sheet detected. Hold the whole sheet in view on a dark background.",
+  "projectForm.camera.retake": "Retake",
+  "projectForm.camera.retry": "Try again",
+  "projectForm.camera.reviewAlt": "Captured photo",
+  "projectForm.camera.shutter": "Take photo",
+  "projectForm.camera.starting": "Starting camera …",
+  "projectForm.camera.title": "Photograph pallet sheet",
+  "projectForm.camera.use": "Use photo",
   "projectForm.cancel": "Cancel",
   "projectForm.change": "Edit",
   "projectForm.collapse": "Collapse",
