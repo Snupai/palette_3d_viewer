@@ -13,14 +13,21 @@ export const projectFormEn = {
   "projectForm.camera.error.unsupported":
     "This browser offers no live preview (HTTPS required).",
   "projectForm.camera.fallback": "Use camera app",
+  "projectForm.camera.noCrop":
+    "No sheet detected – the original photo is used.",
   "projectForm.camera.noDocument":
     "No sheet detected. Hold the whole sheet in view on a dark background.",
+  "projectForm.camera.processing": "Cropping photo …",
   "projectForm.camera.retake": "Retake",
   "projectForm.camera.retry": "Try again",
   "projectForm.camera.reviewAlt": "Captured photo",
+  "projectForm.camera.reviewAltCropped": "Cropped photo",
   "projectForm.camera.shutter": "Take photo",
   "projectForm.camera.starting": "Starting camera …",
   "projectForm.camera.title": "Photograph pallet sheet",
+  "projectForm.camera.version": "Photo version",
+  "projectForm.camera.version.cropped": "Cropped",
+  "projectForm.camera.version.original": "Original",
   "projectForm.camera.use": "Use photo",
   "projectForm.cancel": "Cancel",
   "projectForm.change": "Edit",

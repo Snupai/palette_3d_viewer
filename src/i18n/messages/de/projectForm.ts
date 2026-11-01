@@ -15,14 +15,21 @@ export const projectFormDe = {
   "projectForm.camera.error.unsupported":
     "Dieser Browser bietet keine Live-Vorschau (HTTPS nötig).",
   "projectForm.camera.fallback": "Kamera-App verwenden",
+  "projectForm.camera.noCrop":
+    "Kein Blatt erkannt – das Originalfoto wird verwendet.",
   "projectForm.camera.noDocument":
     "Kein Blatt erkannt. Das ganze Blatt auf dunklem Untergrund ins Bild halten.",
+  "projectForm.camera.processing": "Foto wird zugeschnitten …",
   "projectForm.camera.retake": "Neu aufnehmen",
   "projectForm.camera.retry": "Erneut versuchen",
   "projectForm.camera.reviewAlt": "Aufgenommenes Foto",
+  "projectForm.camera.reviewAltCropped": "Zugeschnittenes Foto",
   "projectForm.camera.shutter": "Aufnehmen",
   "projectForm.camera.starting": "Kamera wird gestartet …",
   "projectForm.camera.title": "Palettenblatt fotografieren",
+  "projectForm.camera.version": "Fotoversion",
+  "projectForm.camera.version.cropped": "Zugeschnitten",
+  "projectForm.camera.version.original": "Original",
   "projectForm.camera.use": "Foto verwenden",
   "projectForm.cancel": "Abbrechen",
   "projectForm.change": "Ändern",

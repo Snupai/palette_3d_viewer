@@ -14,6 +14,11 @@ import {
   type CameraErrorKind,
   type DocumentQuad,
 } from "~/features/project/documentCameraModel";
+import {
+  quadToPixels,
+  warpedSize,
+  warpPerspective,
+} from "~/features/project/documentWarp";
 
 export type DocumentCameraProps = {
   onCapture: (file: File) => void;
@@ -25,6 +30,71 @@ export type DocumentCameraProps = {
 type Phase = "starting" | "live" | "review" | "error";
 
 const DETECTION_INTERVAL_MS = 100;
+const JPEG_QUALITY = 0.92;
+
+type Photo = { file: File; url: string };
+type Shot = { original: Photo; cropped: Photo | null };
+type ShotVersion = "cropped" | "original";
+
+function canvasToPhoto(
+  canvas: HTMLCanvasElement,
+  name: string,
+): Promise<Photo | null> {
+  return new Promise((resolve) => {
+    canvas.toBlob(
+      (blob) => {
+        if (!blob) {
+          resolve(null);
+          return;
+        }
+        const file = new File([blob], name, { type: "image/jpeg" });
+        resolve({ file, url: URL.createObjectURL(file) });
+      },
+      "image/jpeg",
+      JPEG_QUALITY,
+    );
+  });
+}
+
+/** Sheet outline in the captured frame itself; the live outline lags a little. */
+function detectInCanvas(source: HTMLCanvasElement): DocumentQuad | null {
+  const canvas = document.createElement("canvas");
+  canvas.width = DETECTION_WIDTH;
+  canvas.height = Math.max(
+    1,
+    Math.round((DETECTION_WIDTH * source.height) / source.width),
+  );
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  context.drawImage(source, 0, 0, canvas.width, canvas.height);
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  return detectDocumentQuad(rgbaToLuminance(data), canvas.width, canvas.height);
+}
+
+/** The sheet cut out of the photo and straightened, or null when that fails. */
+function cropToSheet(
+  source: HTMLCanvasElement,
+  quad: DocumentQuad,
+): HTMLCanvasElement | null {
+  const context = source.getContext("2d", { willReadFrequently: true });
+  if (!context) return null;
+  const corners = quadToPixels(quad, source.width, source.height);
+  const { width, height } = warpedSize(corners);
+  const warped = warpPerspective(
+    context.getImageData(0, 0, source.width, source.height),
+    corners,
+    width,
+    height,
+  );
+  if (!warped) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const target = canvas.getContext("2d");
+  if (!target) return null;
+  target.putImageData(new ImageData(warped.data, width, height), 0, 0);
+  return canvas;
+}
 
 const errorKey = {
   unsupported: "projectForm.camera.error.unsupported",
@@ -57,7 +127,18 @@ export function DocumentCamera({
   const [captureFailed, setCaptureFailed] = useState(false);
   const [videoSize, setVideoSize] = useState({ width: 0, height: 0 });
   const [quad, setQuad] = useState<DocumentQuad | null>(null);
-  const [shot, setShot] = useState<{ file: File; url: string } | null>(null);
+  const [shot, setShot] = useState<Shot | null>(null);
+  const [version, setVersion] = useState<ShotVersion>("cropped");
+  const [capturing, setCapturing] = useState(false);
+  const mountedRef = useRef(true);
+  const capturingRef = useRef(false);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     rootRef.current?.focus();
@@ -148,39 +229,57 @@ export function DocumentCamera({
 
   useEffect(
     () => () => {
-      if (shot) URL.revokeObjectURL(shot.url);
+      if (!shot) return;
+      URL.revokeObjectURL(shot.original.url);
+      if (shot.cropped) URL.revokeObjectURL(shot.cropped.url);
     },
     [shot],
   );
 
-  const capture = () => {
+  const capture = async () => {
     const video = videoRef.current;
-    if (!video?.videoWidth) return;
+    if (!video?.videoWidth || capturingRef.current) return;
+    const liveQuad = quad;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d");
+    const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) {
       setCaptureFailed(true);
       return;
     }
     context.drawImage(video, 0, 0);
-    canvas.toBlob(
-      (blob) => {
-        if (!blob) {
-          setCaptureFailed(true);
-          return;
-        }
-        const file = new File([blob], `palettenblatt-${Date.now()}.jpg`, {
-          type: "image/jpeg",
-        });
-        setCaptureFailed(false);
-        setShot({ file, url: URL.createObjectURL(file) });
-        setPhase("review");
-      },
-      "image/jpeg",
-      0.92,
-    );
+    capturingRef.current = true;
+    setCapturing(true);
+    const stamp = Date.now();
+    const original = await canvasToPhoto(canvas, `palettenblatt-${stamp}.jpg`);
+    let sheet: HTMLCanvasElement | null = null;
+    try {
+      const sheetQuad = detectInCanvas(canvas) ?? liveQuad;
+      sheet = sheetQuad ? cropToSheet(canvas, sheetQuad) : null;
+    } catch {
+      // Cropping is optional; the original photo still goes through.
+      sheet = null;
+    }
+    const cropped = sheet
+      ? await canvasToPhoto(sheet, `palettenblatt-${stamp}-zugeschnitten.jpg`)
+      : null;
+    if (!mountedRef.current) {
+      if (original) URL.revokeObjectURL(original.url);
+      if (cropped) URL.revokeObjectURL(cropped.url);
+      return;
+    }
+    capturingRef.current = false;
+    setCapturing(false);
+    if (!original) {
+      if (cropped) URL.revokeObjectURL(cropped.url);
+      setCaptureFailed(true);
+      return;
+    }
+    setCaptureFailed(false);
+    setShot({ original, cropped });
+    setVersion(cropped ? "cropped" : "original");
+    setPhase("review");
   };
 
   const retake = () => {
@@ -192,14 +291,23 @@ export function DocumentCamera({
     phase === "starting"
       ? t("projectForm.camera.starting")
       : phase === "live"
-        ? captureFailed
-          ? t("projectForm.camera.captureFailed")
-          : quad
-            ? t("projectForm.camera.detected")
-            : t("projectForm.camera.noDocument")
-        : phase === "error" && error
-          ? t(errorKey[error])
-          : null;
+        ? capturing
+          ? t("projectForm.camera.processing")
+          : captureFailed
+            ? t("projectForm.camera.captureFailed")
+            : quad
+              ? t("projectForm.camera.detected")
+              : t("projectForm.camera.noDocument")
+        : phase === "review" && shot && !shot.cropped
+          ? t("projectForm.camera.noCrop")
+          : phase === "error" && error
+            ? t(errorKey[error])
+            : null;
+
+  const selected =
+    shot && (version === "original" || !shot.cropped)
+      ? shot.original
+      : (shot?.cropped ?? null);
 
   const buttonClass =
     "min-h-11 cursor-pointer border border-white/40 bg-black/40 px-4 py-2 text-sm text-white focus-visible:outline-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50";
@@ -262,11 +370,15 @@ export function DocumentCamera({
             />
           </svg>
         ) : null}
-        {phase === "review" && shot ? (
+        {phase === "review" && selected ? (
           // eslint-disable-next-line @next/next/no-img-element -- local object URL preview
           <img
-            src={shot.url}
-            alt={t("projectForm.camera.reviewAlt")}
+            src={selected.url}
+            alt={
+              selected === shot?.cropped
+                ? t("projectForm.camera.reviewAltCropped")
+                : t("projectForm.camera.reviewAlt")
+            }
             className="absolute inset-0 h-full w-full object-contain"
           />
         ) : null}
@@ -283,13 +395,36 @@ export function DocumentCamera({
         <div className="flex flex-wrap items-center justify-center gap-3">
           {phase === "review" ? (
             <>
+              {shot?.cropped ? (
+                <div
+                  role="group"
+                  aria-label={t("projectForm.camera.version")}
+                  className="flex basis-full justify-center"
+                >
+                  {(["cropped", "original"] as const).map((option) => (
+                    <button
+                      key={option}
+                      type="button"
+                      aria-pressed={version === option}
+                      className={`min-h-11 cursor-pointer border border-white/40 px-4 py-2 text-sm focus-visible:outline-2 focus-visible:outline-white ${
+                        version === option
+                          ? "bg-white font-semibold text-black"
+                          : "bg-black/40 text-white"
+                      }`}
+                      onClick={() => setVersion(option)}
+                    >
+                      {t(`projectForm.camera.version.${option}`)}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
               <button type="button" className={buttonClass} onClick={retake}>
                 {t("projectForm.camera.retake")}
               </button>
               <button
                 type="button"
                 className="min-h-11 cursor-pointer bg-white px-4 py-2 text-sm font-semibold text-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                onClick={() => shot && onCapture(shot.file)}
+                onClick={() => selected && onCapture(selected.file)}
               >
                 {t("projectForm.camera.use")}
               </button>
@@ -317,11 +452,11 @@ export function DocumentCamera({
             <button
               ref={shutterRef}
               type="button"
-              disabled={phase !== "live"}
+              disabled={phase !== "live" || capturing}
               aria-label={t("projectForm.camera.shutter")}
               title={t("projectForm.camera.shutter")}
               className="size-16 cursor-pointer border-4 border-white bg-white/90 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white disabled:cursor-wait disabled:opacity-50"
-              onClick={capture}
+              onClick={() => void capture()}
             />
           )}
         </div>
