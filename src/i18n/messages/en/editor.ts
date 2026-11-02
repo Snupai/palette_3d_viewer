@@ -38,6 +38,7 @@ export const editorEn = {
   "editor.selectedCount": "{count} selected",
   "editor.createGrip": "Create grip from selection ({count})",
   "editor.mergeGrips": "Merge grips ({count})",
+  "editor.recalculateGrips": "Recalculate grips",
   "editor.autoOrder": "Order automatically",
   "editor.check": "Check",
   "editor.noHints": "no issues",

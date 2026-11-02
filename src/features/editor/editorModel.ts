@@ -16,6 +16,10 @@ import {
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
+  compareGripsByLayerRows,
+  createGripOrderLayout,
+  deriveGripDeltasForPlacementOrder,
+  type GripOrderLayout,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
 import {
@@ -23,6 +27,7 @@ import {
   legacyRotationFromCanonical,
   pickOffsetForCount,
 } from "~/domain/palletGeometry";
+import { resolveAutomaticSuctionGroupLimit } from "~/domain/project/equipmentProfiles";
 import {
   projectSchema,
   type LayerPattern,
@@ -31,8 +36,8 @@ import {
   type PlanningSolution,
   type Project,
 } from "~/domain/project/projectSchema";
+import { optimizeSuctionGroups } from "~/domain/robotics/gripOptimizer";
 import {
-  partitionPlacementsForSuction,
   suggestRobotOrder,
   type RobotCycle,
   type RobotCycleMaterialization,
@@ -182,6 +187,12 @@ export type ProjectEditorCommand =
       solutionId: string;
       patternId: string;
       gripIds: readonly string[];
+    }
+  | {
+      type: "recalculate-groups";
+      mode: "order";
+      solutionId: string;
+      patternId: string;
     }
   | {
       type: "reorder-group";
@@ -697,30 +708,48 @@ function gripFromPlacements(
   };
 }
 
+/** Same pickup limit as Robotics' automatic grouping for the selected gripper. */
 function maxPackagesPerAutomaticGroup(project: Project): number {
-  if (!project.package.multiPickAllowed) return 1;
-  const selectedGripper = project.grippers.find(
-    ({ id }) => id === project.selectedGripperId,
+  const selectedGripper =
+    project.grippers.find(({ id }) => id === project.selectedGripperId) ?? null;
+  const groupLimit = resolveAutomaticSuctionGroupLimit(
+    project.package,
+    selectedGripper,
   );
   const pickupSpan =
     project.package.inletOrientation === "lengthwise"
       ? project.package.dimensionsMm.length
       : project.package.dimensionsMm.width;
-  if (!selectedGripper?.maxPickupLengthMm) return 2;
+  if (!selectedGripper?.maxPickupLengthMm) return groupLimit;
   return Math.max(
     1,
-    Math.min(2, Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan)),
+    Math.min(
+      groupLimit,
+      Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan),
+    ),
   );
 }
 
+/**
+ * Fewest grips for the gripper's pickup limit. With `allowShift`, packages may
+ * slide up to one pickup span along their line to close gaps inside a grip.
+ */
 function automaticPlacementGroups(
   project: Project,
   pattern: LayerPattern,
-): string[][] {
-  return partitionPlacementsForSuction(pattern.placements, {
-    packageLengthMm: projectGroupingSpan(project),
+  allowShift: boolean,
+): {
+  groups: string[][];
+  movedPositions: Map<string, { x: number; y: number }>;
+} {
+  const spanMm = projectGroupingSpan(project);
+  return optimizeSuctionGroups(pattern.placements, {
+    spanMm,
+    packageSizeMm: project.package.dimensionsMm,
     maxPackagesPerPick: maxPackagesPerAutomaticGroup(project),
-  }).map((group) => group.map(({ id }) => id));
+    maxShiftMm: allowShift ? spanMm : 0,
+    clearanceMm: project.package.clearanceMm,
+  });
 }
 
 function normalizedGroupOrder(pattern: LayerPattern): string[] {
@@ -904,6 +933,7 @@ function assertOrderSatisfiesDependencies(
 function ensurePatternGroups(
   project: Project,
   pattern: LayerPattern,
+  options: { allowShift?: boolean } = {},
 ): LayerPattern {
   if (pattern.grips.length > 0) {
     const grips = pattern.grips.map((grip, index) => ({
@@ -918,10 +948,18 @@ function ensurePatternGroups(
     });
   }
 
-  const placementsById = new Map(
-    pattern.placements.map((placement) => [placement.id, placement]),
+  const { groups, movedPositions } = automaticPlacementGroups(
+    project,
+    pattern,
+    options.allowShift ?? false,
   );
-  const groups = automaticPlacementGroups(project, pattern);
+  const shiftedPlacements = pattern.placements.map((placement) => {
+    const positionMm = movedPositions.get(placement.id);
+    return positionMm ? { ...placement, positionMm } : placement;
+  });
+  const placementsById = new Map(
+    shiftedPlacements.map((placement) => [placement.id, placement]),
+  );
   const grips = groups.map((placementIds, index) => {
     const placements = placementIds.flatMap((id) => {
       const placement = placementsById.get(id);
@@ -941,7 +979,7 @@ function ensurePatternGroups(
       gripIdByPlacement.set(placementId, grip.id),
     );
   });
-  const placements = pattern.placements.map((placement) => ({
+  const placements = shiftedPlacements.map((placement) => ({
     ...placement,
     gripId: gripIdByPlacement.get(placement.id) ?? null,
   }));
@@ -950,10 +988,25 @@ function ensurePatternGroups(
     placements,
     project.package.dimensionsMm,
   );
-  const orderedGrips = orderGripsByDependencies(
+  const sequencedGrips = orderGripsByDependencies(
     grips,
     verticalDependencies,
+    undefined,
+    compareGripsByLayerRows(patternOrderLayout(project, placements)),
   ).map((grip, index) => ({ ...grip, groupNumber: index + 1 }));
+  // Like solver-generated grips, a blue line may only reference a grip that
+  // is already placed; label-derived offsets could form dependency cycles.
+  const derived = deriveGripDeltasForPlacementOrder(
+    sequencedGrips,
+    project.package.dimensionsMm.length,
+    project.package.dimensionsMm.width,
+    project.package.inletOrientation === "crosswise" ? 1 : 0,
+  );
+  const orderedGrips = sequencedGrips.map((grip, index) => ({
+    ...grip,
+    dx: derived.deltas[index]?.dx ?? 0,
+    dy: derived.deltas[index]?.dy ?? 0,
+  }));
   return {
     ...pattern,
     grips: orderedGrips,
@@ -1747,6 +1800,19 @@ function orderDirection(project: Project) {
   );
 }
 
+/** Row/half layout for the automatic order, see `compareGripsByLayerRows`. */
+function patternOrderLayout(
+  project: Project,
+  placements: readonly PackagePlacement[],
+): GripOrderLayout | null {
+  return createGripOrderLayout(
+    placements.map((placement) => ({
+      gripId: placement.gripId,
+      ...placementRectangleBounds(placement, project.package.dimensionsMm),
+    })),
+  );
+}
+
 function groupAsRobotGroup(group: ProjectEditorGroup): RobotGripGroup {
   return {
     id: group.id,
@@ -1830,6 +1896,7 @@ export function projectEditorOrderModel(
     })),
     orderDirection(project),
     order,
+    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
   );
   return {
     groups: groups
@@ -1854,6 +1921,9 @@ export function suggestProjectEditorOrder(
   diagnostics: readonly ProjectEditorDiagnostic[];
 } {
   const model = projectEditorOrderModel(project, solutionId, patternId);
+  const { pattern } = context(project, solutionId, patternId);
+  // Same working grips (and ids) as the order model.
+  const workingPattern = ensurePatternGroups(project, pattern);
   const suggestion = suggestRobotOrder(
     model.groups.map(groupAsRobotGroup),
     model.dependencies.map((dependency) => ({
@@ -1862,6 +1932,8 @@ export function suggestProjectEditorOrder(
       source: dependency.source,
     })),
     orderDirection(project),
+    undefined,
+    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
   );
   return {
     order: suggestion.order,
@@ -2120,6 +2192,8 @@ export function describeProjectEditorCommand(
       return "Split grip group";
     case "merge-groups":
       return "Merge grip groups";
+    case "recalculate-groups":
+      return "Recalculate grip groups";
     case "reorder-group":
       return "Reorder grip group";
     case "apply-suggested-order":
@@ -2574,6 +2648,28 @@ export function applyProjectEditorCommand(
         command.solutionId,
         previousPattern,
         mergeGroups(project, previousPattern, command.gripIds),
+      );
+    }
+    case "recalculate-groups": {
+      // Discards manual grips and their explicit order so the automatic
+      // calculation starts from the current package geometry. The cleared
+      // pattern is also the sync baseline, so recalculated grips with
+      // unchanged ids keep no old pick or dx/dy data.
+      const ungrouped: LayerPattern = {
+        ...previousPattern,
+        grips: [],
+        placements: previousPattern.placements.map((placement) => ({
+          ...placement,
+          gripId: null,
+        })),
+        groupOrder: [],
+        orderDependencies: [],
+      };
+      return replacePattern(
+        project,
+        command.solutionId,
+        ungrouped,
+        ensurePatternGroups(project, ungrouped, { allowShift: true }),
       );
     }
     case "reorder-group": {

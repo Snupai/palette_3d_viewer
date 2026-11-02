@@ -1,4 +1,8 @@
 import { describe, expect, it } from "vitest";
+import {
+  createMultipackEquipmentProfileResources,
+  MULTIPACK_GRIPPER_ID,
+} from "~/domain/project/equipmentProfiles";
 import { createProject } from "~/domain/project/projectFactory";
 import {
   projectSchema,
@@ -20,6 +24,7 @@ import {
   placementIdsInMarquee,
   previewGripFromSelection,
   projectEditorOrderModel,
+  suggestProjectEditorOrder,
   selectionCenteringDelta,
   stepProjectEditorFlow,
   type ProjectEditorCommand,
@@ -938,6 +943,462 @@ describe("Project editor pattern geometry", () => {
 });
 
 describe("Project editor groups and order", () => {
+  function projectWithPlacements(
+    placements: PackagePlacement[],
+    overrides: (project: Project) => Partial<Project> = () => ({}),
+  ): Project {
+    const base = editorProject();
+    const solution = base.solutions[0]!;
+    const sourcePattern = solution.patterns[0]!;
+    return projectSchema.parse({
+      ...base,
+      solutions: [
+        {
+          ...solution,
+          patterns: [{ ...sourcePattern, grips: [], placements }],
+        },
+      ],
+      ...overrides(base),
+    });
+  }
+
+  function automaticGroups(project: Project): string[][] {
+    return projectEditorOrderModel(project, "solution-1", "pattern-1")
+      .groups.map(({ placementIds }) => [...placementIds])
+      .sort((left, right) => left[0]!.localeCompare(right[0]!));
+  }
+
+  it("sizes automatic grips by the selected gripper like Robotics does", () => {
+    const placements = Array.from({ length: 7 }, (_, index) =>
+      placement(`p${index + 1}`, index, 66 + index * 132, 55),
+    );
+    const project = projectWithPlacements(placements, (base) => ({
+      package: {
+        ...base.package,
+        dimensionsMm: { length: 132, width: 110, height: 185 },
+      },
+      pallet: {
+        ...base.pallet!,
+        dimensionsMm: { ...base.pallet!.dimensionsMm, length: 1000 },
+        storageEnvelopeMm: { length: 1000, width: 300, height: 500 },
+      },
+      grippers: [
+        ...base.grippers,
+        ...createMultipackEquipmentProfileResources().grippers,
+      ],
+      selectedGripperId: MULTIPACK_GRIPPER_ID,
+    }));
+
+    // 450 mm pickup length fits three 132 mm packages instead of doubles;
+    // the third grip takes two packages so no single grip is needed.
+    expect(automaticGroups(project)).toEqual([
+      ["p1", "p2", "p3"],
+      ["p4", "p5"],
+      ["p6", "p7"],
+    ]);
+  });
+
+  it("calculates acyclic grip dependencies for labelled packages", () => {
+    const project = projectWithPlacements(
+      [
+        placement("p1", 0, 50, 50),
+        placement("p2", 1, 150, 50),
+        placement("p3", 2, 50, 150),
+        placement("p4", 3, 150, 150),
+      ].map((item) => ({ ...item, labelSide: "top" as const })),
+    );
+    const model = projectEditorOrderModel(project, "solution-1", "pattern-1");
+
+    expect(automaticGroups(project)).toEqual([
+      ["p1", "p2"],
+      ["p3", "p4"],
+    ]);
+    expect(model.diagnostics).toEqual([]);
+  });
+
+  it("does not carry old grip data into recalculated grips", () => {
+    const recalculate = (project: Project) =>
+      applyProjectEditorCommand(project, {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      });
+    const calculated = recalculate(editorProject());
+    // Same placement groups (and grip ids), but a grip edited by the user.
+    const edited = applyProjectEditorCommand(calculated, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      labelSide: "left",
+    });
+    const grips = (project: Project) =>
+      project.solutions[0]!.patterns[0]!.grips;
+
+    expect(grips(edited)).not.toEqual(grips(calculated));
+    expect(grips(recalculate(edited))).toEqual(grips(calculated));
+  });
+
+  it("recalculates grips from the package geometry as one undoable step", () => {
+    const initial = editorProject();
+    const firstGripId = projectEditorOrderModel(
+      initial,
+      "solution-1",
+      "pattern-1",
+    ).groups.find(({ placementIds }) => placementIds.includes("p1"))!.id;
+    let history = createProjectEditorHistory(initial);
+    history = projectEditorHistoryReducer(history, {
+      type: "execute",
+      command: {
+        type: "split-group",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        gripId: firstGripId,
+      },
+    });
+    const edited = automaticGroups(history.present);
+    expect(edited).toEqual([["p1"], ["p2"], ["p3", "p4"]]);
+
+    history = projectEditorHistoryReducer(history, {
+      type: "execute",
+      command: {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      },
+    });
+    expect(automaticGroups(history.present)).toEqual([
+      ["p1", "p2"],
+      ["p3", "p4"],
+    ]);
+    expect(
+      projectEditorOrderModel(history.present, "solution-1", "pattern-1")
+        .diagnostics,
+    ).toEqual([]);
+
+    history = projectEditorHistoryReducer(history, { type: "undo" });
+    expect(automaticGroups(history.present)).toEqual(edited);
+  });
+
+  it("closes a small gap when recalculating so two packages share a grip", () => {
+    // f1/f2 define the layer's x edges; packages on outer edges never slide.
+    const project = projectWithPlacements([
+      placement("p1", 0, 150, 25),
+      placement("p2", 1, 260, 25),
+      placement("f1", 2, 50, 125),
+      placement("f2", 3, 350, 125),
+    ]);
+    // Implicit automatic grouping never moves packages.
+    expect(automaticGroups(project)).toEqual([["f1"], ["f2"], ["p1"], ["p2"]]);
+
+    const recalculated = applyProjectEditorCommand(project, {
+      type: "recalculate-groups",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+    });
+    const pattern = recalculated.solutions[0]!.patterns[0]!;
+
+    expect(automaticGroups(recalculated)).toEqual([
+      ["f1"],
+      ["f2"],
+      ["p1", "p2"],
+    ]);
+    expect(pattern.placements.map(({ positionMm }) => positionMm)).toEqual([
+      { x: 150, y: 25 },
+      { x: 250, y: 25 },
+      { x: 50, y: 125 },
+      { x: 350, y: 125 },
+    ]);
+    expect(
+      pattern.grips
+        .filter(({ numPackages }) => numPackages === 2)
+        .map(({ x, y }) => ({ x, y })),
+    ).toEqual([{ x: 200, y: 25 }]);
+  });
+
+  /**
+   * Candidate-12-like layer: a 5 x 6 block of 180 x 130 mm packages and a
+   * right column of four crosswise packages with 20 mm gaps.
+   */
+  function blockWithGappedColumnProject(): Project {
+    const block = Array.from({ length: 6 }, (_, row) =>
+      Array.from({ length: 5 }, (_, column) =>
+        placement(
+          `r${row}c${column}`,
+          row * 5 + column,
+          90 + column * 180,
+          65 + row * 130,
+        ),
+      ),
+    ).flat();
+    const column = [0, 1, 2, 3].map((index) => ({
+      ...placement(`k${index}`, 30 + index, 965, 90 + index * 200),
+      rotation: 90 as const,
+    }));
+    return projectWithPlacements([...block, ...column], (base) => ({
+      package: {
+        ...base.package,
+        dimensionsMm: { length: 180, width: 130, height: 100 },
+      },
+      pallet: {
+        ...base.pallet!,
+        dimensionsMm: { length: 1200, width: 800, height: 144 },
+        storageEnvelopeMm: { length: 1200, width: 800, height: 1800 },
+      },
+      grippers: base.grippers.map((item) => ({
+        ...item,
+        maxPickupLengthMm: 400,
+      })),
+    }));
+  }
+
+  function recalculatedOrder(project: Project): string[][] {
+    const recalculated = applyProjectEditorCommand(project, {
+      type: "recalculate-groups",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+    });
+    return projectEditorOrderModel(
+      recalculated,
+      "solution-1",
+      "pattern-1",
+    ).groups.map(({ placementIds }) => [...placementIds]);
+  }
+
+  it("orders recalculated grips lower half first, row by row, right to left", () => {
+    const project = blockWithGappedColumnProject();
+    // Row by row from the bottom, right to left; each column pair leads the
+    // row band that holds its bottom edge.
+    const lowerHalf = [
+      ["k0", "k1"],
+      ["r0c3", "r0c4"],
+      ["r0c2"],
+      ["r0c0", "r0c1"],
+      ["r1c4"],
+      ["r1c2", "r1c3"],
+      ["r1c0", "r1c1"],
+      ["r2c3", "r2c4"],
+      ["r2c2"],
+      ["r2c0", "r2c1"],
+    ];
+    const upperHalf = [
+      ["k2", "k3"],
+      ["r3c4"],
+      ["r3c2", "r3c3"],
+      ["r3c0", "r3c1"],
+      ["r4c3", "r4c4"],
+      ["r4c2"],
+      ["r4c0", "r4c1"],
+      ["r5c4"],
+      ["r5c2", "r5c3"],
+      ["r5c0", "r5c1"],
+    ];
+
+    // The split is the row boundary at y = 390 mm between rows 3 and 4.
+    expect(recalculatedOrder(project)).toEqual([...lowerHalf, ...upperHalf]);
+  });
+
+  it("suggests the lower half first for an existing column-first order", () => {
+    const recalculated = applyProjectEditorCommand(
+      blockWithGappedColumnProject(),
+      {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      },
+    );
+    const model = projectEditorOrderModel(
+      recalculated,
+      "solution-1",
+      "pattern-1",
+    );
+    const expected = model.order;
+    const gripIdOf = (placementId: string) =>
+      model.groups.find(({ placementIds }) =>
+        placementIds.includes(placementId),
+      )!.id;
+    // Old rule: the whole right column first, then the upper k2+k3 pair.
+    const columnFirst = [
+      gripIdOf("k0"),
+      gripIdOf("k2"),
+      ...expected.filter(
+        (id) => id !== gripIdOf("k0") && id !== gripIdOf("k2"),
+      ),
+    ];
+    const reordered = applyProjectEditorCommand(recalculated, {
+      type: "apply-suggested-order",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      gripIds: columnFirst,
+    });
+
+    expect(
+      suggestProjectEditorOrder(reordered, "solution-1", "pattern-1").order,
+    ).toEqual(expected);
+  });
+
+  it("reproduces Snupai's manual order for Candidate 12 automatically", () => {
+    // Golden case from project c8d73825 (Candidate 12): 189 x 132 mm
+    // packages, six rows split 2 + 1 + 2 and a right column of two crosswise
+    // pairs. Grip centres match the editor's "Grips in order" list.
+    const rowGrips = Array.from({ length: 6 }, (_, row) => {
+      const y = 70 + row * 132;
+      return [
+        { id: `r${row}-left`, xs: [156, 345] },
+        { id: `r${row}-mid`, xs: [534] },
+        { id: `r${row}-right`, xs: [723, 912] },
+      ].map(({ id, xs }) => ({
+        id,
+        rotation: 0 as const,
+        placements: xs.map((x, index) => ({
+          ...placement(`${id}-${index}`, 0, x, y),
+        })),
+      }));
+    }).flat();
+    const columnGrips = [
+      { id: "column-low", ys: [98.5, 287.5] },
+      { id: "column-high", ys: [512.5, 701.5] },
+    ].map(({ id, ys }) => ({
+      id,
+      rotation: 90 as const,
+      placements: ys.map((y, index) => ({
+        ...placement(`${id}-${index}`, 0, 1072.5, y),
+        rotation: 90 as const,
+      })),
+    }));
+    // Stored in an arbitrary (alphabetical) order.
+    const grips = [...rowGrips, ...columnGrips].sort((left, right) =>
+      left.id.localeCompare(right.id),
+    );
+    const base = blockWithGappedColumnProject();
+    const solution = base.solutions[0]!;
+    const project = projectSchema.parse({
+      ...base,
+      package: {
+        ...base.package,
+        dimensionsMm: { length: 189, width: 132, height: 100 },
+      },
+      solutions: [
+        {
+          ...solution,
+          patterns: [
+            {
+              ...solution.patterns[0]!,
+              grips: grips.map((grip, index) => {
+                const xs = grip.placements.map(
+                  ({ positionMm }) => positionMm.x,
+                );
+                const ys = grip.placements.map(
+                  ({ positionMm }) => positionMm.y,
+                );
+                return {
+                  id: grip.id,
+                  groupNumber: index + 1,
+                  pickX: 0,
+                  pickY: 0,
+                  pickRotation: 0,
+                  x: xs.reduce((sum, x) => sum + x, 0) / xs.length,
+                  y: ys.reduce((sum, y) => sum + y, 0) / ys.length,
+                  rotation: grip.rotation,
+                  numPackages: grip.placements.length,
+                  dx: 0,
+                  dy: 0,
+                };
+              }),
+              placements: grips
+                .flatMap((grip) =>
+                  grip.placements.map((item) => ({ ...item, gripId: grip.id })),
+                )
+                .map((item, sequence) => ({ ...item, sequence })),
+              groupOrder: grips.map(({ id }) => id),
+              orderDependencies: [],
+            },
+          ],
+        },
+      ],
+    });
+    const row = (index: number) => [
+      `r${index}-right`,
+      `r${index}-mid`,
+      `r${index}-left`,
+    ];
+
+    expect(
+      projectEditorOrderModel(project, "solution-1", "pattern-1").diagnostics,
+    ).toEqual([]);
+    expect(
+      suggestProjectEditorOrder(project, "solution-1", "pattern-1").order,
+    ).toEqual([
+      "column-low",
+      ...row(0),
+      ...row(1),
+      ...row(2),
+      "column-high",
+      ...row(3),
+      ...row(4),
+      ...row(5),
+    ]);
+  });
+
+  it("closes gaps without floating-point overlaps the validation rejects", () => {
+    // (156.4 + 100) - 50 < 156.4 + 50 in floating point: the ideal contact
+    // position would overlap p1 by about 1e-14 mm. f1/f2 keep both packages
+    // off the layer's outer edges so they may slide.
+    const project = projectWithPlacements([
+      placement("p1", 0, 156.4, 50),
+      placement("p2", 1, 266.4, 50),
+      placement("f1", 2, 50, 150),
+      placement("f2", 3, 350, 150),
+    ]);
+    const recalculated = applyProjectEditorCommand(project, {
+      type: "recalculate-groups",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+    });
+    const model = projectEditorOrderModel(
+      recalculated,
+      "solution-1",
+      "pattern-1",
+    );
+    const [first, second] = recalculated.solutions[0]!.patterns[0]!.placements;
+
+    expect(automaticGroups(recalculated)).toEqual([
+      ["f1"],
+      ["f2"],
+      ["p1", "p2"],
+    ]);
+    expect(model.diagnostics).toEqual([]);
+    expect(first!.positionMm.x).toBe(156.4);
+    expect(second!.positionMm.x - 50 >= first!.positionMm.x + 50).toBe(true);
+    expect(second!.positionMm.x).toBeCloseTo(256.4, 9);
+
+    // Recalculating again keeps the exact positions instead of recomputing
+    // the ideal (overlapping) contact.
+    const again = applyProjectEditorCommand(recalculated, {
+      type: "recalculate-groups",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+    });
+    expect(
+      again.solutions[0]!.patterns[0]!.placements.map(
+        ({ positionMm }) => positionMm.x,
+      ),
+    ).toEqual([first!.positionMm.x, second!.positionMm.x, 50, 350]);
+    expect(
+      projectEditorOrderModel(again, "solution-1", "pattern-1").diagnostics,
+    ).toEqual([]);
+  });
+
   it("centers an automatic singleton in a vertical five-package run", () => {
     const base = editorProject();
     const pallet = base.pallet;
