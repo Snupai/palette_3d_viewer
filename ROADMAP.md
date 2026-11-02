@@ -184,8 +184,8 @@ Status: implementiert · Aufwand: L · Abhängigkeit: M2
 
 Umfang:
 
-- fokussierbare, scrollbare Lösungstabelle mit Nr., Anzahl, Status, Blöcken,
-  Zyklen, Länge und Breite;
+- fokussierbare, scrollbare Lösungstabelle mit Nr., Anzahl, Status, Zyklen,
+  Länge und Breite;
 - exakter Anzahlfilter, Schnellwahl „Maximum“ und sichtbares `x von y`;
 - Pfeil-hoch/-runter wechselt die aktive Zeile und hält sie im Viewport;
 - sofortige 2D-Miniaturen, Kennzahlen und große 3D-Vorschau ohne Solver-Neulauf;
