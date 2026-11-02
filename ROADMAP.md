@@ -1,15 +1,16 @@
 # Roadmap zum Palettierplaner
 
-Stand: 05.08.2026
+Stand: 02.11.2026
 
 Umsetzungsstatus: **M0–M8 sind als durchgängiger interner Produktworkflow
 implementiert.** Projekte lassen sich ohne `.rob` anlegen, validieren, lokal
 speichern, lösen, vergleichen, zu Stapeln kombinieren, in Muster-/Reihenfolge-/
 Ablaufmodi bearbeiten, robotisch prüfen, simulieren, berichten und kontrolliert
 exportieren. Der bestehende `.rob`-Viewer/-Editor bleibt parallel vollständig
-nutzbar. Der automatisierte Stand umfasst 55 Testdateien mit 254 bestandenen Tests,
-TypeScript-, ESLint-, Prettier- und Produktions-Build-Gates sowie einen im Browser
-geprüften Create-Solve-Stack-Reload- und Legacy-Import-Ablauf.
+nutzbar. Der automatisierte Stand umfasst 153 Testdateien (davon 1 übersprungen)
+mit 1216 bestandenen und 2 übersprungenen Tests, TypeScript-, ESLint-, Prettier-
+und Produktions-Build-Gates sowie einen im Browser geprüften
+Create-Solve-Stack-Reload- und Legacy-Import-Ablauf.
 
 Offen bleiben ausschließlich evidenzgebundene Fremdparitätsfragen: das vollständige
 AP5006-Referenzpaket, die Semantik von „Blöcke“, die externen
@@ -69,7 +70,8 @@ fehlenden Planungs-, Solver- und Robotik-Unterbau.
   und vereinfachte Roboter-/Greifervisualisierung
 - Druck-/PDF-Ansicht, Kennzahlen-/Warnungs-/Zyklusbericht und ausdrücklich
   unverified, ausschließlich lesende `.mpb`-Diagnosegrenze
-- automatisierte Basis: 55 Testdateien mit 254 bestandenen Tests
+- automatisierte Basis: 153 Testdateien (davon 1 übersprungen) mit 1216
+  bestandenen und 2 übersprungenen Tests
 
 ### Weiterhin evidenzgebunden offen
 
@@ -313,6 +315,40 @@ Exit-Kriterien:
 
 Ergebnis von M7–M8: **Parity Candidate** für den beobachteten Kernworkflow.
 
+### M9 – Lokales Backend mit Benutzern im LAN
+
+Status: geplant · Aufwand: L · Abhängigkeit: M8
+
+Ziel ist ein ausschließlich lokal betriebener Server im Werksnetz (LAN), über den
+mehrere angemeldete Benutzer gemeinsame Projekte nutzen. Kein Cloud-Hosting,
+keine öffentliche Erreichbarkeit.
+
+Umfang:
+
+- SQLite-Datenbank mit Drizzle als Schema-, Migrations- und Abfrageschicht;
+- Next.js-Route-Handler als schmale API für Projekt- und Ressourcendatensätze;
+- Anmeldung mit argon2-gehashten Passwörtern und httpOnly-Session-Cookie;
+- clientseitiger `ServerPlannerRecordStorage` implementiert über diese
+  Route-Handler die bestehende Schnittstelle `PlannerRecordStorage` aus
+  `src/lib/projectRepository.ts`, sodass `ProjectRepository` und die Workspaces
+  unverändert bleiben;
+- `IndexedDbPlannerRecordStorage` bleibt voll funktionsfähig und Standard; der
+  Serverspeicher wird nur bei konfiguriertem lokalem Backend aktiv.
+
+Spätere Schritte:
+
+- Revisionen bzw. Versionsverlauf je Projekt;
+- Freigabelinks für einzelne Projekte innerhalb des LAN;
+- Rollen (z. B. lesen, bearbeiten, verwalten).
+
+Exit-Kriterien:
+
+- Zwei Benutzer an verschiedenen Rechnern im LAN sehen nach Anmeldung dieselben
+  Projekte; ohne Anmeldung ist kein Datensatz lesbar.
+- Ohne konfiguriertes Backend verhält sich die App unverändert wie mit
+  IndexedDB.
+- Speicher-Contract-Tests laufen gegen IndexedDB-, Memory- und Server-Speicher.
+
 ## Technischer Zielschnitt
 
 ```text
@@ -390,14 +426,15 @@ Diese Fragen laufen als Research-Track neben der Produktentwicklung. Sie dürfen
 Meilensteine verfeinern, sollen aber nur die Teile blockieren, für die exakte
 Kompatibilität tatsächlich nötig ist.
 
-## Bewusste Nicht-Ziele vor der Planner Alpha
+## Bewusste Nicht-Ziele
 
 - pixelgenaue Nachbildung bestehender Desktop-Oberflächen
 - Portalroboter oder fotorealistische Robotermodelle
 - proprietärer `.mpb`-Writer
 - automatische Bildähnlichkeitssuche
 - vollständige Kollisionskinematik
-- Cloud-Konten, Mehrbenutzerbetrieb oder Serverbetrieb
+- Cloud-Hosting, öffentlich über das Internet erreichbare mandantenfähige Konten
+  oder SaaS-Betrieb (ein lokales Backend im LAN ist dagegen als M9 geplant)
 
 Damit bleibt der Fokus auf dem Alleinstellungsmerkmal: viele sinnvolle Muster
 erzeugen, schnell visuell vergleichen und robotisch weiterbearbeiten.

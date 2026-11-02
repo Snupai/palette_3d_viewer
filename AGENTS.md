@@ -32,12 +32,12 @@ single prerequisite map; do not duplicate gating inside tool overlays.
 
 | Purpose                                                   | Command                                                                    |
 | --------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Typecheck (run after **every** change, report the result) | `npm run typecheck`                                                        |
-| Lint + typecheck                                          | `npm run check`                                                            |
-| Tests (watch / once)                                      | `npm run test` / `npm run test:run`                                        |
-| Format                                                    | `npm run format:write`                                                     |
-| Dev server                                                | `npm run dev`                                                              |
-| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)   | `npm run test:corpus`, `npm run corpus:rob`, `npm run corpus:rob:sentinel` |
+| Typecheck (run after **every** change, report the result) | `bun run typecheck`                                                        |
+| Lint + typecheck                                          | `bun run check`                                                            |
+| Tests (watch / once)                                      | `bun run test` / `bun run test:run`                                        |
+| Format                                                    | `bun run format:write`                                                     |
+| Dev server                                                | `bun run dev`                                                              |
+| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)   | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
 
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,
@@ -77,7 +77,8 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite is ~438 tests in 85 files and is deliberately behaviour-first. Keep it that way:
+The suite is 1218 tests in 153 files (1216 passed, 2 skipped; 1 file skipped) and is
+deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for
   Testing Library only for flows that are genuinely UI-level (drawer guards, unsaved-change

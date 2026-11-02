@@ -21,7 +21,9 @@ Import, inspect, and edit `.rob` pallet plans in the browser.
 ## Roadmap
 
 The prioritized path from the current `.rob` viewer/editor to a complete
-pallet planner is documented in [ROADMAP.md](ROADMAP.md).
+pallet planner is documented in [ROADMAP.md](ROADMAP.md). It includes a planned,
+local-only backend (SQLite, user accounts on the plant LAN); browser-local
+IndexedDB storage stays the default.
 The evolving reference-case scorecard is documented in
 [docs/PARITY.md](docs/PARITY.md).
 The versioned planning domain and its `.rob` compatibility mapping are
