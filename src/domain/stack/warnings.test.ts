@@ -98,6 +98,17 @@ describe("structured stack warning boundaries", () => {
     expect(warningCodes).not.toContain("gross-weight-exceeded");
   });
 
+  it("accepts float error at the footprint edge within the editor tolerance", () => {
+    // A flush drag to the pallet edge can land at 49.99999999999999 mm; the
+    // editor accepts it (1e-9 mm tolerance), so the stack must not warn.
+    expect(
+      codes(baseInput(pattern([{ x: 49.99999999999999, y: 50 }]))),
+    ).not.toContain("footprint-exceeded");
+    expect(codes(baseInput(pattern([{ x: 49.999_999_99, y: 50 }])))).toContain(
+      "footprint-exceeded",
+    );
+  });
+
   it("warns immediately beyond footprint, height, and gross boundaries", () => {
     const footprint = baseInput(pattern([{ x: 50.000_001, y: 50 }]));
     expect(codes(footprint)).toContain("footprint-exceeded");

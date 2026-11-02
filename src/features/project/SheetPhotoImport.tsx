@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 import { useT } from "~/i18n";
 import type { SheetIssue } from "~/domain/sheetExtraction";
 import { requestSheetExtraction } from "~/features/project/sheetImport";
+import { DocumentCamera } from "~/features/project/DocumentCamera";
+import { liveCameraSupported } from "~/features/project/documentCameraModel";
 import type { SheetExtractionResult } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
 export type SheetPhotoImportProps = {
@@ -50,6 +52,7 @@ export function SheetPhotoImport({
   const abortRef = useRef<AbortController | null>(null);
   const [photoUrl, setPhotoUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [cameraOpen, setCameraOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SheetExtractionResult | null>(null);
 
@@ -132,7 +135,12 @@ export function SheetPhotoImport({
         <button
           type="button"
           disabled={disabled || busy}
-          onClick={() => cameraInputRef.current?.click()}
+          onClick={() => {
+            // Live preview with the sheet outline where the browser allows it
+            // (secure context); otherwise the phone's own camera app.
+            if (liveCameraSupported()) setCameraOpen(true);
+            else cameraInputRef.current?.click();
+          }}
           className="ui-btn cursor-pointer px-3 py-2 text-sm disabled:cursor-wait disabled:opacity-50 md:hidden"
         >
           {busy
@@ -150,6 +158,20 @@ export function SheetPhotoImport({
           {busy ? busyLabel : t("projectForm.sheetGallery")}
         </button>
       </div>
+
+      {cameraOpen ? (
+        <DocumentCamera
+          onCapture={(file) => {
+            setCameraOpen(false);
+            void read(file);
+          }}
+          onClose={() => setCameraOpen(false)}
+          onFallback={() => {
+            setCameraOpen(false);
+            cameraInputRef.current?.click();
+          }}
+        />
+      ) : null}
 
       {photoUrl || error ? (
         <div className="grid gap-3 sm:grid-cols-[160px_1fr]">

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   describeDiagnostic,
+  describeGripSelectionProblem,
   gripLabel,
   packageLabel,
 } from "~/features/editor/editorLabels";
@@ -86,7 +87,9 @@ describe("editor labels", () => {
         groups,
         translateDe,
       ),
-    ).toBe("Griff G2: Grouped packages must be aligned on one cross axis.");
+    ).toBe(
+      "Griff G2: Die Pakete müssen in einer Reihe auf derselben Querachse liegen.",
+    );
     expect(
       describeDiagnostic(
         {
@@ -100,5 +103,39 @@ describe("editor labels", () => {
         translateDe,
       ),
     ).toBe("Die Reihenfolge muss jeden Griff genau einmal enthalten.");
+  });
+
+  it("tells a broken selection from a broken remainder or grip", () => {
+    const pairPattern = {
+      placements: [...pattern.placements, { id: "c", sequence: 2 }],
+    };
+    const pairGroups = [
+      { ...groups[0]!, placementIds: ["b", "c"] },
+      groups[1]!,
+    ];
+    const problem = (gripIds: string[]) => ({
+      severity: "error" as const,
+      code: "invalid-group-geometry" as const,
+      message: "Grouped packages must use the same placement rotation.",
+      gripIds,
+    });
+    const describe = (gripIds: string[], selected: string[]) =>
+      describeGripSelectionProblem(
+        problem(gripIds),
+        pairPattern,
+        pairGroups,
+        new Set(selected),
+        translateDe,
+      );
+    const reason = "Alle Pakete eines Griffs müssen gleich gedreht sein.";
+
+    expect(describe(["new-grip"], ["a", "b"])).toBe(
+      `Kein gültiger Griff: ${reason}`,
+    );
+    expect(describe(["g-second"], ["b"])).toBe(
+      `Der Rest von Griff G2 wäre ungültig: ${reason}`,
+    );
+    expect(describe(["g-second"], ["b", "c"])).toBe(`Griff G2: ${reason}`);
+    expect(describe(["g-second"], ["a"])).toBe(`Griff G2: ${reason}`);
   });
 });

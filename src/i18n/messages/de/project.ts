@@ -141,6 +141,16 @@ export const projectDe = {
     "Speichern Sie einen Stapel für dieses Projekt, bevor Sie einen .rob-Plan herunterladen.",
   "project.download.exportFailed":
     "Der .rob-Plan konnte nicht exportiert werden.",
+  "project.download.unassignedPackages":
+    "{count} Paket(e) gehören zu keinem Griff. Bilden Sie zuerst Griffe für alle Pakete.",
+  "project.download.interlayerThickness":
+    ".rob speichert nur die Anzahl der Zwischenlagen (je 3 mm). Zwischenlagen mit anderer Dicke lassen sich nicht als .rob exportieren.",
+  "project.download.wholeMillimetres":
+    ".rob speichert nur ganze Millimeter, Griff G{group} liegt bei X {x} / Y {y}. Verschieben Sie ihn im Editor auf ganze Millimeter.",
+  "project.download.pickWholeMillimetres":
+    ".rob speichert nur ganze Millimeter, aber der Greifpunkt von Griff G{group} liegt bei X {x} / Y {y}. Er ergibt sich aus Größe und Zusammensetzung des Griffs; bilden Sie den Griff anders, z. B. mit einer anderen Paketanzahl.",
+  "project.download.packageCountMismatch":
+    "Die erzeugte .rob enthält {exported} statt {expected} Pakete.",
   // Sheet extraction
   "project.sheet.extractionFailed":
     "Auslesen des Blatts fehlgeschlagen ({status}).",

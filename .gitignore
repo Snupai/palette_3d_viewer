@@ -21,6 +21,9 @@ next-env.d.ts
 # production
 /build
 
+# onnxruntime-web WebAssembly, copied from node_modules on install
+/public/ort/
+
 # misc
 .DS_Store
 *.pem

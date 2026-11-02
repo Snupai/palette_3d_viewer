@@ -10,6 +10,10 @@ import {
 } from "~/domain/project/equipmentProfiles";
 import { updateProject } from "~/domain/project/projectFactory";
 import {
+  editedImportRobDownload,
+  isEditedImportPlan,
+} from "~/features/project/projectRobDownload";
+import {
   createProjectResource,
   updateProjectResource,
   type ProjectResource,
@@ -24,6 +28,7 @@ import {
 import {
   exportProjectRob,
   getRetainedRawRobDownload,
+  importedRobTextIsCurrent,
   type RobotCycleMaterialization,
 } from "~/domain/robotics";
 import { DiagnosticsPanel } from "~/features/robotics/DiagnosticsPanel";
@@ -378,7 +383,30 @@ export function RoboticsWorkspace({
     setStatus(t("robotics.statusRobExported"));
   };
 
+  // Once the imported plan was edited the retained text is stale, so the
+  // "edited" download is regenerated from the saved plan (on click; it may be
+  // refused with a reason when .rob cannot represent the plan).
+  const importedTextCurrent = importedRobTextIsCurrent(project);
+  const retainedEdited = importedTextCurrent
+    ? getRetainedRawRobDownload(project, "edited")
+    : isEditedImportPlan(project);
+
   const downloadRetained = (variant: "original" | "edited") => {
+    if (variant === "edited" && !importedTextCurrent) {
+      const edited = editedImportRobDownload(project, t);
+      if (!edited) return;
+      if (!edited.ok) {
+        setStatus(null);
+        setError(edited.message);
+        return;
+      }
+      setError(null);
+      downloadText(
+        edited.text,
+        `${safeFilename(edited.fileName, "import.rob")}.${variant}.rob`,
+      );
+      return;
+    }
     const retained = getRetainedRawRobDownload(project, variant);
     if (!retained) return;
     downloadText(
@@ -388,7 +416,6 @@ export function RoboticsWorkspace({
   };
 
   const retainedOriginal = getRetainedRawRobDownload(project, "original");
-  const retainedEdited = getRetainedRawRobDownload(project, "edited");
   const box = project.package.dimensionsMm;
 
   return (

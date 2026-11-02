@@ -21,6 +21,12 @@ import {
   projectEditorEnvelope,
   type ProjectEditorGroup,
 } from "~/features/editor/editorModel";
+import {
+  createDragCollisionContext,
+  resolveDragDelta,
+  roundDragDelta,
+  type DragCollisionContext,
+} from "~/features/editor/dragCollision";
 import { useT } from "~/i18n";
 
 type PointerState =
@@ -38,7 +44,34 @@ type PointerState =
       start: { x: number; y: number };
       current: { x: number; y: number };
       placementIds: readonly string[];
+      /** Collision-resolved offset of the dragged packages. */
+      resolved: { x: number; y: number };
+      /** Raw pointer offset that `resolved` was computed for. */
+      target: { x: number; y: number };
+      /** Validated, rounded offset that would be committed on release. */
+      committable: { x: number; y: number };
+      collision: DragCollisionContext;
     };
+
+type DragPointerState = Extract<PointerState, { kind: "drag" }>;
+
+/**
+ * Resolves the drag towards a new raw pointer offset. Collision resolution is
+ * path dependent, so an unchanged offset (the same event reaching several
+ * handlers, or pointerup at the last move position) must not resolve again.
+ */
+function advanceDrag(
+  drag: DragPointerState,
+  target: { x: number; y: number },
+): Pick<DragPointerState, "resolved" | "target" | "committable"> {
+  if (target.x === drag.target.x && target.y === drag.target.y) return drag;
+  const resolved = resolveDragDelta(drag.collision, drag.resolved, target);
+  return {
+    resolved,
+    target,
+    committable: roundDragDelta(drag.collision, resolved, drag.committable),
+  };
+}
 
 export type PatternCanvasProps = {
   interactionMode?: "edit" | "select";
@@ -46,6 +79,8 @@ export type PatternCanvasProps = {
   pattern: LayerPattern;
   groups: readonly ProjectEditorGroup[];
   selectedPlacementIds: ReadonlySet<string>;
+  /** Packages that make the attempted grip edit invalid. */
+  invalidPlacementIds?: readonly string[];
   fineStepMm: number;
   coarseStepMm: number;
   onSelectionChange: (placementIds: ReadonlySet<string>) => void;
@@ -77,6 +112,7 @@ export function PatternCanvas({
   pattern,
   groups,
   selectedPlacementIds,
+  invalidPlacementIds,
   fineStepMm,
   coarseStepMm,
   onSelectionChange,
@@ -145,6 +181,31 @@ export function PatternCanvas({
     if (!placement?.gripId) return [placementId];
     return gripPlacementIds.get(placement.gripId) ?? [placementId];
   };
+  const invalidIds = new Set(invalidPlacementIds ?? []);
+
+  // Grip selection: the first click picks the whole grip, a click on a package
+  // of the grip that is already selected narrows the selection to it.
+  const clickSelection = (placementId: string): Set<string> => {
+    const unit = selectionUnit(placementId);
+    const unitIsSelection =
+      interactionMode === "select" &&
+      unit.length > 1 &&
+      selectedPlacementIds.size === unit.length &&
+      unit.every((id) => selectedPlacementIds.has(id));
+    return new Set(unitIsSelection ? [placementId] : unit);
+  };
+  // Grip selection: modifier clicks add whole grips, but once a grip is
+  // (partly) selected they toggle its single packages.
+  const toggledSelection = (placementId: string): Set<string> => {
+    const unit = selectionUnit(placementId);
+    const touched =
+      interactionMode === "select" &&
+      unit.some((id) => selectedPlacementIds.has(id));
+    return toggleSelectionUnit(
+      selectedPlacementIds,
+      touched ? [placementId] : unit,
+    );
+  };
 
   const pointFromClient = (clientX: number, clientY: number) => {
     const bounds = svgRef.current?.getBoundingClientRect();
@@ -184,13 +245,16 @@ export function PatternCanvas({
   ) => {
     event.stopPropagation();
     if (event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (interactionMode === "select") {
+      onSelectionChange(clickSelection(placementId));
+      return;
+    }
     const unit = selectionUnit(placementId);
     const unitSelected = unit.every((id) => selectedPlacementIds.has(id));
     const selection = unitSelected
       ? new Set(selectedPlacementIds)
       : new Set(unit);
     if (!unitSelected) onSelectionChange(selection);
-    if (interactionMode === "select") return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
     capture(event);
@@ -202,6 +266,10 @@ export function PatternCanvas({
       start: point,
       current: point,
       placementIds: [...selection],
+      resolved: { x: 0, y: 0 },
+      target: { x: 0, y: 0 },
+      committable: { x: 0, y: 0 },
+      collision: createDragCollisionContext(project, pattern, [...selection]),
     });
   };
 
@@ -211,9 +279,7 @@ export function PatternCanvas({
   ) => {
     if (!event.ctrlKey && !event.metaKey && !event.shiftKey) return;
     event.stopPropagation();
-    onSelectionChange(
-      toggleSelectionUnit(selectedPlacementIds, selectionUnit(placementId)),
-    );
+    onSelectionChange(toggledSelection(placementId));
   };
 
   const updatePointer = (
@@ -222,24 +288,34 @@ export function PatternCanvas({
     if (!pointer || pointer.pointerId !== event.pointerId) return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
-    setPointer((current) =>
-      current
-        ? {
-            ...current,
-            current: point,
-            ...(current.kind === "drag"
-              ? {
-                  moved:
-                    current.moved ||
-                    Math.hypot(
-                      event.clientX - current.startClient.x,
-                      event.clientY - current.startClient.y,
-                    ) >= 4,
-                }
-              : {}),
-          }
-        : null,
-    );
+    setPointer((current) => {
+      if (!current) return null;
+      if (current.kind === "marquee") return { ...current, current: point };
+      const moved =
+        current.moved ||
+        Math.hypot(
+          event.clientX - current.startClient.x,
+          event.clientY - current.startClient.y,
+        ) >= 4;
+      if (!moved) return { ...current, current: point };
+      const target = {
+        x: point.x - current.start.x,
+        y: point.y - current.start.y,
+      };
+      if (
+        current.moved &&
+        target.x === current.target.x &&
+        target.y === current.target.y
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        current: point,
+        moved,
+        ...advanceDrag(current, target),
+      };
+    });
   };
 
   const finishPointer = (
@@ -269,10 +345,10 @@ export function PatternCanvas({
           event.clientY - pointer.startClient.y,
         ) >= 4)
     ) {
-      const deltaMm = {
-        x: Math.round((point.x - pointer.start.x) * 10) / 10,
-        y: Math.round((point.y - pointer.start.y) * 10) / 10,
-      };
+      const deltaMm = advanceDrag(pointer, {
+        x: point.x - pointer.start.x,
+        y: point.y - pointer.start.y,
+      }).committable;
       if (deltaMm.x !== 0 || deltaMm.y !== 0) {
         onMoveSelection(deltaMm, pointer.placementIds);
       }
@@ -319,10 +395,8 @@ export function PatternCanvas({
 
   const dragDelta =
     pointer?.kind === "drag" && pointer.moved
-      ? {
-          x: pointer.current.x - pointer.start.x,
-          y: pointer.current.y - pointer.start.y,
-        }
+      ? // Preview exactly what release will commit.
+        pointer.committable
       : { x: 0, y: 0 };
   const draggingIds = new Set(
     pointer?.kind === "drag" ? pointer.placementIds : [],
@@ -445,6 +519,7 @@ export function PatternCanvas({
 
           {pattern.placements.map((placement) => {
             const isSelected = selectedPlacementIds.has(placement.id);
+            const isInvalid = invalidIds.has(placement.id);
             const dragged = draggingIds.has(placement.id);
             const previewPlacement = dragged
               ? {
@@ -497,8 +572,15 @@ export function PatternCanvas({
                     },
                   )}
                   fill={isSelected ? "var(--plan-fill)" : "var(--surface)"}
-                  stroke={isSelected ? "var(--brand)" : "var(--plan-stroke)"}
-                  strokeWidth={isSelected ? 3 : 1.5}
+                  stroke={
+                    isInvalid
+                      ? "var(--danger)"
+                      : isSelected
+                        ? "var(--brand)"
+                        : "var(--plan-stroke)"
+                  }
+                  strokeWidth={isSelected || isInvalid ? 3 : 1.5}
+                  data-invalid={isInvalid ? "true" : undefined}
                   vectorEffect="non-scaling-stroke"
                   className={`focus-visible:stroke-brand focus:outline-none ${interactionMode === "select" ? "cursor-pointer" : "cursor-grab active:cursor-grabbing"}`}
                   onPointerDown={(event) => startPlacement(event, placement.id)}
@@ -509,7 +591,7 @@ export function PatternCanvas({
                   onKeyDown={(event) => {
                     if (event.key !== "Enter" && event.key !== " ") return;
                     event.preventDefault();
-                    onSelectionChange(new Set(selectionUnit(placement.id)));
+                    onSelectionChange(clickSelection(placement.id));
                   }}
                 >
                   <title>
@@ -596,8 +678,32 @@ export function PatternCanvas({
               selectedPlacementIds.has(placementId),
             );
 
+            const outline = {
+              left: Math.min(...footprints.map(({ left }) => left)),
+              right: Math.max(...footprints.map(({ right }) => right)),
+              top: Math.min(...footprints.map(({ top }) => top)),
+              bottom: Math.max(...footprints.map(({ bottom }) => bottom)),
+            };
+
             return (
               <g key={`grip-overlay-${grip.id}`} pointerEvents="none">
+                {placements.length > 1 || isSelected ? (
+                  <rect
+                    data-testid={`grip-outline-${grip.id}`}
+                    data-selected={isSelected ? "true" : undefined}
+                    x={outline.left}
+                    y={outline.top}
+                    width={outline.right - outline.left}
+                    height={outline.bottom - outline.top}
+                    rx={6}
+                    fill="none"
+                    stroke="var(--brand)"
+                    strokeWidth={isSelected ? 2.5 : 1.5}
+                    strokeDasharray={isSelected ? undefined : "6 4"}
+                    opacity={isSelected ? 0.9 : 0.5}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ) : null}
                 {deltaArrow ? (
                   <g data-testid={`grip-delta-${grip.id}`} aria-hidden="true">
                     <line

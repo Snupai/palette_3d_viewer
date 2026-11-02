@@ -2,6 +2,7 @@ import "~/styles/globals.css";
 
 import { type Metadata, type Viewport } from "next";
 import localFont from "next/font/local";
+import { DocAlignerPrefetch } from "~/features/project/DocAlignerPrefetch";
 import { LocaleProvider } from "~/i18n";
 
 export const metadata: Metadata = {
@@ -71,6 +72,7 @@ export default function RootLayout({
     <html lang="de" className={`${barlow.variable} ${condensed.variable}`}>
       <body className="bg-canvas text-ink">
         <LocaleProvider>{children}</LocaleProvider>
+        <DocAlignerPrefetch />
       </body>
     </html>
   );
