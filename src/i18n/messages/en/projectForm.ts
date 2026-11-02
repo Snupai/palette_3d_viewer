@@ -2,6 +2,44 @@ import type { projectFormDe } from "../de/projectForm";
 
 export const projectFormEn = {
   "projectForm.allowMultiGrip": "Allow multi-pick",
+  "projectForm.camera.captureFailed": "The photo could not be taken.",
+  "projectForm.camera.close": "Close",
+  "projectForm.camera.detected": "Sheet detected – take the photo",
+  "projectForm.camera.error.busy": "The camera is in use by another app.",
+  "projectForm.camera.error.denied":
+    "No camera access. Please allow the camera for this site in the browser settings.",
+  "projectForm.camera.error.failed": "The camera could not be started.",
+  "projectForm.camera.error.notFound": "No camera found.",
+  "projectForm.camera.error.unsupported":
+    "This browser offers no live preview (HTTPS required).",
+  "projectForm.camera.fallback": "Use camera app",
+  "projectForm.camera.noCrop":
+    "No sheet detected – the original photo is used.",
+  "projectForm.camera.noDocument":
+    "No sheet detected. Hold the whole sheet in view, ideally on a contrasting surface.",
+  "projectForm.camera.processing": "Cropping photo …",
+  "projectForm.camera.retake": "Retake",
+  "projectForm.camera.retry": "Try again",
+  "projectForm.camera.reviewAlt": "Captured photo",
+  "projectForm.camera.reviewAltCropped": "Cropped photo",
+  "projectForm.camera.shutter": "Take photo",
+  "projectForm.camera.starting": "Starting camera …",
+  "projectForm.camera.stats.byClassic": "Outline: classic",
+  "projectForm.camera.stats.byFallback":
+    "Outline: classic (model found nothing)",
+  "projectForm.camera.stats.byModel": "Outline: model",
+  "projectForm.camera.stats.frame":
+    "frame {read} · tensor {tensor} · model {inference} · decode {decode} ms",
+  "projectForm.camera.stats.loading": "Model loading … classic detection",
+  "projectForm.camera.stats.model":
+    "DocAligner ({backend}): download {download} s · start {session} s · 1st run {warmup} s",
+  "projectForm.camera.stats.unavailable":
+    "Model unavailable – classic detection",
+  "projectForm.camera.title": "Photograph pallet sheet",
+  "projectForm.camera.version": "Photo version",
+  "projectForm.camera.version.cropped": "Cropped",
+  "projectForm.camera.version.original": "Original",
+  "projectForm.camera.use": "Use photo",
   "projectForm.cancel": "Cancel",
   "projectForm.change": "Edit",
   "projectForm.collapse": "Collapse",

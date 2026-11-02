@@ -1,6 +1,47 @@
 /** Namespace `projectForm` — German source strings. */
 export const projectFormDe = {
   "projectForm.allowMultiGrip": "Mehrfachgriff erlauben",
+  "projectForm.camera.captureFailed":
+    "Das Foto konnte nicht aufgenommen werden.",
+  "projectForm.camera.close": "Schließen",
+  "projectForm.camera.detected": "Blatt erkannt – jetzt aufnehmen",
+  "projectForm.camera.error.busy":
+    "Die Kamera wird gerade von einer anderen App verwendet.",
+  "projectForm.camera.error.denied":
+    "Kein Kamerazugriff. Bitte die Kamera für diese Seite in den Browser-Einstellungen erlauben.",
+  "projectForm.camera.error.failed":
+    "Die Kamera konnte nicht gestartet werden.",
+  "projectForm.camera.error.notFound": "Keine Kamera gefunden.",
+  "projectForm.camera.error.unsupported":
+    "Dieser Browser bietet keine Live-Vorschau (HTTPS nötig).",
+  "projectForm.camera.fallback": "Kamera-App verwenden",
+  "projectForm.camera.noCrop":
+    "Kein Blatt erkannt – das Originalfoto wird verwendet.",
+  "projectForm.camera.noDocument":
+    "Kein Blatt erkannt. Das ganze Blatt ins Bild halten, am besten auf kontrastreichem Untergrund.",
+  "projectForm.camera.processing": "Foto wird zugeschnitten …",
+  "projectForm.camera.retake": "Neu aufnehmen",
+  "projectForm.camera.retry": "Erneut versuchen",
+  "projectForm.camera.reviewAlt": "Aufgenommenes Foto",
+  "projectForm.camera.reviewAltCropped": "Zugeschnittenes Foto",
+  "projectForm.camera.shutter": "Aufnehmen",
+  "projectForm.camera.starting": "Kamera wird gestartet …",
+  "projectForm.camera.stats.byClassic": "Umriss: klassisch",
+  "projectForm.camera.stats.byFallback":
+    "Umriss: klassisch (Modell fand nichts)",
+  "projectForm.camera.stats.byModel": "Umriss: Modell",
+  "projectForm.camera.stats.frame":
+    "Bild {read} · Tensor {tensor} · Modell {inference} · Auswertung {decode} ms",
+  "projectForm.camera.stats.loading": "Modell lädt … klassische Erkennung",
+  "projectForm.camera.stats.model":
+    "DocAligner ({backend}): Download {download} s · Start {session} s · 1. Lauf {warmup} s",
+  "projectForm.camera.stats.unavailable":
+    "Modell nicht verfügbar – klassische Erkennung",
+  "projectForm.camera.title": "Palettenblatt fotografieren",
+  "projectForm.camera.version": "Fotoversion",
+  "projectForm.camera.version.cropped": "Zugeschnitten",
+  "projectForm.camera.version.original": "Original",
+  "projectForm.camera.use": "Foto verwenden",
   "projectForm.cancel": "Abbrechen",
   "projectForm.change": "Ändern",
   "projectForm.collapse": "Zuklappen",
