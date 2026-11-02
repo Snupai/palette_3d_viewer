@@ -70,6 +70,117 @@ export function compareGripPositionsRightBottomToLeftTop(
   return right.x - left.x || left.y - right.y;
 }
 
+/** Layer geometry behind {@link compareGripsByLayerRows}. */
+export type GripOrderLayout = {
+  /** Grips whose centre is at or below this y go first. */
+  splitYMm: number;
+  /** Bottom of the layer; row bands are counted from here. */
+  originYMm: number;
+  /** Height of one row band: the most common package footprint height. */
+  rowPitchMm: number;
+  /** Lowest footprint edge per grip id. */
+  bottomYById: ReadonlyMap<string, number>;
+};
+
+/**
+ * Builds the row/half layout of a layer from its package footprints. The
+ * row pitch is the most frequent footprint height (ties: the smaller one), so
+ * a column of crosswise packages next to lengthwise rows does not define rows.
+ */
+export function createGripOrderLayout(
+  footprints: readonly {
+    gripId: string | null;
+    minY: number;
+    maxY: number;
+  }[],
+): GripOrderLayout | null {
+  const splitYMm = lowerHalfSplitYMm(footprints);
+  if (splitYMm === null) return null;
+  const heightCounts = new Map<number, number>();
+  for (const { minY, maxY } of footprints) {
+    const height = Math.round((maxY - minY) * 1000) / 1000;
+    heightCounts.set(height, (heightCounts.get(height) ?? 0) + 1);
+  }
+  const [rowPitchMm] = [...heightCounts].sort(
+    ([leftHeight, leftCount], [rightHeight, rightCount]) =>
+      rightCount - leftCount || leftHeight - rightHeight,
+  )[0]!;
+  const bottomYById = new Map<string, number>();
+  for (const { gripId, minY } of footprints) {
+    if (gripId === null) continue;
+    bottomYById.set(gripId, Math.min(bottomYById.get(gripId) ?? minY, minY));
+  }
+  return {
+    splitYMm,
+    originYMm: Math.min(...footprints.map(({ minY }) => minY)),
+    rowPitchMm,
+    bottomYById,
+  };
+}
+
+/**
+ * Automatic grip order of a layer:
+ *
+ * 1. every grip below the split line before any grip above it; a grip that
+ *    straddles the line belongs to the half containing its centre (a centre
+ *    on the line counts as lower);
+ * 2. inside a half, row band by band from the bottom; a grip belongs to the
+ *    band that contains its bottom edge, so a crosswise column pair starting
+ *    in the bottom row band is placed with that row;
+ * 3. inside a band right to left, then bottom to top.
+ *
+ * Without a layout this is the plain right-to-left, bottom-to-top order.
+ */
+export function compareGripsByLayerRows(
+  layout: GripOrderLayout | null,
+): (
+  left: { id: string; x: number; y: number },
+  right: { id: string; x: number; y: number },
+) => number {
+  if (layout === null) return compareGripPositionsRightBottomToLeftTop;
+  const tolerance = 0.5;
+  const half = ({ y }: { y: number }) => (y <= layout.splitYMm + 0.001 ? 0 : 1);
+  const band = ({ id, y }: { id: string; y: number }) =>
+    Math.floor(
+      ((layout.bottomYById.get(id) ?? y) - layout.originYMm + tolerance) /
+        layout.rowPitchMm,
+    );
+  return (left, right) =>
+    half(left) - half(right) ||
+    band(left) - band(right) ||
+    compareGripPositionsRightBottomToLeftTop(left, right);
+}
+
+/**
+ * Split line for {@link compareGripsByLayerRows}: the package row
+ * boundary (a footprint top or bottom edge strictly inside the layer) nearest
+ * the layer's vertical midline, so the line never cuts through a row of
+ * aligned packages. Falls back to the midline when no inner edge exists;
+ * equally near edges resolve to the lower one.
+ */
+export function lowerHalfSplitYMm(
+  footprints: readonly { minY: number; maxY: number }[],
+): number | null {
+  if (footprints.length === 0) return null;
+  const minY = Math.min(...footprints.map(({ minY }) => minY));
+  const maxY = Math.max(...footprints.map(({ maxY }) => maxY));
+  const midline = (minY + maxY) / 2;
+  const tolerance = 0.001;
+  let best: number | null = null;
+  for (const edge of footprints.flatMap(({ minY, maxY }) => [minY, maxY])) {
+    if (edge <= minY + tolerance || edge >= maxY - tolerance) continue;
+    const distance = Math.abs(edge - midline);
+    const bestDistance = best === null ? Infinity : Math.abs(best - midline);
+    if (
+      distance < bestDistance - tolerance ||
+      (Math.abs(distance - bestDistance) <= tolerance && edge < best!)
+    ) {
+      best = edge;
+    }
+  }
+  return best ?? midline;
+}
+
 function boxBoundsByGrip(
   grips: readonly Grip[],
   packageWidth: number,
@@ -221,6 +332,10 @@ export function orderGripsByDependencies<
   grips: readonly T[],
   dependencies: readonly GripOrderDependency[],
   preferredOrder?: readonly string[],
+  comparePositions: (
+    left: T,
+    right: T,
+  ) => number = compareGripPositionsRightBottomToLeftTop,
 ): T[] {
   const gripById = new Map(grips.map((grip) => [grip.id, grip]));
   const outgoing = new Map<string, string[]>();
@@ -250,7 +365,7 @@ export function orderGripsByDependencies<
       ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
         (preferredIndexById.get(right.id) ?? Number.POSITIVE_INFINITY)
       : 0) ||
-    compareGripPositionsRightBottomToLeftTop(left, right) ||
+    comparePositions(left, right) ||
     left.id.localeCompare(right.id);
   const available = grips
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)

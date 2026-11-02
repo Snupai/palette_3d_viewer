@@ -1,4 +1,7 @@
-import { compareGripPositionsRightBottomToLeftTop } from "~/domain/gripDependencies";
+import {
+  compareGripsByLayerRows,
+  type GripOrderLayout,
+} from "~/domain/gripDependencies";
 import type { PalletizingDirection } from "~/domain/project/projectSchema";
 import type {
   RobotDiagnostic,
@@ -18,14 +21,20 @@ export type RobotOrderSuggestion = {
   diagnostics: readonly RobotDiagnostic[];
 };
 
-function baseComparator() {
+export type RobotOrderOptions = {
+  /** Lower half first, row by row; see `compareGripsByLayerRows`. */
+  layerLayout?: GripOrderLayout | null;
+};
+
+function baseComparator(layout: GripOrderLayout | null) {
+  const comparePositions = compareGripsByLayerRows(layout);
   return (left: RobotGripGroup, right: RobotGripGroup): number =>
     (left.sourceSequence !== null && right.sourceSequence !== null
       ? left.sourceSequence - right.sourceSequence
       : 0) ||
-    compareGripPositionsRightBottomToLeftTop(
-      left.centerPalletMm,
-      right.centerPalletMm,
+    comparePositions(
+      { id: left.id, ...left.centerPalletMm },
+      { id: right.id, ...right.centerPalletMm },
     ) ||
     left.groupNumber - right.groupNumber ||
     left.id.localeCompare(right.id);
@@ -66,7 +75,8 @@ function topologicalOrder(
   groups: readonly RobotGripGroup[],
   dependencies: readonly RobotOrderDependency[],
   diagnostics: RobotDiagnostic[],
-  preferredIndexById?: ReadonlyMap<string, number>,
+  preferredIndexById: ReadonlyMap<string, number> | undefined,
+  layout: GripOrderLayout | null,
 ): RobotGripGroup[] {
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const outgoing = new Map<string, string[]>();
@@ -82,7 +92,7 @@ function topologicalOrder(
   }
   for (const targets of outgoing.values()) targets.sort();
 
-  const fallbackCompare = baseComparator();
+  const fallbackCompare = baseComparator(layout);
   const compare = (left: RobotGripGroup, right: RobotGripGroup) =>
     preferredIndexById
       ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
@@ -173,6 +183,7 @@ export function suggestRobotOrder(
   dependencies: readonly RobotOrderDependency[],
   direction: PalletizingDirection,
   editedOrder?: readonly string[],
+  options: RobotOrderOptions = {},
 ): RobotOrderSuggestion {
   const diagnostics: RobotDiagnostic[] = [];
   const groupsById = new Map(groups.map((group) => [group.id, group]));
@@ -190,6 +201,7 @@ export function suggestRobotOrder(
     normalized,
     diagnostics,
     preferredIndexById,
+    options.layerLayout ?? null,
   );
   const explicitSource = groups.every(
     ({ groupingSource }) => groupingSource === "explicit-project-cycle",
