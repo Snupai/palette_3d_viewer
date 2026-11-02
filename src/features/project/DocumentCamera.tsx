@@ -57,7 +57,7 @@ const STATS_WINDOW_MS = 2000;
 type DetectorStats = {
   /** `model`: DocAligner found the sheet; `modelMiss`: it did not, classic ran; `classic`: model not ready. */
   engine: "model" | "modelMiss" | "classic";
-  modelStatus: "loading" | "ready" | "failed" | "unavailable";
+  modelStatus: "idle" | "loading" | "ready" | "failed" | "unavailable";
   backend: string | null;
   load: DocAlignerLoadTimings | null;
   /** Where the last model run spent its time. */
@@ -188,7 +188,10 @@ export function DocumentCamera({
     // The DocAligner model loads when the camera first opens and stays loaded
     // for the page; until it is ready, or if it cannot load, the classic
     // detector outlines the sheet.
-    alignerRef.current = sharedDocAligner();
+    // Reuses the background prefetch (see DocAlignerPrefetch) if it ran.
+    const aligner = sharedDocAligner();
+    aligner?.load();
+    alignerRef.current = aligner;
   }, []);
 
   useEffect(() => {
@@ -502,7 +505,7 @@ export function DocumentCamera({
                   session: seconds(stats.load?.sessionMs),
                   warmup: seconds(stats.load?.warmupMs),
                 })
-              : stats.modelStatus === "loading"
+              : stats.modelStatus === "loading" || stats.modelStatus === "idle"
                 ? t("projectForm.camera.stats.loading")
                 : t("projectForm.camera.stats.unavailable")}
             <br />

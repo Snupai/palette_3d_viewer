@@ -15,14 +15,14 @@ import type {
   DocAlignerRequest,
   DocAlignerResponse,
 } from "~/workers/docAlignerProtocol";
-
-const MODEL_URL = "/models/docaligner/lcnet100_h_e_bifpn_256_fp32.onnx";
+import { createAssetLoader, ORT_WASM_URL } from "~/workers/docAlignerAssets";
 
 declare const self: DedicatedWorkerGlobalScope;
 
-// Only the binary comes from public/ort/; its JS loader is part of the
+// The binary is handed to ORT as bytes (`wasmBinary`, see `load`), from the
+// shared download; the path is only a fallback. Its JS loader is part of the
 // bundle. (A path prefix would make ORT fetch the loader from there too.)
-ort.env.wasm.wasmPaths = { wasm: "/ort/ort-wasm-simd-threaded.jsep.wasm" };
+ort.env.wasm.wasmPaths = { wasm: ORT_WASM_URL };
 // Threads need cross-origin isolation, which this app does not enable.
 ort.env.wasm.numThreads = 1;
 
@@ -30,6 +30,10 @@ let session: ort.InferenceSession | null = null;
 let backend: DocAlignerBackend | null = null;
 let model: ArrayBuffer | null = null;
 let loading: Promise<void> | null = null;
+const assets = createAssetLoader({
+  fetch: (url, init) => fetch(url, init),
+  caches: typeof caches === "undefined" ? undefined : caches,
+});
 /** Detections run one after another: a session must not run twice at once. */
 let queue: Promise<void> = Promise.resolve();
 
@@ -96,10 +100,10 @@ async function startSession(bytes: ArrayBuffer, downloadMs: number) {
 
 async function load() {
   const start = performance.now();
-  const response = await fetch(MODEL_URL);
-  if (!response.ok)
-    throw new Error(`Model download failed (${response.status})`);
-  model = await response.arrayBuffer();
+  // Reuses a prefetch that is still running or already in the cache.
+  const downloaded = await assets.get();
+  ort.env.wasm.wasmBinary = downloaded.wasm;
+  model = downloaded.model;
   await startSession(model, performance.now() - start);
 }
 
@@ -171,6 +175,11 @@ async function detect(id: number, frame: ImageBitmap, decodeSize: number) {
 
 self.onmessage = (event: MessageEvent<DocAlignerRequest>) => {
   const request = event.data;
+  if (request.type === "prefetch") {
+    // Best effort: a failed prefetch is retried when the camera opens.
+    assets.prefetch().catch(() => undefined);
+    return;
+  }
   if (request.type === "load") {
     loading ??= load().catch((error: unknown) => {
       loading = null;

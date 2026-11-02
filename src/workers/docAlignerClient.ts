@@ -12,7 +12,8 @@ import type {
   DocAlignerTimings,
 } from "~/workers/docAlignerProtocol";
 
-export type DocAlignerStatus = "loading" | "ready" | "failed";
+/** `idle`: worker started (maybe prefetching), model not loaded yet. */
+export type DocAlignerStatus = "idle" | "loading" | "ready" | "failed";
 
 export type DocAlignerDetection = {
   quad: DocumentQuad | null;
@@ -33,7 +34,7 @@ const log = (message: string) => {
 };
 
 export class DocAlignerClient {
-  status: DocAlignerStatus = "loading";
+  status: DocAlignerStatus = "idle";
   backend: DocAlignerBackend | null = null;
   loadTimings: DocAlignerLoadTimings | null = null;
   /** Timings of the most recent detection. */
@@ -50,14 +51,26 @@ export class DocAlignerClient {
   private inferenceCount = 0;
   private inferenceTotalMs = 0;
 
-  constructor() {
-    this.worker = new Worker(
-      new URL("./docAligner.worker.ts", import.meta.url),
-      { type: "module", name: "docaligner" },
-    );
+  private prefetching = false;
+
+  constructor(createWorker: () => Worker = startWorker) {
+    this.worker = createWorker();
     this.worker.onmessage = (event: MessageEvent<DocAlignerResponse>) =>
       this.receive(event.data);
     this.worker.onerror = () => this.fail("Worker crashed");
+  }
+
+  /** Downloads model and runtime in the background (once); no session yet. */
+  prefetch() {
+    if (this.prefetching || this.status !== "idle") return;
+    this.prefetching = true;
+    this.send({ type: "prefetch" });
+  }
+
+  /** Starts the model (once), reusing a prefetch in flight or cached. */
+  load() {
+    if (this.status !== "idle") return;
+    this.status = "loading";
     this.send({ type: "load" });
   }
 
@@ -135,11 +148,19 @@ export class DocAlignerClient {
   }
 }
 
+function startWorker(): Worker {
+  return new Worker(new URL("./docAligner.worker.ts", import.meta.url), {
+    type: "module",
+    name: "docaligner",
+  });
+}
+
 let shared: DocAlignerClient | null = null;
 
 /**
- * The page-wide DocAligner, created (and the model loaded) on first use;
- * null where workers, OffscreenCanvas or ImageBitmap are unavailable.
+ * The page-wide DocAligner, created on first use (call `prefetch` or `load`
+ * on it); null where workers, OffscreenCanvas or ImageBitmap are unavailable.
+ * A client whose worker failed is replaced.
  */
 export function sharedDocAligner(): DocAlignerClient | null {
   if (shared && shared.status !== "failed") return shared;

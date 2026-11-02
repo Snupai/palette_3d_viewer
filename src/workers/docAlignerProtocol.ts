@@ -7,6 +7,9 @@ import type { DocumentQuad } from "~/features/project/documentCameraModel";
 export type DocAlignerBackend = "webgpu" | "wasm";
 
 export type DocAlignerRequest =
+  /** Download model and runtime only (into the cache), at low priority. */
+  | { type: "prefetch" }
+  /** Download (or reuse the prefetch) and start a session. */
   | { type: "load" }
   | {
       type: "detect";
@@ -32,7 +35,7 @@ export type DocAlignerResponse =
   | {
       type: "loaded";
       backend: DocAlignerBackend;
-      /** Model download. */
+      /** Waiting for model and runtime (≈ 0 when prefetched or cached). */
       downloadMs: number;
       /** Session creation, including fetching and compiling the runtime. */
       sessionMs: number;
