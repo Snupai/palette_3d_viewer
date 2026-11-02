@@ -467,6 +467,18 @@ export function DocumentCamera({
             setVideoSize({ width: videoWidth, height: videoHeight });
             setPhase("live");
           }}
+          // Rotating the phone changes the stream's size without new
+          // metadata; keep outline and detection on the current aspect ratio
+          // (without leaving review).
+          onResize={(event) => {
+            const { videoWidth, videoHeight } = event.currentTarget;
+            if (!videoWidth || !videoHeight) return;
+            setVideoSize((current) =>
+              current.width === videoWidth && current.height === videoHeight
+                ? current
+                : { width: videoWidth, height: videoHeight },
+            );
+          }}
         />
         {phase === "live" && quad && videoSize.width ? (
           // Same box and aspect fit as the video, so the outline lands on it.
