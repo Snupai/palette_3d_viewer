@@ -20,10 +20,11 @@ everything in a Three.js viewer.
 
 ## Design
 
-The UI follows the approved Fable v2 “Hallenboden” design (epoxy grey, kraft/wood,
-robot orange `#f25316`, Barlow, system light/dark). Tokens and workflow rules live in
-`docs/DESIGN.md`. Do not restore skippable planning tabs, a Tools catalog, or a
-`.rob` “reference” overlay when the file is already the plan. Open a finished
+The UI follows the approved Fable v2 “Hallenboden” design (epoxy-grey canvas,
+kraft/wood pallet material, one Szaidel-navy `--brand` accent `#173159`, Barlow,
+system light/dark); the former navy/steel corporate chrome is superseded. Tokens,
+workflow rules, and banned patterns live in `docs/DESIGN.md`. Do not restore
+skippable planning tabs, a Tools catalog, or a `.rob` “reference” overlay when the file is already the plan. Open a finished
 project on its last completed step, not on Inputs. Editor, Robotics, and
 Simulation are gated by `productionToolGate` in `planningCaseModel.ts` — the
 single prerequisite map; do not duplicate gating inside tool overlays.
