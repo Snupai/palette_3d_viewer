@@ -25,6 +25,33 @@ function frame(
   return luminance;
 }
 
+/** Deterministic pseudo-random numbers in [0, 1) (mulberry32). */
+function noise(seed: number): () => number {
+  let state = seed;
+  return () => {
+    state = (state + 0x6d2b79f5) | 0;
+    let t = Math.imul(state ^ (state >>> 15), 1 | state);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/** Inside a clockwise polygon in image coordinates. */
+function insidePolygon(
+  corners: readonly { x: number; y: number }[],
+  x: number,
+  y: number,
+): boolean {
+  return corners.every((a, i) => {
+    const b = corners[(i + 1) % corners.length]!;
+    return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x) >= 0;
+  });
+}
+
+const pixelCorners = (quad: DocumentQuad | null) =>
+  quad?.map(({ x, y }) => [Math.round(x * WIDTH), Math.round(y * HEIGHT)]) ??
+  null;
+
 const sheet = (x0: number, y0: number, x1: number, y1: number, value = 220) =>
   frame(40, (x, y) => (x >= x0 && x < x1 && y >= y0 && y < y1 ? value : null));
 
@@ -92,10 +119,72 @@ describe("detectDocumentQuad", () => {
     ]);
   });
 
+  it("finds a sheet on a light desk under uneven light", () => {
+    // Paper (200) only 20 grey levels above a light desk (180), both
+    // darkening by 40 towards the left, with sensor noise and lines of text.
+    const quad = [
+      { x: 35, y: 18 },
+      { x: 128, y: 26 },
+      { x: 136, y: 100 },
+      { x: 24, y: 94 },
+    ];
+    const random = noise(7);
+    const scene = frame(0, (x, y) => {
+      const light = -40 + (x / WIDTH) * 40;
+      const grain = Math.round((random() - 0.5) * 12);
+      if (!insidePolygon(quad, x + 0.5, y + 0.5)) return 180 + light + grain;
+      const text =
+        y % 9 < 2 && x % 7 < 5 && x > 45 && x < 115 && y > 35 && y < 85;
+      return (text ? 90 : 200) + light + grain;
+    });
+    expect(pixelCorners(detectDocumentQuad(scene, WIDTH, HEIGHT))).toEqual([
+      [35, 18],
+      [128, 26],
+      [136, 100],
+      [24, 94],
+    ]);
+  });
+
+  it("finds a sheet on wooden planks next to the table edge", () => {
+    // Planks of 150–185 with grain, the table ending at y = 108 above a
+    // dark floor, and a sheet (215) rotated a few degrees.
+    const quad = [
+      { x: 42, y: 12 },
+      { x: 122, y: 18 },
+      { x: 116, y: 98 },
+      { x: 36, y: 92 },
+    ];
+    const random = noise(11);
+    const planks = [150, 172, 160, 185, 155, 178, 165, 150];
+    const scene = frame(0, (x, y) => {
+      const grain = Math.round((random() - 0.5) * 16);
+      if (insidePolygon(quad, x + 0.5, y + 0.5)) return 215 + grain;
+      if (y >= 108) return 60 + grain;
+      return planks[Math.floor(x / 20)]! + grain;
+    });
+    expect(pixelCorners(detectDocumentQuad(scene, WIDTH, HEIGHT))).toEqual([
+      [42, 12],
+      [122, 18],
+      [116, 98],
+      [36, 92],
+    ]);
+  });
+
+  it("finds nothing on bare wooden planks", () => {
+    const random = noise(3);
+    const planks = [150, 172, 160, 185, 155, 178, 165, 150];
+    const scene = frame(0, (x, y) =>
+      y >= 108
+        ? 60
+        : planks[Math.floor(x / 20)]! + Math.round((random() - 0.5) * 16),
+    );
+    expect(detectDocumentQuad(scene, WIDTH, HEIGHT)).toBeNull();
+  });
+
   it("reports no document without contrast", () => {
     expect(detectDocumentQuad(frame(128), WIDTH, HEIGHT)).toBeNull();
     expect(
-      detectDocumentQuad(sheet(40, 30, 120, 90, 60), WIDTH, HEIGHT),
+      detectDocumentQuad(sheet(40, 30, 120, 90, 44), WIDTH, HEIGHT),
     ).toBeNull();
   });
 

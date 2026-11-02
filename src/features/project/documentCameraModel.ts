@@ -5,6 +5,8 @@
  * camera or canvas.
  */
 
+import { detectSheetByEdges } from "~/features/project/documentEdgeDetection";
+
 export type Point = { x: number; y: number };
 
 /** Corners in frame-relative coordinates (0–1): top-left, top-right, bottom-right, bottom-left. */
@@ -136,20 +138,38 @@ function refineCorners(
       const t = 0.25 + (0.5 * step) / 16;
       const x = a.x + (b.x - a.x) * t;
       const y = a.y + (b.y - a.y) * t;
-      let bestStep = -Infinity;
-      let bestOffset = 0;
-      for (let k = -REFINE_SEARCH; k <= REFINE_SEARCH; k++) {
-        // Pixel just inside vs just outside a boundary at offset k.
-        const value =
-          sample(x + nx * (k - 0.5), y + ny * (k - 0.5)) -
-          sample(x + nx * (k + 0.5), y + ny * (k + 0.5));
-        if (value > bestStep) {
-          bestStep = value;
-          bestOffset = k;
+      // Pixel just inside vs just outside a boundary at offset k.
+      // Averaged over three pixels along the side, so sensor noise does not
+      // make up an edge.
+      const across = (k: number) =>
+        (sample(x + nx * k - dx, y + ny * k - dy) +
+          sample(x + nx * k, y + ny * k) +
+          sample(x + nx * k + dx, y + ny * k + dy)) /
+        3;
+      const stepAt = (k: number) => across(k - 0.5) - across(k + 0.5);
+      // The nearest strong edge, not the strongest: a table edge or a dark
+      // floor a few pixels further out must not pull the side away.
+      for (let distance = 0; distance <= REFINE_SEARCH; distance++) {
+        const offset = [distance, -distance].find((k) => {
+          const value = stepAt(k);
+          return (
+            value >= MIN_EDGE_CONTRAST &&
+            value >= stepAt(k - 1) &&
+            value >= stepAt(k + 1)
+          );
+        });
+        if (offset !== undefined) {
+          // Parabola through the step and its neighbours: sub-pixel position.
+          const before = stepAt(offset - 1);
+          const peak = stepAt(offset);
+          const after = stepAt(offset + 1);
+          const curvature = before - 2 * peak + after;
+          const shift =
+            curvature < 0 ? (0.5 * (before - after)) / curvature : 0;
+          const position = offset + Math.max(-0.5, Math.min(0.5, shift));
+          points.push({ x: x + nx * position, y: y + ny * position });
+          break;
         }
-      }
-      if (bestStep >= MIN_EDGE_CONTRAST) {
-        points.push({ x: x + nx * bestOffset, y: y + ny * bestOffset });
       }
     }
     if (points.length < 6) return [...corners];
@@ -253,7 +273,9 @@ function regionQuad(
  * (too little contrast, too small, cut off at the frame edge, or not four-cornered).
  * Tries several brightness cut-offs, because a bright tablecloth or wall can
  * merge with the sheet at one cut-off and separate from it at a higher one;
- * the largest sheet-like region wins.
+ * the largest sheet-like region wins. When no region stands out (a sheet on a
+ * light desk or floor), falls back to four straight edges around a slightly
+ * brighter area (`detectSheetByEdges`).
  */
 export function detectDocumentQuad(
   luminance: Uint8Array,
@@ -302,8 +324,10 @@ export function detectDocumentQuad(
       if (!best || area > best.area) best = { corners, area };
     }
   }
-  if (!best) return null;
-  const corners = refineCorners(luminance, width, height, best.corners);
+  const corners = best
+    ? refineCorners(luminance, width, height, best.corners)
+    : detectSheetByEdges(luminance, width, height, MIN_AREA_FRACTION);
+  if (!corners) return null;
   const [a, b, c, d] = corners.map((point) => ({
     x: point.x / width,
     y: point.y / height,

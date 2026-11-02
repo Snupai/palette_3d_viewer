@@ -16,7 +16,7 @@ export const projectFormEn = {
   "projectForm.camera.noCrop":
     "No sheet detected – the original photo is used.",
   "projectForm.camera.noDocument":
-    "No sheet detected. Hold the whole sheet in view on a dark background.",
+    "No sheet detected. Hold the whole sheet in view, ideally on a contrasting surface.",
   "projectForm.camera.processing": "Cropping photo …",
   "projectForm.camera.retake": "Retake",
   "projectForm.camera.retry": "Try again",

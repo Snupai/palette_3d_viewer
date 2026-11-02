@@ -18,7 +18,7 @@ export const projectFormDe = {
   "projectForm.camera.noCrop":
     "Kein Blatt erkannt – das Originalfoto wird verwendet.",
   "projectForm.camera.noDocument":
-    "Kein Blatt erkannt. Das ganze Blatt auf dunklem Untergrund ins Bild halten.",
+    "Kein Blatt erkannt. Das ganze Blatt ins Bild halten, am besten auf kontrastreichem Untergrund.",
   "projectForm.camera.processing": "Foto wird zugeschnitten …",
   "projectForm.camera.retake": "Neu aufnehmen",
   "projectForm.camera.retry": "Erneut versuchen",
