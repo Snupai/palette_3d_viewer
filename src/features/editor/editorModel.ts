@@ -948,11 +948,12 @@ function ensurePatternGroups(
     });
   }
 
-  const { groups, movedPositions } = automaticPlacementGroups(
+  const automatic = automaticPlacementGroups(
     project,
     pattern,
     options.allowShift ?? false,
   );
+  const { movedPositions } = automatic;
   const shiftedPlacements = pattern.placements.map((placement) => {
     const positionMm = movedPositions.get(placement.id);
     return positionMm ? { ...placement, positionMm } : placement;
@@ -960,6 +961,28 @@ function ensurePatternGroups(
   const placementsById = new Map(
     shiftedPlacements.map((placement) => [placement.id, placement]),
   );
+  // Imported .rob plans store whole millimetres only: a multi-package grip
+  // whose place or pick point would fall between millimetres could not be
+  // exported, so its packages stay single grips instead.
+  const groups =
+    project.source.kind === "rob-import"
+      ? automatic.groups.flatMap((placementIds) => {
+          if (placementIds.length < 2) return [placementIds];
+          const grip = gripFromPlacements(
+            project,
+            placementIds.flatMap((id) => {
+              const placement = placementsById.get(id);
+              return placement ? [placement] : [];
+            }),
+            { id: "probe", groupNumber: 1 },
+          );
+          return [grip.x, grip.y, grip.pickX, grip.pickY].every(
+            Number.isInteger,
+          )
+            ? [placementIds]
+            : placementIds.map((id) => [id]);
+        })
+      : automatic.groups;
   const grips = groups.map((placementIds, index) => {
     const placements = placementIds.flatMap((id) => {
       const placement = placementsById.get(id);
@@ -2654,7 +2677,8 @@ export function applyProjectEditorCommand(
       // Discards manual grips and their explicit order so the automatic
       // calculation starts from the current package geometry. The cleared
       // pattern is also the sync baseline, so recalculated grips with
-      // unchanged ids keep no old pick or dx/dy data.
+      // unchanged ids keep no old pick or dx/dy data. The optimizer may slide
+      // packages, so the result must pass the same geometry rule as a move.
       const ungrouped: LayerPattern = {
         ...previousPattern,
         grips: [],
@@ -2665,11 +2689,15 @@ export function applyProjectEditorCommand(
         groupOrder: [],
         orderDependencies: [],
       };
+      const recalculated = ensurePatternGroups(project, ungrouped, {
+        allowShift: true,
+      });
+      validateGeometryOrThrow(project, recalculated, previousPattern);
       return replacePattern(
         project,
         command.solutionId,
         ungrouped,
-        ensurePatternGroups(project, ungrouped, { allowShift: true }),
+        recalculated,
       );
     }
     case "reorder-group": {

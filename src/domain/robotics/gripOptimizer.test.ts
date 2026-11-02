@@ -374,4 +374,26 @@ describe("optimizeSuctionGroups", () => {
       optimizeSuctionGroups(placements, options),
     );
   });
+
+  it("ignores float noise at a flush contact when closing a gap", () => {
+    // Sliding b left to close the 10 mm gap leaves it flush under n with
+    // ~3e-14 mm of float overlap; the editor accepts that as flush.
+    const result = optimizeSuctionGroups(
+      [
+        box("a", 150, 156.4),
+        box("b", 260, 156.4),
+        box("n", 250, 256.4),
+        box("left", 50, 400),
+        box("right", 550, 400),
+      ],
+      {
+        spanMm: 100,
+        packageSizeMm: { length: 100, width: 100 },
+        maxPackagesPerPick: 2,
+        maxShiftMm: 100,
+      },
+    );
+    expect(result.groups).toHaveLength(4);
+    expect(result.groups).toContainEqual(["a", "b"]);
+  });
 });

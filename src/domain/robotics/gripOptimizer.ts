@@ -1,3 +1,4 @@
+import { solverRectangleBoundsOverlap } from "~/domain/solver/geometryPolicy";
 import type { Rotation } from "~/domain/palletTypes";
 
 /**
@@ -117,14 +118,12 @@ function rectFor(
   return { minX: x - halfX, minY: y - halfY, maxX: x + halfX, maxY: y + halfY };
 }
 
-/** Strict overlap like the editor validation: touching edges are legal. */
+/**
+ * Overlap with the solver/editor geometry tolerance, so float noise at a
+ * flush contact neither blocks a slide nor differs from editor validation.
+ */
 function overlaps(left: Rect, right: Rect) {
-  return (
-    left.minX < right.maxX &&
-    left.maxX > right.minX &&
-    left.minY < right.maxY &&
-    left.maxY > right.minY
-  );
+  return solverRectangleBoundsOverlap(left, right);
 }
 
 /** Rectangles share a boundary segment of positive length. */

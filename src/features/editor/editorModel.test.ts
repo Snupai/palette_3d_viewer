@@ -671,6 +671,86 @@ describe("Project editor pattern geometry", () => {
     });
   });
 
+  it("refuses a grip recalculation whose package slide adds an overhang", () => {
+    // p1 already sticks out; sliding p2 to close the gap would make it stick
+    // out too, which a manual move would not be allowed to do either.
+    const base = editorProject();
+    const positions: Record<string, { x: number; y: number }> = {
+      p1: { x: -60, y: 50 },
+      p2: { x: 50, y: 50 },
+      p3: { x: 350, y: 150 },
+      p4: { x: 350, y: 250 },
+    };
+    const project: Project = {
+      ...base,
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((entry) => ({
+          ...entry,
+          placements: entry.placements.map((placement) => ({
+            ...placement,
+            positionMm: positions[placement.id]!,
+          })),
+        })),
+      })),
+    };
+    expect(() =>
+      applyProjectEditorCommand(project, {
+        type: "recalculate-groups",
+        mode: "order",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+      }),
+    ).toThrow(/Package "p2" exceeds the effective pallet envelope/);
+  });
+
+  it("keeps automatic grips of imported plans on whole millimetres", () => {
+    // Two flush 101 mm packages would form a grip centred at x = 201.5,
+    // which a .rob cannot store; they stay single grips instead.
+    const base = editorProject();
+    const project: Project = {
+      ...base,
+      source: { kind: "rob-import", fileName: "odd.rob" },
+      package: {
+        ...base.package,
+        dimensionsMm: { ...base.package.dimensionsMm, length: 101 },
+      },
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((entry) => ({
+          ...entry,
+          placements: entry.placements
+            .filter(({ id }) => id === "p1" || id === "p2")
+            .map((placement) => ({
+              ...placement,
+              positionMm:
+                placement.id === "p1" ? { x: 151, y: 200 } : { x: 252, y: 200 },
+            })),
+        })),
+      })),
+    };
+    const recalculated = applyProjectEditorCommand(project, {
+      type: "recalculate-groups",
+      mode: "order",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+    });
+    expect(
+      pattern(recalculated).grips.map(
+        ({ numPackages, x, y, pickX, pickY }) => ({
+          numPackages,
+          x,
+          y,
+          pickX,
+          pickY,
+        }),
+      ),
+    ).toEqual([
+      { numPackages: 1, x: 252, y: 200, pickX: 50, pickY: -25 },
+      { numPackages: 1, x: 151, y: 200, pickX: 50, pickY: -25 },
+    ]);
+  });
+
   it("edits labels and inserts both package orientations at valid free positions", () => {
     let project = editorProject();
     project = applyProjectEditorCommand(project, {
