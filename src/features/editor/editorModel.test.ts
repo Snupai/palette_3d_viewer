@@ -23,7 +23,13 @@ import {
   selectionCenteringDelta,
   stepProjectEditorFlow,
   type ProjectEditorCommand,
+  validateProjectPattern,
 } from "~/features/editor/editorModel";
+import {
+  createDragCollisionContext,
+  resolveDragDelta,
+  roundDragDelta,
+} from "~/features/editor/dragCollision";
 
 function placement(
   id: string,
@@ -476,6 +482,188 @@ describe("Project editor pattern geometry", () => {
       deltaMm: { x: 0, y: 10 },
     });
     expect(pattern(coarse).placements[0]?.positionMm.y).toBe(61);
+  });
+
+  it("lets drags and moves keep existing overlaps but never add one", () => {
+    // p4 already overlaps p3 (e.g. an imported plan); p1–p4 are 100 × 50 mm.
+    const base = editorProject();
+    const project: Project = {
+      ...base,
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((entry) => ({
+          ...entry,
+          placements: entry.placements.map((placement) =>
+            placement.id === "p4"
+              ? { ...placement, positionMm: { x: 130, y: 150 } }
+              : placement,
+          ),
+        })),
+      })),
+    };
+    const move = (id: string, deltaMm: { x: number; y: number }) =>
+      applyProjectEditorCommand(project, {
+        type: "move-placements",
+        mode: "pattern",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        placementIds: [id],
+        deltaMm,
+      });
+    const dragged = (id: string, target: { x: number; y: number }) => {
+      const context = createDragCollisionContext(project, pattern(project), [
+        id,
+      ]);
+      return roundDragDelta(
+        context,
+        resolveDragDelta(context, { x: 0, y: 0 }, target),
+      );
+    };
+
+    // An unrelated package moves although p3/p4 still overlap.
+    expect(dragged("p2", { x: 100, y: 0 })).toEqual({ x: 100, y: 0 });
+    expect(
+      pattern(move("p2", { x: 100, y: 0 })).placements[1]?.positionMm,
+    ).toEqual({ x: 250, y: 50 });
+    // Pulling p4 apart from p3 is allowed even before the overlap is gone.
+    expect(dragged("p4", { x: 10, y: 0 })).toEqual({ x: 10, y: 0 });
+    expect(
+      pattern(move("p4", { x: 10, y: 0 })).placements[3]?.positionMm,
+    ).toEqual({ x: 140, y: 150 });
+    // A new overlap is still rejected — and the drag never proposes one.
+    expect(() => move("p1", { x: 30, y: 0 })).toThrow(
+      /Packages "p1" and "p2" overlap or violate clearance/,
+    );
+    expect(dragged("p1", { x: 30, y: 0 })).toEqual({ x: 0, y: 0 });
+  });
+
+  it("never lets an edit worsen an existing overlap or overhang", () => {
+    const base = editorProject();
+    const project: Project = {
+      ...base,
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((entry) => ({
+          ...entry,
+          placements: entry.placements.map((placement) =>
+            placement.id === "p4"
+              ? { ...placement, positionMm: { x: 130, y: 150 } }
+              : placement.id === "p1"
+                ? { ...placement, positionMm: { x: 40, y: 50 } }
+                : placement,
+          ),
+        })),
+      })),
+    };
+    const move = (id: string, deltaMm: { x: number; y: number }) =>
+      applyProjectEditorCommand(project, {
+        type: "move-placements",
+        mode: "pattern",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        placementIds: [id],
+        deltaMm,
+      });
+    const dragged = (id: string, target: { x: number; y: number }) => {
+      const context = createDragCollisionContext(project, pattern(project), [
+        id,
+      ]);
+      return roundDragDelta(
+        context,
+        resolveDragDelta(context, { x: 0, y: 0 }, target),
+      );
+    };
+
+    // p4 overlaps p3 by 20 mm; pushing it 20 mm deeper is refused.
+    expect(() => move("p4", { x: -20, y: 0 })).toThrow(
+      /Packages "p3" and "p4" overlap or violate clearance/,
+    );
+    expect(dragged("p4", { x: -20, y: 0 })).toEqual({ x: 0, y: 0 });
+    // p1 sticks out 10 mm; further out is refused, back in is allowed.
+    expect(() => move("p1", { x: -5, y: 0 })).toThrow(
+      /Package "p1" exceeds the effective pallet envelope/,
+    );
+    expect(dragged("p1", { x: -5, y: 0 })).toEqual({ x: 0, y: 0 });
+    expect(
+      pattern(move("p1", { x: 0, y: 10 })).placements[0]?.positionMm,
+    ).toEqual({ x: 40, y: 60 });
+    expect(dragged("p1", { x: 0, y: 10 })).toEqual({ x: 0, y: 10 });
+  });
+
+  it("keeps an already invalid grip while other packages are edited", () => {
+    // Grip g1 spans p1/p2 with a 10 mm gap — not a valid multi-package grip.
+    const base = editorProject();
+    const project = projectSchema.parse({
+      ...base,
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((entry) => ({
+          ...entry,
+          grips: [
+            {
+              id: "g1",
+              groupNumber: 1,
+              pickX: 105,
+              pickY: 0,
+              pickRotation: 0,
+              x: 105,
+              y: 50,
+              rotation: 0,
+              numPackages: 2,
+              dx: 0,
+              dy: -1,
+            },
+          ],
+          placements: entry.placements.map((placement) =>
+            placement.id === "p1"
+              ? { ...placement, gripId: "g1" }
+              : placement.id === "p2"
+                ? { ...placement, gripId: "g1", positionMm: { x: 160, y: 50 } }
+                : placement,
+          ),
+        })),
+      })),
+    });
+    expect(
+      validateProjectPattern(project, pattern(project)).map(({ code }) => code),
+    ).toContain("invalid-group-geometry");
+    const move = (ids: string[], deltaMm: { x: number; y: number }) =>
+      applyProjectEditorCommand(project, {
+        type: "move-placements",
+        mode: "pattern",
+        solutionId: "solution-1",
+        patternId: "pattern-1",
+        placementIds: ids,
+        deltaMm,
+      });
+
+    // Another package moves; g1 stays exactly as it was.
+    const other = move(["p3"], { x: 0, y: 10 });
+    expect(pattern(other).placements[2]?.positionMm).toEqual({ x: 50, y: 160 });
+    expect(pattern(other).grips).toEqual(pattern(project).grips);
+    // Label edits still reach the kept grip (blue line on the right).
+    const relabelled = applyProjectEditorCommand(project, {
+      type: "set-label-side",
+      mode: "pattern",
+      solutionId: "solution-1",
+      patternId: "pattern-1",
+      placementIds: ["p1", "p2"],
+      labelSide: "right",
+    });
+    expect(pattern(relabelled).grips[0]).toMatchObject({
+      x: 105,
+      y: 50,
+      dx: -1,
+      dy: 0,
+    });
+    // Moving the whole invalid grip carries it along unchanged in shape.
+    const whole = move(["p1", "p2"], { x: 0, y: 20 });
+    expect(pattern(whole).grips[0]).toMatchObject({
+      x: 105,
+      y: 70,
+      pickX: 105,
+      pickY: 20,
+    });
   });
 
   it("edits labels and inserts both package orientations at valid free positions", () => {

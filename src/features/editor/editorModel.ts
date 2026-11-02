@@ -5,11 +5,14 @@ import {
   placementRectangleBounds,
   rectangleBoundsCenter,
   rectangleBoundsContain,
-  rectangleBoundsOverlap,
   symmetricSideAllowance,
   type PointMm,
   type RectangleBoundsMm,
 } from "~/domain/geometry";
+import {
+  SOLVER_GEOMETRY_EPSILON_MM,
+  solverRectangleBoundsOverlap,
+} from "~/domain/solver/geometryPolicy";
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
@@ -443,6 +446,71 @@ export function normalizeProjectForEditor(project: Project): Project {
   };
 }
 
+/**
+ * Geometry tolerance shared by editor validation and drag collision. It is the
+ * solver's policy, so flush packages whose float coordinates touch within
+ * 1e-9 mm (solver output, drag contacts) are never reported as overlapping.
+ */
+export const EDITOR_GEOMETRY_TOLERANCE_MM = SOLVER_GEOMETRY_EPSILON_MM;
+
+/** Overlap test used by editor validation and drag collision alike. */
+export function editorBoundsOverlap(
+  left: RectangleBoundsMm,
+  right: RectangleBoundsMm,
+): boolean {
+  return solverRectangleBoundsOverlap(left, right);
+}
+
+/** Envelope containment used by editor validation and drag collision alike. */
+export function editorBoundsContain(
+  envelope: RectangleBoundsMm,
+  bounds: RectangleBoundsMm,
+): boolean {
+  return rectangleBoundsContain(envelope, bounds, EDITOR_GEOMETRY_TOLERANCE_MM);
+}
+
+/**
+ * Size of an existing geometry violation, compared before and after an edit so
+ * an edit may keep (or shrink) an error the pattern already had but never make
+ * it worse: overlap area of two clearance footprints (mm²), or how far a
+ * package sticks out of the envelope (sum over sides, mm).
+ */
+export const EDITOR_VIOLATION_MEASURE_TOLERANCE = 1e-6;
+
+export function editorOverlapMeasure(
+  left: RectangleBoundsMm,
+  right: RectangleBoundsMm,
+): number {
+  const x = Math.min(left.maxX, right.maxX) - Math.max(left.minX, right.minX);
+  const y = Math.min(left.maxY, right.maxY) - Math.max(left.minY, right.minY);
+  return Math.max(0, x) * Math.max(0, y);
+}
+
+export function editorProtrusionMeasure(
+  envelope: RectangleBoundsMm,
+  bounds: RectangleBoundsMm,
+): number {
+  return (
+    Math.max(0, envelope.minX - bounds.minX) +
+    Math.max(0, envelope.minY - bounds.minY) +
+    Math.max(0, bounds.maxX - envelope.maxX) +
+    Math.max(0, bounds.maxY - envelope.maxY)
+  );
+}
+
+/** True when `next` violations add an error or worsen one from `previous`. */
+export function editorViolationsWorsen(
+  previous: ReadonlyMap<string, number>,
+  next: ReadonlyMap<string, number>,
+): boolean {
+  for (const [key, measure] of next) {
+    const before = previous.get(key);
+    if (before === undefined) return true;
+    if (measure > before + EDITOR_VIOLATION_MEASURE_TOLERANCE) return true;
+  }
+  return false;
+}
+
 export function projectEditorEnvelope(
   project: Project,
 ): RectangleBoundsMm | null {
@@ -550,6 +618,20 @@ function groupGeometryError(
   return null;
 }
 
+/** Label (blue-line) offset of a grip: kept, or derived from its packages. */
+function gripLabelOffset(
+  placements: readonly PackagePlacement[],
+  existing: LayerPattern["grips"][number] | null | undefined,
+  derive: boolean,
+): PointMm {
+  const labels = new Set(placements.map(({ labelSide }) => labelSide));
+  const sharedLabel = labels.size === 1 ? placements[0]!.labelSide : undefined;
+  if (existing && !derive) return { x: existing.dx, y: existing.dy };
+  if (sharedLabel === undefined)
+    return { x: existing?.dx ?? 0, y: existing?.dy ?? 0 };
+  return sharedLabel === null ? { x: 0, y: 0 } : labelOffsetBySide[sharedLabel];
+}
+
 function gripFromPlacements(
   project: Project,
   placements: readonly PackagePlacement[],
@@ -590,16 +672,11 @@ function gripFromPlacements(
     existing?.pickRotation ?? 0,
     placements.length,
   );
-  const labels = new Set(placements.map(({ labelSide }) => labelSide));
-  const sharedLabel = labels.size === 1 ? first.labelSide : undefined;
-  const labelOffset =
-    existing && !input.deriveLabelOffset
-      ? { x: existing.dx, y: existing.dy }
-      : sharedLabel === undefined
-        ? { x: existing?.dx ?? 0, y: existing?.dy ?? 0 }
-        : sharedLabel === null
-          ? { x: 0, y: 0 }
-          : labelOffsetBySide[sharedLabel];
+  const labelOffset = gripLabelOffset(
+    placements,
+    existing,
+    input.deriveLabelOffset ?? false,
+  );
 
   return {
     id: input.id,
@@ -921,6 +998,33 @@ function cleanPatternMetadata(pattern: LayerPattern): LayerPattern {
   };
 }
 
+/** The offset shared by every package of a grip, or null if they differ. */
+function uniformTranslation(
+  previous: readonly PackagePlacement[],
+  next: readonly PackagePlacement[],
+): PointMm | null {
+  if (previous.length === 0 || previous.length !== next.length) return null;
+  const previousById = new Map(
+    previous.map((placement) => [placement.id, placement]),
+  );
+  let offset: PointMm | null = null;
+  for (const placement of next) {
+    const before = previousById.get(placement.id);
+    if (!before || before.rotation !== placement.rotation) return null;
+    const delta = {
+      x: placement.positionMm.x - before.positionMm.x,
+      y: placement.positionMm.y - before.positionMm.y,
+    };
+    if (!offset) offset = delta;
+    else if (
+      Math.abs(delta.x - offset.x) > EDITOR_GEOMETRY_TOLERANCE_MM ||
+      Math.abs(delta.y - offset.y) > EDITOR_GEOMETRY_TOLERANCE_MM
+    )
+      return null;
+  }
+  return offset;
+}
+
 function synchronizePatternGrips(
   project: Project,
   previousPattern: LayerPattern,
@@ -936,21 +1040,50 @@ function synchronizePatternGrips(
   const previousById = new Map(
     previousPattern.grips.map((grip) => [grip.id, grip]),
   );
+  const previousAssignments = assignmentsByGrip(previousPattern);
   const grips = nextPattern.grips.flatMap((grip, index) => {
     const placements = assignments.get(grip.id) ?? [];
     if (placements.length === 0) return [];
     const previousGrip = previousById.get(grip.id) ?? null;
-    return [
-      gripFromPlacements(project, placements, {
-        id: grip.id,
-        groupNumber: grip.groupNumber ?? index + 1,
-        existing: previousGrip ?? grip,
-        deriveLabelOffset:
-          options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
-        allowObservedMultipick:
-          project.source.kind === "rob-import" && previousGrip !== null,
-      }),
-    ];
+    try {
+      return [
+        gripFromPlacements(project, placements, {
+          id: grip.id,
+          groupNumber: grip.groupNumber ?? index + 1,
+          existing: previousGrip ?? grip,
+          deriveLabelOffset:
+            options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
+          allowObservedMultipick:
+            project.source.kind === "rob-import" && previousGrip !== null,
+        }),
+      ];
+    } catch (cause) {
+      // A grip that was already invalid (e.g. imported) must not block edits
+      // elsewhere: keep it as it was, or move it along when its packages were
+      // all moved by the same offset. Any other change still fails.
+      const translation = previousGrip
+        ? uniformTranslation(previousAssignments.get(grip.id) ?? [], placements)
+        : null;
+      if (!(cause instanceof ProjectEditorCommandError) || !translation)
+        throw cause;
+      const labelOffset = gripLabelOffset(
+        placements,
+        previousGrip,
+        options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
+      );
+      return [
+        {
+          ...previousGrip!,
+          groupNumber: grip.groupNumber ?? previousGrip!.groupNumber,
+          dx: labelOffset.x,
+          dy: labelOffset.y,
+          x: previousGrip!.x + translation.x,
+          y: previousGrip!.y + translation.y,
+          pickX: previousGrip!.pickX + translation.x,
+          pickY: previousGrip!.pickY + translation.y,
+        },
+      ];
+    }
   });
   return cleanPatternMetadata({ ...nextPattern, grips });
 }
@@ -1085,17 +1218,89 @@ function replacePattern(
   });
 }
 
-function validateGeometryOrThrow(
+function blockingGeometryDiagnostics(
   project: Project,
   pattern: LayerPattern,
-): void {
-  const diagnostics = validateProjectPattern(project, pattern);
-  const blocking = diagnostics.filter(
+): ProjectEditorDiagnostic[] {
+  return validateProjectPattern(project, pattern).filter(
     ({ severity, code }) =>
       severity === "error" &&
       (code === "placement-out-of-bounds" ||
         code === "placement-overlap" ||
         code === "invalid-group-geometry"),
+  );
+}
+
+function diagnosticKey({
+  code,
+  placementIds,
+  gripIds,
+}: ProjectEditorDiagnostic): string {
+  return `${code}:${[...(placementIds ?? gripIds ?? [])].sort().join("|")}`;
+}
+
+/** Measures of the placement overlap / out-of-bounds errors, by diagnostic key. */
+function placementViolationMeasures(
+  project: Project,
+  pattern: LayerPattern,
+): Map<string, number> {
+  const measures = new Map<string, number>();
+  const envelope = projectEditorEnvelope(project);
+  const entries = pattern.placements.map((placement) => ({
+    id: placement.id,
+    physical: placementRectangleBounds(placement, project.package.dimensionsMm),
+    clearance: placementClearanceBounds(
+      placement,
+      project.package.dimensionsMm,
+      project.package.clearanceMm,
+    ),
+  }));
+  entries.forEach((entry, index) => {
+    if (envelope && !editorBoundsContain(envelope, entry.physical)) {
+      measures.set(
+        `placement-out-of-bounds:${entry.id}`,
+        editorProtrusionMeasure(envelope, entry.physical),
+      );
+    }
+    for (const other of entries.slice(index + 1)) {
+      if (!editorBoundsOverlap(entry.clearance, other.clearance)) continue;
+      measures.set(
+        `placement-overlap:${[entry.id, other.id].sort().join("|")}`,
+        editorOverlapMeasure(entry.clearance, other.clearance),
+      );
+    }
+  });
+  return measures;
+}
+
+/**
+ * Rejects a geometry edit that introduces a blocking error or makes an
+ * existing one worse (larger overlap, further out of bounds). Errors the
+ * pattern already had (e.g. an imported plan) do not block unrelated edits or
+ * repairs; the drag collision applies the same rule to the packages it moves.
+ */
+function validateGeometryOrThrow(
+  project: Project,
+  pattern: LayerPattern,
+  previousPattern: LayerPattern,
+): void {
+  const existing = new Set(
+    blockingGeometryDiagnostics(project, previousPattern).map(diagnosticKey),
+  );
+  const previousMeasures = placementViolationMeasures(project, previousPattern);
+  const nextMeasures = placementViolationMeasures(project, pattern);
+  const blocking = blockingGeometryDiagnostics(project, pattern).filter(
+    (diagnostic) => {
+      const key = diagnosticKey(diagnostic);
+      if (!existing.has(key)) return true;
+      const before = previousMeasures.get(key);
+      const after = nextMeasures.get(key);
+      return (
+        before !== undefined &&
+        after !== undefined &&
+        after > before + EDITOR_VIOLATION_MEASURE_TOLERANCE
+      );
+    },
   );
   if (blocking.length > 0) {
     throw new ProjectEditorCommandError(blocking[0]!.message, blocking);
@@ -1108,7 +1313,7 @@ function replaceGeometryPattern(
   previousPattern: LayerPattern,
   nextPattern: LayerPattern,
 ): Project {
-  validateGeometryOrThrow(project, nextPattern);
+  validateGeometryOrThrow(project, nextPattern, previousPattern);
   return replacePattern(project, solutionId, previousPattern, nextPattern);
 }
 
@@ -1226,14 +1431,14 @@ function insertionPosition(
       candidate,
       project.package.dimensionsMm,
     );
-    if (!rectangleBoundsContain(envelope, physical)) continue;
+    if (!editorBoundsContain(envelope, physical)) continue;
     const clearanceBounds = placementClearanceBounds(
       candidate,
       project.package.dimensionsMm,
       clearance,
     );
     const collides = pattern.placements.some((placement) =>
-      rectangleBoundsOverlap(
+      editorBoundsOverlap(
         clearanceBounds,
         placementClearanceBounds(
           placement,
@@ -1689,7 +1894,7 @@ export function validateProjectPattern(
     ),
   }));
   for (const entry of boundsEntries) {
-    if (envelope && !rectangleBoundsContain(envelope, entry.physical)) {
+    if (envelope && !editorBoundsContain(envelope, entry.physical)) {
       diagnostics.push({
         severity: "error",
         code: "placement-out-of-bounds",
@@ -1706,7 +1911,7 @@ export function validateProjectPattern(
     ) {
       const left = boundsEntries[leftIndex]!;
       const right = boundsEntries[rightIndex]!;
-      if (!rectangleBoundsOverlap(left.clearance, right.clearance)) continue;
+      if (!editorBoundsOverlap(left.clearance, right.clearance)) continue;
       diagnostics.push({
         severity: "error",
         code: "placement-overlap",
@@ -2223,7 +2428,7 @@ export function applyProjectEditorCommand(
           };
         }),
       };
-      validateGeometryOrThrow(project, nextPattern);
+      validateGeometryOrThrow(project, nextPattern, previousPattern);
       return replacePattern(
         project,
         command.solutionId,

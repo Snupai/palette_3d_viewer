@@ -160,7 +160,7 @@ afterEach(cleanup);
 
 function firePointerEvent(
   target: Element,
-  type: "pointerdown" | "pointerup",
+  type: "pointerdown" | "pointermove" | "pointerup",
   init: MouseEventInit & { pointerId: number },
 ) {
   const { pointerId, ...mouseInit } = init;
@@ -323,6 +323,94 @@ describe("PatternCanvas", () => {
       clientY: 40,
     });
     expect(onMoveSelection).toHaveBeenCalledWith({ x: 20, y: 10 }, [
+      "p1",
+      "p2",
+    ]);
+  });
+
+  it("stops a dragged grip at a neighbouring package and slides along it", () => {
+    const base = projectFixture();
+    const project: Project = {
+      ...base,
+      solutions: base.solutions.map((solution) => ({
+        ...solution,
+        patterns: solution.patterns.map((pattern) => ({
+          ...pattern,
+          placements: [
+            ...pattern.placements,
+            {
+              id: "p3",
+              sequence: 2,
+              positionMm: { x: 300, y: 50 },
+              rotation: 0,
+              gripId: null,
+              labelSide: null,
+            },
+          ],
+        })),
+      })),
+    };
+    const pattern = project.solutions[0]!.patterns[0]!;
+    const onMoveSelection = vi.fn();
+    render(
+      <PatternCanvas
+        project={project}
+        pattern={pattern}
+        groups={groups}
+        selectedPlacementIds={new Set(["p1", "p2"])}
+        fineStepMm={1}
+        coarseStepMm={10}
+        onSelectionChange={vi.fn()}
+        onMoveSelection={onMoveSelection}
+        onNudgeSelection={vi.fn()}
+        onDeleteSelection={vi.fn()}
+        onRotateSelection={vi.fn()}
+      />,
+    );
+    const svg = screen.getByRole("application") as unknown as SVGSVGElement;
+    Object.defineProperty(svg, "getBoundingClientRect", {
+      configurable: true,
+      value: () => ({
+        left: 0,
+        top: 0,
+        width: 400,
+        height: 300,
+        right: 400,
+        bottom: 300,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }),
+    });
+    const firstPackage = screen.getAllByRole("button")[0]!;
+    Object.defineProperty(firstPackage, "setPointerCapture", {
+      configurable: true,
+      value: vi.fn(),
+    });
+
+    firePointerEvent(firstPackage, "pointerdown", {
+      pointerId: 5,
+      clientX: 50,
+      clientY: 250,
+    });
+    // Each move reaches both the package and the canvas handler; the second
+    // (diagonal) move must slide along p3 instead of jumping past it.
+    firePointerEvent(firstPackage, "pointermove", {
+      pointerId: 5,
+      clientX: 200,
+      clientY: 250,
+    });
+    firePointerEvent(firstPackage, "pointermove", {
+      pointerId: 5,
+      clientX: 200,
+      clientY: 150,
+    });
+    firePointerEvent(firstPackage, "pointerup", {
+      pointerId: 5,
+      clientX: 200,
+      clientY: 150,
+    });
+    expect(onMoveSelection).toHaveBeenCalledWith({ x: 50, y: 100 }, [
       "p1",
       "p2",
     ]);

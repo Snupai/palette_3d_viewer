@@ -21,6 +21,12 @@ import {
   projectEditorEnvelope,
   type ProjectEditorGroup,
 } from "~/features/editor/editorModel";
+import {
+  createDragCollisionContext,
+  resolveDragDelta,
+  roundDragDelta,
+  type DragCollisionContext,
+} from "~/features/editor/dragCollision";
 import { useT } from "~/i18n";
 
 type PointerState =
@@ -38,7 +44,34 @@ type PointerState =
       start: { x: number; y: number };
       current: { x: number; y: number };
       placementIds: readonly string[];
+      /** Collision-resolved offset of the dragged packages. */
+      resolved: { x: number; y: number };
+      /** Raw pointer offset that `resolved` was computed for. */
+      target: { x: number; y: number };
+      /** Validated, rounded offset that would be committed on release. */
+      committable: { x: number; y: number };
+      collision: DragCollisionContext;
     };
+
+type DragPointerState = Extract<PointerState, { kind: "drag" }>;
+
+/**
+ * Resolves the drag towards a new raw pointer offset. Collision resolution is
+ * path dependent, so an unchanged offset (the same event reaching several
+ * handlers, or pointerup at the last move position) must not resolve again.
+ */
+function advanceDrag(
+  drag: DragPointerState,
+  target: { x: number; y: number },
+): Pick<DragPointerState, "resolved" | "target" | "committable"> {
+  if (target.x === drag.target.x && target.y === drag.target.y) return drag;
+  const resolved = resolveDragDelta(drag.collision, drag.resolved, target);
+  return {
+    resolved,
+    target,
+    committable: roundDragDelta(drag.collision, resolved, drag.committable),
+  };
+}
 
 export type PatternCanvasProps = {
   interactionMode?: "edit" | "select";
@@ -233,6 +266,10 @@ export function PatternCanvas({
       start: point,
       current: point,
       placementIds: [...selection],
+      resolved: { x: 0, y: 0 },
+      target: { x: 0, y: 0 },
+      committable: { x: 0, y: 0 },
+      collision: createDragCollisionContext(project, pattern, [...selection]),
     });
   };
 
@@ -251,24 +288,34 @@ export function PatternCanvas({
     if (!pointer || pointer.pointerId !== event.pointerId) return;
     const point = pointFromClient(event.clientX, event.clientY);
     if (!point) return;
-    setPointer((current) =>
-      current
-        ? {
-            ...current,
-            current: point,
-            ...(current.kind === "drag"
-              ? {
-                  moved:
-                    current.moved ||
-                    Math.hypot(
-                      event.clientX - current.startClient.x,
-                      event.clientY - current.startClient.y,
-                    ) >= 4,
-                }
-              : {}),
-          }
-        : null,
-    );
+    setPointer((current) => {
+      if (!current) return null;
+      if (current.kind === "marquee") return { ...current, current: point };
+      const moved =
+        current.moved ||
+        Math.hypot(
+          event.clientX - current.startClient.x,
+          event.clientY - current.startClient.y,
+        ) >= 4;
+      if (!moved) return { ...current, current: point };
+      const target = {
+        x: point.x - current.start.x,
+        y: point.y - current.start.y,
+      };
+      if (
+        current.moved &&
+        target.x === current.target.x &&
+        target.y === current.target.y
+      ) {
+        return current;
+      }
+      return {
+        ...current,
+        current: point,
+        moved,
+        ...advanceDrag(current, target),
+      };
+    });
   };
 
   const finishPointer = (
@@ -298,10 +345,10 @@ export function PatternCanvas({
           event.clientY - pointer.startClient.y,
         ) >= 4)
     ) {
-      const deltaMm = {
-        x: Math.round((point.x - pointer.start.x) * 10) / 10,
-        y: Math.round((point.y - pointer.start.y) * 10) / 10,
-      };
+      const deltaMm = advanceDrag(pointer, {
+        x: point.x - pointer.start.x,
+        y: point.y - pointer.start.y,
+      }).committable;
       if (deltaMm.x !== 0 || deltaMm.y !== 0) {
         onMoveSelection(deltaMm, pointer.placementIds);
       }
@@ -348,10 +395,8 @@ export function PatternCanvas({
 
   const dragDelta =
     pointer?.kind === "drag" && pointer.moved
-      ? {
-          x: pointer.current.x - pointer.start.x,
-          y: pointer.current.y - pointer.start.y,
-        }
+      ? // Preview exactly what release will commit.
+        pointer.committable
       : { x: 0, y: 0 };
   const draggingIds = new Set(
     pointer?.kind === "drag" ? pointer.placementIds : [],

@@ -1,3 +1,4 @@
+import { SOLVER_GEOMETRY_EPSILON_MM } from "~/domain/solver/geometryPolicy";
 import {
   createEffectivePalletEnvelope,
   placementWithinBounds,
@@ -148,6 +149,7 @@ export function collectStackWarnings(
               placement,
               input.package.dimensionsMm,
               availableBounds,
+              SOLVER_GEOMETRY_EPSILON_MM,
             ),
         )
       ) {

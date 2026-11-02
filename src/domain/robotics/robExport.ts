@@ -1,4 +1,5 @@
 import { safeMigrateProject } from "~/domain/project/projectMigration";
+import type { Project } from "~/domain/project/projectSchema";
 import { checkReachBoundary } from "~/domain/robotics/checks";
 import { normalizeYawDeg } from "~/domain/robotics/frames";
 import { materializeRobotCycles } from "~/domain/robotics/materialize";
@@ -880,6 +881,26 @@ export function materializeAndExportProjectRob(
   return exportProjectRob(
     materializeRobotCycles(projectInput, materializationOptions),
     exportOptions,
+  );
+}
+
+/**
+ * True while an imported project's active plan is still the imported one. Once
+ * the active plan has its own stack that differs from the import (the editor
+ * turns the solution origin from "imported" into "manual"; a saved stack
+ * activates a calculated solution),
+ * the retained `.rob` text no longer describes the plan and every `.rob`
+ * download must be regenerated from the project instead.
+ */
+export function importedRobTextIsCurrent(project: Project): boolean {
+  if (project.source.kind !== "rob-import") return false;
+  const active =
+    project.solutions.find(({ id }) => id === project.activeSolutionId) ?? null;
+  // An empty solution (no stack yet) has no plan of its own to export.
+  return (
+    active === null ||
+    active.origin === "imported" ||
+    active.stack.layers.length === 0
   );
 }
 
