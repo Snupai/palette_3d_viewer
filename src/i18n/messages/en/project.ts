@@ -118,7 +118,7 @@ export const projectEn = {
   "project.ledger.robotPass":
     "Plan, equipment, pickup point, station workspace, and modeled obstacles passed the available internal checks.",
   "project.ledger.robotObservedEquipment":
-    "The observed Multipack equipment profile is selected; current checks do not establish calibrated production readiness.",
+    "The bundled default equipment profile is selected; current checks do not establish calibrated production readiness.",
   "project.ledger.robotObserved":
     "Robot checks completed with unverified or uncalibrated limitations.",
   "project.ledger.robotSkipped":

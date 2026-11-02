@@ -1,4 +1,4 @@
-import { getMultipackEquipmentProfile } from "~/domain/project/equipmentProfiles";
+import { getDefaultEquipmentProfile } from "~/domain/project/equipmentProfiles";
 import {
   cleanup,
   fireEvent,
@@ -74,7 +74,7 @@ const completedResult: SolverResult = {
       staircase: 0,
       "staircase-variable": 0,
       "staircase-exchange": 0,
-      multipack: 0,
+      "block-plan": 0,
       "edge-ring": 0,
       "mixed-orientation": 0,
       symmetry: 0,
@@ -483,7 +483,7 @@ describe("SolverControls", () => {
         provisionalPackagesPerCycle: 1,
       },
     });
-    // MultiPack result, then the result with the background legacy run appended.
+    // Block-plan result, then the result with the background legacy run appended.
     await waitFor(() => expect(onResult).toHaveBeenCalledTimes(2));
 
     view.rerender(
@@ -576,7 +576,7 @@ describe("SolverControls", () => {
     await Promise.resolve();
   });
 
-  it("shows MultiPack first and appends the legacy run from the background", async () => {
+  it("shows the block plan first and appends the legacy run from the background", async () => {
     const [first, second] = solveLayer(
       {
         package: {
@@ -587,12 +587,12 @@ describe("SolverControls", () => {
         envelopeMm: { minX: 0, minY: 0, maxX: 400, maxY: 300 },
         constraints: { minimumPackageCount: 24, maximumPackageCount: 24 },
       },
-      { generatorScope: "multipack" },
+      { generatorScope: "block-plan" },
     ).candidates;
     let resolveLegacy!: (result: SolverResult) => void;
     clientMocks.run
       .mockReturnValueOnce({
-        runId: "multipack-run",
+        runId: "block-plan-run",
         cancel: clientMocks.cancel,
         result: Promise.resolve({ ...completedResult, candidates: [first!] }),
       })
@@ -628,7 +628,7 @@ describe("SolverControls", () => {
         ([, options]) =>
           (options as { generatorScope?: string }).generatorScope,
       ),
-    ).toEqual(["multipack", "legacy"]);
+    ).toEqual(["block-plan", "legacy"]);
     expect(
       screen.getByText(/Alter Generator läuft im Hintergrund/),
     ).toBeTruthy();
@@ -1112,7 +1112,7 @@ describe("SolverControls", () => {
   });
   it("updates the profile-derived group capacity while preserving an explicit limit", () => {
     const base = project();
-    const builtin = getMultipackEquipmentProfile().gripper;
+    const builtin = getDefaultEquipmentProfile().gripper;
     const configured = {
       ...base,
       grippers: [builtin],

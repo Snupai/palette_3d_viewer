@@ -1,5 +1,5 @@
 import {
-  resolveMultipackGripperPackageLimits,
+  resolveDefaultGripperPackageLimits,
   resolveSuctionRemainderPolicy,
   resolveAutomaticSuctionGroupLimit,
 } from "~/domain/project/equipmentProfiles";
@@ -550,7 +550,7 @@ export function materializeRobotCycles(
           project.package,
           resources.gripper,
           suggestion.groups,
-          resolveMultipackGripperPackageLimits(
+          resolveDefaultGripperPackageLimits(
             resources.gripper,
             project.package.inletOrientation,
           ) ?? resources.gripper.packageLimits,

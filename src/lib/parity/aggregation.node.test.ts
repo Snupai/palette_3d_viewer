@@ -47,7 +47,7 @@ describe("corpus statuses and report aggregation", () => {
   });
 
   it("groups byte and semantic duplicates and aggregates a package/pallet family", async () => {
-    const root = await mkdtemp(join(tmpdir(), "rob-corpus-aggregate-"));
+    const root = await mkdtemp(join(tmpdir(), "rob-parity-aggregate-"));
     temporaryDirectories.push(root);
     await Promise.all([
       writeFile(join(root, "first.rob"), SYNTHETIC_ROB, "utf8"),

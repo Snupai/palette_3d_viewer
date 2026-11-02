@@ -13,15 +13,11 @@ export const candidatesEn = {
   "candidates.browser.colNr": "No.",
   "candidates.browser.colCount": "Count",
   "candidates.browser.colGeometry": "Geometry",
-  "candidates.browser.colBlocks": "Blocks",
   "candidates.browser.colCycles": "Cycles",
   "candidates.browser.colLength": "Length",
   "candidates.browser.colWidth": "Width",
   "candidates.browser.geometryOk": "Geometry OK",
   "candidates.browser.rejected": "Rejected",
-  "candidates.browser.blocksTitle":
-    "The legacy MultiPack Blocks value has not been verified and is not inferred.",
-  "candidates.browser.unknown": "Unknown",
   "candidates.browser.noMatch": "No candidate matches the current filters.",
   "candidates.browser.selectCandidate": "Select a candidate",
   "candidates.browser.score": "Score",
@@ -169,14 +165,14 @@ export const candidatesEn = {
   "candidates.solver.blockSymmetries": "Include block symmetries",
   "candidates.solver.generatorMode": "Generator",
   "candidates.solver.generatorMode.combined":
-    "Combined (MultiPack first, legacy generator in the background)",
-  "candidates.solver.generatorMode.multipack": "MultiPack only",
+    "Combined (block plan first, other generators in the background)",
+  "candidates.solver.generatorMode.blockPlan": "Block plan only",
   "candidates.solver.generatorMode.legacy": "Legacy generator only",
   "candidates.solver.background.running":
     "Legacy generator running in the background – more patterns will be appended.",
   "candidates.solver.background.cancel": "Cancel",
   "candidates.solver.background.cancelled":
-    "Legacy generator cancelled – showing MultiPack patterns only.",
+    "Legacy generator cancelled – showing block plan patterns only.",
   "candidates.solver.background.failed": "Legacy generator failed: {message}",
   "candidates.solver.cancel": "Cancel",
   "candidates.solver.applyAndSolve": "Apply inputs & solve",

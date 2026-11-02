@@ -7,7 +7,6 @@
 
 # testing
 /coverage
-/.rob-corpus/
 
 # database
 /prisma/db.sqlite

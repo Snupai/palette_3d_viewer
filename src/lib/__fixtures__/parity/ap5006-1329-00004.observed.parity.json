@@ -1,18 +1,17 @@
 {
   "schemaVersion": 2,
   "id": "ap5006-1329-00004-observed",
-  "title": "AP5006 / 1329-00004 observed MultiPack target",
+  "title": "AP5006 / 1329-00004 observed reference target",
   "provenance": {
     "kind": "observed",
-    "system": "MultiPack 2.1.315.25",
-    "description": "Values transcribed from the existing rebuild observations. No private input, screenshot, candidate geometry, or production export is committed, so this case remains Observed rather than Golden."
+    "description": "Values transcribed from reference observations. No private input, screenshot, candidate geometry, or production export is committed, so this case remains Observed rather than Golden."
   },
   "artifacts": [
     {
       "id": "ap5006-observation-summary",
       "kind": "research-note",
       "availability": "external",
-      "description": "Observation-only evidence summarized in docs/PARITY.md and the dated research log; it is not required or resolved by the corpus runner."
+      "description": "Observation-only evidence kept outside the repository; it is not required or resolved by the corpus runner."
     }
   ],
   "input": {
@@ -41,7 +40,7 @@
       "evidence": {
         "status": "Observed",
         "asOf": "2026-08-05",
-        "basis": "The source UI showed 65 plans in total. Candidate identity and geometric deduplication semantics were not captured.",
+        "basis": "The reference listing showed 65 plans in total. Candidate identity and geometric deduplication semantics were not recorded.",
         "artifactIds": ["ap5006-observation-summary"]
       },
       "value": {
@@ -55,7 +54,7 @@
         "evidence": {
           "status": "Observed",
           "asOf": "2026-08-05",
-          "basis": "Observed maximum in the MultiPack solution table.",
+          "basis": "Observed maximum in the reference plan listing.",
           "artifactIds": ["ap5006-observation-summary"]
         },
         "value": 55,
@@ -85,7 +84,7 @@
         "evidence": {
           "status": "Observed",
           "asOf": "2026-08-05",
-          "basis": "Observed range in the visible solution table.",
+          "basis": "Observed range in the visible reference plan listing.",
           "artifactIds": ["ap5006-observation-summary"]
         },
         "value": { "min": 1162, "max": 1166 },
@@ -95,7 +94,7 @@
         "evidence": {
           "status": "Observed",
           "asOf": "2026-08-05",
-          "basis": "Observed range in the visible solution table.",
+          "basis": "Observed range in the visible reference plan listing.",
           "artifactIds": ["ap5006-observation-summary"]
         },
         "value": { "min": 785, "max": 789 },
@@ -119,7 +118,7 @@
         "evidence": {
           "status": "Observed",
           "asOf": "2026-08-05",
-          "basis": "Observed example calculation in the rebuild notes.",
+          "basis": "Observed example calculation in the reference notes.",
           "artifactIds": ["ap5006-observation-summary"]
         },
         "value": {
@@ -215,7 +214,7 @@
     "ranking": {
       "status": "Open",
       "asOf": "2026-08-05",
-      "basis": "The full stable candidate order and reference geometry were not captured.",
+      "basis": "The full stable candidate order and reference geometry were not recorded.",
       "artifactIds": [],
       "applicable": true
     },
@@ -250,7 +249,7 @@
     "performance": {
       "status": "Open",
       "asOf": "2026-08-05",
-      "basis": "No reference device or timing trace was captured.",
+      "basis": "No reference device or timing trace was recorded.",
       "artifactIds": [],
       "applicable": true
     }

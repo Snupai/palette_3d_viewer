@@ -4,8 +4,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
 } from "~/domain/project/equipmentProfiles";
 import {
   createProject,
@@ -166,7 +166,7 @@ describe("project repository", () => {
     expect(persisted.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
   });
 
-  it("repairs an older ordinary empty project with selected Multipack defaults exactly once", async () => {
+  it("repairs an older ordinary empty project with selected built-in defaults exactly once", async () => {
     const currentEmpty = createProject(
       {
         id: "ordinary-v3-empty",
@@ -193,8 +193,8 @@ describe("project repository", () => {
 
     expect(first.project).toMatchObject({
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
-      selectedGripperId: MULTIPACK_GRIPPER_ID,
-      selectedPalletStationId: MULTIPACK_PALLET_STATION_ID,
+      selectedGripperId: DEFAULT_PROFILE_GRIPPER_ID,
+      selectedPalletStationId: DEFAULT_PROFILE_PALLET_STATION_ID,
       createdAt: 11,
       updatedAt: 11,
       source: { kind: "new" },

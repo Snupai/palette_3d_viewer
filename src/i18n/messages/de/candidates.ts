@@ -12,15 +12,11 @@ export const candidatesDe = {
   "candidates.browser.colNr": "Nr.",
   "candidates.browser.colCount": "Anzahl",
   "candidates.browser.colGeometry": "Geometrie",
-  "candidates.browser.colBlocks": "Blöcke",
   "candidates.browser.colCycles": "Zyklen",
   "candidates.browser.colLength": "Länge",
   "candidates.browser.colWidth": "Breite",
   "candidates.browser.geometryOk": "Geometrie OK",
   "candidates.browser.rejected": "Verworfen",
-  "candidates.browser.blocksTitle":
-    "Der Blocks-Wert der alten MultiPack-Software ist nicht verifiziert und wird nicht abgeleitet.",
-  "candidates.browser.unknown": "Unbekannt",
   "candidates.browser.noMatch": "Kein Kandidat passt zu den aktuellen Filtern.",
   "candidates.browser.selectCandidate": "Kandidat auswählen",
   "candidates.browser.score": "Bewertung",
@@ -174,14 +170,14 @@ export const candidatesDe = {
   "candidates.solver.blockSymmetries": "Blocksymmetrien einbeziehen",
   "candidates.solver.generatorMode": "Generator",
   "candidates.solver.generatorMode.combined":
-    "Kombiniert (MultiPack zuerst, alter Generator im Hintergrund)",
-  "candidates.solver.generatorMode.multipack": "Nur MultiPack",
+    "Kombiniert (Blockplan zuerst, weitere Generatoren im Hintergrund)",
+  "candidates.solver.generatorMode.blockPlan": "Nur Blockplan",
   "candidates.solver.generatorMode.legacy": "Nur alter Generator",
   "candidates.solver.background.running":
     "Alter Generator läuft im Hintergrund – weitere Muster werden angehängt.",
   "candidates.solver.background.cancel": "Abbrechen",
   "candidates.solver.background.cancelled":
-    "Alter Generator abgebrochen – nur MultiPack-Muster angezeigt.",
+    "Alter Generator abgebrochen – nur Blockplan-Muster angezeigt.",
   "candidates.solver.background.failed":
     "Alter Generator fehlgeschlagen: {message}",
   "candidates.solver.cancel": "Abbrechen",

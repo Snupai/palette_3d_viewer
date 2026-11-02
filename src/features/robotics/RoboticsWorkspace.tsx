@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { pickOffsetForCount } from "~/domain/palletGeometry";
 import {
-  getMultipackEquipmentProfile,
-  isMultipackProfileGripper,
-  isMultipackProfileStation,
-  resolveMultipackEquipmentProfile,
+  getDefaultEquipmentProfile,
+  isDefaultProfileGripper,
+  isDefaultProfileStation,
+  resolveDefaultEquipmentProfile,
 } from "~/domain/project/equipmentProfiles";
 import { updateProject } from "~/domain/project/projectFactory";
 import {
@@ -113,8 +113,8 @@ export function RoboticsWorkspace({
     project.palletStations.find(
       ({ id }) => id === project.selectedPalletStationId,
     ) ?? null;
-  const selectedProfile = resolveMultipackEquipmentProfile(project);
-  const multipackProfile = useMemo(() => getMultipackEquipmentProfile(), []);
+  const selectedProfile = resolveDefaultEquipmentProfile(project);
+  const defaultProfile = useMemo(() => getDefaultEquipmentProfile(), []);
   const [gripperDraft, setGripperDraft] = useState<Gripper | null>(
     selectedGripper,
   );
@@ -164,8 +164,8 @@ export function RoboticsWorkspace({
 
   const gripperLibrary = resourceGrippers(libraryResources);
   const stationLibrary = resourceStations(libraryResources);
-  const gripperDraftIsBuiltIn = isMultipackProfileGripper(gripperDraft);
-  const stationDraftIsBuiltIn = isMultipackProfileStation(stationDraft);
+  const gripperDraftIsBuiltIn = isDefaultProfileGripper(gripperDraft);
+  const stationDraftIsBuiltIn = isDefaultProfileStation(stationDraft);
   const exportGate = useMemo(
     () => projectRobExportGate(materialization, exportSettings),
     [exportSettings, materialization],
@@ -260,7 +260,7 @@ export function RoboticsWorkspace({
 
   const saveGripper = async () => {
     if (!gripperDraft) return;
-    if (isMultipackProfileGripper(gripperDraft)) {
+    if (isDefaultProfileGripper(gripperDraft)) {
       setError(t("robotics.errorBuiltInGripperReadOnly"));
       return;
     }
@@ -281,7 +281,7 @@ export function RoboticsWorkspace({
 
   const saveStation = async () => {
     if (!stationDraft) return;
-    if (isMultipackProfileStation(stationDraft)) {
+    if (isDefaultProfileStation(stationDraft)) {
       setError(t("robotics.errorBuiltInStationReadOnly"));
       return;
     }
@@ -302,7 +302,7 @@ export function RoboticsWorkspace({
 
   const saveGripperTemplate = async () => {
     if (!gripperDraft) return;
-    if (isMultipackProfileGripper(gripperDraft)) {
+    if (isDefaultProfileGripper(gripperDraft)) {
       setError(t("robotics.errorBuiltInNotInLibrary"));
       return;
     }
@@ -321,7 +321,7 @@ export function RoboticsWorkspace({
 
   const saveStationTemplate = async () => {
     if (!stationDraft) return;
-    if (isMultipackProfileStation(stationDraft)) {
+    if (isDefaultProfileStation(stationDraft)) {
       setError(t("robotics.errorBuiltInNotInLibrary"));
       return;
     }
@@ -468,7 +468,7 @@ export function RoboticsWorkspace({
               <h3 id="rb-equipment-title">{t("robotics.equipment")}</h3>
               <small>
                 {selectedProfile
-                  ? t("robotics.multipackProfile", {
+                  ? t("robotics.defaultProfile", {
                       version: selectedProfile.version,
                     })
                   : project.source.kind === "rob-import"
@@ -514,7 +514,7 @@ export function RoboticsWorkspace({
             {selectedProfile ? (
               <p className="ed-panel-note">
                 {t("robotics.profileNote", {
-                  version: selectedProfile.provenance.applicationVersion,
+                  version: selectedProfile.version,
                 })}
               </p>
             ) : null}
@@ -696,7 +696,7 @@ export function RoboticsWorkspace({
                 onSaveTemplate={() => void saveGripperTemplate()}
                 builtInNote={
                   <>
-                    <BuiltInProfileNotice version={multipackProfile.version} />
+                    <BuiltInProfileNotice version={defaultProfile.version} />
                     <p>{t("robotics.gripperBuiltInLimits")}</p>
                   </>
                 }
@@ -735,7 +735,7 @@ export function RoboticsWorkspace({
                 onSaveTemplate={() => void saveStationTemplate()}
                 builtInNote={
                   <>
-                    <BuiltInProfileNotice version={multipackProfile.version} />
+                    <BuiltInProfileNotice version={defaultProfile.version} />
                     <p>{t("robotics.stationBuiltInLimits")}</p>
                   </>
                 }

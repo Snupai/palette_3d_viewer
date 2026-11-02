@@ -18,7 +18,7 @@ afterEach(async () => {
 
 describe("committed anonymized .rob corpus integration", () => {
   it("runs parser, source, scenario, and privacy gates without retaining source text", async () => {
-    const root = await mkdtemp(join(tmpdir(), "rob-corpus-fixture-"));
+    const root = await mkdtemp(join(tmpdir(), "rob-parity-fixture-"));
     temporaryDirectories.push(root);
     await copyFile(
       resolve(

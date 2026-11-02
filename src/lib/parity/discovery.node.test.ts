@@ -38,7 +38,7 @@ describe("external .rob corpus discovery fencing", () => {
   });
 
   it("discovers regular .rob files case-insensitively and rejects oversized entries", async () => {
-    const root = await temporaryDirectory("rob-corpus-discovery-");
+    const root = await temporaryDirectory("rob-parity-discovery-");
     const nested = join(root, "nested");
     await mkdir(nested);
     await writeFile(join(root, "first.rob"), "1234", "utf8");
@@ -60,8 +60,8 @@ describe("external .rob corpus discovery fencing", () => {
   });
 
   it("rejects a direct out-of-root load even when given a forged descriptor", async () => {
-    const rootPath = await temporaryDirectory("rob-corpus-root-");
-    const outside = await temporaryDirectory("rob-corpus-outside-");
+    const rootPath = await temporaryDirectory("rob-parity-root-");
+    const outside = await temporaryDirectory("rob-parity-outside-");
     const outsideFile = join(outside, "outside.rob");
     await writeFile(outsideFile, "123", "utf8");
     const root = await resolveRobCorpusRoot(rootPath, {});
@@ -79,8 +79,8 @@ describe("external .rob corpus discovery fencing", () => {
   });
 
   it("does not follow symlinked directories", async ({ skip }) => {
-    const root = await temporaryDirectory("rob-corpus-symlink-root-");
-    const outside = await temporaryDirectory("rob-corpus-symlink-target-");
+    const root = await temporaryDirectory("rob-parity-symlink-root-");
+    const outside = await temporaryDirectory("rob-parity-symlink-target-");
     await writeFile(join(outside, "hidden.rob"), "123", "utf8");
     const linkPath = join(root, "linked-directory");
     try {

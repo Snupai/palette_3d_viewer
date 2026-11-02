@@ -9,7 +9,7 @@ import type {
 import { PT_TO_MM, text } from "~/features/reporting/sheetPrimitives";
 
 /**
- * Isometric drawing of a loaded pallet, in the style of the MultiPack sheet:
+ * Isometric drawing of a loaded pallet, in the style of the reference pallet sheet:
  * grey cartons on a light euro pallet, the top layer lifted off the stack,
  * and dimension lines for the load block, the total height and the pallet.
  *

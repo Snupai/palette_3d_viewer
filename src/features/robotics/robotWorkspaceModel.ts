@@ -1,4 +1,4 @@
-import { resolveMultipackEquipmentProfile } from "~/domain/project/equipmentProfiles";
+import { resolveDefaultEquipmentProfile } from "~/domain/project/equipmentProfiles";
 import type { Project } from "~/domain/project/projectSchema";
 import {
   exportProjectRob,
@@ -306,7 +306,7 @@ export function createRobotReadiness(
     "resources",
     "compatibility",
   ]);
-  const multipackProfile = resolveMultipackEquipmentProfile(project);
+  const defaultProfile = resolveDefaultEquipmentProfile(project);
   const pickupComplete = workspacePickReferenceComplete(settings);
   const derivedPickup = workspaceUsesDerivedPickReference(settings);
   const pickupBlocked = materialization.diagnostics.some(
@@ -348,14 +348,14 @@ export function createRobotReadiness(
         ? "needs-input"
         : equipmentBlocked
           ? "blocked"
-          : multipackProfile
+          : defaultProfile
             ? "warning"
             : "complete",
       evidence: !equipmentSelected
         ? t("robotics.evidence.equipmentMissing")
         : equipmentBlocked
           ? t("robotics.evidence.equipmentBlocked")
-          : multipackProfile
+          : defaultProfile
             ? t("robotics.evidence.equipmentProfile")
             : t("robotics.evidence.equipmentOk"),
     },
@@ -453,7 +453,7 @@ export function robExportOptionsFromWorkspace(
             ? {
                 status: "unverified" as const,
                 source:
-                  "User-entered internal mapping; external MultiPack compatibility is not claimed.",
+                  "User-entered internal mapping; compatibility with external robot software is not claimed.",
               }
             : {
                 status: "project-defined" as const,

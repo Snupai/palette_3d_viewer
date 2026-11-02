@@ -2803,7 +2803,7 @@ describe("compact asymmetric pinwheels", () => {
   it.each([0, 1])(
     "keeps the residual between corner blocks with clearance %s in a free-count search",
     (clearanceMm) => {
-      // Independently constructed four grids, not copied from an oracle export.
+      // Independently constructed four grids.
       const input = normalized({
         package: {
           shape: "cuboid",

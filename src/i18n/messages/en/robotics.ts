@@ -24,7 +24,7 @@ export const roboticsEn = {
 
   // Equipment panel
   "robotics.equipment": "Equipment",
-  "robotics.multipackProfile": "Multipack profile v{version}",
+  "robotics.defaultProfile": "Default profile v{version}",
   "robotics.notDerivableFromImport": "cannot be derived from .rob import",
   "robotics.checkAgainstRealCell": "check against the real cell",
   "robotics.gripper": "Gripper",
@@ -36,8 +36,7 @@ export const roboticsEn = {
   "robotics.gripperType.suction": "Suction gripper",
   "robotics.gripperType.clamp": "Clamp gripper",
   "robotics.gripperType.fork": "Fork gripper",
-  "robotics.profileNote":
-    "From “Multipack für Roboter” {version}, not surveyed.",
+  "robotics.profileNote": "Built-in default values v{version}, not surveyed.",
 
   // Pickup panel
   "robotics.pickup": "Pickup",
@@ -91,7 +90,7 @@ export const roboticsEn = {
   "robotics.saveToPlan": "Save in plan",
   "robotics.saveAsTemplate": "Save as template",
   "robotics.builtInNotice":
-    "The bundled Multipack profile v{version} is read-only. To make changes or create your own template, create an editable copy first.",
+    "The bundled default profile v{version} is read-only. To make changes or create your own template, create an editable copy first.",
 
   // Retained import
   "robotics.importedOriginal": "Imported original file",
@@ -107,9 +106,9 @@ export const roboticsEn = {
   "robotics.statusStationApplied": "Pallet station applied.",
   "robotics.statusStationRemoved": "Station selection removed.",
   "robotics.errorBuiltInGripperReadOnly":
-    "The bundled Multipack gripper is read-only. Create an editable copy first.",
+    "The bundled default gripper is read-only. Create an editable copy first.",
   "robotics.errorBuiltInStationReadOnly":
-    "The bundled Multipack station is read-only. Create an editable copy first.",
+    "The bundled default station is read-only. Create an editable copy first.",
   "robotics.errorBuiltInNotInLibrary":
     "Bundled profiles are not added to the library. Create an editable copy first.",
   "robotics.statusGripperSaved": "Gripper “{name}” saved in plan.",
@@ -186,7 +185,7 @@ export const roboticsEn = {
   "robotics.evidence.equipmentBlocked":
     "The selected equipment does not pass the internal compatibility checks.",
   "robotics.evidence.equipmentProfile":
-    "The observed Multipack default profile is selected. Its values are documented evidence, not calibrated production equipment.",
+    "The bundled default profile is selected. Its values are uncalibrated defaults, not calibrated production equipment.",
   "robotics.evidence.equipmentOk":
     "Selected gripper and station pass the available internal checks.",
   "robotics.evidence.pickupIncomplete":
@@ -266,7 +265,7 @@ export const roboticsEn = {
   "robotics.rotationOffset": "Rotation offset (°)",
   "robotics.acknowledgeAria": "Confirm unverified .rob mapping",
   "robotics.acknowledgeText":
-    "This mapping was entered manually and does not prove external Multipack compatibility.",
+    "This mapping was entered manually and does not prove compatibility with external robot software.",
   "robotics.field8": "Field 8",
   "robotics.field9": "Field 9",
   "robotics.fieldsMeaning": "Meaning of fields 8 and 9",

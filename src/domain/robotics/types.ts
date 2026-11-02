@@ -174,7 +174,7 @@ export type RobotGripGroup = {
 export type LegacyRobUnknownFields = {
   field8: number;
   field9: number;
-  /** Repository interpretation only; external MultiPack semantics remain unverified. */
+  /** Repository interpretation only; semantics in external robot software remain unverified. */
   semantics: "repository-dx-dy-unverified";
   source:
     | "imported-project-cycle"

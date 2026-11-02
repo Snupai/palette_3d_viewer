@@ -382,10 +382,10 @@ describe("robotics materialization and ordering", () => {
     expect(timeline.cycles).toBe(materialized.cycles);
   });
 
-  it("applies the default Multipack profile's crosswise package limits during materialization", () => {
+  it("applies the default profile's crosswise package limits during materialization", () => {
     const project = createProject(
       {
-        id: "multipack-crosswise-limit-project",
+        id: "default-profile-crosswise-limit-project",
         package: {
           dimensionsMm: { length: 400, width: 350, height: 200 },
           multiPickAllowed: false,
@@ -396,7 +396,7 @@ describe("robotics materialization and ordering", () => {
         solutions: [
           {
             id: "solution-1",
-            name: "Multipack crosswise limit",
+            name: "Default profile crosswise limit",
             origin: "calculated",
             patterns: [
               {

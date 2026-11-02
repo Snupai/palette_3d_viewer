@@ -1,4 +1,4 @@
-# MultiPack-Paritätskorpus und Scorecard
+# Paritätskorpus und Scorecard
 
 Stand: 05.08.2026
 
@@ -46,11 +46,11 @@ Die Kandidatenverträge sind separat versioniert und in
 | Synthetic alternating stack    | synthetisch              | committed `.rob`, Schema v2            | 2 Muster, 4 Lagen, 14 Packstücke, 8 Zyklen, Zwischenlagen       |
 | Synthetic square grid          | synthetisch              | inline `ProjectV2`, Schema v2          | zwei geordnete 12er-Kandidaten; Orientierung bleibt verschieden |
 | Synthetic identity variants    | synthetisch              | inline `ProjectV2`, Schema v2          | eine Geometrie, drei Identitäten durch Etikett/Greifpartition   |
-| AP5006 / 1329-00004 observed   | MultiPack-Beobachtung    | keine committed Originaleingabe        | 65 gesamt, 15 mit 55 und weitere beobachtete Zielwerte          |
+| AP5006 / 1329-00004 observed   | Referenzbeobachtung      | keine committed Originaleingabe        | 65 gesamt, 15 mit 55 und weitere beobachtete Zielwerte          |
 
 Damit enthält der Korpus vier klar anonymisierte beziehungsweise synthetische
 Referenzen und einen getrennten Observed-Fall. Die synthetischen Werte sind
-Verträge dieses Projekts und werden nicht als reproduzierte MultiPack-Ausgaben
+Verträge dieses Projekts und werden nicht als Ausgaben eines anderen Systems
 ausgegeben.
 
 ## Paritätsmatrix
@@ -89,7 +89,7 @@ Produktionsordner.
 
 ## AP5006 / 1329-00004 – beobachtete Zielwerte
 
-Diese Werte stammen aus der bisherigen Rebuild-Beobachtung. Sie werden erst zu
+Diese Werte stammen aus einer bestehenden Referenzplanung. Sie werden erst zu
 Golden Gates, wenn Eingabe und relevante Ausgaben vollständig anonymisiert und
 lokal reproduzierbar sind.
 
@@ -119,15 +119,9 @@ Identitätssemantik oder Reihenfolge unter dem neuen v1-Vertrag belegt.
   nicht automatisch aufgelöst.
 - Jeder Evidenzverweis muss auf eine im selben Fall deklarierte Artefakt-ID
   zeigen.
-- Synthetische Werte nennen ausdrücklich, dass sie keine MultiPack-Provenienz
-  besitzen.
+- Synthetische Werte sind ausdrücklich als synthetisch gekennzeichnet.
 - Screenshots, Exporte oder `.mpb`-Dateien werden nur als Golden referenziert,
   wenn eine anonymisierte Datei tatsächlich committed und im Test nutzbar ist.
-
-Der Windows-only Workflow [MultiPack desktop oracle](MULTIPACK_ORACLE.md) erfasst
-vollständige Kandidatenreihenfolgen und synthetisch benannte Einzel-`.rob`-Exporte
-außerhalb des Repositorys. Seine hash-only Manifeste sind zunächst **Observed**;
-sie werden erst nach Anonymisierung und Aufnahme in ausführbare Fixtures zu Golden.
 
 ## Noch benötigte Evidenz
 
@@ -138,7 +132,3 @@ sie werden erst nach Anonymisierung und Aufnahme in ausführbare Fixtures zu Gol
    Einlaufrichtung und Palettierrichtung;
 5. ein gespeicherter Stapel mit Zwischenlagen und abweichender oberer Lage;
 6. anonymisierte `.mpb`-Dateien mit kontrollierten Einzeländerungen.
-
-Der aktuelle Forschungsstand, einschließlich „Blöcke“, Vorzeichen und `.mpb`,
-steht im datierten
-[Research-Log vom 05.08.2026](research/2026-08-05-parity-research-log.md).

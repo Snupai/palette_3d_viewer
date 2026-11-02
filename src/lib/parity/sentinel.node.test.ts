@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -32,6 +32,31 @@ afterEach(async () => {
 });
 
 describe("hash-only ROB corpus sentinel", () => {
+  it("requires an explicit absolute regular-file manifest", async () => {
+    const workingDirectory = await mkdtemp(
+      join(tmpdir(), "rob-sentinel-work-"),
+    );
+    temporaryDirectories.push(workingDirectory);
+    const manifestPath = join(workingDirectory, "manifest.json");
+    await writeFile(manifestPath, "{}", "utf8");
+    const linkPath = join(workingDirectory, "linked-manifest.json");
+    await symlink(manifestPath, linkPath);
+
+    await expect(runRobCorpusSentinel({ env: {} })).rejects.toThrow(
+      "Set ROB_CORPUS_SENTINEL_MANIFEST to an absolute hash-only manifest path.",
+    );
+    await expect(
+      runRobCorpusSentinel({
+        env: { ROB_CORPUS_SENTINEL_MANIFEST: "manifest.json" },
+      }),
+    ).rejects.toThrow("The ROB sentinel manifest path must be absolute.");
+    await expect(
+      runRobCorpusSentinel({ manifestPath: linkPath }),
+    ).rejects.toThrow(
+      "The ROB sentinel manifest must be a regular non-symlink file.",
+    );
+  });
+
   it("selects by digest and anonymizes every report basename", async () => {
     const workingDirectory = await mkdtemp(
       join(tmpdir(), "rob-sentinel-work-"),
@@ -151,20 +176,24 @@ describe("hash-only ROB corpus sentinel", () => {
 });
 
 const externalCorpusRoot = process.env.ROB_CORPUS_DIR;
+const externalSentinelManifest = process.env.ROB_CORPUS_SENTINEL_MANIFEST;
 
-describe.skipIf(!externalCorpusRoot)("configured local ROB sentinel", () => {
-  it("runs every manifest case by byte digest without source names", async () => {
-    const run = await runRobCorpusSentinel({ root: externalCorpusRoot });
+describe.skipIf(!externalCorpusRoot || !externalSentinelManifest)(
+  "configured local ROB sentinel",
+  () => {
+    it("runs every manifest case by byte digest without source names", async () => {
+      const run = await runRobCorpusSentinel({ root: externalCorpusRoot });
 
-    expect(run.summary.selectedCases).toBe(run.manifest.caseCount);
-    expect(run.summary.selectedCases).toBeGreaterThan(0);
-    expect(run.summary.patternComparisons).toBeGreaterThan(0);
-    expect(run.summary.executionFailureCount).toBe(0);
-    expect(
-      run.report.files.every(({ basename }) =>
-        /^sentinel-case-\d+\.rob$/.test(basename),
-      ),
-    ).toBe(true);
-    expect(JSON.stringify(run.report)).not.toContain(externalCorpusRoot);
-  }, 600_000);
-});
+      expect(run.summary.selectedCases).toBe(run.manifest.caseCount);
+      expect(run.summary.selectedCases).toBeGreaterThan(0);
+      expect(run.summary.patternComparisons).toBeGreaterThan(0);
+      expect(run.summary.executionFailureCount).toBe(0);
+      expect(
+        run.report.files.every(({ basename }) =>
+          /^sentinel-case-\d+\.rob$/.test(basename),
+        ),
+      ).toBe(true);
+      expect(JSON.stringify(run.report)).not.toContain(externalCorpusRoot);
+    }, 600_000);
+  },
+);

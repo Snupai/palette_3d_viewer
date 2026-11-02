@@ -127,10 +127,10 @@ function projectFixture() {
   );
 }
 
-function multipackOriginProject() {
+function stationOriginProject() {
   return createProject(
     {
-      id: "multipack-origin-project",
+      id: "station-origin-project",
       package: {
         dimensionsMm: { length: 100, width: 50, height: 50 },
         multiPickAllowed: true,
@@ -192,7 +192,7 @@ function multipackOriginProject() {
       ],
       activeSolutionId: "solution-1",
     },
-    { createId: (kind) => `${kind}-multipack`, now: () => 1 },
+    { createId: (kind) => `${kind}-origin`, now: () => 1 },
   );
 }
 
@@ -313,8 +313,8 @@ describe("robotics workspace validation and export gate", () => {
     });
   });
 
-  it("exports Multipack place fields in pallet coordinates while retaining station-frame robot poses", () => {
-    const project = multipackOriginProject();
+  it("exports .rob place fields in pallet coordinates while retaining station-frame robot poses", () => {
+    const project = stationOriginProject();
     const workspace = createInitialRobotWorkspaceSettings(project);
     const materialization = materializeRobotCycles(
       project,
@@ -504,7 +504,7 @@ describe("robotics workspace input validation", () => {
 });
 
 describe("robotics readiness", () => {
-  it("reports observed defaults and the 0 / 0 reach sentinel without claiming calibration", () => {
+  it("reports built-in defaults and the 0 / 0 reach sentinel without claiming calibration", () => {
     const fixture = projectFixture();
     const project = createProject(
       {
@@ -546,7 +546,7 @@ describe("robotics readiness", () => {
     const equipmentReadiness = readiness.find(({ id }) => id === "equipment");
     expect(equipmentReadiness?.status).toBe("warning");
     expect(equipmentReadiness?.evidence).toContain(
-      "beobachtete Multipack-Standardprofil",
+      "mitgelieferte Standardprofil",
     );
     const workspaceReadiness = readiness.find(({ id }) => id === "workspace");
     expect(workspaceReadiness?.status).toBe("warning");

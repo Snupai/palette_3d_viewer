@@ -30,9 +30,9 @@ import { searchSteppedBlocks } from "~/domain/solver/steppedBlocks";
 import { searchSliceGrids } from "~/domain/solver/sliceGrids";
 import { searchMosaicGrids } from "~/domain/solver/mosaicGrids";
 import {
-  generateMultiPackLayers,
+  generateBlockPlanLayers,
   musterPackagesToPlacements,
-} from "~/domain/solver/multipack";
+} from "~/domain/solver/blockPlan";
 import { searchStaircaseGrids } from "~/domain/solver/staircaseGrids";
 import {
   assessRectangularBlockPlacements,
@@ -2358,7 +2358,7 @@ function justifiedLineCenters(
   let first = minimum + item / 2;
   let last = maximum - item / 2;
   if (policy === "integer-balanced-space-between") {
-    // Legacy integer layouts repeatedly use truncated endpoints with residual
+    // Integer .rob layouts repeatedly use truncated endpoints with residual
     // millimeters balanced across the interior gaps. This is a general spacing
     // policy; no source coordinates or layouts are fed into generation.
     first = Math.trunc(first);
@@ -7526,18 +7526,18 @@ function generateEdgeRings(
 }
 
 /**
- * MultiPack für Roboter layouts: enumerated solution records run through the
- * ported optimizer, tiling and centering, kept at their legacy positions.
+ * Block-plan layouts: enumerated block plans run through the block-plan
+ * optimizer, tiling and centering, kept at their computed positions.
  *
- * The legacy model works in integer 0.1 mm. Package size and clearance round
+ * The block-plan model works in integer 0.1 mm. Package size and clearance round
  * up and the generation bounds round down, so a layer that is valid in 0.1 mm
  * stays free of overlaps and inside the bounds in real millimetres.
  */
-function generateMultiPack(
+function generateBlockPlan(
   input: NormalizedLayerSolverInput,
   hooks: GeneratorHooks,
 ): GeneratorOutput {
-  const collector = new DraftCollector("multipack", input, hooks, true);
+  const collector = new DraftCollector("block-plan", input, hooks, true);
   const bounds = input.generationBoundsMm;
   const ceilDmm = (mm: number) => Math.ceil(mm * 10 - 1e-6);
   const floorDmm = (mm: number) => Math.floor(mm * 10 + 1e-6);
@@ -7553,13 +7553,13 @@ function generateMultiPack(
     package: packageDmm,
     clearanceDmm: ceilDmm(input.package.clearanceMm),
   };
-  const layers = generateMultiPackLayers(search);
-  // Optimize's stop-and-trim pass builds layers of exactly the requested
+  const layers = generateBlockPlanLayers(search);
+  // A second stop-and-trim pass builds layers of exactly the requested
   // count; the collector drops geometric repeats of the full enumeration.
   const exactCount = exactRequestedPackageCount(input);
   if (exactCount !== null) {
     layers.push(
-      ...generateMultiPackLayers({
+      ...generateBlockPlanLayers({
         ...search,
         targetCount: exactCount,
         stopAtTarget: true,
@@ -7575,7 +7575,7 @@ function generateMultiPack(
       input.constraints.allowedRotations,
     );
     collector.add(placements, {
-      family: "multipack",
+      family: "block-plan",
       variant: layer.variant,
       parameters: { musterBlocks: layer.blockCount },
     });
@@ -7686,7 +7686,7 @@ export function generateCandidateFamily(
     return collector.output();
   }
   if (family === "edge-ring") return generateEdgeRings(input, hooks);
-  if (family === "multipack") return generateMultiPack(input, hooks);
+  if (family === "block-plan") return generateBlockPlan(input, hooks);
   return generateMixedOrientation(input, hooks);
 }
 

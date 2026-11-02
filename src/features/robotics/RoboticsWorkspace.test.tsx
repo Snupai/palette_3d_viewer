@@ -8,8 +8,8 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
 } from "~/domain/project/equipmentProfiles";
 import { createProject } from "~/domain/project/projectFactory";
 import type {
@@ -255,9 +255,9 @@ describe("RoboticsWorkspace operator view", () => {
     ).toBeTruthy();
   });
 
-  it("shows the observed Multipack profile as the read-only default for a new project", async () => {
+  it("shows the built-in default profile as the read-only default for a new project", async () => {
     const project = createProject(
-      { id: "multipack-default-project" },
+      { id: "default-profile-project" },
       { createId: (kind) => `${kind}-unused`, now: () => 1 },
     );
     const settings = createInitialRobotWorkspaceSettings(project);
@@ -276,16 +276,16 @@ describe("RoboticsWorkspace operator view", () => {
 
     expect(
       screen.getByLabelText<HTMLSelectElement>("Greifer des Plans").value,
-    ).toBe(MULTIPACK_GRIPPER_ID);
+    ).toBe(DEFAULT_PROFILE_GRIPPER_ID);
     expect(
       screen.getByLabelText<HTMLSelectElement>("Palettenstation des Plans")
         .value,
-    ).toBe(MULTIPACK_PALLET_STATION_ID);
-    expect(screen.getByText("Multipack-Profil v1")).toBeTruthy();
+    ).toBe(DEFAULT_PROFILE_PALLET_STATION_ID);
+    expect(screen.getByText("Standardprofil v1")).toBeTruthy();
     expect(screen.getByText(/nicht\s+vermessen/)).toBeTruthy();
     expect(
       screen.getByText(
-        "Das beobachtete Multipack-Standardprofil ist gewählt. Seine Werte sind dokumentierte Belege, keine kalibrierte Produktionsausrüstung.",
+        "Das mitgelieferte Standardprofil ist gewählt. Seine Werte sind unkalibrierte Standardwerte, keine kalibrierte Produktionsausrüstung.",
       ),
     ).toBeTruthy();
 

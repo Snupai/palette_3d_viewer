@@ -8,25 +8,23 @@ import {
   type Project,
 } from "~/domain/project/projectSchema";
 
-export const MULTIPACK_EQUIPMENT_PROFILE_ID =
+/** Stable persisted ids referenced by saved projects; do not change. */
+export const DEFAULT_EQUIPMENT_PROFILE_ID =
   "multipack-roboter-observed-defaults";
-export const MULTIPACK_EQUIPMENT_PROFILE_VERSION = 1 as const;
-export const MULTIPACK_GRIPPER_ID =
+export const DEFAULT_EQUIPMENT_PROFILE_VERSION = 1 as const;
+export const DEFAULT_PROFILE_GRIPPER_ID =
   "builtin:multipack-roboter-observed-defaults:v1:gripper:schmalzgripper";
-export const MULTIPACK_PALLET_STATION_ID =
+export const DEFAULT_PROFILE_PALLET_STATION_ID =
   "builtin:multipack-roboter-observed-defaults:v1:station:pallet-place-definition";
 
 export type GripperPackageLimits = NonNullable<Gripper["packageLimits"]>;
 
 export type BuiltInEquipmentProfile = {
-  id: typeof MULTIPACK_EQUIPMENT_PROFILE_ID;
-  version: typeof MULTIPACK_EQUIPMENT_PROFILE_VERSION;
+  id: typeof DEFAULT_EQUIPMENT_PROFILE_ID;
+  version: typeof DEFAULT_EQUIPMENT_PROFILE_VERSION;
   name: string;
   provenance: {
-    status: "observed-not-calibrated";
-    application: "Multipack für Roboter";
-    applicationVersion: "2.1.315.25";
-    latestCorroboratingPlanDate: "2026-08-07";
+    status: "default-not-calibrated";
     source: string;
   };
   gripper: Gripper;
@@ -43,7 +41,7 @@ export type BuiltInEquipmentProfile = {
 };
 
 const gripper = gripperSchema.parse({
-  id: MULTIPACK_GRIPPER_ID,
+  id: DEFAULT_PROFILE_GRIPPER_ID,
   name: "schmalzgripper",
   externalId: "1",
   isDefault: true,
@@ -62,7 +60,7 @@ const gripper = gripperSchema.parse({
 });
 
 const palletStation = palletStationSchema.parse({
-  id: MULTIPACK_PALLET_STATION_ID,
+  id: DEFAULT_PROFILE_PALLET_STATION_ID,
   name: "Pallet place definition",
   externalId: "1",
   isDefault: true,
@@ -106,16 +104,13 @@ const packageLimitsByInletOrientation: BuiltInEquipmentProfile["packageLimitsByI
   };
 
 const profile: BuiltInEquipmentProfile = {
-  id: MULTIPACK_EQUIPMENT_PROFILE_ID,
-  version: MULTIPACK_EQUIPMENT_PROFILE_VERSION,
-  name: "Multipack Roboter observed defaults",
+  id: DEFAULT_EQUIPMENT_PROFILE_ID,
+  version: DEFAULT_EQUIPMENT_PROFILE_VERSION,
+  name: "Default gripper station profile",
   provenance: {
-    status: "observed-not-calibrated",
-    application: "Multipack für Roboter",
-    applicationVersion: "2.1.315.25",
-    latestCorroboratingPlanDate: "2026-08-07",
+    status: "default-not-calibrated",
     source:
-      "Observed in the installed Multipack UI and corroborated against the active local plan database; not a station survey or production calibration.",
+      "Built-in default values; not a station survey or production calibration.",
   },
   gripper,
   palletStation,
@@ -124,7 +119,7 @@ const profile: BuiltInEquipmentProfile = {
     status: "not-calibrated",
     sentinel: { min: 0, max: 0 },
     meaning:
-      "The observed 0 / 0 robot-radius values are a legacy sentinel. Radial reach is not calibrated and must not be reported as checked.",
+      "The 0 / 0 robot-radius values are a sentinel for an unset reach. Radial reach is not calibrated and must not be reported as checked.",
   },
 };
 
@@ -176,7 +171,7 @@ function exactResourceMatch<T>(left: T, right: T): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-export function getMultipackEquipmentProfile(): BuiltInEquipmentProfile {
+export function getDefaultEquipmentProfile(): BuiltInEquipmentProfile {
   return {
     ...profile,
     provenance: { ...profile.provenance },
@@ -197,7 +192,7 @@ export function getMultipackEquipmentProfile(): BuiltInEquipmentProfile {
   };
 }
 
-export function createMultipackEquipmentProfileResources(): {
+export function createDefaultEquipmentProfileResources(): {
   grippers: Gripper[];
   palletStations: PalletStation[];
 } {
@@ -207,23 +202,21 @@ export function createMultipackEquipmentProfileResources(): {
   };
 }
 
-export function isMultipackProfileGripper(value: Gripper | null): boolean {
+export function isDefaultProfileGripper(value: Gripper | null): boolean {
   return (
-    value?.id === MULTIPACK_GRIPPER_ID &&
+    value?.id === DEFAULT_PROFILE_GRIPPER_ID &&
     exactResourceMatch(value, profile.gripper)
   );
 }
 
-export function isMultipackProfileStation(
-  value: PalletStation | null,
-): boolean {
+export function isDefaultProfileStation(value: PalletStation | null): boolean {
   return (
-    value?.id === MULTIPACK_PALLET_STATION_ID &&
+    value?.id === DEFAULT_PROFILE_PALLET_STATION_ID &&
     exactResourceMatch(value, profile.palletStation)
   );
 }
 
-export function resolveMultipackEquipmentProfile(
+export function resolveDefaultEquipmentProfile(
   project: Project,
 ): BuiltInEquipmentProfile | null {
   const selectedGripper =
@@ -232,33 +225,33 @@ export function resolveMultipackEquipmentProfile(
     project.palletStations.find(
       ({ id }) => id === project.selectedPalletStationId,
     ) ?? null;
-  return isMultipackProfileGripper(selectedGripper) &&
-    isMultipackProfileStation(selectedStation)
-    ? getMultipackEquipmentProfile()
+  return isDefaultProfileGripper(selectedGripper) &&
+    isDefaultProfileStation(selectedStation)
+    ? getDefaultEquipmentProfile()
     : null;
 }
 
-export function resolveMultipackGripperPackageLimits(
+export function resolveDefaultGripperPackageLimits(
   value: Gripper,
   inletOrientation: PackageSpec["inletOrientation"],
 ): GripperPackageLimits | undefined {
-  if (!isMultipackProfileGripper(value)) return undefined;
+  if (!isDefaultProfileGripper(value)) return undefined;
   return clonePackageLimits(
     profile.packageLimitsByInletOrientation[inletOrientation],
   );
 }
 
-/** Observed in the lengthwise MultiPack oracle; other profiles retain their grouping policy. */
+/** Default profile with lengthwise inlet places remainders at the axis ends; other profiles retain their grouping policy. */
 export function resolveSuctionRemainderPolicy(
   gripper: Gripper | null | undefined,
   inlet: PackageSpec["inletOrientation"],
 ): SuctionRemainderPolicy {
-  return isMultipackProfileGripper(gripper ?? null) && inlet === "lengthwise"
+  return isDefaultProfileGripper(gripper ?? null) && inlet === "lengthwise"
     ? "axis-ends"
     : "centered-singleton";
 }
 
-/** Default for the observed automatic pickup configuration; explicit UI limits remain authoritative. */
+/** Default for the automatic pickup configuration; explicit UI limits remain authoritative. */
 export function resolveAutomaticSuctionGroupLimit(
   packageSpec: Pick<
     PackageSpec,
@@ -268,7 +261,7 @@ export function resolveAutomaticSuctionGroupLimit(
 ): number {
   if (!packageSpec.multiPickAllowed) return 1;
   if (
-    !isMultipackProfileGripper(selectedGripper) ||
+    !isDefaultProfileGripper(selectedGripper) ||
     packageSpec.inletOrientation !== "lengthwise"
   )
     return 2;

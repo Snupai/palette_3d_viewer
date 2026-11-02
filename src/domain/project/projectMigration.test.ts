@@ -4,9 +4,9 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
-  resolveMultipackEquipmentProfile,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
+  resolveDefaultEquipmentProfile,
 } from "~/domain/project/equipmentProfiles";
 import { createProject } from "~/domain/project/projectFactory";
 import {
@@ -89,7 +89,7 @@ describe("project schema migration", () => {
     expect(cycle.pickPose.rotation).toBe((sourceGrip.pickRotation + 90) % 360);
   });
 
-  it("backfills exact Multipack defaults for fully unconfigured ordinary V3 projects", () => {
+  it("backfills the exact built-in defaults for fully unconfigured ordinary V3 projects", () => {
     const ordinary = createProject(
       {
         id: "ordinary-v3",
@@ -110,9 +110,11 @@ describe("project schema migration", () => {
     expect(migrated.updatedAt).toBe(ordinary.updatedAt);
     expect(migrated.grippers).toHaveLength(1);
     expect(migrated.palletStations).toHaveLength(1);
-    expect(migrated.selectedGripperId).toBe(MULTIPACK_GRIPPER_ID);
-    expect(migrated.selectedPalletStationId).toBe(MULTIPACK_PALLET_STATION_ID);
-    expect(resolveMultipackEquipmentProfile(migrated)?.version).toBe(1);
+    expect(migrated.selectedGripperId).toBe(DEFAULT_PROFILE_GRIPPER_ID);
+    expect(migrated.selectedPalletStationId).toBe(
+      DEFAULT_PROFILE_PALLET_STATION_ID,
+    );
+    expect(resolveDefaultEquipmentProfile(migrated)?.version).toBe(1);
   });
 
   it("does not infer equipment for V3 ROB imports or overwrite configured projects", () => {

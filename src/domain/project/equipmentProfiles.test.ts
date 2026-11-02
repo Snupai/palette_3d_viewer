@@ -1,34 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
-  MULTIPACK_EQUIPMENT_PROFILE_ID,
-  MULTIPACK_EQUIPMENT_PROFILE_VERSION,
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
-  createMultipackEquipmentProfileResources,
-  getMultipackEquipmentProfile,
-  isMultipackProfileGripper,
-  isMultipackProfileStation,
-  resolveMultipackGripperPackageLimits,
+  DEFAULT_EQUIPMENT_PROFILE_ID,
+  DEFAULT_EQUIPMENT_PROFILE_VERSION,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
+  createDefaultEquipmentProfileResources,
+  getDefaultEquipmentProfile,
+  isDefaultProfileGripper,
+  isDefaultProfileStation,
+  resolveDefaultGripperPackageLimits,
   resolveSuctionRemainderPolicy,
   resolveAutomaticSuctionGroupLimit,
 } from "~/domain/project/equipmentProfiles";
 import { validateSuctionCompatibility } from "~/domain/robotics/compatibility";
 
-describe("built-in Multipack equipment profile", () => {
-  it("retains the exact observed gripper, station, and provenance", () => {
-    const profile = getMultipackEquipmentProfile();
+describe("built-in default equipment profile", () => {
+  it("retains the exact default gripper, station, and provenance", () => {
+    const profile = getDefaultEquipmentProfile();
 
     expect(profile).toMatchObject({
-      id: MULTIPACK_EQUIPMENT_PROFILE_ID,
-      version: MULTIPACK_EQUIPMENT_PROFILE_VERSION,
+      id: DEFAULT_EQUIPMENT_PROFILE_ID,
+      version: DEFAULT_EQUIPMENT_PROFILE_VERSION,
       provenance: {
-        status: "observed-not-calibrated",
-        application: "Multipack für Roboter",
-        applicationVersion: "2.1.315.25",
-        latestCorroboratingPlanDate: "2026-08-07",
+        status: "default-not-calibrated",
       },
       gripper: {
-        id: MULTIPACK_GRIPPER_ID,
+        id: DEFAULT_PROFILE_GRIPPER_ID,
         name: "schmalzgripper",
         externalId: "1",
         isDefault: true,
@@ -46,7 +43,7 @@ describe("built-in Multipack equipment profile", () => {
         settings: { type: "suction", multipickSinglePlace: false },
       },
       palletStation: {
-        id: MULTIPACK_PALLET_STATION_ID,
+        id: DEFAULT_PROFILE_PALLET_STATION_ID,
         name: "Pallet place definition",
         externalId: "1",
         isDefault: true,
@@ -82,32 +79,30 @@ describe("built-in Multipack equipment profile", () => {
   });
 
   it("returns independent project copies and stops matching after an edit", () => {
-    const first = createMultipackEquipmentProfileResources();
-    const second = createMultipackEquipmentProfileResources();
+    const first = createDefaultEquipmentProfileResources();
+    const second = createDefaultEquipmentProfileResources();
 
     first.grippers[0]!.tcpMm.x = 123;
     first.palletStations[0]!.tcpEnvelopeMm.positiveX = 123;
 
     expect(second.grippers[0]!.tcpMm.x).toBe(0);
     expect(second.palletStations[0]!.tcpEnvelopeMm.positiveX).toBe(2_000);
-    expect(isMultipackProfileGripper(second.grippers[0]!)).toBe(true);
-    expect(isMultipackProfileStation(second.palletStations[0]!)).toBe(true);
-    expect(isMultipackProfileGripper(first.grippers[0]!)).toBe(false);
-    expect(isMultipackProfileStation(first.palletStations[0]!)).toBe(false);
+    expect(isDefaultProfileGripper(second.grippers[0]!)).toBe(true);
+    expect(isDefaultProfileStation(second.palletStations[0]!)).toBe(true);
+    expect(isDefaultProfileGripper(first.grippers[0]!)).toBe(false);
+    expect(isDefaultProfileStation(first.palletStations[0]!)).toBe(false);
   });
 
   it("preserves orientation-specific package limits without flattening them", () => {
-    const { grippers } = createMultipackEquipmentProfileResources();
+    const { grippers } = createDefaultEquipmentProfileResources();
     const gripper = grippers[0]!;
 
-    expect(resolveMultipackGripperPackageLimits(gripper, "lengthwise")).toEqual(
-      {
-        lengthMm: { min: 50, max: 500 },
-        widthMm: { min: 50, max: 420 },
-        heightMm: { min: 50, max: 400 },
-      },
-    );
-    const crosswiseLimits = resolveMultipackGripperPackageLimits(
+    expect(resolveDefaultGripperPackageLimits(gripper, "lengthwise")).toEqual({
+      lengthMm: { min: 50, max: 500 },
+      widthMm: { min: 50, max: 420 },
+      heightMm: { min: 50, max: 400 },
+    });
+    const crosswiseLimits = resolveDefaultGripperPackageLimits(
       gripper,
       "crosswise",
     )!;
@@ -138,8 +133,8 @@ describe("built-in Multipack equipment profile", () => {
   });
 });
 
-it("scopes the observed remainder policy to the verified profile and inlet", () => {
-  const gripper = getMultipackEquipmentProfile().gripper;
+it("scopes the default remainder policy to the verified profile and inlet", () => {
+  const gripper = getDefaultEquipmentProfile().gripper;
   expect(resolveSuctionRemainderPolicy(gripper, "lengthwise")).toBe(
     "axis-ends",
   );
@@ -161,7 +156,7 @@ it("scopes the observed remainder policy to the verified profile and inlet", () 
 });
 
 it("derives the default automatic group limit from pickup length rather than a two-carton cap", () => {
-  const gripper = getMultipackEquipmentProfile().gripper;
+  const gripper = getDefaultEquipmentProfile().gripper;
   const pkg = {
     dimensionsMm: { length: 147, width: 104, height: 139 },
     inletOrientation: "lengthwise" as const,

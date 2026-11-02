@@ -1,8 +1,8 @@
 import type { RobotDiagnostic } from "~/domain/robotics/types";
 
 /**
- * Internal inspection envelope only. This is not claimed to be the proprietary
- * MultiPack binary signature. Real files with another signature are rejected.
+ * Internal inspection envelope only. This is a repository-defined synthetic
+ * signature; files with another signature are rejected.
  */
 export const SYNTHETIC_MPB_V1_MAGIC = "MPB-SYN1";
 export const SYNTHETIC_MPB_V1_HEADER_BYTES = 14;
