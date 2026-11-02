@@ -31,7 +31,7 @@ export const BASE_GENERATOR_FAMILIES = [
   "staircase",
   "staircase-variable",
   "staircase-exchange",
-  "multipack",
+  "block-plan",
 ] as const;
 
 export type BaseGeneratorFamily = (typeof BASE_GENERATOR_FAMILIES)[number];
@@ -180,9 +180,6 @@ export type CandidateMetrics = {
   boundingBlockAreaMm2: number;
   provisionalCycleCount: number;
   provisionalCycleBasis: "generated-grip-groups";
-  /** Unknown legacy MultiPack value: never inferred or used for ranking. */
-  multiPackBlocks: null;
-  multiPackBlocksVerification: "unverified";
 };
 
 export type CandidateScore = {
@@ -192,8 +189,6 @@ export type CandidateScore = {
   provisionalCycleCount: number;
   boundingBlockAreaMm2: number;
   boundingBlockPerimeterMm: number;
-  /** Explicitly absent from the score contract. */
-  multiPackBlocks: null;
 };
 
 export type SolverCandidatePlacement = CandidateIdentityPlacement & {
@@ -290,15 +285,15 @@ export type SolverResult = {
 };
 
 export type SolverOptions = {
-  /** Preserve directed placements and generated grip identities for oracle comparisons. */
+  /** Preserve directed placements and generated grip identities for exact reference comparisons. */
   candidateEquivalence?: "pallet-symmetry" | "identity";
   generatorOrder?: readonly BaseGeneratorFamily[];
   /**
-   * Restrict the run to the reverse-engineered MultiPack family
-   * (`"multipack"`) or to every other generator (`"legacy"`). Omitted runs
+   * Restrict the run to the block-plan family
+   * (`"block-plan"`) or to every other generator (`"legacy"`). Omitted runs
    * both.
    */
-  generatorScope?: "multipack" | "legacy";
+  generatorScope?: "block-plan" | "legacy";
   includeSymmetryVariants?: boolean;
   includeExperimentalIncompleteBlocks?: boolean;
   regionTopologyBudget?: RegionSearchBudget;

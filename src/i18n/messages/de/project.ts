@@ -123,7 +123,7 @@ export const projectDe = {
   "project.ledger.robotPass":
     "Plan, Ausrüstung, Aufnahmepunkt, Stationsarbeitsraum und modellierte Hindernisse haben die verfügbaren internen Prüfungen bestanden.",
   "project.ledger.robotObservedEquipment":
-    "Das beobachtete Multipack-Ausrüstungsprofil ist gewählt; die aktuellen Prüfungen belegen keine kalibrierte Produktionsreife.",
+    "Das mitgelieferte Standard-Ausrüstungsprofil ist gewählt; die aktuellen Prüfungen belegen keine kalibrierte Produktionsreife.",
   "project.ledger.robotObserved":
     "Die Roboterprüfungen wurden mit unverifizierten oder unkalibrierten Einschränkungen abgeschlossen.",
   "project.ledger.robotSkipped":

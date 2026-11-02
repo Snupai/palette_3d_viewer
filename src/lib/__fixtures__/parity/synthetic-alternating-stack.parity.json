@@ -4,7 +4,7 @@
   "title": "Synthetic alternating-stack import baseline",
   "provenance": {
     "kind": "synthetic",
-    "description": "Repository-authored .rob fixture with two alternating patterns, explicit interlayers, and no MultiPack provenance."
+    "description": "Repository-authored .rob fixture with two alternating patterns and explicit interlayers."
   },
   "artifacts": [
     {

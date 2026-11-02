@@ -1,4 +1,4 @@
-import { lstat, readdir, readFile } from "node:fs/promises";
+import { lstat, readFile } from "node:fs/promises";
 import { isAbsolute, resolve } from "node:path";
 import { z } from "zod";
 import { runExternalRobCorpus } from "~/lib/parity/runner.node";
@@ -70,7 +70,6 @@ export type RunRobCorpusSentinelOptions = {
   root?: string;
   env?: Readonly<Record<string, string | undefined>>;
   manifestPath?: string;
-  workingDirectory?: string;
   maxCandidatesPerGenerator?: number;
   now?: () => Date;
 };
@@ -130,63 +129,21 @@ async function parseManifestFile(
   return sentinelManifestSchema.parse(value);
 }
 
-async function discoverSentinelManifest(
-  workingDirectory: string,
-): Promise<RobCorpusSentinelManifest> {
-  const artifactDirectory = resolve(workingDirectory, ".rob-corpus");
-  let entries;
-  try {
-    entries = await readdir(artifactDirectory, { withFileTypes: true });
-  } catch {
-    throw new Error(
-      "No local .rob-corpus artifact directory is available; set ROB_CORPUS_SENTINEL_MANIFEST to an absolute manifest path.",
-    );
-  }
-
-  const manifests: RobCorpusSentinelManifest[] = [];
-  for (const entry of [...entries].sort((left, right) =>
-    left.name.localeCompare(right.name),
-  )) {
-    if (!entry.isFile() || !/\.json$/i.test(entry.name)) continue;
-    const path = resolve(artifactDirectory, entry.name);
-    try {
-      const stat = await lstat(path);
-      if (stat.isSymbolicLink() || !stat.isFile()) continue;
-      const value = JSON.parse(await readFile(path, "utf8")) as unknown;
-      const parsed = sentinelManifestSchema.safeParse(value);
-      if (parsed.success) manifests.push(parsed.data);
-    } catch {
-      // Other local reports are intentionally ignored during schema discovery.
-    }
-  }
-  if (manifests.length === 0) {
-    throw new Error(
-      "No hash-only ROB sentinel manifest was discovered; set ROB_CORPUS_SENTINEL_MANIFEST to an absolute manifest path.",
-    );
-  }
-  if (manifests.length > 1) {
-    throw new Error(
-      "Multiple hash-only ROB sentinel manifests were discovered; set ROB_CORPUS_SENTINEL_MANIFEST explicitly.",
-    );
-  }
-  return manifests[0]!;
-}
-
 async function resolveSentinelManifest(
   options: RunRobCorpusSentinelOptions,
 ): Promise<RobCorpusSentinelManifest> {
   const env = options.env ?? process.env;
   const configuredPath =
     options.manifestPath ?? env.ROB_CORPUS_SENTINEL_MANIFEST;
-  if (configuredPath !== undefined) {
-    if (!isAbsolute(configuredPath)) {
-      throw new Error("The ROB sentinel manifest path must be absolute.");
-    }
-    return parseManifestFile(resolve(configuredPath));
+  if (configuredPath === undefined || configuredPath.trim() === "") {
+    throw new Error(
+      "Set ROB_CORPUS_SENTINEL_MANIFEST to an absolute hash-only manifest path.",
+    );
   }
-  return discoverSentinelManifest(
-    resolve(options.workingDirectory ?? process.cwd()),
-  );
+  if (!isAbsolute(configuredPath)) {
+    throw new Error("The ROB sentinel manifest path must be absolute.");
+  }
+  return parseManifestFile(resolve(configuredPath));
 }
 
 export function summarizeRobCorpusSentinelReport(

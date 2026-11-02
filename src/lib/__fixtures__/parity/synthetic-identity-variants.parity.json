@@ -4,7 +4,7 @@
   "title": "Synthetic geometry, label, and grip identity variants",
   "provenance": {
     "kind": "synthetic",
-    "description": "Hand-constructed identity fixture that separates geometric equality from labels and grip grouping. It has no MultiPack provenance."
+    "description": "Hand-constructed identity fixture that separates geometric equality from labels and grip grouping."
   },
   "artifacts": [],
   "input": {

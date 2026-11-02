@@ -176,7 +176,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     ).toContain("OBSERVED");
     expect(
       screen.getByText("Roboterbereitschaft").closest("summary")?.textContent,
-    ).toContain("beobachtete Multipack-Ausrüstungsprofil");
+    ).toContain("mitgelieferte Standard-Ausrüstungsprofil");
     openRobotics();
     expect(await screen.findByTestId("robotics-workspace")).toBeTruthy();
 
@@ -227,7 +227,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
     expect(screen.getByLabelText<HTMLInputElement>("X (mm)").value).toBe("");
   });
 
-  it("keeps observed Multipack equipment out of a robot-readiness pass", async () => {
+  it("keeps built-in default equipment out of a robot-readiness pass", async () => {
     let now = 10;
     const repository = new ProjectRepository(new MemoryPlannerRecordStorage(), {
       now: () => now++,
@@ -265,7 +265,7 @@ describe("PlannerProjectWorkspace robotics integration", () => {
       const row = screen.getByText("Roboterbereitschaft").closest("summary");
       expect(row?.textContent).toContain("OBSERVED");
       expect(row?.textContent).toContain(
-        "beobachtete Multipack-Ausrüstungsprofil",
+        "mitgelieferte Standard-Ausrüstungsprofil",
       );
       expect(row?.textContent).not.toContain("PASS");
     });

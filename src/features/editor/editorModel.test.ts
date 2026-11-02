@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  createMultipackEquipmentProfileResources,
-  MULTIPACK_GRIPPER_ID,
+  createDefaultEquipmentProfileResources,
+  DEFAULT_PROFILE_GRIPPER_ID,
 } from "~/domain/project/equipmentProfiles";
 import { createProject } from "~/domain/project/projectFactory";
 import {
@@ -705,7 +705,7 @@ describe("Project editor pattern geometry", () => {
   });
 
   it("picks whole-millimetre grip splits for imported plans up front", () => {
-    // 101 mm packages, MultiPack gripper (up to four): an odd number of
+    // 101 mm packages, default-profile gripper (up to four): an odd number of
     // packages per grip keeps the centre on a whole millimetre, an even one
     // does not.
     const importedLine = (positions: { x: number; y: number }[]): Project => {
@@ -724,9 +724,9 @@ describe("Project editor pattern geometry", () => {
         },
         grippers: [
           ...base.grippers,
-          ...createMultipackEquipmentProfileResources().grippers,
+          ...createDefaultEquipmentProfileResources().grippers,
         ],
-        selectedGripperId: MULTIPACK_GRIPPER_ID,
+        selectedGripperId: DEFAULT_PROFILE_GRIPPER_ID,
         solutions: base.solutions.map((solution) => ({
           ...solution,
           patterns: solution.patterns.map((entry) => ({
@@ -1156,9 +1156,9 @@ describe("Project editor groups and order", () => {
       },
       grippers: [
         ...base.grippers,
-        ...createMultipackEquipmentProfileResources().grippers,
+        ...createDefaultEquipmentProfileResources().grippers,
       ],
-      selectedGripperId: MULTIPACK_GRIPPER_ID,
+      selectedGripperId: DEFAULT_PROFILE_GRIPPER_ID,
     }));
 
     // 450 mm pickup length fits three 132 mm packages instead of doubles;

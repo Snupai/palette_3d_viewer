@@ -21,7 +21,7 @@ function box(x: number, y: number): Box {
   };
 }
 
-/** Eleven 308 × 220 cartons per layer, like the MultiPack reference sheet. */
+/** Eleven 308 × 220 cartons per layer, like the reference pallet sheet. */
 const elevenPerLayer = [
   ...[154, 462, 770].flatMap((x) => [110, 330, 550].map((y) => box(x, y))),
   box(1046, 110),
@@ -45,7 +45,7 @@ function referencePlan(layerCount: number, zwischenlage = 0): PalletData {
 }
 
 describe("palletSheetFigures", () => {
-  it("reproduces the MultiPack reference sheet figures", () => {
+  it("reproduces the reference pallet sheet figures", () => {
     expect(
       palletSheetFigures({ data: referencePlan(6), storageHeightMm: 1500 }),
     ).toEqual({

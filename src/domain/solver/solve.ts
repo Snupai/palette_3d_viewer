@@ -262,7 +262,7 @@ function emptyStatistics(): SolverStatistics {
       staircase: 0,
       "staircase-variable": 0,
       "staircase-exchange": 0,
-      multipack: 0,
+      "block-plan": 0,
       symmetry: 0,
     },
   };
@@ -356,7 +356,7 @@ export function solveLayer(
 
   const drafts: GeneratedCandidateDraft[] = [];
   const scope = options.generatorScope;
-  if (scope !== "multipack") {
+  if (scope !== "block-plan") {
     if (
       !progress.checkpoint(
         "generation",
@@ -403,7 +403,7 @@ export function solveLayer(
   for (const family of normalizedGeneratorOrder(options.generatorOrder).filter(
     (candidate) =>
       scope === undefined ||
-      (scope === "multipack") === (candidate === "multipack"),
+      (scope === "block-plan") === (candidate === "block-plan"),
   )) {
     if (
       !progress.checkpoint(

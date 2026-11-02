@@ -14,29 +14,29 @@ const input: LayerSolverInput = {
 };
 
 describe("appendSolverResult", () => {
-  let multipack: SolverResult;
+  let blockPlan: SolverResult;
   let legacy: SolverResult;
   beforeAll(() => {
-    multipack = solveLayer(input, { generatorScope: "multipack" });
+    blockPlan = solveLayer(input, { generatorScope: "block-plan" });
     legacy = solveLayer(input, { generatorScope: "legacy" });
   }, 30_000);
 
   it("keeps the first run's order and appends only new layouts", () => {
-    const merged = appendSolverResult(multipack, legacy);
+    const merged = appendSolverResult(blockPlan, legacy);
 
     const first = new Set(
-      multipack.candidates.map(
+      blockPlan.candidates.map(
         ({ geometryFingerprint }) => geometryFingerprint,
       ),
     );
     const appended = legacy.candidates.filter(
       ({ geometryFingerprint }) => !first.has(geometryFingerprint),
     );
-    expect(multipack.candidates).toHaveLength(93);
+    expect(blockPlan.candidates).toHaveLength(93);
     expect(legacy.candidates).toHaveLength(319);
     expect(appended).toHaveLength(298);
     expect(merged.candidates.map(({ id }) => id)).toEqual([
-      ...multipack.candidates.map(({ id }) => id),
+      ...blockPlan.candidates.map(({ id }) => id),
       ...appended.map(({ id }) => id),
     ]);
     expect(merged.candidates.map(({ rank }) => rank)).toEqual(
@@ -44,14 +44,14 @@ describe("appendSolverResult", () => {
     );
     expect(merged.statistics.candidateCount).toBe(391);
     expect(merged.statistics.geometricDuplicateCount).toBe(285 + 1497 + 21);
-    expect(merged.statistics.generatedByFamily.multipack).toBe(
-      multipack.statistics.generatedByFamily.multipack,
+    expect(merged.statistics.generatedByFamily["block-plan"]).toBe(
+      blockPlan.statistics.generatedByFamily["block-plan"],
     );
   });
 
   it("drops the empty-result warning once the later run adds layouts", () => {
     const none: SolverResult = {
-      ...multipack,
+      ...blockPlan,
       candidates: [],
       diagnostics: [
         {

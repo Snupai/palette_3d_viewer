@@ -23,7 +23,7 @@ export const roboticsDe = {
 
   // Equipment panel
   "robotics.equipment": "Ausrüstung",
-  "robotics.multipackProfile": "Multipack-Profil v{version}",
+  "robotics.defaultProfile": "Standardprofil v{version}",
   "robotics.notDerivableFromImport": "aus .rob-Import nicht ableitbar",
   "robotics.checkAgainstRealCell": "gegen die reale Zelle prüfen",
   "robotics.gripper": "Greifer",
@@ -36,7 +36,7 @@ export const roboticsDe = {
   "robotics.gripperType.clamp": "Klammergreifer",
   "robotics.gripperType.fork": "Gabelgreifer",
   "robotics.profileNote":
-    "Aus „Multipack für Roboter“ {version}, nicht vermessen.",
+    "Mitgelieferte Standardwerte v{version}, nicht vermessen.",
 
   // Pickup panel
   "robotics.pickup": "Aufnahme",
@@ -89,7 +89,7 @@ export const roboticsDe = {
   "robotics.saveToPlan": "Im Plan speichern",
   "robotics.saveAsTemplate": "Als Vorlage speichern",
   "robotics.builtInNotice":
-    "Das mitgelieferte Multipack-Profil v{version} ist schreibgeschützt. Für Änderungen oder eine eigene Vorlage zuerst eine bearbeitbare Kopie anlegen.",
+    "Das mitgelieferte Standardprofil v{version} ist schreibgeschützt. Für Änderungen oder eine eigene Vorlage zuerst eine bearbeitbare Kopie anlegen.",
 
   // Retained import
   "robotics.importedOriginal": "Importierte Originaldatei",
@@ -105,9 +105,9 @@ export const roboticsDe = {
   "robotics.statusStationApplied": "Palettenstation übernommen.",
   "robotics.statusStationRemoved": "Stationsauswahl entfernt.",
   "robotics.errorBuiltInGripperReadOnly":
-    "Der mitgelieferte Multipack-Greifer ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
+    "Der mitgelieferte Standardgreifer ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
   "robotics.errorBuiltInStationReadOnly":
-    "Die mitgelieferte Multipack-Station ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
+    "Die mitgelieferte Standardstation ist schreibgeschützt. Zuerst eine bearbeitbare Kopie anlegen.",
   "robotics.errorBuiltInNotInLibrary":
     "Mitgelieferte Profile werden nicht in die Bibliothek übernommen. Zuerst eine bearbeitbare Kopie anlegen.",
   "robotics.statusGripperSaved": "Greifer „{name}“ im Plan gespeichert.",
@@ -187,7 +187,7 @@ export const roboticsDe = {
   "robotics.evidence.equipmentBlocked":
     "Die gewählte Ausrüstung besteht die internen Verträglichkeitsprüfungen nicht.",
   "robotics.evidence.equipmentProfile":
-    "Das beobachtete Multipack-Standardprofil ist gewählt. Seine Werte sind dokumentierte Belege, keine kalibrierte Produktionsausrüstung.",
+    "Das mitgelieferte Standardprofil ist gewählt. Seine Werte sind unkalibrierte Standardwerte, keine kalibrierte Produktionsausrüstung.",
   "robotics.evidence.equipmentOk":
     "Gewählter Greifer und gewählte Station bestehen die verfügbaren internen Prüfungen.",
   "robotics.evidence.pickupIncomplete":
@@ -269,7 +269,7 @@ export const roboticsDe = {
   "robotics.rotationOffset": "Drehungs-Offset (°)",
   "robotics.acknowledgeAria": "Ungeprüfte .rob-Zuordnung bestätigen",
   "robotics.acknowledgeText":
-    "Diese Zuordnung ist selbst eingetragen und belegt keine externe Multipack-Kompatibilität.",
+    "Diese Zuordnung ist selbst eingetragen und belegt keine Kompatibilität mit externer Robotersoftware.",
   "robotics.field8": "Feld 8",
   "robotics.field9": "Feld 9",
   "robotics.fieldsMeaning": "Bedeutung der Felder 8 und 9",

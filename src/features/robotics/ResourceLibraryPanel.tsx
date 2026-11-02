@@ -127,7 +127,7 @@ export function ResourceLibraryPanel({
   );
 }
 
-/** Read-only notice line shared by both built-in Multipack resources. */
+/** Read-only notice line shared by both built-in default resources. */
 export function BuiltInProfileNotice({
   version,
 }: {

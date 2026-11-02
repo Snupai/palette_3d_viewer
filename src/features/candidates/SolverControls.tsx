@@ -64,10 +64,10 @@ export type SolverControlsProps = {
 
 type RunStatus = "idle" | "running" | "completed" | "cancelled" | "rejected";
 /**
- * `combined` shows the fast MultiPack search first and appends the legacy
+ * `combined` shows the fast block-plan search first and appends the legacy
  * generators' patterns once their background run finishes.
  */
-type GeneratorMode = "combined" | "multipack" | "legacy";
+type GeneratorMode = "combined" | "block-plan" | "legacy";
 
 type SolverDraft = {
   packageLength: string;
@@ -708,7 +708,7 @@ export function SolverControls({
     });
     const handle = client.run(input, {
       includeSymmetryVariants,
-      generatorScope: generatorMode === "legacy" ? "legacy" : "multipack",
+      generatorScope: generatorMode === "legacy" ? "legacy" : "block-plan",
       progressBatchSize: 25,
       onProgress: ({ runId, progress: nextProgress }) => {
         if (
@@ -867,8 +867,8 @@ export function SolverControls({
       <option value="combined">
         {t("candidates.solver.generatorMode.combined")}
       </option>
-      <option value="multipack">
-        {t("candidates.solver.generatorMode.multipack")}
+      <option value="block-plan">
+        {t("candidates.solver.generatorMode.blockPlan")}
       </option>
       <option value="legacy">
         {t("candidates.solver.generatorMode.legacy")}

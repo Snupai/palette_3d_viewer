@@ -86,8 +86,6 @@ function candidate(
       boundingBlockAreaMm2: 0,
       provisionalCycleCount: packageCount,
       provisionalCycleBasis: "generated-grip-groups",
-      multiPackBlocks: null,
-      multiPackBlocksVerification: "unverified",
     },
     score: {
       value: 0,
@@ -96,7 +94,6 @@ function candidate(
       provisionalCycleCount: packageCount,
       boundingBlockAreaMm2: 0,
       boundingBlockPerimeterMm: 0,
-      multiPackBlocks: null,
     },
   };
 }
@@ -134,7 +131,7 @@ function result(candidates: SolverCandidate[]): SolverResult {
         staircase: 0,
         "staircase-variable": 0,
         "staircase-exchange": 0,
-        multipack: 0,
+        "block-plan": 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,

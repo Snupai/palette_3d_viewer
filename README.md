@@ -21,15 +21,13 @@ Import, inspect, and edit `.rob` pallet plans in the browser.
 ## Roadmap
 
 The prioritized path from the current `.rob` viewer/editor to a complete
-MultiPack-like pallet planner is documented in [ROADMAP.md](ROADMAP.md).
+pallet planner is documented in [ROADMAP.md](ROADMAP.md).
 The evolving reference-case scorecard is documented in
 [docs/PARITY.md](docs/PARITY.md).
 The versioned planning domain and its `.rob` compatibility mapping are
 documented in [docs/PROJECT_MODEL.md](docs/PROJECT_MODEL.md). Candidate identity
 and geometric equality are specified in
-[docs/CANDIDATE_IDENTITY.md](docs/CANDIDATE_IDENTITY.md); open format and solver
-questions are tracked in the dated
-[parity research log](docs/research/2026-08-05-parity-research-log.md).
+[docs/CANDIDATE_IDENTITY.md](docs/CANDIDATE_IDENTITY.md).
 
 ## Requirements
 
@@ -61,8 +59,9 @@ bun run build
 
 The optional corpus harness reads an external directory only when
 `ROB_CORPUS_DIR` is set to an absolute local directory. It does not copy source
-text into the repository, and generated JSON reports are written only under the
-ignored `.rob-corpus/` directory. Reports retain file basenames, byte and
+text into the repository. Generated JSON reports are written outside the
+repository, to the absolute directory in `ROB_CORPUS_REPORT_DIR` or, by default,
+to `palette-rob-corpus-reports` in the system temp directory. Reports retain file basenames, byte and
 semantic digests, structured evidence, and aggregate package/pallet families;
 they do not retain the configured root or any absolute source path.
 

@@ -79,7 +79,7 @@ describe("clearance-aware rectangle geometry", () => {
     expect(placementsOverlap(left, tooClose, packageSize, 5)).toBe(true);
   });
 
-  it("matches an independent seeded overlap oracle and remains symmetric", () => {
+  it("matches an independent seeded overlap reference and remains symmetric", () => {
     const random = seededRandom(0x5eed1234);
     const packageSize = { length: 23, width: 17 };
     for (let index = 0; index < 500; index += 1) {

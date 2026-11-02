@@ -4,9 +4,9 @@ import {
   gripsToBoxes,
 } from "~/domain/palletGeometry";
 import {
-  createMultipackEquipmentProfileResources,
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
+  createDefaultEquipmentProfileResources,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
 } from "~/domain/project/equipmentProfiles";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
@@ -140,7 +140,7 @@ function gripsWithDeterministicGroupNumbers<
   });
 }
 
-function seedMigratedMultipackEquipment(project: Project): Project {
+function seedMigratedDefaultEquipment(project: Project): Project {
   if (
     project.source.kind !== "new" ||
     project.grippers.length !== 0 ||
@@ -151,14 +151,13 @@ function seedMigratedMultipackEquipment(project: Project): Project {
     return project;
   }
 
-  const { grippers, palletStations } =
-    createMultipackEquipmentProfileResources();
+  const { grippers, palletStations } = createDefaultEquipmentProfileResources();
   return projectSchema.parse({
     ...project,
     grippers,
     palletStations,
-    selectedGripperId: MULTIPACK_GRIPPER_ID,
-    selectedPalletStationId: MULTIPACK_PALLET_STATION_ID,
+    selectedGripperId: DEFAULT_PROFILE_GRIPPER_ID,
+    selectedPalletStationId: DEFAULT_PROFILE_PALLET_STATION_ID,
   });
 }
 
@@ -189,7 +188,7 @@ export function migrateProjectV2(projectInput: ProjectV2): Project {
     } satisfies PlanningSolution;
   });
 
-  return seedMigratedMultipackEquipment(
+  return seedMigratedDefaultEquipment(
     projectSchema.parse({
       ...project,
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
@@ -198,13 +197,13 @@ export function migrateProjectV2(projectInput: ProjectV2): Project {
   );
 }
 
-/** Adds the observed Multipack defaults only to fully unconfigured ordinary V3 projects. */
+/** Adds the built-in default equipment only to fully unconfigured ordinary V3 projects. */
 export function migrateProjectV3(value: unknown): Project {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return projectSchema.parse(value);
   }
 
-  return seedMigratedMultipackEquipment(
+  return seedMigratedDefaultEquipment(
     projectSchema.parse({
       ...value,
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,

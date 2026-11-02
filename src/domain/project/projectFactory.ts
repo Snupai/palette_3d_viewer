@@ -12,7 +12,7 @@ import {
   type Project,
   type ProjectV2,
 } from "~/domain/project/projectSchema";
-import { createMultipackEquipmentProfileResources } from "~/domain/project/equipmentProfiles";
+import { createDefaultEquipmentProfileResources } from "~/domain/project/equipmentProfiles";
 import {
   getPalletTemplate,
   type PalletTemplateKind,
@@ -131,7 +131,7 @@ export function createProject(
     source.kind === "new" &&
     input.grippers === undefined &&
     input.palletStations === undefined
-      ? createMultipackEquipmentProfileResources()
+      ? createDefaultEquipmentProfileResources()
       : null;
   const grippers = input.grippers ?? seededEquipment?.grippers ?? [];
   const palletStations =

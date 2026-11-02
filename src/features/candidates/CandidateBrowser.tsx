@@ -220,9 +220,6 @@ export function CandidateBrowser({
                 {t("candidates.browser.colGeometry")}
               </th>
               <th className="px-2 py-2 font-medium">
-                {t("candidates.browser.colBlocks")}
-              </th>
-              <th className="px-2 py-2 font-medium">
                 {t("candidates.browser.colCycles")}
               </th>
               <th className="px-2 py-2 font-medium">
@@ -261,12 +258,6 @@ export function CandidateBrowser({
                     {candidate.validation.valid
                       ? t("candidates.browser.geometryOk")
                       : t("candidates.browser.rejected")}
-                  </td>
-                  <td
-                    className="text-muted px-2 py-2"
-                    title={t("candidates.browser.blocksTitle")}
-                  >
-                    {t("candidates.browser.unknown")}
                   </td>
                   <td className="px-2 py-2 font-mono">
                     {candidate.metrics.provisionalCycleCount}

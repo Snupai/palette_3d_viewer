@@ -1,4 +1,4 @@
-# Roadmap zum MultiPack-nahen Palettierplaner
+# Roadmap zum Palettierplaner
 
 Stand: 05.08.2026
 
@@ -12,16 +12,15 @@ TypeScript-, ESLint-, Prettier- und Produktions-Build-Gates sowie einen im Brows
 geprüften Create-Solve-Stack-Reload- und Legacy-Import-Ablauf.
 
 Offen bleiben ausschließlich evidenzgebundene Fremdparitätsfragen: das vollständige
-AP5006-Referenzpaket, die MultiPack-Semantik von „Blöcke“, die externen
+AP5006-Referenzpaket, die Semantik von „Blöcke“, die externen
 Vorzeichen-/Schlussfeldkonventionen, reale Produktionskinematik/-kollisionen und
 das proprietäre `.mpb`-Format. Diese Grenzen werden in UI, Export und Bericht als
 Observed, Open, internal oder unverified ausgewiesen und nicht als Kompatibilität
 behauptet.
 
-Grundlage ist die Bestandsaufnahme `MultiPack_Roboter_Rebuild_Spec.md` vom
-05.08.2026. Das Ziel ist keine pixelgenaue Kopie der alten Windows-Oberfläche,
-sondern ein moderner Web-Workflow mit möglichst hoher funktionaler
-Übereinstimmung: Projekt erfassen, viele brauchbare Lagenmuster berechnen,
+Grundlage ist die Anforderungsaufnahme vom 05.08.2026. Das Ziel ist ein
+moderner Web-Workflow auf Basis allgemeiner Palettier- und Greifprinzipien:
+Projekt erfassen, viele brauchbare Lagenmuster berechnen,
 visuell vergleichen, bearbeiten, robotisch prüfen, speichern und als `.rob`
 ausgeben.
 
@@ -74,11 +73,11 @@ fehlenden Planungs-, Solver- und Robotik-Unterbau.
 
 ### Weiterhin evidenzgebunden offen
 
-- vollständige MultiPack-Kandidatenfamilien und exaktes Ranking für AP5006
+- vollständige Kandidatenfamilien und exaktes Ranking für AP5006
 - genaue Bedeutung und Bewertung von „Blöcke“
 - externe Etikett-, Vorzeichen- und letzte `.rob`-Feldsemantik
 - reale Roboterkinematik, Produktionskollisionen und Portalroboter
-- proprietäre `.mpb`-Dekodierung und ein Writer
+- `.mpb`-Import und ein Writer
 
 ## Leitplanken
 
@@ -123,16 +122,16 @@ Umfang:
 - den Lauf `AP5006 / 1329-00004` als primären beobachteten Solver-Zielfall
   beschreiben und erst mit ausführbarer Evidenz zu Golden hochstufen;
 - Kandidatenidentität und geometrische Gleichheit formal definieren;
-- offene `.rob`-Felder, „Blöcke“-Semantik und Solverabweichungen in einem
-  Research-Log führen;
+- offene `.rob`-Felder, „Blöcke“-Semantik und Solverabweichungen
+  dokumentieren;
 - eine Paritätsmatrix pro Referenzprojekt anlegen.
 
 Exit-Kriterien:
 
 - Erwartungswerte lassen sich automatisiert laden, ohne private Originaldaten
   in das Repository zu übernehmen.
-- Für jede spätere Solveränderung ist messbar, was näher an MultiPack liegt und
-  was sich verschlechtert hat.
+- Für jede spätere Solveränderung ist messbar, was näher an den Referenzfällen
+  liegt und was sich verschlechtert hat.
 
 ### M1 – Vollständiges Projekt- und Domänenmodell
 
@@ -177,7 +176,7 @@ Exit-Kriterien:
 - Der Referenzfall erreicht 55 Packstücke je Lage.
 - Der Solver behält mehrere unterschiedliche 55er-Muster. Die beobachteten
   `65 gesamt / 15 mit 55` sind ein Paritätsziel, aber erst dann ein hartes Gate,
-  wenn die zugrunde liegenden MultiPack-Regeln ausreichend geklärt sind.
+  wenn die zugrunde liegenden Regeln ausreichend geklärt sind.
 
 ### M3 – Kandidatenbrowser und unmittelbarer visueller Vergleich
 
@@ -185,8 +184,8 @@ Status: implementiert · Aufwand: L · Abhängigkeit: M2
 
 Umfang:
 
-- fokussierbare, scrollbare Lösungstabelle mit Nr., Anzahl, Status, Blöcken,
-  Zyklen, Länge und Breite;
+- fokussierbare, scrollbare Lösungstabelle mit Nr., Anzahl, Status, Zyklen,
+  Länge und Breite;
 - exakter Anzahlfilter, Schnellwahl „Maximum“ und sichtbares `x von y`;
 - Pfeil-hoch/-runter wechselt die aktive Zeile und hält sie im Viewport;
 - sofortige 2D-Miniaturen, Kennzahlen und große 3D-Vorschau ohne Solver-Neulauf;
@@ -301,7 +300,7 @@ Umfang:
 - Projekt-/Produktfilter, Sortierung, Duplizieren und „Speichern unter“;
 - Druckansicht/PDF mit 2D-/3D-Bild, Kennzahlen und Roboterzyklen;
 - Import-/Exportpaket für Projekt, Greifer und Palettierplatz;
-- optionaler, ausschließlich lesender `.mpb`-Importer für sicher dekodierte
+- optionaler, ausschließlich lesender `.mpb`-Importer für dokumentierte
   Format-v1-Felder;
 - proprietärer `.mpb`-Writer nur nach vollständigem Feldverständnis und mit
   echten Kompatibilitätstests.
@@ -393,7 +392,7 @@ Kompatibilität tatsächlich nötig ist.
 
 ## Bewusste Nicht-Ziele vor der Planner Alpha
 
-- pixelgenaue Nachbildung der Delphi-/MDI-Oberfläche
+- pixelgenaue Nachbildung bestehender Desktop-Oberflächen
 - Portalroboter oder fotorealistische Robotermodelle
 - proprietärer `.mpb`-Writer
 - automatische Bildähnlichkeitssuche
@@ -401,5 +400,4 @@ Kompatibilität tatsächlich nötig ist.
 - Cloud-Konten, Mehrbenutzerbetrieb oder Serverbetrieb
 
 Damit bleibt der Fokus auf dem Alleinstellungsmerkmal: viele sinnvolle Muster
-erzeugen und genauso schnell visuell vergleichen und robotisch weiterbearbeiten
-wie im beobachteten MultiPack-Workflow.
+erzeugen, schnell visuell vergleichen und robotisch weiterbearbeiten.

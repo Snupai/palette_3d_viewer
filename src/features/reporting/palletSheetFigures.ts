@@ -7,8 +7,8 @@ import {
 import { palletLayerToPatternPreview } from "~/lib/previewAdapters";
 
 /**
- * Figures for the printed pallet sheet, following the MultiPack sheet the
- * production line already uses:
+ * Figures for the printed pallet sheet, following the reference pallet sheet
+ * the production line already uses:
  * - Flächennutzung = package footprint area of the fullest layer / pallet area
  * - Volumennutzung = total package volume / (pallet length × width × storage height)
  */

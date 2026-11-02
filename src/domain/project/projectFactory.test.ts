@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  MULTIPACK_GRIPPER_ID,
-  MULTIPACK_PALLET_STATION_ID,
-  resolveMultipackEquipmentProfile,
+  DEFAULT_PROFILE_GRIPPER_ID,
+  DEFAULT_PROFILE_PALLET_STATION_ID,
+  resolveDefaultEquipmentProfile,
 } from "~/domain/project/equipmentProfiles";
 import {
   createProject,
@@ -60,7 +60,7 @@ describe("project factories and updates", () => {
     });
   });
 
-  it("preselects independent observed Multipack resources for ordinary new projects", () => {
+  it("preselects independent built-in default resources for ordinary new projects", () => {
     const first = createProject(
       { id: "first" },
       { createId: (kind) => `${kind}-first`, now: () => 1 },
@@ -70,16 +70,18 @@ describe("project factories and updates", () => {
       { createId: (kind) => `${kind}-second`, now: () => 2 },
     );
 
-    expect(first.selectedGripperId).toBe(MULTIPACK_GRIPPER_ID);
-    expect(first.selectedPalletStationId).toBe(MULTIPACK_PALLET_STATION_ID);
+    expect(first.selectedGripperId).toBe(DEFAULT_PROFILE_GRIPPER_ID);
+    expect(first.selectedPalletStationId).toBe(
+      DEFAULT_PROFILE_PALLET_STATION_ID,
+    );
     expect(first.grippers).toHaveLength(1);
     expect(first.palletStations).toHaveLength(1);
-    expect(resolveMultipackEquipmentProfile(first)?.version).toBe(1);
+    expect(resolveDefaultEquipmentProfile(first)?.version).toBe(1);
 
     first.grippers[0]!.tcpMm.x = 99;
     expect(second.grippers[0]!.tcpMm.x).toBe(0);
-    expect(resolveMultipackEquipmentProfile(first)).toBeNull();
-    expect(resolveMultipackEquipmentProfile(second)?.version).toBe(1);
+    expect(resolveDefaultEquipmentProfile(first)).toBeNull();
+    expect(resolveDefaultEquipmentProfile(second)?.version).toBe(1);
   });
 
   it("preserves explicit empty equipment and keeps ROB imports profile-free", () => {

@@ -57,8 +57,6 @@ function candidate(rank: number, packageCount: number): SolverCandidate {
       boundingBlockAreaMm2: packageCount * 20_000,
       provisionalCycleCount: packageCount,
       provisionalCycleBasis: "generated-grip-groups",
-      multiPackBlocks: null,
-      multiPackBlocksVerification: "unverified",
     },
     score: {
       value: packageCount,
@@ -67,7 +65,6 @@ function candidate(rank: number, packageCount: number): SolverCandidate {
       provisionalCycleCount: packageCount,
       boundingBlockAreaMm2: packageCount * 20_000,
       boundingBlockPerimeterMm: packageCount * 200,
-      multiPackBlocks: null,
     },
   };
 }

@@ -15,7 +15,6 @@ import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
 import { candidateGeometryFingerprint } from "~/domain/solver/candidateIdentity";
 import { generateCandidateFamily } from "~/domain/solver/generators";
 import { SOLVER_GEOMETRY_EPSILON_MM } from "~/domain/solver/geometryPolicy";
-import { compareSolverCandidates } from "~/domain/solver/metrics";
 import { packageOrientationClass } from "~/domain/solver/orientationPolicy";
 import { createLayerSolverInputFromProject } from "~/domain/solver/projectInput";
 import {
@@ -26,7 +25,6 @@ import {
   BASE_GENERATOR_FAMILIES,
   type GeneratedCandidateDraft,
   type LayerSolverInput,
-  type SolverCandidate,
 } from "~/domain/solver/types";
 import {
   validateAndNormalizeSolverInput,
@@ -1620,14 +1618,10 @@ describe("candidate canonicalization and geometric deduplication", () => {
     expect(singleton.metrics).toMatchObject({
       provisionalCycleCount: 3,
       provisionalCycleBasis: "generated-grip-groups",
-      multiPackBlocks: null,
-      multiPackBlocksVerification: "unverified",
     });
     expect(multipick.metrics).toMatchObject({
       provisionalCycleCount: 2,
       provisionalCycleBasis: "generated-grip-groups",
-      multiPackBlocks: null,
-      multiPackBlocksVerification: "unverified",
     });
   });
 
@@ -2081,7 +2075,7 @@ describe("deterministic solve orchestration", () => {
         staircase: 0,
         "staircase-variable": 0,
         "staircase-exchange": 0,
-        multipack: 0,
+        "block-plan": 0,
         "edge-ring": 0,
         "mixed-orientation": 0,
         symmetry: 0,
@@ -2096,10 +2090,8 @@ describe("deterministic solve orchestration", () => {
     );
     expect(
       regionCandidates.every(
-        ({ metrics, score, validation, provenance }) =>
+        ({ metrics, validation, provenance }) =>
           metrics.packageCount === 2 &&
-          metrics.multiPackBlocks === null &&
-          score.multiPackBlocks === null &&
           validation.valid &&
           provenance.every(
             ({ family, parameters }) =>
@@ -2330,8 +2322,6 @@ describe("deterministic solve orchestration", () => {
       result.exclusions.some(({ reason }) => reason === "geometric-duplicate"),
     ).toBe(true);
     for (const candidate of result.candidates) {
-      expect(candidate.metrics.multiPackBlocks).toBeNull();
-      expect(candidate.metrics.multiPackBlocksVerification).toBe("unverified");
       expect(candidate.metrics.provisionalCycleCount).toBe(
         candidate.grips.length,
       );
@@ -2348,28 +2338,7 @@ describe("deterministic solve orchestration", () => {
           candidate.grips.some(({ id }) => id === gripId),
         ),
       ).toBe(true);
-      expect(candidate.score.multiPackBlocks).toBeNull();
     }
-  });
-
-  it("does not use an unknown MultiPack Blocks value in ranking", () => {
-    const result = solveLayer(
-      basicInput({ constraints: { maxCandidatesPerGenerator: 1 } }),
-      {
-        includeSymmetryVariants: false,
-      },
-    );
-    const candidate = result.candidates[0]!;
-    const left = {
-      ...candidate,
-      score: { ...candidate.score, multiPackBlocks: 1 },
-    } as unknown as Omit<SolverCandidate, "rank">;
-    const right = {
-      ...candidate,
-      score: { ...candidate.score, multiPackBlocks: 999 },
-    } as unknown as Omit<SolverCandidate, "rank">;
-
-    expect(compareSolverCandidates(left, right)).toBe(0);
   });
 
   it("reports phases and cooperatively cancels without returning partial candidates", () => {
@@ -2396,7 +2365,7 @@ describe("deterministic solve orchestration", () => {
   });
 });
 
-describe("observed MultiPack geometry", () => {
+describe("AP5006 reference geometry", () => {
   it("generates the observed 55-package balanced capped strip", () => {
     const values = observedAp5006.input.values;
     const envelopeMm = createCenteredEffectivePalletEnvelope(
@@ -2629,7 +2598,7 @@ describe("observed MultiPack geometry", () => {
             family !== "staircase-exchange" &&
             family !== "rounded-slice" &&
             family !== "symmetry" &&
-            family !== "multipack",
+            family !== "block-plan",
         ),
     );
     const threeBlockCandidates = legacyCandidates.filter(({ provenance }) =>
@@ -2852,7 +2821,7 @@ describe("observed MultiPack geometry", () => {
   }, 15_000);
 });
 
-it("uses the selected MultiPack remainder policy deterministically", () => {
+it("uses the selected suction remainder policy deterministically", () => {
   const input: LayerSolverInput = {
     package: {
       shape: "cuboid",

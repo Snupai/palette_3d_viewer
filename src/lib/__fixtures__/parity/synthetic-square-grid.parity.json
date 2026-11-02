@@ -4,7 +4,7 @@
   "title": "Synthetic square-package orientation baseline",
   "provenance": {
     "kind": "synthetic",
-    "description": "Hand-constructed repository fixture for candidate ordering and conservative orientation identity. It has no MultiPack provenance."
+    "description": "Hand-constructed repository fixture for candidate ordering and conservative orientation identity."
   },
   "artifacts": [],
   "input": {
@@ -51,7 +51,7 @@
       "evidence": {
         "status": "Golden",
         "asOf": "2026-08-05",
-        "basis": "The two candidates and their order are declared synthetic contract data, not reproduced MultiPack output.",
+        "basis": "The two candidates and their order are declared synthetic contract data.",
         "artifactIds": []
       },
       "value": {

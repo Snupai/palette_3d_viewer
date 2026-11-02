@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import { basename } from "node:path";
 import {
   DEFAULT_ROB_CORPUS_MAX_CANDIDATES_PER_GENERATOR,
   runExternalRobCorpus,
@@ -38,7 +37,7 @@ async function main(): Promise<void> {
         fileStatuses: summary.fileStatusCounts,
         checkStatuses: summary.checkStatusCounts,
         scenarioStatuses: summary.scenarioStatusCounts,
-        report: `.rob-corpus/${basename(reportPath)}`,
+        report: reportPath,
       },
       null,
       2,

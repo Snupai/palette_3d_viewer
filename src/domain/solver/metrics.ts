@@ -56,8 +56,6 @@ export function calculateCandidateMetrics(
     boundingBlockAreaMm2,
     provisionalCycleCount: generatedGripCount,
     provisionalCycleBasis: "generated-grip-groups",
-    multiPackBlocks: null,
-    multiPackBlocksVerification: "unverified",
   };
 }
 
@@ -78,13 +76,11 @@ export function scoreCandidateMetrics(
       2 * (metrics.boundingBlockLengthMm + metrics.boundingBlockWidthMm),
       "score.boundingBlockPerimeterMm",
     ),
-    multiPackBlocks: null,
   };
 }
 
 /**
- * Deterministic lexicographic ranking. The unknown MultiPack Blocks value is
- * intentionally absent from every comparison.
+ * Deterministic lexicographic ranking.
  */
 export function compareSolverCandidates(
   left: Omit<SolverCandidate, "rank">,

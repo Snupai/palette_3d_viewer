@@ -35,8 +35,6 @@ function candidate(
       boundingBlockAreaMm2: 10_000,
       provisionalCycleCount,
       provisionalCycleBasis: "generated-grip-groups",
-      multiPackBlocks: null,
-      multiPackBlocksVerification: "unverified",
     },
     score: {
       value: packageCount,
@@ -45,7 +43,6 @@ function candidate(
       provisionalCycleCount,
       boundingBlockAreaMm2: 10_000,
       boundingBlockPerimeterMm: 400,
-      multiPackBlocks: null,
     },
   };
 }

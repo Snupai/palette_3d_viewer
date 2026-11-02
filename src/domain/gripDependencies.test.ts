@@ -205,7 +205,7 @@ describe("grip execution order", () => {
     ]);
   });
 
-  it("does not invent opposing dependencies for vertically interleaved multipacks", () => {
+  it("does not invent opposing dependencies for vertically interleaved multipackage grips", () => {
     const placements = [
       footprint("a", 50, 50),
       footprint("a", 50, 250),
