@@ -12,8 +12,8 @@ mit 1216 bestandenen und 2 übersprungenen Tests, TypeScript-, ESLint-, Prettier
 und Produktions-Build-Gates sowie einen im Browser geprüften
 Create-Solve-Stack-Reload- und Legacy-Import-Ablauf.
 
-Offen bleiben ausschließlich evidenzgebundene Fremdparitätsfragen: das vollständige
-AP5006-Referenzpaket, die Semantik von „Blöcke“, die externen
+Für die Fremdparität bleiben ausschließlich evidenzgebundene Fragen offen: das
+vollständige AP5006-Referenzpaket, die Semantik von „Blöcke“, die externen
 Vorzeichen-/Schlussfeldkonventionen, reale Produktionskinematik/-kollisionen und
 das proprietäre `.mpb`-Format. Diese Grenzen werden in UI, Export und Bericht als
 Observed, Open, internal oder unverified ausgewiesen und nicht als Kompatibilität
@@ -389,10 +389,11 @@ Eine Funktion gilt nicht schon dann als „fertig“, wenn die UI existiert. Sie
 braucht mindestens einen Domain-Test, einen Referenzfall und eine sichtbare
 Fehlerbehandlung.
 
-## Die nächsten zehn umsetzbaren Arbeitspakete
+## Ursprünglicher Startplan (abgeschlossen)
 
-Diese Reihenfolge ist der empfohlene Start; sie vermeidet eine frühe
-Großumgestaltung der vorhandenen Oberfläche.
+Diese zehn Arbeitspakete waren der empfohlene Einstieg in M0–M3 und sind
+umgesetzt. Die Reihenfolge bleibt als Nachweis dokumentiert; sie vermied eine
+frühe Großumgestaltung der vorhandenen Oberfläche.
 
 1. anonymisiertes Golden-Case-Format und Paritätsmatrix definieren;
 2. `Project`-Schema v2 samt Zod-Validierung und Migration entwerfen;
@@ -407,10 +408,10 @@ Großumgestaltung der vorhandenen Oberfläche.
 10. Kandidatentabelle mit Anzahlfilter, `x von y` und Pfeiltastennavigation vor
     die vorhandene 3D-Vorschau setzen.
 
-Der erste sichtbare Produkt-Inkrement endet bei Paket 4: Ein Projekt wird ohne
+Das erste sichtbare Produktinkrement endete bei Paket 4: Ein Projekt wurde ohne
 `.rob` angelegt und als noch manuelles Ein-Lagenmuster im bestehenden Viewer
-angezeigt. Danach kann der Solver schrittweise ergänzt werden, ohne lange ohne
-vorzeigbaren End-to-End-Stand zu arbeiten.
+angezeigt. Danach wurde der Solver schrittweise ergänzt, ohne lange ohne
+vorzeigbaren End-to-End-Stand zu arbeiten. Der nächste geplante Schritt ist M9.
 
 ## Offene Forschungsfragen
 
