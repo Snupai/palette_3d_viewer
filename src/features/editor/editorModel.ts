@@ -36,7 +36,10 @@ import {
   type PlanningSolution,
   type Project,
 } from "~/domain/project/projectSchema";
-import { optimizeSuctionGroups } from "~/domain/robotics/gripOptimizer";
+import {
+  optimizeSuctionGroups,
+  type GripOptimizerPlacement,
+} from "~/domain/robotics/gripOptimizer";
 import {
   suggestRobotOrder,
   type RobotCycle,
@@ -749,6 +752,32 @@ function automaticPlacementGroups(
     maxPackagesPerPick: maxPackagesPerAutomaticGroup(project),
     maxShiftMm: allowShift ? spanMm : 0,
     clearanceMm: project.package.clearanceMm,
+    // Imported .rob plans store whole millimetres only, so a grip whose
+    // place or pick point would fall between millimetres is never formed.
+    ...(project.source.kind === "rob-import"
+      ? {
+          chunkAllowed: (members: readonly GripOptimizerPlacement[]) => {
+            const byId = new Map(
+              pattern.placements.map((placement) => [placement.id, placement]),
+            );
+            try {
+              const grip = gripFromPlacements(
+                project,
+                members.map((member) => ({
+                  ...byId.get(member.id)!,
+                  positionMm: member.positionMm,
+                })),
+                { id: "probe", groupNumber: 1 },
+              );
+              return [grip.x, grip.y, grip.pickX, grip.pickY].every(
+                Number.isInteger,
+              );
+            } catch {
+              return false;
+            }
+          },
+        }
+      : {}),
   });
 }
 

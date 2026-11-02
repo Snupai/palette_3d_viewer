@@ -51,6 +51,12 @@ export type GripOptimizerOptions = {
   /** Required gap between packages; any positive value disables sliding. */
   clearanceMm?: number;
   toleranceMm?: number;
+  /**
+   * Extra rule for multi-package grips, given the members at their planned
+   * positions (e.g. imported .rob plans need whole-millimetre grip points).
+   * A rejected chunk is not formed, so the line is split differently.
+   */
+  chunkAllowed?: (members: readonly GripOptimizerPlacement[]) => boolean;
 };
 
 export type GripOptimizerResult = {
@@ -296,6 +302,17 @@ function optimizeOnce(
      * extent so chunks of one line never collide, and the movement-minimal
      * collision-free offset wins.
      */
+    const allowed = (members: readonly Item[], plan: readonly number[]) =>
+      !options.chunkAllowed ||
+      options.chunkAllowed(
+        members.map((member, index) => ({
+          id: member.id,
+          rotation: member.rotation,
+          positionMm: member.horizontal
+            ? { x: plan[index]!, y: member.cross }
+            : { x: member.cross, y: plan[index]! },
+        })),
+      );
     const chunkPlan = (start: number, size: number): number[] | null => {
       const members = line.slice(start, start + size);
       if (size === 1) return [members[0]!.axis];
@@ -312,7 +329,8 @@ function optimizeOnce(
       // Already face-adjacent: keep the exact positions, recomputing them
       // could reintroduce a floating-point overlap.
       if (highest - lowest <= tolerance) {
-        return members.map(({ axis }) => axis);
+        const plan = members.map(({ axis }) => axis);
+        return allowed(members, plan) ? plan : null;
       }
       if (maxShift <= 0) return null;
       const low = Math.max(lowest, highest - maxShift);
@@ -349,7 +367,7 @@ function optimizeOnce(
               !overlaps(rect, rectFor(other, other.axis, packageSizeMm)),
           );
         });
-        if (free) return plan;
+        if (free && allowed(members, plan)) return plan;
       }
       return null;
     };

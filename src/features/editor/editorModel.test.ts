@@ -704,6 +704,85 @@ describe("Project editor pattern geometry", () => {
     ).toThrow(/Package "p2" exceeds the effective pallet envelope/);
   });
 
+  it("picks whole-millimetre grip splits for imported plans up front", () => {
+    // 101 mm packages, MultiPack gripper (up to four): an odd number of
+    // packages per grip keeps the centre on a whole millimetre, an even one
+    // does not.
+    const importedLine = (positions: { x: number; y: number }[]): Project => {
+      const base = editorProject();
+      return {
+        ...base,
+        source: { kind: "rob-import", fileName: "odd.rob" },
+        package: {
+          ...base.package,
+          dimensionsMm: { ...base.package.dimensionsMm, length: 101 },
+        },
+        pallet: {
+          ...base.pallet!,
+          dimensionsMm: { length: 700, width: 500, height: 20 },
+          storageEnvelopeMm: { length: 700, width: 500, height: 500 },
+        },
+        grippers: [
+          ...base.grippers,
+          ...createMultipackEquipmentProfileResources().grippers,
+        ],
+        selectedGripperId: MULTIPACK_GRIPPER_ID,
+        solutions: base.solutions.map((solution) => ({
+          ...solution,
+          patterns: solution.patterns.map((entry) => ({
+            ...entry,
+            placements: positions.map((positionMm, index) => ({
+              ...entry.placements[0]!,
+              id: `q${index + 1}`,
+              sequence: index,
+              positionMm,
+            })),
+          })),
+        })),
+      };
+    };
+    const recalculate = (project: Project) =>
+      pattern(
+        applyProjectEditorCommand(project, {
+          type: "recalculate-groups",
+          mode: "order",
+          solutionId: "solution-1",
+          patternId: "pattern-1",
+        }),
+      );
+    const gripSummary = (result: ReturnType<typeof recalculate>) =>
+      result.grips
+        .map(({ numPackages, x, y }) => `${numPackages}@${x},${y}`)
+        .sort();
+
+    // Four flush packages: a grip of three plus a single, not four singles.
+    const flush = recalculate(
+      importedLine([151, 252, 353, 454].map((x) => ({ x, y: 200 }))),
+    );
+    expect(gripSummary(flush)).toEqual(["1@454,200", "3@252,200"]);
+
+    // Sliding q3 left next to the pair would centre a grip of three at
+    // 251.5 mm; the pair slides right onto q3 instead, so all three share a
+    // grip at a whole millimetre.
+    const sliding = recalculate(
+      importedLine([
+        { x: 150.5, y: 200 },
+        { x: 251.5, y: 200 },
+        { x: 362, y: 200 },
+        { x: 60, y: 400 },
+        { x: 550, y: 400 },
+      ]),
+    );
+    expect(gripSummary(sliding)).toEqual([
+      "1@550,400",
+      "1@60,400",
+      "3@261,200",
+    ]);
+    expect(sliding.placements.map(({ positionMm }) => positionMm.x)).toEqual([
+      160, 261, 362, 60, 550,
+    ]);
+  });
+
   it("keeps automatic grips of imported plans on whole millimetres", () => {
     // Two flush 101 mm packages would form a grip centred at x = 201.5,
     // which a .rob cannot store; they stay single grips instead.
