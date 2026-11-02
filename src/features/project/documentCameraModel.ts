@@ -39,6 +39,25 @@ export function rgbaToLuminance(rgba: ArrayLike<number>): Uint8Array {
   return luminance;
 }
 
+/**
+ * How much a pixel looks like white paper: luma minus three times its colour
+ * saturation. Printed paper is colourless, a wooden or cream desk is not, so
+ * the sheet stands out here even when it is no brighter than the desk.
+ */
+export function rgbaToWhiteness(rgba: ArrayLike<number>): Uint8Array {
+  const whiteness = new Uint8Array(rgba.length / 4);
+  for (let i = 0; i < whiteness.length; i++) {
+    const o = i * 4;
+    const r = rgba[o]!;
+    const g = rgba[o + 1]!;
+    const b = rgba[o + 2]!;
+    const luma = (r * 77 + g * 150 + b * 29) >> 8;
+    const saturation = Math.max(r, g, b) - Math.min(r, g, b);
+    whiteness[i] = Math.max(0, luma - 3 * saturation);
+  }
+  return whiteness;
+}
+
 function polygonArea(points: readonly Point[]): number {
   let twice = 0;
   for (let i = 0; i < points.length; i++) {
@@ -275,12 +294,14 @@ function regionQuad(
  * merge with the sheet at one cut-off and separate from it at a higher one;
  * the largest sheet-like region wins. When no region stands out (a sheet on a
  * light desk or floor), falls back to four straight edges around a slightly
- * brighter area (`detectSheetByEdges`).
+ * whiter area (`detectSheetByEdges`).
  */
 export function detectDocumentQuad(
   luminance: Uint8Array,
   width: number,
   height: number,
+  /** `rgbaToWhiteness` of the same frame, for the edge-based fallback. */
+  whiteness: Uint8Array = luminance,
 ): DocumentQuad | null {
   const minRegion = MIN_AREA_FRACTION * width * height;
   const visited = new Uint8Array(luminance.length);
@@ -326,7 +347,7 @@ export function detectDocumentQuad(
   }
   const corners = best
     ? refineCorners(luminance, width, height, best.corners)
-    : detectSheetByEdges(luminance, width, height, MIN_AREA_FRACTION);
+    : detectSheetByEdges(whiteness, width, height, MIN_AREA_FRACTION);
   if (!corners) return null;
   const [a, b, c, d] = corners.map((point) => ({
     x: point.x / width,

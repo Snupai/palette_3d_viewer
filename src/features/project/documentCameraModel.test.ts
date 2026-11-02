@@ -5,6 +5,7 @@ import {
   initialQuadTracker,
   liveCameraSupported,
   rgbaToLuminance,
+  rgbaToWhiteness,
   trackQuad,
   type DocumentQuad,
 } from "~/features/project/documentCameraModel";
@@ -170,6 +171,79 @@ describe("detectDocumentQuad", () => {
     ]);
   });
 
+  it("finds a white sheet on a cream desk that is just as bright", () => {
+    // Portrait frame. Paper (221, 220, 224) and desk (226, 224, 212) have the
+    // same luma; only the desk's colour tells them apart. A dark wrist rest
+    // runs across the top with the sheet's top edge 4 px below its top, the
+    // printout's frame sits 5 px inside the sheet, and the desk ends 6 px
+    // below the sheet above dark trousers.
+    const width = 160;
+    const height = 213;
+    const quad = [
+      { x: 36, y: 44 },
+      { x: 117, y: 52 },
+      { x: 123, y: 165 },
+      { x: 35, y: 165 },
+    ];
+    const frame = quad.map(({ x, y }, i) => ({
+      x: x + (i === 0 || i === 3 ? 5 : -5),
+      y: y + (i < 2 ? 5 : -5),
+    }));
+    const random = noise(5);
+    const rgba = new Uint8Array(width * height * 4);
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const centre = { x: x + 0.5, y: y + 0.5 };
+        const onFrame =
+          insidePolygon(quad, centre.x, centre.y) &&
+          !insidePolygon(
+            frame.map((point, i) => ({
+              x: point.x + (i === 0 || i === 3 ? 1 : -1),
+              y: point.y + (i < 2 ? 1 : -1),
+            })),
+            centre.x,
+            centre.y,
+          ) &&
+          insidePolygon(frame, centre.x, centre.y);
+        const [r, g, b] = insidePolygon(quad, centre.x, centre.y)
+          ? onFrame
+            ? [150, 150, 152]
+            : [221, 220, 224]
+          : y >= 171
+            ? [14, 13, 13]
+            : y >= 40 && y < 64
+              ? [73, 74, 76]
+              : y < 40
+                ? [30, 28, 40]
+                : [226, 224, 212];
+        const grain = Math.round((random() - 0.5) * 8);
+        const o = (y * width + x) * 4;
+        rgba[o] = r + grain;
+        rgba[o + 1] = g + grain;
+        rgba[o + 2] = b + grain;
+        rgba[o + 3] = 255;
+      }
+    }
+    const detected = detectDocumentQuad(
+      rgbaToLuminance(rgba),
+      width,
+      height,
+      rgbaToWhiteness(rgba),
+    );
+    expect(
+      detected?.map(({ x, y }) => [
+        Math.round(x * width),
+        Math.round(y * height),
+      ]),
+      // Every corner within 0.6 px; the bottom-left one lands at 35.6.
+    ).toEqual([
+      [36, 44],
+      [117, 52],
+      [123, 165],
+      [36, 165],
+    ]);
+  });
+
   it("finds nothing on bare wooden planks", () => {
     const random = noise(3);
     const planks = [150, 172, 160, 185, 155, 178, 165, 150];
@@ -210,6 +284,18 @@ describe("rgbaToLuminance", () => {
     expect([
       ...rgbaToLuminance([255, 255, 255, 255, 255, 0, 0, 255, 0, 0, 255, 255]),
     ]).toEqual([255, 76, 28]);
+  });
+});
+
+describe("rgbaToWhiteness", () => {
+  it("lowers coloured pixels by three times their saturation", () => {
+    expect(
+      Array.from(
+        rgbaToWhiteness([
+          221, 220, 224, 255, 226, 224, 212, 255, 200, 120, 60, 255,
+        ]),
+      ),
+    ).toEqual([208, 181, 0]);
   });
 });
 

@@ -15,7 +15,7 @@ const THETA_BINS = 180;
 /** An edge pixel votes for lines within this many degrees of its gradient direction. */
 const VOTE_SPREAD = 6;
 /** Strongest lines kept from the Hough accumulator. */
-const MAX_LINES = 16;
+const MAX_LINES = 20;
 /** Votes a line needs, as a share of the shorter frame side. */
 const MIN_LINE_VOTES = 0.15;
 /** Opposite sides may differ by this much in angle (perspective). */
@@ -23,16 +23,29 @@ const MAX_OPPOSITE_ANGLE = (30 * Math.PI) / 180;
 /** Adjacent sides must meet at least at this angle. */
 const MIN_CORNER_ANGLE = (50 * Math.PI) / 180;
 /** Share of each side that must lie on a matching edge. */
-const MIN_SIDE_SUPPORT = 0.75;
+const MIN_SIDE_SUPPORT = 0.65;
 /**
- * Share of each third of a side that must lie on an edge. A line that runs on
- * past the sheet's corner (a plank joint, the table edge) fails at that end.
+ * Share of each end quarter of a side that must lie on an edge. A line that
+ * runs on past the sheet's corner (a plank joint, the table edge) fails at
+ * that end; a gap in the middle, where the desk is as white as the paper, is
+ * fine.
  */
-const MIN_THIRD_SUPPORT = 0.6;
+const MIN_END_SUPPORT = 0.5;
+/** How far (pixels) an edge pixel may sit from the side: curled paper is not quite straight. */
+const SIDE_TOLERANCE = 2.5;
 /** Mean luminance step from inside to outside every side; paper is the brighter one. */
 const MIN_SIDE_CONTRAST = 8;
 /** Distance in pixels from a side at which inside and outside are sampled. */
 const CONTRAST_OFFSET = 3;
+
+/**
+ * Just inside each side the image must look like the sheet's interior: at
+ * most this many grey levels darker than its median. Rejects a side that
+ * runs along a dark band next to the sheet instead of the sheet's edge.
+ */
+const MAX_INSIDE_DROP = 35;
+/** Share of a side whose inside must look like the sheet. */
+const MIN_PAPER_INSIDE = 0.75;
 /** Edge orientation must match the side within this angle. */
 const MAX_ORIENTATION_ERROR = (20 * Math.PI) / 180;
 
@@ -170,7 +183,7 @@ function houghLines(
     const rho = (best % rhoBins) - maxRho;
     lines.push({ theta: (bin * Math.PI) / THETA_BINS, rho, votes: bestVotes });
     // Suppress the neighbourhood, including its mirror across θ = 0/180°.
-    for (let dt = -8; dt <= 8; dt++) {
+    for (let dt = -4; dt <= 4; dt++) {
       let neighbourBin = bin + dt;
       let sign = 1;
       if (neighbourBin < 0) {
@@ -180,7 +193,7 @@ function houghLines(
         neighbourBin -= THETA_BINS;
         sign = -1;
       }
-      for (let dr = -5; dr <= 5; dr++) {
+      for (let dr = -2; dr <= 2; dr++) {
         const r = sign * (rho + dr) + maxRho;
         if (r < 0 || r >= rhoBins) continue;
         votes[neighbourBin * rhoBins + r] = 0;
@@ -249,8 +262,8 @@ function convex(points: readonly Point[]): boolean {
 
 /**
  * How well one side of a candidate sheet sits on an edge: the share of its
- * length with a matching edge pixel nearby, and the mean step in brightness
- * from inside to outside.
+ * length with a matching edge pixel nearby, the mean step in brightness
+ * from inside to outside, and the share whose inside is as light as paper.
  */
 function sideScore(
   grads: Gradients,
@@ -258,7 +271,13 @@ function sideScore(
   height: number,
   a: Point,
   b: Point,
-): { support: number; weakestThird: number; contrast: number } {
+  paperLevel: number,
+): {
+  support: number;
+  weakestEnd: number;
+  contrast: number;
+  paperInside: number;
+} {
   const length = Math.hypot(b.x - a.x, b.y - a.y);
   const dx = (b.x - a.x) / length;
   const dy = (b.y - a.y) / length;
@@ -275,34 +294,70 @@ function sideScore(
     ]!;
   const samples = 24;
   let supported = 0;
-  const thirds = [0, 0, 0];
+  // Supported samples in the first and the last quarter of the side.
+  const ends = [0, 0];
+  const endSamples = samples / 4;
   let contrast = 0;
+  let paperInside = 0;
   for (let step = 0; step < samples; step++) {
-    const t = 0.08 + (0.84 * step) / (samples - 1);
+    // Close to the corners: a side running on past the sheet shows there.
+    const t = 0.03 + (0.94 * step) / (samples - 1);
     const x = a.x + (b.x - a.x) * t;
     const y = a.y + (b.y - a.y) * t;
+    const inside = sample(x - nx * CONTRAST_OFFSET, y - ny * CONTRAST_OFFSET);
     contrast +=
-      sample(x - nx * CONTRAST_OFFSET, y - ny * CONTRAST_OFFSET) -
-      sample(x + nx * CONTRAST_OFFSET, y + ny * CONTRAST_OFFSET);
-    for (let k = -2; k <= 2; k++) {
-      const px = Math.floor(x + nx * k * 0.5);
-      const py = Math.floor(y + ny * k * 0.5);
+      inside - sample(x + nx * CONTRAST_OFFSET, y + ny * CONTRAST_OFFSET);
+    if (inside >= paperLevel - MAX_INSIDE_DROP) paperInside++;
+    for (let k = -SIDE_TOLERANCE; k <= SIDE_TOLERANCE; k += 0.5) {
+      const px = Math.floor(x + nx * k);
+      const py = Math.floor(y + ny * k);
       if (px < 1 || py < 1 || px >= width - 1 || py >= height - 1) continue;
       const index = py * width + px;
       if (!grads.edge[index]) continue;
       const error = Math.abs(grads.direction[index]! - normalAngle);
       if (Math.min(error, Math.PI - error) <= MAX_ORIENTATION_ERROR) {
         supported++;
-        thirds[Math.floor((step * 3) / samples)]!++;
+        if (step < endSamples) ends[0]!++;
+        else if (step >= samples - endSamples) ends[1]!++;
         break;
       }
     }
   }
   return {
     support: supported / samples,
-    weakestThird: Math.min(...thirds) / (samples / 3),
+    weakestEnd: Math.min(...ends) / endSamples,
     contrast: contrast / samples,
+    paperInside: paperInside / samples,
   };
+}
+
+/** Median brightness over a 7 × 7 grid inside the quad; text barely moves it. */
+function interiorLevel(
+  blurred: Float32Array,
+  width: number,
+  height: number,
+  corners: readonly Point[],
+): number {
+  const [tl, tr, br, bl] = corners as [Point, Point, Point, Point];
+  const values: number[] = [];
+  for (let i = 0; i < 7; i++) {
+    for (let j = 0; j < 7; j++) {
+      const u = 0.2 + i * 0.1;
+      const v = 0.2 + j * 0.1;
+      const x =
+        (1 - v) * ((1 - u) * tl.x + u * tr.x) + v * ((1 - u) * bl.x + u * br.x);
+      const y =
+        (1 - v) * ((1 - u) * tl.y + u * tr.y) + v * ((1 - u) * bl.y + u * br.y);
+      values.push(
+        blurred[
+          Math.min(height - 1, Math.max(0, Math.floor(y))) * width +
+            Math.min(width - 1, Math.max(0, Math.floor(x)))
+        ]!,
+      );
+    }
+  }
+  values.sort((p, q) => p - q);
+  return values[Math.floor(values.length / 2)]!;
 }
 
 /** Least-squares fit of each side to its edge pixels, then re-intersected. */
@@ -320,22 +375,28 @@ function fitCorners(
     const nx = (b.y - a.y) / length;
     const ny = -(b.x - a.x) / length;
     const rho = a.x * nx + a.y * ny;
+    let normalAngle = Math.atan2(ny, nx);
+    if (normalAngle < 0) normalAngle += Math.PI;
+    if (normalAngle >= Math.PI) normalAngle -= Math.PI;
     let sx = 0;
     let sy = 0;
     let sxx = 0;
     let sxy = 0;
     let syy = 0;
     let count = 0;
-    const minX = Math.max(1, Math.floor(Math.min(a.x, b.x)) - 2);
-    const maxX = Math.min(width - 2, Math.ceil(Math.max(a.x, b.x)) + 2);
-    const minY = Math.max(1, Math.floor(Math.min(a.y, b.y)) - 2);
-    const maxY = Math.min(height - 2, Math.ceil(Math.max(a.y, b.y)) + 2);
+    const margin = Math.ceil(SIDE_TOLERANCE) + 1;
+    const minX = Math.max(1, Math.floor(Math.min(a.x, b.x)) - margin);
+    const maxX = Math.min(width - 2, Math.ceil(Math.max(a.x, b.x)) + margin);
+    const minY = Math.max(1, Math.floor(Math.min(a.y, b.y)) - margin);
+    const maxY = Math.min(height - 2, Math.ceil(Math.max(a.y, b.y)) + margin);
     for (let y = minY; y <= maxY; y++) {
       for (let x = minX; x <= maxX; x++) {
         if (!grads.edge[y * width + x]) continue;
+        const error = Math.abs(grads.direction[y * width + x]! - normalAngle);
+        if (Math.min(error, Math.PI - error) > MAX_ORIENTATION_ERROR) continue;
         const px = x + 0.5;
         const py = y + 0.5;
-        if (Math.abs(px * nx + py * ny - rho) > 1.5) continue;
+        if (Math.abs(px * nx + py * ny - rho) > SIDE_TOLERANCE) continue;
         // Stay off the corners, where the neighbouring side's pixels sit.
         const along =
           ((px - a.x) * (b.x - a.x) + (py - a.y) * (b.y - a.y)) /
@@ -371,7 +432,8 @@ function fitCorners(
     const corner = intersect(fitted[(i + 3) % 4]!, fitted[i]!);
     if (
       !corner ||
-      Math.hypot(corner.x - corners[i]!.x, corner.y - corners[i]!.y) > 3
+      Math.hypot(corner.x - corners[i]!.x, corner.y - corners[i]!.y) >
+        2 * SIDE_TOLERANCE + 1
     ) {
       return corners;
     }
@@ -448,27 +510,32 @@ export function detectSheetByEdges(
       const corners = orderCorners(points as Point[]);
       if (!convex(corners)) continue;
       if (area(corners) / (width * height) < minAreaFraction) continue;
+      const paperLevel = interiorLevel(grads.blurred, width, height, corners);
       let score = 0;
       let accepted = true;
       for (let side = 0; side < 4; side++) {
         const p = corners[side]!;
         const q = corners[(side + 1) % 4]!;
-        const { support, weakestThird, contrast } = sideScore(
+        const { support, weakestEnd, contrast, paperInside } = sideScore(
           grads,
           width,
           height,
           p,
           q,
+          paperLevel,
         );
         if (
           support < MIN_SIDE_SUPPORT ||
-          weakestThird < MIN_THIRD_SUPPORT ||
-          contrast < MIN_SIDE_CONTRAST
+          weakestEnd < MIN_END_SUPPORT ||
+          contrast < MIN_SIDE_CONTRAST ||
+          paperInside < MIN_PAPER_INSIDE
         ) {
           accepted = false;
           break;
         }
-        score += support * Math.hypot(q.x - p.x, q.y - p.y);
+        // Covered length counts, uncovered length counts double against:
+        // a side that runs on past the sheet onto the desk loses.
+        score += (3 * support - 2) * Math.hypot(q.x - p.x, q.y - p.y);
       }
       if (!accepted) continue;
       if (!best || score > best.score) best = { corners, score };
