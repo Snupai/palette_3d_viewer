@@ -24,6 +24,17 @@ export const projectFormEn = {
   "projectForm.camera.reviewAltCropped": "Cropped photo",
   "projectForm.camera.shutter": "Take photo",
   "projectForm.camera.starting": "Starting camera …",
+  "projectForm.camera.stats.byClassic": "Outline: classic",
+  "projectForm.camera.stats.byFallback":
+    "Outline: classic (model found nothing)",
+  "projectForm.camera.stats.byModel": "Outline: model",
+  "projectForm.camera.stats.frame":
+    "frame {read} · tensor {tensor} · model {inference} · decode {decode} ms",
+  "projectForm.camera.stats.loading": "Model loading … classic detection",
+  "projectForm.camera.stats.model":
+    "DocAligner ({backend}): download {download} s · start {session} s · 1st run {warmup} s",
+  "projectForm.camera.stats.unavailable":
+    "Model unavailable – classic detection",
   "projectForm.camera.title": "Photograph pallet sheet",
   "projectForm.camera.version": "Photo version",
   "projectForm.camera.version.cropped": "Cropped",

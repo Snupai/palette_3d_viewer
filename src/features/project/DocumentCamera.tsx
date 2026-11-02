@@ -10,6 +10,7 @@ import {
   initialQuadTracker,
   liveCameraSupported,
   rgbaToLuminance,
+  rgbaToWhiteness,
   trackQuad,
   type CameraErrorKind,
   type DocumentQuad,
@@ -19,6 +20,12 @@ import {
   warpedSize,
   warpPerspective,
 } from "~/features/project/documentWarp";
+import {
+  sharedDocAligner,
+  type DocAlignerClient,
+  type DocAlignerLoadTimings,
+} from "~/workers/docAlignerClient";
+import type { DocAlignerTimings } from "~/workers/docAlignerProtocol";
 
 export type DocumentCameraProps = {
   onCapture: (file: File) => void;
@@ -30,6 +37,34 @@ export type DocumentCameraProps = {
 type Phase = "starting" | "live" | "review" | "error";
 
 const DETECTION_INTERVAL_MS = 100;
+/**
+ * Heatmap decode size: live frames trade < 1 px of accuracy for speed, the
+ * captured photo decodes finer (see `heatmapsToQuad`).
+ */
+const LIVE_DECODE_SIZE = 256;
+const CAPTURE_DECODE_SIZE = 512;
+/**
+ * The model misses some frames of a sheet it otherwise finds. When the
+ * captured frame is one of them, a live detection at most this old (not the
+ * smoothed outline, which outlives misses) still crops the photo; older ones
+ * may no longer match if the phone or the sheet moved.
+ */
+const FRESH_DETECTION_MS = 400;
+/** Window over which the on-screen detection rate is averaged. */
+const STATS_WINDOW_MS = 2000;
+
+/** Which detector produced the last live outline (on-screen readout). */
+type DetectorStats = {
+  /** `model`: DocAligner found the sheet; `modelMiss`: it did not, classic ran; `classic`: model not ready. */
+  engine: "model" | "modelMiss" | "classic";
+  modelStatus: "loading" | "ready" | "failed" | "unavailable";
+  backend: string | null;
+  load: DocAlignerLoadTimings | null;
+  /** Where the last model run spent its time. */
+  frame: DocAlignerTimings | null;
+  fps: number;
+  latencyMs: number;
+};
 const JPEG_QUALITY = 0.92;
 
 type Photo = { file: File; url: string };
@@ -56,19 +91,28 @@ function canvasToPhoto(
   });
 }
 
-/** Sheet outline in the captured frame itself; the live outline lags a little. */
-function detectInCanvas(source: HTMLCanvasElement): DocumentQuad | null {
+/** Classic (non-ML) sheet outline of a frame, scaled down for detection. */
+function detectClassic(
+  source: HTMLCanvasElement | HTMLVideoElement,
+  sourceWidth: number,
+  sourceHeight: number,
+): DocumentQuad | null {
   const canvas = document.createElement("canvas");
   canvas.width = DETECTION_WIDTH;
   canvas.height = Math.max(
     1,
-    Math.round((DETECTION_WIDTH * source.height) / source.width),
+    Math.round((DETECTION_WIDTH * sourceHeight) / sourceWidth),
   );
   const context = canvas.getContext("2d", { willReadFrequently: true });
   if (!context) return null;
   context.drawImage(source, 0, 0, canvas.width, canvas.height);
   const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-  return detectDocumentQuad(rgbaToLuminance(data), canvas.width, canvas.height);
+  return detectDocumentQuad(
+    rgbaToLuminance(data),
+    canvas.width,
+    canvas.height,
+    rgbaToWhiteness(data),
+  );
 }
 
 /** The sheet cut out of the photo and straightened, or null when that fails. */
@@ -95,6 +139,9 @@ function cropToSheet(
   target.putImageData(new ImageData(warped.data, width, height), 0, 0);
   return canvas;
 }
+
+/** Milliseconds as seconds with one decimal, for the readout. */
+const seconds = (ms: number | undefined) => ((ms ?? 0) / 1000).toFixed(1);
 
 const errorKey = {
   unsupported: "projectForm.camera.error.unsupported",
@@ -130,8 +177,19 @@ export function DocumentCamera({
   const [shot, setShot] = useState<Shot | null>(null);
   const [version, setVersion] = useState<ShotVersion>("cropped");
   const [capturing, setCapturing] = useState(false);
+  const [stats, setStats] = useState<DetectorStats | null>(null);
   const mountedRef = useRef(true);
   const capturingRef = useRef(false);
+  const alignerRef = useRef<DocAlignerClient | null>(null);
+  /** Last frame in which a detector actually found the sheet. */
+  const lastHitRef = useRef<{ quad: DocumentQuad; at: number } | null>(null);
+
+  useEffect(() => {
+    // The DocAligner model loads when the camera first opens and stays loaded
+    // for the page; until it is ready, or if it cannot load, the classic
+    // detector outlines the sheet.
+    alignerRef.current = sharedDocAligner();
+  }, []);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -202,28 +260,69 @@ export function DocumentCamera({
     shutterRef.current?.focus();
     const video = videoRef.current;
     if (!video || !videoSize.width || !videoSize.height) return;
-    const canvas = document.createElement("canvas");
-    canvas.width = DETECTION_WIDTH;
-    canvas.height = Math.max(
-      1,
-      Math.round((DETECTION_WIDTH * videoSize.height) / videoSize.width),
-    );
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return;
     let tracker = initialQuadTracker;
+    let stopped = false;
+    // One model run at a time; frames arriving meanwhile are skipped.
+    let inFlight = false;
+    const started = performance.now();
+    const completions: number[] = [];
+    let lastStats = 0;
+    const update = (
+      detected: DocumentQuad | null,
+      engine: DetectorStats["engine"],
+      since: number,
+    ) => {
+      if (stopped) return;
+      if (detected)
+        lastHitRef.current = { quad: detected, at: performance.now() };
+      tracker = trackQuad(tracker, detected);
+      setQuad(tracker.quad);
+      const now = performance.now();
+      completions.push(now);
+      while (completions[0]! < now - STATS_WINDOW_MS) completions.shift();
+      if (now - lastStats < 250) return;
+      lastStats = now;
+      const aligner = alignerRef.current;
+      const window = Math.min(STATS_WINDOW_MS, now - started) / 1000;
+      setStats({
+        engine,
+        modelStatus: aligner?.status ?? "unavailable",
+        backend: aligner?.backend ?? null,
+        load: aligner?.loadTimings ?? null,
+        frame: aligner?.lastTimings ?? null,
+        fps: window > 0 ? completions.length / window : 0,
+        latencyMs: now - since,
+      });
+    };
+    const classic = () =>
+      detectClassic(video, videoSize.width, videoSize.height);
     const timer = window.setInterval(() => {
       if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) return;
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
-      tracker = trackQuad(
-        tracker,
-        detectDocumentQuad(rgbaToLuminance(data), canvas.width, canvas.height),
-      );
-      setQuad(tracker.quad);
+      const aligner = alignerRef.current;
+      const since = performance.now();
+      if (aligner?.status !== "ready") {
+        update(classic(), "classic", since);
+        return;
+      }
+      if (inFlight) return;
+      inFlight = true;
+      createImageBitmap(video)
+        .then((frame) => aligner.detect(frame, LIVE_DECODE_SIZE))
+        .then(({ quad: found }) =>
+          found
+            ? update(found, "model", since)
+            : update(classic(), "modelMiss", since),
+        )
+        .catch(() => update(classic(), "modelMiss", since))
+        .finally(() => {
+          inFlight = false;
+        });
     }, DETECTION_INTERVAL_MS);
     return () => {
+      stopped = true;
       window.clearInterval(timer);
       setQuad(null);
+      setStats(null);
     };
   }, [phase, videoSize]);
 
@@ -239,7 +338,9 @@ export function DocumentCamera({
   const capture = async () => {
     const video = videoRef.current;
     if (!video?.videoWidth || capturingRef.current) return;
-    const liveQuad = quad;
+    const hit = lastHitRef.current;
+    const recentHit =
+      hit && performance.now() - hit.at <= FRESH_DETECTION_MS ? hit.quad : null;
     const canvas = document.createElement("canvas");
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
@@ -255,7 +356,24 @@ export function DocumentCamera({
     const original = await canvasToPhoto(canvas, `palettenblatt-${stamp}.jpg`);
     let sheet: HTMLCanvasElement | null = null;
     try {
-      const sheetQuad = detectInCanvas(canvas) ?? liveQuad;
+      let sheetQuad: DocumentQuad | null = null;
+      const aligner = alignerRef.current;
+      if (aligner?.status === "ready") {
+        try {
+          sheetQuad = (
+            await aligner.detect(
+              await createImageBitmap(canvas),
+              CAPTURE_DECODE_SIZE,
+            )
+          ).quad;
+        } catch {
+          // Fall back to classic detection below.
+        }
+      }
+      // This frame first; otherwise only a detection from just before the
+      // shutter, never the smoothed outline, which can be stale.
+      sheetQuad ??=
+        detectClassic(canvas, canvas.width, canvas.height) ?? recentHit;
       sheet = sheetQuad ? cropToSheet(canvas, sheetQuad) : null;
     } catch {
       // Cropping is optional; the original photo still goes through.
@@ -369,6 +487,42 @@ export function DocumentCamera({
               vectorEffect="non-scaling-stroke"
             />
           </svg>
+        ) : null}
+        {phase === "live" && stats ? (
+          // Detector readout for judging speed on the phone.
+          <p
+            data-testid="detector-stats"
+            className="pointer-events-none absolute top-2 left-2 bg-black/60 px-2 py-1 font-mono text-[11px] leading-tight text-white"
+          >
+            {stats.modelStatus === "ready"
+              ? t("projectForm.camera.stats.model", {
+                  backend: stats.backend === "webgpu" ? "WebGPU" : "WASM",
+                  download: seconds(stats.load?.downloadMs),
+                  session: seconds(stats.load?.sessionMs),
+                  warmup: seconds(stats.load?.warmupMs),
+                })
+              : stats.modelStatus === "loading"
+                ? t("projectForm.camera.stats.loading")
+                : t("projectForm.camera.stats.unavailable")}
+            <br />
+            {stats.engine === "model"
+              ? t("projectForm.camera.stats.byModel")
+              : stats.engine === "modelMiss"
+                ? t("projectForm.camera.stats.byFallback")
+                : t("projectForm.camera.stats.byClassic")}
+            {` · ${stats.fps.toFixed(1)} fps · ${Math.round(stats.latencyMs)} ms`}
+            {stats.modelStatus === "ready" && stats.frame ? (
+              <>
+                <br />
+                {t("projectForm.camera.stats.frame", {
+                  read: Math.round(stats.frame.readMs),
+                  tensor: Math.round(stats.frame.tensorMs),
+                  inference: Math.round(stats.frame.inferenceMs),
+                  decode: Math.round(stats.frame.decodeMs),
+                })}
+              </>
+            ) : null}
+          </p>
         ) : null}
         {phase === "review" && selected ? (
           // eslint-disable-next-line @next/next/no-img-element -- local object URL preview

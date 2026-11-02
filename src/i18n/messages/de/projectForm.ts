@@ -26,6 +26,17 @@ export const projectFormDe = {
   "projectForm.camera.reviewAltCropped": "Zugeschnittenes Foto",
   "projectForm.camera.shutter": "Aufnehmen",
   "projectForm.camera.starting": "Kamera wird gestartet …",
+  "projectForm.camera.stats.byClassic": "Umriss: klassisch",
+  "projectForm.camera.stats.byFallback":
+    "Umriss: klassisch (Modell fand nichts)",
+  "projectForm.camera.stats.byModel": "Umriss: Modell",
+  "projectForm.camera.stats.frame":
+    "Bild {read} · Tensor {tensor} · Modell {inference} · Auswertung {decode} ms",
+  "projectForm.camera.stats.loading": "Modell lädt … klassische Erkennung",
+  "projectForm.camera.stats.model":
+    "DocAligner ({backend}): Download {download} s · Start {session} s · 1. Lauf {warmup} s",
+  "projectForm.camera.stats.unavailable":
+    "Modell nicht verfügbar – klassische Erkennung",
   "projectForm.camera.title": "Palettenblatt fotografieren",
   "projectForm.camera.version": "Fotoversion",
   "projectForm.camera.version.cropped": "Zugeschnitten",
