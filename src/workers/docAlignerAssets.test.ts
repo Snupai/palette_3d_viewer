@@ -192,7 +192,7 @@ describe("createAssetLoader", () => {
   it("re-downloads only the file whose prefetch failed", async () => {
     const { caches } = fakeCaches();
     const network = fakeNetwork();
-    let releaseWasm = () => {};
+    let releaseWasm: (() => void) | undefined;
     const wasmHeld = new Promise<void>((resolve) => (releaseWasm = resolve));
     const loader = createAssetLoader({
       fetch: async (url, init) => {
@@ -209,7 +209,7 @@ describe("createAssetLoader", () => {
     await expect(prefetched).rejects.toThrow("model request dropped");
     // The camera opens while the 28 MB runtime is still downloading.
     const forCamera = loader.get();
-    releaseWasm();
+    releaseWasm?.();
     const { model, wasm } = await forCamera;
     expect([asArray(model), asArray(wasm)]).toEqual([
       [1, 2, 3],
