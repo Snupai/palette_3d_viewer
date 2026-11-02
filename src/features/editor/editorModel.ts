@@ -746,6 +746,10 @@ function automaticPlacementGroups(
   movedPositions: Map<string, { x: number; y: number }>;
 } {
   const spanMm = projectGroupingSpan(project);
+  const placementById = new Map(
+    pattern.placements.map((placement) => [placement.id, placement]),
+  );
+  const wholeMillimetreGrips = new Map<string, boolean>();
   return optimizeSuctionGroups(pattern.placements, {
     spanMm,
     packageSizeMm: project.package.dimensionsMm,
@@ -758,24 +762,32 @@ function automaticPlacementGroups(
       ? {
           offsetGridMm: 0.5,
           chunkAllowed: (members: readonly GripOptimizerPlacement[]) => {
-            const byId = new Map(
-              pattern.placements.map((placement) => [placement.id, placement]),
-            );
-            try {
-              const grip = gripFromPlacements(
-                project,
-                members.map((member) => ({
-                  ...byId.get(member.id)!,
-                  positionMm: member.positionMm,
-                })),
-                { id: "probe", groupNumber: 1 },
-              );
-              return [grip.x, grip.y, grip.pickX, grip.pickY].every(
-                Number.isInteger,
-              );
-            } catch {
-              return false;
-            }
+            const key = members
+              .map(
+                ({ id, positionMm }) => `${id}@${positionMm.x},${positionMm.y}`,
+              )
+              .join(";");
+            const cached = wholeMillimetreGrips.get(key);
+            if (cached !== undefined) return cached;
+            const result = (() => {
+              try {
+                const grip = gripFromPlacements(
+                  project,
+                  members.map((member) => ({
+                    ...placementById.get(member.id)!,
+                    positionMm: member.positionMm,
+                  })),
+                  { id: "probe", groupNumber: 1 },
+                );
+                return [grip.x, grip.y, grip.pickX, grip.pickY].every(
+                  Number.isInteger,
+                );
+              } catch {
+                return false;
+              }
+            })();
+            wholeMillimetreGrips.set(key, result);
+            return result;
           },
         }
       : {}),

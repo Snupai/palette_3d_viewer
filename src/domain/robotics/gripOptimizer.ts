@@ -299,7 +299,34 @@ function optimizeOnce(
     otherSingles: readonly Rect[],
   ): Decision => {
     const lineIds = new Set(line.map(({ id }) => id));
-    const others = items.filter(({ id }) => !lineIds.has(id));
+    // A chunk only slides along its line, so only packages whose current or
+    // original footprint reaches into the line's cross band can collide.
+    const band = line.reduce(
+      (extent, member) => {
+        const rect = rectFor(member, member.axis, packageSizeMm);
+        return member.horizontal
+          ? {
+              min: Math.min(extent.min, rect.minY),
+              max: Math.max(extent.max, rect.maxY),
+            }
+          : {
+              min: Math.min(extent.min, rect.minX),
+              max: Math.max(extent.max, rect.maxX),
+            };
+      },
+      { min: Infinity, max: -Infinity },
+    );
+    const reachesBand = (rect: Rect) =>
+      line[0]!.horizontal
+        ? rect.maxY > band.min && rect.minY < band.max
+        : rect.maxX > band.min && rect.minX < band.max;
+    const others = items.filter(
+      (item) =>
+        !lineIds.has(item.id) &&
+        (reachesBand(rectOf(item)) ||
+          reachesBand(rectFor(item, item.axis, packageSizeMm))),
+    );
+    const chunkPlans = new Map<string, number[] | null>();
 
     /**
      * Final axis positions for chunk [start, start + size), or null. Members
@@ -319,6 +346,12 @@ function optimizeOnce(
         })),
       );
     const chunkPlan = (start: number, size: number): number[] | null => {
+      const key = `${start}:${size}`;
+      if (!chunkPlans.has(key))
+        chunkPlans.set(key, computeChunkPlan(start, size));
+      return chunkPlans.get(key)!;
+    };
+    const computeChunkPlan = (start: number, size: number): number[] | null => {
       const members = line.slice(start, start + size);
       if (size === 1) return [members[0]!.axis];
       const bases = members.map(({ axis }, index) => axis - index * spanMm);
@@ -353,30 +386,14 @@ function optimizeOnce(
       const offsets = [...new Set([low, high, ...bases.map(clamp)])].sort(
         byShift,
       );
-      // With a chunk rule (e.g. whole-millimetre grips) the cheapest offsets
-      // may all be rejected; then try the grid inside the same interval.
-      const grid = options.offsetGridMm;
-      if (options.chunkAllowed && grid && grid > 0) {
-        const tried = new Set(offsets);
-        const extra: number[] = [];
-        for (
-          let step = Math.ceil((low - tolerance) / grid);
-          step * grid <= high + tolerance && extra.length < 4096;
-          step += 1
-        ) {
-          const offset = clamp(step * grid);
-          if (!tried.has(offset)) extra.push(offset);
-        }
-        offsets.push(...extra.sort(byShift));
-      }
-      for (const offset of offsets) {
+      const tryOffset = (offset: number): number[] | null => {
         const plan = exactContactPlan(
           members.map(({ axis }) => axis),
           members.map((_, index) => offset + index * spanMm),
           packageSizeMm.length,
           tolerance,
         );
-        if (!plan) continue;
+        if (!plan || !allowed(members, plan)) return null;
         const free = members.every((member, index) => {
           if (plan[index] === member.axis) return true;
           const rect = rectFor(member, plan[index]!, packageSizeMm);
@@ -389,7 +406,29 @@ function optimizeOnce(
               !overlaps(rect, rectFor(other, other.axis, packageSizeMm)),
           );
         });
-        if (free && allowed(members, plan)) return plan;
+        return free ? plan : null;
+      };
+      for (const offset of offsets) {
+        const plan = tryOffset(offset);
+        if (plan) return plan;
+      }
+      // With a chunk rule (e.g. whole-millimetre grips) the cheapest offsets
+      // may all be rejected; only then try the grid inside the same interval.
+      const grid = options.offsetGridMm;
+      if (!options.chunkAllowed || !grid || !(grid > 0)) return null;
+      const tried = new Set(offsets);
+      const extra: number[] = [];
+      for (
+        let step = Math.ceil((low - tolerance) / grid);
+        step * grid <= high + tolerance && extra.length < 4096;
+        step += 1
+      ) {
+        const offset = clamp(step * grid);
+        if (!tried.has(offset)) extra.push(offset);
+      }
+      for (const offset of extra.sort(byShift)) {
+        const plan = tryOffset(offset);
+        if (plan) return plan;
       }
       return null;
     };
