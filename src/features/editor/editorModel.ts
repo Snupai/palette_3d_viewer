@@ -5,14 +5,21 @@ import {
   placementRectangleBounds,
   rectangleBoundsCenter,
   rectangleBoundsContain,
-  rectangleBoundsOverlap,
   symmetricSideAllowance,
   type PointMm,
   type RectangleBoundsMm,
 } from "~/domain/geometry";
 import {
+  SOLVER_GEOMETRY_EPSILON_MM,
+  solverRectangleBoundsOverlap,
+} from "~/domain/solver/geometryPolicy";
+import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
+  compareGripsByLayerRows,
+  createGripOrderLayout,
+  deriveGripDeltasForPlacementOrder,
+  type GripOrderLayout,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
 import {
@@ -20,6 +27,7 @@ import {
   legacyRotationFromCanonical,
   pickOffsetForCount,
 } from "~/domain/palletGeometry";
+import { resolveAutomaticSuctionGroupLimit } from "~/domain/project/equipmentProfiles";
 import {
   projectSchema,
   type LayerPattern,
@@ -29,7 +37,10 @@ import {
   type Project,
 } from "~/domain/project/projectSchema";
 import {
-  partitionPlacementsForSuction,
+  optimizeSuctionGroups,
+  type GripOptimizerPlacement,
+} from "~/domain/robotics/gripOptimizer";
+import {
   suggestRobotOrder,
   type RobotCycle,
   type RobotCycleMaterialization,
@@ -179,6 +190,12 @@ export type ProjectEditorCommand =
       solutionId: string;
       patternId: string;
       gripIds: readonly string[];
+    }
+  | {
+      type: "recalculate-groups";
+      mode: "order";
+      solutionId: string;
+      patternId: string;
     }
   | {
       type: "reorder-group";
@@ -443,6 +460,71 @@ export function normalizeProjectForEditor(project: Project): Project {
   };
 }
 
+/**
+ * Geometry tolerance shared by editor validation and drag collision. It is the
+ * solver's policy, so flush packages whose float coordinates touch within
+ * 1e-9 mm (solver output, drag contacts) are never reported as overlapping.
+ */
+export const EDITOR_GEOMETRY_TOLERANCE_MM = SOLVER_GEOMETRY_EPSILON_MM;
+
+/** Overlap test used by editor validation and drag collision alike. */
+export function editorBoundsOverlap(
+  left: RectangleBoundsMm,
+  right: RectangleBoundsMm,
+): boolean {
+  return solverRectangleBoundsOverlap(left, right);
+}
+
+/** Envelope containment used by editor validation and drag collision alike. */
+export function editorBoundsContain(
+  envelope: RectangleBoundsMm,
+  bounds: RectangleBoundsMm,
+): boolean {
+  return rectangleBoundsContain(envelope, bounds, EDITOR_GEOMETRY_TOLERANCE_MM);
+}
+
+/**
+ * Size of an existing geometry violation, compared before and after an edit so
+ * an edit may keep (or shrink) an error the pattern already had but never make
+ * it worse: overlap area of two clearance footprints (mm²), or how far a
+ * package sticks out of the envelope (sum over sides, mm).
+ */
+export const EDITOR_VIOLATION_MEASURE_TOLERANCE = 1e-6;
+
+export function editorOverlapMeasure(
+  left: RectangleBoundsMm,
+  right: RectangleBoundsMm,
+): number {
+  const x = Math.min(left.maxX, right.maxX) - Math.max(left.minX, right.minX);
+  const y = Math.min(left.maxY, right.maxY) - Math.max(left.minY, right.minY);
+  return Math.max(0, x) * Math.max(0, y);
+}
+
+export function editorProtrusionMeasure(
+  envelope: RectangleBoundsMm,
+  bounds: RectangleBoundsMm,
+): number {
+  return (
+    Math.max(0, envelope.minX - bounds.minX) +
+    Math.max(0, envelope.minY - bounds.minY) +
+    Math.max(0, bounds.maxX - envelope.maxX) +
+    Math.max(0, bounds.maxY - envelope.maxY)
+  );
+}
+
+/** True when `next` violations add an error or worsen one from `previous`. */
+export function editorViolationsWorsen(
+  previous: ReadonlyMap<string, number>,
+  next: ReadonlyMap<string, number>,
+): boolean {
+  for (const [key, measure] of next) {
+    const before = previous.get(key);
+    if (before === undefined) return true;
+    if (measure > before + EDITOR_VIOLATION_MEASURE_TOLERANCE) return true;
+  }
+  return false;
+}
+
 export function projectEditorEnvelope(
   project: Project,
 ): RectangleBoundsMm | null {
@@ -550,6 +632,20 @@ function groupGeometryError(
   return null;
 }
 
+/** Label (blue-line) offset of a grip: kept, or derived from its packages. */
+function gripLabelOffset(
+  placements: readonly PackagePlacement[],
+  existing: LayerPattern["grips"][number] | null | undefined,
+  derive: boolean,
+): PointMm {
+  const labels = new Set(placements.map(({ labelSide }) => labelSide));
+  const sharedLabel = labels.size === 1 ? placements[0]!.labelSide : undefined;
+  if (existing && !derive) return { x: existing.dx, y: existing.dy };
+  if (sharedLabel === undefined)
+    return { x: existing?.dx ?? 0, y: existing?.dy ?? 0 };
+  return sharedLabel === null ? { x: 0, y: 0 } : labelOffsetBySide[sharedLabel];
+}
+
 function gripFromPlacements(
   project: Project,
   placements: readonly PackagePlacement[],
@@ -590,16 +686,11 @@ function gripFromPlacements(
     existing?.pickRotation ?? 0,
     placements.length,
   );
-  const labels = new Set(placements.map(({ labelSide }) => labelSide));
-  const sharedLabel = labels.size === 1 ? first.labelSide : undefined;
-  const labelOffset =
-    existing && !input.deriveLabelOffset
-      ? { x: existing.dx, y: existing.dy }
-      : sharedLabel === undefined
-        ? { x: existing?.dx ?? 0, y: existing?.dy ?? 0 }
-        : sharedLabel === null
-          ? { x: 0, y: 0 }
-          : labelOffsetBySide[sharedLabel];
+  const labelOffset = gripLabelOffset(
+    placements,
+    existing,
+    input.deriveLabelOffset ?? false,
+  );
 
   return {
     id: input.id,
@@ -620,30 +711,87 @@ function gripFromPlacements(
   };
 }
 
+/** Same pickup limit as Robotics' automatic grouping for the selected gripper. */
 function maxPackagesPerAutomaticGroup(project: Project): number {
-  if (!project.package.multiPickAllowed) return 1;
-  const selectedGripper = project.grippers.find(
-    ({ id }) => id === project.selectedGripperId,
+  const selectedGripper =
+    project.grippers.find(({ id }) => id === project.selectedGripperId) ?? null;
+  const groupLimit = resolveAutomaticSuctionGroupLimit(
+    project.package,
+    selectedGripper,
   );
   const pickupSpan =
     project.package.inletOrientation === "lengthwise"
       ? project.package.dimensionsMm.length
       : project.package.dimensionsMm.width;
-  if (!selectedGripper?.maxPickupLengthMm) return 2;
+  if (!selectedGripper?.maxPickupLengthMm) return groupLimit;
   return Math.max(
     1,
-    Math.min(2, Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan)),
+    Math.min(
+      groupLimit,
+      Math.floor(selectedGripper.maxPickupLengthMm / pickupSpan),
+    ),
   );
 }
 
+/**
+ * Fewest grips for the gripper's pickup limit. With `allowShift`, packages may
+ * slide up to one pickup span along their line to close gaps inside a grip.
+ */
 function automaticPlacementGroups(
   project: Project,
   pattern: LayerPattern,
-): string[][] {
-  return partitionPlacementsForSuction(pattern.placements, {
-    packageLengthMm: projectGroupingSpan(project),
+  allowShift: boolean,
+): {
+  groups: string[][];
+  movedPositions: Map<string, { x: number; y: number }>;
+} {
+  const spanMm = projectGroupingSpan(project);
+  const placementById = new Map(
+    pattern.placements.map((placement) => [placement.id, placement]),
+  );
+  const wholeMillimetreGrips = new Map<string, boolean>();
+  return optimizeSuctionGroups(pattern.placements, {
+    spanMm,
+    packageSizeMm: project.package.dimensionsMm,
     maxPackagesPerPick: maxPackagesPerAutomaticGroup(project),
-  }).map((group) => group.map(({ id }) => id));
+    maxShiftMm: allowShift ? spanMm : 0,
+    clearanceMm: project.package.clearanceMm,
+    // Imported .rob plans store whole millimetres only, so a grip whose
+    // place or pick point would fall between millimetres is never formed.
+    ...(project.source.kind === "rob-import"
+      ? {
+          offsetGridMm: 0.5,
+          chunkAllowed: (members: readonly GripOptimizerPlacement[]) => {
+            const key = members
+              .map(
+                ({ id, positionMm }) => `${id}@${positionMm.x},${positionMm.y}`,
+              )
+              .join(";");
+            const cached = wholeMillimetreGrips.get(key);
+            if (cached !== undefined) return cached;
+            const result = (() => {
+              try {
+                const grip = gripFromPlacements(
+                  project,
+                  members.map((member) => ({
+                    ...placementById.get(member.id)!,
+                    positionMm: member.positionMm,
+                  })),
+                  { id: "probe", groupNumber: 1 },
+                );
+                return [grip.x, grip.y, grip.pickX, grip.pickY].every(
+                  Number.isInteger,
+                );
+              } catch {
+                return false;
+              }
+            })();
+            wholeMillimetreGrips.set(key, result);
+            return result;
+          },
+        }
+      : {}),
+  });
 }
 
 function normalizedGroupOrder(pattern: LayerPattern): string[] {
@@ -827,6 +975,7 @@ function assertOrderSatisfiesDependencies(
 function ensurePatternGroups(
   project: Project,
   pattern: LayerPattern,
+  options: { allowShift?: boolean } = {},
 ): LayerPattern {
   if (pattern.grips.length > 0) {
     const grips = pattern.grips.map((grip, index) => ({
@@ -841,10 +990,41 @@ function ensurePatternGroups(
     });
   }
 
-  const placementsById = new Map(
-    pattern.placements.map((placement) => [placement.id, placement]),
+  const automatic = automaticPlacementGroups(
+    project,
+    pattern,
+    options.allowShift ?? false,
   );
-  const groups = automaticPlacementGroups(project, pattern);
+  const { movedPositions } = automatic;
+  const shiftedPlacements = pattern.placements.map((placement) => {
+    const positionMm = movedPositions.get(placement.id);
+    return positionMm ? { ...placement, positionMm } : placement;
+  });
+  const placementsById = new Map(
+    shiftedPlacements.map((placement) => [placement.id, placement]),
+  );
+  // Imported .rob plans store whole millimetres only: a multi-package grip
+  // whose place or pick point would fall between millimetres could not be
+  // exported, so its packages stay single grips instead.
+  const groups =
+    project.source.kind === "rob-import"
+      ? automatic.groups.flatMap((placementIds) => {
+          if (placementIds.length < 2) return [placementIds];
+          const grip = gripFromPlacements(
+            project,
+            placementIds.flatMap((id) => {
+              const placement = placementsById.get(id);
+              return placement ? [placement] : [];
+            }),
+            { id: "probe", groupNumber: 1 },
+          );
+          return [grip.x, grip.y, grip.pickX, grip.pickY].every(
+            Number.isInteger,
+          )
+            ? [placementIds]
+            : placementIds.map((id) => [id]);
+        })
+      : automatic.groups;
   const grips = groups.map((placementIds, index) => {
     const placements = placementIds.flatMap((id) => {
       const placement = placementsById.get(id);
@@ -864,7 +1044,7 @@ function ensurePatternGroups(
       gripIdByPlacement.set(placementId, grip.id),
     );
   });
-  const placements = pattern.placements.map((placement) => ({
+  const placements = shiftedPlacements.map((placement) => ({
     ...placement,
     gripId: gripIdByPlacement.get(placement.id) ?? null,
   }));
@@ -873,10 +1053,25 @@ function ensurePatternGroups(
     placements,
     project.package.dimensionsMm,
   );
-  const orderedGrips = orderGripsByDependencies(
+  const sequencedGrips = orderGripsByDependencies(
     grips,
     verticalDependencies,
+    undefined,
+    compareGripsByLayerRows(patternOrderLayout(project, placements)),
   ).map((grip, index) => ({ ...grip, groupNumber: index + 1 }));
+  // Like solver-generated grips, a blue line may only reference a grip that
+  // is already placed; label-derived offsets could form dependency cycles.
+  const derived = deriveGripDeltasForPlacementOrder(
+    sequencedGrips,
+    project.package.dimensionsMm.length,
+    project.package.dimensionsMm.width,
+    project.package.inletOrientation === "crosswise" ? 1 : 0,
+  );
+  const orderedGrips = sequencedGrips.map((grip, index) => ({
+    ...grip,
+    dx: derived.deltas[index]?.dx ?? 0,
+    dy: derived.deltas[index]?.dy ?? 0,
+  }));
   return {
     ...pattern,
     grips: orderedGrips,
@@ -921,6 +1116,33 @@ function cleanPatternMetadata(pattern: LayerPattern): LayerPattern {
   };
 }
 
+/** The offset shared by every package of a grip, or null if they differ. */
+function uniformTranslation(
+  previous: readonly PackagePlacement[],
+  next: readonly PackagePlacement[],
+): PointMm | null {
+  if (previous.length === 0 || previous.length !== next.length) return null;
+  const previousById = new Map(
+    previous.map((placement) => [placement.id, placement]),
+  );
+  let offset: PointMm | null = null;
+  for (const placement of next) {
+    const before = previousById.get(placement.id);
+    if (!before || before.rotation !== placement.rotation) return null;
+    const delta = {
+      x: placement.positionMm.x - before.positionMm.x,
+      y: placement.positionMm.y - before.positionMm.y,
+    };
+    if (!offset) offset = delta;
+    else if (
+      Math.abs(delta.x - offset.x) > EDITOR_GEOMETRY_TOLERANCE_MM ||
+      Math.abs(delta.y - offset.y) > EDITOR_GEOMETRY_TOLERANCE_MM
+    )
+      return null;
+  }
+  return offset;
+}
+
 function synchronizePatternGrips(
   project: Project,
   previousPattern: LayerPattern,
@@ -936,21 +1158,50 @@ function synchronizePatternGrips(
   const previousById = new Map(
     previousPattern.grips.map((grip) => [grip.id, grip]),
   );
+  const previousAssignments = assignmentsByGrip(previousPattern);
   const grips = nextPattern.grips.flatMap((grip, index) => {
     const placements = assignments.get(grip.id) ?? [];
     if (placements.length === 0) return [];
     const previousGrip = previousById.get(grip.id) ?? null;
-    return [
-      gripFromPlacements(project, placements, {
-        id: grip.id,
-        groupNumber: grip.groupNumber ?? index + 1,
-        existing: previousGrip ?? grip,
-        deriveLabelOffset:
-          options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
-        allowObservedMultipick:
-          project.source.kind === "rob-import" && previousGrip !== null,
-      }),
-    ];
+    try {
+      return [
+        gripFromPlacements(project, placements, {
+          id: grip.id,
+          groupNumber: grip.groupNumber ?? index + 1,
+          existing: previousGrip ?? grip,
+          deriveLabelOffset:
+            options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
+          allowObservedMultipick:
+            project.source.kind === "rob-import" && previousGrip !== null,
+        }),
+      ];
+    } catch (cause) {
+      // A grip that was already invalid (e.g. imported) must not block edits
+      // elsewhere: keep it as it was, or move it along when its packages were
+      // all moved by the same offset. Any other change still fails.
+      const translation = previousGrip
+        ? uniformTranslation(previousAssignments.get(grip.id) ?? [], placements)
+        : null;
+      if (!(cause instanceof ProjectEditorCommandError) || !translation)
+        throw cause;
+      const labelOffset = gripLabelOffset(
+        placements,
+        previousGrip,
+        options.deriveLabelOffsetsForGripIds?.has(grip.id) ?? false,
+      );
+      return [
+        {
+          ...previousGrip!,
+          groupNumber: grip.groupNumber ?? previousGrip!.groupNumber,
+          dx: labelOffset.x,
+          dy: labelOffset.y,
+          x: previousGrip!.x + translation.x,
+          y: previousGrip!.y + translation.y,
+          pickX: previousGrip!.pickX + translation.x,
+          pickY: previousGrip!.pickY + translation.y,
+        },
+      ];
+    }
   });
   return cleanPatternMetadata({ ...nextPattern, grips });
 }
@@ -1085,17 +1336,89 @@ function replacePattern(
   });
 }
 
-function validateGeometryOrThrow(
+function blockingGeometryDiagnostics(
   project: Project,
   pattern: LayerPattern,
-): void {
-  const diagnostics = validateProjectPattern(project, pattern);
-  const blocking = diagnostics.filter(
+): ProjectEditorDiagnostic[] {
+  return validateProjectPattern(project, pattern).filter(
     ({ severity, code }) =>
       severity === "error" &&
       (code === "placement-out-of-bounds" ||
         code === "placement-overlap" ||
         code === "invalid-group-geometry"),
+  );
+}
+
+function diagnosticKey({
+  code,
+  placementIds,
+  gripIds,
+}: ProjectEditorDiagnostic): string {
+  return `${code}:${[...(placementIds ?? gripIds ?? [])].sort().join("|")}`;
+}
+
+/** Measures of the placement overlap / out-of-bounds errors, by diagnostic key. */
+function placementViolationMeasures(
+  project: Project,
+  pattern: LayerPattern,
+): Map<string, number> {
+  const measures = new Map<string, number>();
+  const envelope = projectEditorEnvelope(project);
+  const entries = pattern.placements.map((placement) => ({
+    id: placement.id,
+    physical: placementRectangleBounds(placement, project.package.dimensionsMm),
+    clearance: placementClearanceBounds(
+      placement,
+      project.package.dimensionsMm,
+      project.package.clearanceMm,
+    ),
+  }));
+  entries.forEach((entry, index) => {
+    if (envelope && !editorBoundsContain(envelope, entry.physical)) {
+      measures.set(
+        `placement-out-of-bounds:${entry.id}`,
+        editorProtrusionMeasure(envelope, entry.physical),
+      );
+    }
+    for (const other of entries.slice(index + 1)) {
+      if (!editorBoundsOverlap(entry.clearance, other.clearance)) continue;
+      measures.set(
+        `placement-overlap:${[entry.id, other.id].sort().join("|")}`,
+        editorOverlapMeasure(entry.clearance, other.clearance),
+      );
+    }
+  });
+  return measures;
+}
+
+/**
+ * Rejects a geometry edit that introduces a blocking error or makes an
+ * existing one worse (larger overlap, further out of bounds). Errors the
+ * pattern already had (e.g. an imported plan) do not block unrelated edits or
+ * repairs; the drag collision applies the same rule to the packages it moves.
+ */
+function validateGeometryOrThrow(
+  project: Project,
+  pattern: LayerPattern,
+  previousPattern: LayerPattern,
+): void {
+  const existing = new Set(
+    blockingGeometryDiagnostics(project, previousPattern).map(diagnosticKey),
+  );
+  const previousMeasures = placementViolationMeasures(project, previousPattern);
+  const nextMeasures = placementViolationMeasures(project, pattern);
+  const blocking = blockingGeometryDiagnostics(project, pattern).filter(
+    (diagnostic) => {
+      const key = diagnosticKey(diagnostic);
+      if (!existing.has(key)) return true;
+      const before = previousMeasures.get(key);
+      const after = nextMeasures.get(key);
+      return (
+        before !== undefined &&
+        after !== undefined &&
+        after > before + EDITOR_VIOLATION_MEASURE_TOLERANCE
+      );
+    },
   );
   if (blocking.length > 0) {
     throw new ProjectEditorCommandError(blocking[0]!.message, blocking);
@@ -1108,7 +1431,7 @@ function replaceGeometryPattern(
   previousPattern: LayerPattern,
   nextPattern: LayerPattern,
 ): Project {
-  validateGeometryOrThrow(project, nextPattern);
+  validateGeometryOrThrow(project, nextPattern, previousPattern);
   return replacePattern(project, solutionId, previousPattern, nextPattern);
 }
 
@@ -1226,14 +1549,14 @@ function insertionPosition(
       candidate,
       project.package.dimensionsMm,
     );
-    if (!rectangleBoundsContain(envelope, physical)) continue;
+    if (!editorBoundsContain(envelope, physical)) continue;
     const clearanceBounds = placementClearanceBounds(
       candidate,
       project.package.dimensionsMm,
       clearance,
     );
     const collides = pattern.placements.some((placement) =>
-      rectangleBoundsOverlap(
+      editorBoundsOverlap(
         clearanceBounds,
         placementClearanceBounds(
           placement,
@@ -1542,6 +1865,19 @@ function orderDirection(project: Project) {
   );
 }
 
+/** Row/half layout for the automatic order, see `compareGripsByLayerRows`. */
+function patternOrderLayout(
+  project: Project,
+  placements: readonly PackagePlacement[],
+): GripOrderLayout | null {
+  return createGripOrderLayout(
+    placements.map((placement) => ({
+      gripId: placement.gripId,
+      ...placementRectangleBounds(placement, project.package.dimensionsMm),
+    })),
+  );
+}
+
 function groupAsRobotGroup(group: ProjectEditorGroup): RobotGripGroup {
   return {
     id: group.id,
@@ -1625,6 +1961,7 @@ export function projectEditorOrderModel(
     })),
     orderDirection(project),
     order,
+    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
   );
   return {
     groups: groups
@@ -1649,6 +1986,9 @@ export function suggestProjectEditorOrder(
   diagnostics: readonly ProjectEditorDiagnostic[];
 } {
   const model = projectEditorOrderModel(project, solutionId, patternId);
+  const { pattern } = context(project, solutionId, patternId);
+  // Same working grips (and ids) as the order model.
+  const workingPattern = ensurePatternGroups(project, pattern);
   const suggestion = suggestRobotOrder(
     model.groups.map(groupAsRobotGroup),
     model.dependencies.map((dependency) => ({
@@ -1657,6 +1997,8 @@ export function suggestProjectEditorOrder(
       source: dependency.source,
     })),
     orderDirection(project),
+    undefined,
+    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
   );
   return {
     order: suggestion.order,
@@ -1689,7 +2031,7 @@ export function validateProjectPattern(
     ),
   }));
   for (const entry of boundsEntries) {
-    if (envelope && !rectangleBoundsContain(envelope, entry.physical)) {
+    if (envelope && !editorBoundsContain(envelope, entry.physical)) {
       diagnostics.push({
         severity: "error",
         code: "placement-out-of-bounds",
@@ -1706,7 +2048,7 @@ export function validateProjectPattern(
     ) {
       const left = boundsEntries[leftIndex]!;
       const right = boundsEntries[rightIndex]!;
-      if (!rectangleBoundsOverlap(left.clearance, right.clearance)) continue;
+      if (!editorBoundsOverlap(left.clearance, right.clearance)) continue;
       diagnostics.push({
         severity: "error",
         code: "placement-overlap",
@@ -1854,6 +2196,39 @@ export function validateProjectEditor(
   ];
 }
 
+/**
+ * Dry run of "create grip from selection": the diagnostic that would reject
+ * it, or null when the selection forms a valid grip (or is empty).
+ */
+export function previewGripFromSelection(
+  project: Project,
+  solutionId: string,
+  patternId: string,
+  placementIds: readonly string[],
+): ProjectEditorDiagnostic | null {
+  if (placementIds.length === 0) return null;
+  try {
+    applyProjectEditorCommand(project, {
+      type: "create-group",
+      mode: "order",
+      solutionId,
+      patternId,
+      placementIds,
+    });
+    return null;
+  } catch (cause) {
+    if (!(cause instanceof ProjectEditorCommandError)) throw cause;
+    return (
+      cause.diagnostics[0] ?? {
+        severity: "error",
+        code: "invalid-group-geometry",
+        message: cause.message,
+        placementIds,
+      }
+    );
+  }
+}
+
 export function describeProjectEditorCommand(
   command: ProjectEditorCommand,
 ): string {
@@ -1882,6 +2257,8 @@ export function describeProjectEditorCommand(
       return "Split grip group";
     case "merge-groups":
       return "Merge grip groups";
+    case "recalculate-groups":
+      return "Recalculate grip groups";
     case "reorder-group":
       return "Reorder grip group";
     case "apply-suggested-order":
@@ -2190,7 +2567,7 @@ export function applyProjectEditorCommand(
           };
         }),
       };
-      validateGeometryOrThrow(project, nextPattern);
+      validateGeometryOrThrow(project, nextPattern, previousPattern);
       return replacePattern(
         project,
         command.solutionId,
@@ -2336,6 +2713,33 @@ export function applyProjectEditorCommand(
         command.solutionId,
         previousPattern,
         mergeGroups(project, previousPattern, command.gripIds),
+      );
+    }
+    case "recalculate-groups": {
+      // Discards manual grips and their explicit order so the automatic
+      // calculation starts from the current package geometry. The cleared
+      // pattern is also the sync baseline, so recalculated grips with
+      // unchanged ids keep no old pick or dx/dy data. The optimizer may slide
+      // packages, so the result must pass the same geometry rule as a move.
+      const ungrouped: LayerPattern = {
+        ...previousPattern,
+        grips: [],
+        placements: previousPattern.placements.map((placement) => ({
+          ...placement,
+          gripId: null,
+        })),
+        groupOrder: [],
+        orderDependencies: [],
+      };
+      const recalculated = ensurePatternGroups(project, ungrouped, {
+        allowShift: true,
+      });
+      validateGeometryOrThrow(project, recalculated, previousPattern);
+      return replacePattern(
+        project,
+        command.solutionId,
+        ungrouped,
+        recalculated,
       );
     }
     case "reorder-group": {

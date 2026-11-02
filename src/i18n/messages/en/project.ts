@@ -135,6 +135,16 @@ export const projectEn = {
   "project.download.noStack":
     "Save a stack for this project before downloading a .rob plan.",
   "project.download.exportFailed": "The .rob plan could not be exported.",
+  "project.download.unassignedPackages":
+    "{count} package(s) belong to no grip. Form grips for all packages first.",
+  "project.download.interlayerThickness":
+    ".rob stores only the number of interlayers (3 mm each). Interlayers of another thickness cannot be exported as .rob.",
+  "project.download.wholeMillimetres":
+    ".rob stores whole millimetres only, but grip G{group} is at X {x} / Y {y}. Move it to whole millimetres in the editor.",
+  "project.download.pickWholeMillimetres":
+    ".rob stores whole millimetres only, but the pick point of grip G{group} is at X {x} / Y {y}. It follows from the grip's size and composition; form the grip differently, e.g. with another package count.",
+  "project.download.packageCountMismatch":
+    "The generated .rob contains {exported} instead of {expected} packages.",
   // Sheet extraction
   "project.sheet.extractionFailed": "Sheet extraction failed ({status}).",
   // Project library

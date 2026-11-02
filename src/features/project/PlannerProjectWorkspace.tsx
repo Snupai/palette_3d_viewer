@@ -475,6 +475,9 @@ export function PlannerProjectWorkspace({
     setSelectedProject(saved);
     setEditorDraftProject(null);
     setEditorDirty(false);
+    // The saved project is now the plan: drop a candidate preview so the
+    // viewer, report and downloads all show the saved geometry.
+    setSelectedCandidateId(null);
     if (switchedProject) {
       setActiveStage(planningStageForProject(saved));
       setActiveTool(null);
