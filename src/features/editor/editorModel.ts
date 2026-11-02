@@ -756,6 +756,7 @@ function automaticPlacementGroups(
     // place or pick point would fall between millimetres is never formed.
     ...(project.source.kind === "rob-import"
       ? {
+          offsetGridMm: 0.5,
           chunkAllowed: (members: readonly GripOptimizerPlacement[]) => {
             const byId = new Map(
               pattern.placements.map((placement) => [placement.id, placement]),

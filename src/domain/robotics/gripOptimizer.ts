@@ -57,6 +57,11 @@ export type GripOptimizerOptions = {
    * A rejected chunk is not formed, so the line is split differently.
    */
   chunkAllowed?: (members: readonly GripOptimizerPlacement[]) => boolean;
+  /**
+   * With `chunkAllowed`, slide offsets on this grid are tried after the
+   * cheapest ones, so a valid position between them is not missed.
+   */
+  offsetGridMm?: number;
 };
 
 export type GripOptimizerResult = {
@@ -342,11 +347,28 @@ function optimizeOnce(
       // Between equally cheap offsets keep the chunk toward the line's
       // nearer outer end, so the outer package stays where it is.
       const nearStart = start <= line.length - (start + size);
+      const byShift = (left: number, right: number) =>
+        totalShift(left) - totalShift(right) ||
+        (nearStart ? left - right : right - left);
       const offsets = [...new Set([low, high, ...bases.map(clamp)])].sort(
-        (left, right) =>
-          totalShift(left) - totalShift(right) ||
-          (nearStart ? left - right : right - left),
+        byShift,
       );
+      // With a chunk rule (e.g. whole-millimetre grips) the cheapest offsets
+      // may all be rejected; then try the grid inside the same interval.
+      const grid = options.offsetGridMm;
+      if (options.chunkAllowed && grid && grid > 0) {
+        const tried = new Set(offsets);
+        const extra: number[] = [];
+        for (
+          let step = Math.ceil((low - tolerance) / grid);
+          step * grid <= high + tolerance && extra.length < 4096;
+          step += 1
+        ) {
+          const offset = clamp(step * grid);
+          if (!tried.has(offset)) extra.push(offset);
+        }
+        offsets.push(...extra.sort(byShift));
+      }
       for (const offset of offsets) {
         const plan = exactContactPlan(
           members.map(({ axis }) => axis),

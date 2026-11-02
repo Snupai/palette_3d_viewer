@@ -781,6 +781,19 @@ describe("Project editor pattern geometry", () => {
     expect(sliding.placements.map(({ positionMm }) => positionMm.x)).toEqual([
       160, 261, 362, 60, 550,
     ]);
+
+    // All cheapest slides of three spread packages land on half millimetres;
+    // a whole-millimetre slide inside the same range is found instead.
+    const spread = recalculate(
+      importedLine([
+        { x: 150.5, y: 200 },
+        { x: 260.5, y: 200 },
+        { x: 370.5, y: 200 },
+        { x: 60, y: 400 },
+        { x: 550, y: 400 },
+      ]),
+    );
+    expect(gripSummary(spread)).toEqual(["1@550,400", "1@60,400", "3@260,200"]);
   });
 
   it("keeps automatic grips of imported plans on whole millimetres", () => {
