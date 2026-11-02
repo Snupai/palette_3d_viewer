@@ -27,7 +27,11 @@ ort.env.wasm.wasmPaths = { wasm: "/ort/ort-wasm-simd-threaded.jsep.wasm" };
 ort.env.wasm.numThreads = 1;
 
 let session: ort.InferenceSession | null = null;
+let backend: DocAlignerBackend | null = null;
+let model: ArrayBuffer | null = null;
 let loading: Promise<void> | null = null;
+/** Detections run one after another: a session must not run twice at once. */
+let queue: Promise<void> = Promise.resolve();
 
 function post(message: DocAlignerResponse) {
   self.postMessage(message);
@@ -43,27 +47,51 @@ function blankInput(): ort.Tensor {
   ]);
 }
 
-async function createSession(
-  model: ArrayBuffer,
-): Promise<{ session: ort.InferenceSession; backend: DocAlignerBackend }> {
-  if ("gpu" in navigator) {
-    try {
-      return {
-        session: await ort.InferenceSession.create(model, {
-          executionProviders: ["webgpu"],
-        }),
-        backend: "webgpu",
-      };
-    } catch {
-      // No usable adapter (or WebGPU off): fall through to WebAssembly.
-    }
+/**
+ * A session on `provider` that has completed one run (which compiles the
+ * WebGPU shaders), with the time each step took.
+ */
+async function warmSession(provider: DocAlignerBackend, bytes: ArrayBuffer) {
+  const start = performance.now();
+  const created = await ort.InferenceSession.create(bytes, {
+    executionProviders: [provider],
+  });
+  const sessionMs = performance.now() - start;
+  try {
+    await created.run({ img: blankInput() });
+  } catch (error) {
+    await created.release().catch(() => undefined);
+    throw error;
   }
   return {
-    session: await ort.InferenceSession.create(model, {
-      executionProviders: ["wasm"],
-    }),
-    backend: "wasm",
+    session: created,
+    sessionMs,
+    warmupMs: performance.now() - start - sessionMs,
   };
+}
+
+/** WebGPU when it both starts and runs, otherwise WebAssembly. */
+async function startSession(bytes: ArrayBuffer, downloadMs: number) {
+  let started: Awaited<ReturnType<typeof warmSession>> | null = null;
+  let provider: DocAlignerBackend = "wasm";
+  if ("gpu" in navigator) {
+    try {
+      started = await warmSession("webgpu", bytes);
+      provider = "webgpu";
+    } catch {
+      // No usable adapter, or its shaders fail: fall back to WebAssembly.
+    }
+  }
+  started ??= await warmSession("wasm", bytes);
+  session = started.session;
+  backend = provider;
+  post({
+    type: "loaded",
+    backend: provider,
+    downloadMs,
+    sessionMs: started.sessionMs,
+    warmupMs: started.warmupMs,
+  });
 }
 
 async function load() {
@@ -71,19 +99,25 @@ async function load() {
   const response = await fetch(MODEL_URL);
   if (!response.ok)
     throw new Error(`Model download failed (${response.status})`);
-  const model = await response.arrayBuffer();
-  const downloaded = performance.now();
-  const created = await createSession(model);
-  const sessionMs = performance.now() - downloaded;
-  const warmupStart = performance.now();
-  await created.session.run({ img: blankInput() });
-  session = created.session;
+  model = await response.arrayBuffer();
+  await startSession(model, performance.now() - start);
+}
+
+/** After a WebGPU run fails, continue on WebAssembly (once). */
+async function switchToWasm() {
+  const failed = session;
+  session = null;
+  await failed?.release().catch(() => undefined);
+  if (!model) throw new Error("Model not loaded");
+  const started = await warmSession("wasm", model);
+  session = started.session;
+  backend = "wasm";
   post({
     type: "loaded",
-    backend: created.backend,
-    downloadMs: downloaded - start,
-    sessionMs,
-    warmupMs: performance.now() - warmupStart,
+    backend: "wasm",
+    downloadMs: 0,
+    sessionMs: started.sessionMs,
+    warmupMs: started.warmupMs,
   });
 }
 
@@ -147,14 +181,24 @@ self.onmessage = (event: MessageEvent<DocAlignerRequest>) => {
     });
     return;
   }
-  detect(request.id, request.frame, request.decodeSize).catch(
-    (error: unknown) => {
-      request.frame.close();
-      post({
-        type: "detectFailed",
-        id: request.id,
-        message: error instanceof Error ? error.message : String(error),
-      });
-    },
+  queue = queue.then(() =>
+    detect(request.id, request.frame, request.decodeSize).catch(
+      async (error: unknown) => {
+        request.frame.close();
+        if (backend === "webgpu") {
+          await switchToWasm().catch((cause: unknown) => {
+            post({
+              type: "loadFailed",
+              message: cause instanceof Error ? cause.message : String(cause),
+            });
+          });
+        }
+        post({
+          type: "detectFailed",
+          id: request.id,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      },
+    ),
   );
 };

@@ -61,7 +61,7 @@ export class DocAlignerClient {
     this.send({ type: "load" });
   }
 
-  /** A detection is running. */
+  /** A detection is running or queued (live preview or capture). */
   get busy(): boolean {
     return this.pending.size > 0;
   }
@@ -86,8 +86,10 @@ export class DocAlignerClient {
     this.worker.postMessage(request);
   }
 
+  /** Gives up on the model: the worker and its sessions are released. */
   private fail(message: string) {
     this.status = "failed";
+    this.worker.terminate();
     for (const { reject } of this.pending.values()) reject(new Error(message));
     this.pending.clear();
   }

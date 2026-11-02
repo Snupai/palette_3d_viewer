@@ -273,8 +273,8 @@ export function DocumentCamera({
       since: number,
     ) => {
       if (stopped) return;
-      if (detected)
-        lastHitRef.current = { quad: detected, at: performance.now() };
+      // Stamped with the time the frame was taken, not when the result came.
+      if (detected) lastHitRef.current = { quad: detected, at: since };
       tracker = trackQuad(tracker, detected);
       setQuad(tracker.quad);
       const now = performance.now();
@@ -304,7 +304,8 @@ export function DocumentCamera({
         update(classic(), "classic", since);
         return;
       }
-      if (inFlight) return;
+      // Skip frames while a detection (live or capture) is still running.
+      if (inFlight || aligner.busy) return;
       inFlight = true;
       createImageBitmap(video)
         .then((frame) => aligner.detect(frame, LIVE_DECODE_SIZE))
