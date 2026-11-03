@@ -321,30 +321,67 @@ Status: geplant · Aufwand: L · Abhängigkeit: M8
 
 Ziel ist ein ausschließlich lokal betriebener Server im Werksnetz (LAN), über den
 mehrere angemeldete Benutzer gemeinsame Projekte nutzen. Kein Cloud-Hosting,
-keine öffentliche Erreichbarkeit.
+keine Erreichbarkeit aus dem Internet. Die verbindlichen Entscheidungen stehen
+in [`docs/adr/`](docs/adr/), Fachbegriffe wie „Werkskatalog“ in
+[`GLOSSARY.md`](GLOSSARY.md).
 
 Umfang:
 
-- SQLite-Datenbank mit Drizzle als Schema-, Migrations- und Abfrageschicht;
+- ein einzelner Host mit SQLite im WAL-Modus unter `PALETTE_DB_PATH`, Drizzle
+  als Schema-, Migrations- und Abfrageschicht; keine verteilten Schreibinstanzen
+  ([ADR 0001](docs/adr/0001-local-sqlite-server.md));
+- eine generische Tabelle für JSON-Datensätze; der Server prüft Stores, IDs,
+  Berechtigungen, erwartete Version, JSON-Struktur und Größenlimits, die
+  fachliche Zod-Validierung bleibt im Client
+  ([ADR 0004](docs/adr/0004-generic-planner-records.md));
 - Next.js-Route-Handler als schmale API für Projekt- und Ressourcendatensätze;
-- Anmeldung mit argon2-gehashten Passwörtern und httpOnly-Session-Cookie;
+- Projekte und Werkskatalog sind ohne Anmeldung lesbar, durchsuchbar und
+  exportierbar; Ändern und Löschen dürfen nur Ersteller und Admin, den
+  Werkskatalog nur Admins; andere Benutzer speichern eine eigene Kopie
+  ([ADR 0003](docs/adr/0003-public-project-reading.md));
+- lokale Benutzerkonten mit argon2-gehashten Passwörtern und httpOnly-Session-
+  Cookie, das außerhalb von `localhost` immer `Secure` ist und HTTPS erfordert
+  ([ADR 0008](docs/adr/0008-https-authentication.md));
+- der Admin wird per lokalem Verwaltungsbefehl angelegt bzw. zurückgesetzt,
+  keine öffentliche Erstregistrierung; weitere Benutzer legt der Admin an
+  ([ADR 0005](docs/adr/0005-admin-initialization.md));
+- Schreiben und Löschen prüfen atomar die erwartete Version; Konflikte ergeben
+  409 und eine Vergleichsansicht statt stiller Überschreibung
+  ([ADR 0006](docs/adr/0006-optimistic-concurrency.md));
 - clientseitiger `ServerPlannerRecordStorage` implementiert über diese
   Route-Handler die bestehende Schnittstelle `PlannerRecordStorage` aus
   `src/lib/projectRepository.ts`, sodass `ProjectRepository` und die Workspaces
   unverändert bleiben;
-- `IndexedDbPlannerRecordStorage` bleibt voll funktionsfähig und Standard; der
-  Serverspeicher wird nur bei konfiguriertem lokalem Backend aktiv.
+- expliziter Speichermodus: entweder IndexedDB (Standard) oder Server, ohne
+  automatischen Wechsel und ohne Offline-Synchronisierung; ungespeicherte
+  Serverentwürfe werden lokal je Server, Benutzer und Projekt gesichert
+  ([ADR 0002](docs/adr/0002-explicit-storage-mode.md));
+- ausdrücklicher, wiederholbarer Import des bisherigen Browserbestands nach
+  Anmeldung mit Übersicht und Bestätigung der Veröffentlichung
+  ([ADR 0007](docs/adr/0007-explicit-local-import.md));
+- als letzter Schritt stündliche konsistente SQLite-Backups mit sieben Tagen
+  Aufbewahrung und Wiederherstellungstest
+  ([ADR 0001](docs/adr/0001-local-sqlite-server.md)).
+
+Die Umsetzung ist in kleine Issues mit dem Label `area:backend` geschnitten
+(#23–#38).
 
 Spätere Schritte:
 
 - Revisionen bzw. Versionsverlauf je Projekt;
+- feldweises Zusammenführen bei Versionskonflikten;
 - Freigabelinks für einzelne Projekte innerhalb des LAN;
-- Rollen (z. B. lesen, bearbeiten, verwalten).
+- Rollen (z. B. lesen, bearbeiten, verwalten);
+- Anmeldung mit Windows-/Domänen- oder Microsoft-365-Konten, sobald die
+  Firmenidentitätsinfrastruktur geklärt ist.
 
 Exit-Kriterien:
 
-- Zwei Benutzer an verschiedenen Rechnern im LAN sehen nach Anmeldung dieselben
-  Projekte; ohne Anmeldung ist kein Datensatz lesbar.
+- Zwei Benutzer an verschiedenen Rechnern im LAN sehen dieselben Projekte;
+  ohne Anmeldung sind Projekte und Werkskatalog nur lesbar, Kontodaten und
+  interne Verwaltungsdaten gar nicht.
+- Parallele Bearbeitung desselben Projekts führt zu einem sichtbaren Konflikt,
+  nie zu einer stillen Überschreibung.
 - Ohne konfiguriertes Backend verhält sich die App unverändert wie mit
   IndexedDB.
 - Speicher-Contract-Tests laufen gegen IndexedDB-, Memory- und Server-Speicher.
