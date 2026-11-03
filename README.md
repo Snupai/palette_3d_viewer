@@ -115,6 +115,21 @@ without contacting Ollama. The value is inlined at build time, so set it for
 (`SHEET_CORPUS_DIR`). It accepts only plain, regular files directly inside that
 folder and writes its report there without following links.
 
+## Storage mode
+
+Plans are stored in exactly one place, chosen at build time (ADR 0002):
+
+- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local` (default) keeps everything in the
+  browser's IndexedDB, as before.
+- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server with the SQLite
+  database at `PALETTE_DB_PATH` (ADR 0001). The server client is not
+  implemented yet, so storage operations fail with
+  `ServerStorageNotImplementedError`.
+
+An unreachable server or an expired session never switches to IndexedDB.
+`createPlannerRecordStorage()` in `src/lib/plannerStorageFactory.ts` is the only
+place that maps the mode to a storage.
+
 ## Supported `.rob` invariants
 
 - Blank lines are positionally significant and are preserved while parsing.
