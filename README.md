@@ -24,6 +24,8 @@ The prioritized path from the current `.rob` viewer/editor to a complete
 pallet planner is documented in [ROADMAP.md](ROADMAP.md). It includes a planned,
 local-only backend (SQLite, user accounts on the plant LAN); browser-local
 IndexedDB storage stays the default.
+Decisions for that backend are recorded as ADRs in [docs/adr/](docs/adr/);
+domain terms are defined in [GLOSSARY.md](GLOSSARY.md).
 The evolving reference-case scorecard is documented in
 [docs/PARITY.md](docs/PARITY.md).
 The versioned planning domain and its `.rob` compatibility mapping are

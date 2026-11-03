@@ -29,6 +29,14 @@ project on its last completed step, not on Inputs. Editor, Robotics, and
 Simulation are gated by `productionToolGate` in `planningCaseModel.ts` — the
 single prerequisite map; do not duplicate gating inside tool overlays.
 
+## Decisions and Glossary
+
+Architecture decisions for the planned local LAN backend (roadmap M9) live in
+`docs/adr/` (0001 SQLite single host … 0008 HTTPS). Follow them; changing one
+means writing a new ADR, not silently diverging. Domain terms (e.g.
+„Werkskatalog“) are defined in `GLOSSARY.md` — use them consistently in code,
+UI, and docs.
+
 ## Commands
 
 | Purpose                                                   | Command                                                                    |
