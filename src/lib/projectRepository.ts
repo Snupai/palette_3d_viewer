@@ -248,7 +248,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
     );
   }
 
-  put(
+  async put(
     storeName: PlannerStoreName,
     record: unknown,
     options?: RecordWriteOptions,

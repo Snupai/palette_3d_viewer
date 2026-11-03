@@ -5,7 +5,10 @@ import {
   PROJECT_RESOURCES_STORE_NAME,
   type PlannerStoreName,
 } from "~/lib/plannerDatabase";
-import type { PlannerRecordStorage } from "~/lib/projectRepository";
+import {
+  RecordVersionConflictError,
+  type PlannerRecordStorage,
+} from "~/lib/projectRepository";
 
 /**
  * Creates a fresh, empty storage. Called once per test, so implementations
@@ -28,6 +31,17 @@ function sortById(records: readonly unknown[]): ContractRecord[] {
   );
 }
 
+async function conflictOf(
+  operation: Promise<unknown>,
+): Promise<RecordVersionConflictError> {
+  const error: unknown = await operation.then(
+    () => null,
+    (cause: unknown) => cause,
+  );
+  expect(error).toBeInstanceOf(RecordVersionConflictError);
+  return error as RecordVersionConflictError;
+}
+
 /**
  * Shared behaviour every {@link PlannerRecordStorage} implementation must
  * satisfy (IndexedDB, memory and — roadmap M9 — the server client).
@@ -35,6 +49,9 @@ function sortById(records: readonly unknown[]): ContractRecord[] {
  * Record order from `list` is not part of the contract, so assertions sort by
  * id. Records are opaque to storage: whatever is put comes back structurally
  * equal, and neither the input nor returned values alias the stored copy.
+ * Versions are tracked beside records, never inside them; a write or delete
+ * whose `expectedVersion` does not match rejects with
+ * `RecordVersionConflictError` and leaves the stored record untouched.
  *
  * Call it inside a test file; extend it by adding further `describe` blocks
  * here so every implementation picks them up.
@@ -224,6 +241,167 @@ export function describePlannerRecordStorageContract(
         expect(
           await storage.get(PROJECT_RESOURCES_STORE_NAME, "shared"),
         ).toEqual({ id: "shared", value: 2 });
+      });
+    });
+
+    describe("record versions (ADR 0006)", () => {
+      it("starts at version 1 and increments on every put", async () => {
+        const storage = await create();
+        expect(await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 })).toBe(
+          1,
+        );
+        expect(await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 2 })).toBe(
+          2,
+        );
+        expect(await storage.getVersioned(PROJECTS_STORE_NAME, "a")).toEqual({
+          record: { id: "a", n: 2 },
+          version: 2,
+        });
+        expect(await storage.getVersioned(PROJECTS_STORE_NAME, "b")).toBe(
+          undefined,
+        );
+        expect(await storage.list(PROJECTS_STORE_NAME)).toEqual([
+          { id: "a", n: 2 },
+        ]);
+      });
+
+      it("keeps versions per store", async () => {
+        const storage = await create();
+        await storage.put(PROJECTS_STORE_NAME, { id: "a" });
+        await storage.put(PROJECTS_STORE_NAME, { id: "a" });
+        expect(
+          await storage.put(PROJECT_RESOURCES_STORE_NAME, { id: "a" }),
+        ).toBe(1);
+      });
+
+      it("writes when the expected version matches", async () => {
+        const storage = await create();
+        expect(
+          await storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 1 },
+            { expectedVersion: null },
+          ),
+        ).toBe(1);
+        expect(
+          await storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 2 },
+            { expectedVersion: 1 },
+          ),
+        ).toBe(2);
+        expect(await storage.get(PROJECTS_STORE_NAME, "a")).toEqual({
+          id: "a",
+          n: 2,
+        });
+      });
+
+      it("rejects a stale put without overwriting the stored record", async () => {
+        const storage = await create();
+        await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 });
+        await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 2 });
+        const error = await conflictOf(
+          storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 3 },
+            { expectedVersion: 1 },
+          ),
+        );
+        expect([
+          error.name,
+          error.storeName,
+          error.id,
+          error.expectedVersion,
+          error.actualVersion,
+          error.message,
+        ]).toEqual([
+          "RecordVersionConflictError",
+          PROJECTS_STORE_NAME,
+          "a",
+          1,
+          2,
+          'Record "a" in "projects" is at version 2, expected 1.',
+        ]);
+        expect(await storage.getVersioned(PROJECTS_STORE_NAME, "a")).toEqual({
+          record: { id: "a", n: 2 },
+          version: 2,
+        });
+      });
+
+      it("rejects a create-only put when the record exists", async () => {
+        const storage = await create();
+        await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 });
+        const error = await conflictOf(
+          storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 2 },
+            { expectedVersion: null },
+          ),
+        );
+        expect([error.expectedVersion, error.actualVersion]).toEqual([null, 1]);
+        expect(await storage.get(PROJECTS_STORE_NAME, "a")).toEqual({
+          id: "a",
+          n: 1,
+        });
+      });
+
+      it("rejects a versioned put on a missing record", async () => {
+        const storage = await create();
+        const error = await conflictOf(
+          storage.put(PROJECTS_STORE_NAME, { id: "a" }, { expectedVersion: 1 }),
+        );
+        expect([error.expectedVersion, error.actualVersion]).toEqual([1, null]);
+        expect(await storage.list(PROJECTS_STORE_NAME)).toEqual([]);
+      });
+
+      it("deletes only at the expected version", async () => {
+        const storage = await create();
+        await storage.put(PROJECTS_STORE_NAME, { id: "a" });
+        await storage.put(PROJECTS_STORE_NAME, { id: "a" });
+        const error = await conflictOf(
+          storage.delete(PROJECTS_STORE_NAME, "a", { expectedVersion: 1 }),
+        );
+        expect([error.expectedVersion, error.actualVersion]).toEqual([1, 2]);
+        expect(await storage.get(PROJECTS_STORE_NAME, "a")).toEqual({
+          id: "a",
+        });
+
+        await storage.delete(PROJECTS_STORE_NAME, "a", { expectedVersion: 2 });
+        expect(await storage.get(PROJECTS_STORE_NAME, "a")).toBe(undefined);
+      });
+
+      it("rejects a versioned delete of a missing record", async () => {
+        const storage = await create();
+        const error = await conflictOf(
+          storage.delete(PROJECTS_STORE_NAME, "a", { expectedVersion: 3 }),
+        );
+        expect([error.expectedVersion, error.actualVersion]).toEqual([3, null]);
+        await storage.delete(PROJECTS_STORE_NAME, "a", {
+          expectedVersion: null,
+        });
+        await storage.delete(PROJECTS_STORE_NAME, "a");
+        expect(await storage.list(PROJECTS_STORE_NAME)).toEqual([]);
+      });
+
+      it("continues counting after a delete so stale versions stay stale", async () => {
+        const storage = await create();
+        await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 });
+        await storage.delete(PROJECTS_STORE_NAME, "a");
+        expect(
+          await storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 2 },
+            { expectedVersion: null },
+          ),
+        ).toBe(2);
+        const error = await conflictOf(
+          storage.put(
+            PROJECTS_STORE_NAME,
+            { id: "a", n: 3 },
+            { expectedVersion: 1 },
+          ),
+        );
+        expect([error.expectedVersion, error.actualVersion]).toEqual([1, 2]);
       });
     });
 
