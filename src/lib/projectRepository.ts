@@ -20,6 +20,7 @@ import { savedPalletToProject } from "~/lib/projectAdapters";
 import {
   LEGACY_MIGRATIONS_STORE_NAME,
   PALLETS_STORE_NAME,
+  PLANNER_STORE_NAMES,
   PROJECTS_STORE_NAME,
   PROJECT_QUARANTINE_STORE_NAME,
   PROJECT_RESOURCES_STORE_NAME,
@@ -161,14 +162,7 @@ export class MemoryPlannerRecordStorage implements PlannerRecordStorage {
   constructor(
     initial: Partial<Record<PlannerStoreName, readonly unknown[]>> = {},
   ) {
-    const names: PlannerStoreName[] = [
-      PALLETS_STORE_NAME,
-      PROJECTS_STORE_NAME,
-      PROJECT_RESOURCES_STORE_NAME,
-      PROJECT_QUARANTINE_STORE_NAME,
-      LEGACY_MIGRATIONS_STORE_NAME,
-    ];
-    names.forEach((name) => {
+    PLANNER_STORE_NAMES.forEach((name) => {
       const records = new Map<string, unknown>();
       for (const value of initial[name] ?? []) {
         const id = recordId(value);
