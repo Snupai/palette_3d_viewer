@@ -327,9 +327,11 @@ in [`docs/adr/`](docs/adr/), Fachbegriffe wie „Werkskatalog“ in
 
 Umfang:
 
-- ein einzelner Host mit SQLite im WAL-Modus unter `PALETTE_DB_PATH`, Drizzle
-  als Schema-, Migrations- und Abfrageschicht; keine verteilten Schreibinstanzen
-  ([ADR 0001](docs/adr/0001-local-sqlite-server.md));
+- ein einzelner Host mit PostgreSQL als Container (`compose.yaml`, Docker oder
+  Podman) unter `DATABASE_URL`, Drizzle als Schema-, Migrations- und
+  Abfrageschicht; keine verteilten Schreibinstanzen; Tests laufen ohne
+  Container gegen PGlite
+  ([ADR 0009](docs/adr/0009-postgres-container.md), ersetzt ADR 0001);
 - eine generische Tabelle für JSON-Datensätze; der Server prüft Stores, IDs,
   Berechtigungen, erwartete Version, JSON-Struktur und Größenlimits, die
   fachliche Zod-Validierung bleibt im Client
@@ -359,9 +361,9 @@ Umfang:
 - ausdrücklicher, wiederholbarer Import des bisherigen Browserbestands nach
   Anmeldung mit Übersicht und Bestätigung der Veröffentlichung
   ([ADR 0007](docs/adr/0007-explicit-local-import.md));
-- als letzter Schritt stündliche konsistente SQLite-Backups mit sieben Tagen
+- als letzter Schritt stündliche konsistente `pg_dump`-Backups mit sieben Tagen
   Aufbewahrung und Wiederherstellungstest
-  ([ADR 0001](docs/adr/0001-local-sqlite-server.md)).
+  ([ADR 0009](docs/adr/0009-postgres-container.md)).
 
 Die Umsetzung ist in kleine Issues mit dem Label `area:backend` geschnitten
 (#23–#38).
