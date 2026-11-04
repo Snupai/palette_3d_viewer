@@ -143,7 +143,9 @@ bun run stack:down            # stop everything; data stays in the volume
 ```
 
 All ports are bound to `127.0.0.1` (`PALETTE_APP_PORT`, `PALETTE_DB_PORT`);
-LAN exposure needs HTTPS first (ADR 0008). The storage mode is a build arg and
+LAN exposure needs HTTPS first (ADR 0008). Set `PALETTE_DB_PASSWORD` for any
+shared installation; it goes verbatim into `DATABASE_URL`, so keep it URL-safe
+(`A-Z a-z 0-9 - . _ ~`). The storage mode is a build arg and
 stays `local` until the server storage client exists; rebuild with
 `PALETTE_STORAGE_MODE=server bun run stack:up` to switch later. `OLLAMA_URL`
 and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use

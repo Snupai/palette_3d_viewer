@@ -10,7 +10,9 @@
 #
 # Set CONTAINER_ENGINE=podman for the bun scripts. Credentials match
 # DATABASE_URL in .env.example. Change PALETTE_DB_PASSWORD for any shared
-# installation.
+# installation. It is also placed verbatim into the services' DATABASE_URL, so
+# use URL-safe characters (A-Z a-z 0-9 - . _ ~) — `#`, `@`, `/`, `%` … would
+# break the URL and make `migrate` fail (compose cannot percent-encode).
 name: palette
 
 x-app-build: &app-build
