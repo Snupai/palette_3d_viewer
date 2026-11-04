@@ -14,6 +14,15 @@ export type PlannerStoreName =
   | typeof PROJECT_QUARANTINE_STORE_NAME
   | typeof LEGACY_MIGRATIONS_STORE_NAME;
 
+/** Every object store of the planner database, in schema order. */
+export const PLANNER_STORE_NAMES: readonly PlannerStoreName[] = [
+  PALLETS_STORE_NAME,
+  PROJECTS_STORE_NAME,
+  PROJECT_RESOURCES_STORE_NAME,
+  PROJECT_QUARANTINE_STORE_NAME,
+  LEGACY_MIGRATIONS_STORE_NAME,
+];
+
 const databasePromises = new WeakMap<IDBFactory, Promise<IDBDatabase>>();
 
 function ensureIndex(
