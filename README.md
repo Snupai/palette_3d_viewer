@@ -121,8 +121,8 @@ Plans are stored in exactly one place, chosen at build time (ADR 0002):
 
 - `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local` (default) keeps everything in the
   browser's IndexedDB, as before.
-- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server with the SQLite
-  database at `PALETTE_DB_PATH` (ADR 0001). The server client is not
+- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server backed by the
+  PostgreSQL container at `DATABASE_URL` (ADR 0009). The server client is not
   implemented yet, so storage operations fail with
   `ServerStorageNotImplementedError`.
 

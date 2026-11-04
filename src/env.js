@@ -15,11 +15,17 @@ export const env = createEnv({
     /** Concurrent sheet-extraction inferences per process; others get 429. */
     SHEET_EXTRACTION_MAX_CONCURRENT: z.coerce.number().int().min(1).default(1),
     /**
-     * SQLite database file for `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server`
-     * (ADR 0001). Ignored in `local` mode; checked by
-     * `resolveServerStorageConfig()` in `src/lib/storageMode.ts`.
+     * PostgreSQL connection URL for `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server`
+     * (ADR 0009). Ignored in `local` mode; `resolveServerStorageConfig()` in
+     * `src/lib/storageMode.ts` requires it in `server` mode.
      */
-    PALETTE_DB_PATH: z.string().optional(),
+    DATABASE_URL: z
+      .string()
+      .url()
+      .refine((value) => /^postgres(ql)?:\/\//.test(value), {
+        message: "DATABASE_URL must be a postgres:// or postgresql:// URL.",
+      })
+      .optional(),
   },
 
   /**
@@ -55,7 +61,7 @@ export const env = createEnv({
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
     SHEET_EXTRACTION_MAX_CONCURRENT:
       process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
-    PALETTE_DB_PATH: process.env.PALETTE_DB_PATH,
+    DATABASE_URL: process.env.DATABASE_URL,
     NEXT_PUBLIC_DISABLE_AI_FEATURES:
       process.env.NEXT_PUBLIC_DISABLE_AI_FEATURES,
     NEXT_PUBLIC_PALETTE_STORAGE_MODE:

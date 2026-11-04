@@ -12,8 +12,9 @@ export const DEFAULT_STORAGE_MODE: StorageMode = "local";
 
 /** Build-time switch, inlined into the client bundle. */
 export const STORAGE_MODE_ENV_VAR = "NEXT_PUBLIC_PALETTE_STORAGE_MODE";
-/** Server-only SQLite database path (ADR 0001); required in `server` mode. */
-export const DATABASE_PATH_ENV_VAR = "PALETTE_DB_PATH";
+/** Server-only PostgreSQL connection URL (ADR 0009); required in `server` mode. */
+export const DATABASE_URL_ENV_VAR = "DATABASE_URL";
+const POSTGRES_PROTOCOLS = new Set(["postgres:", "postgresql:"]);
 
 export const storageModeSchema = z.enum(STORAGE_MODES);
 
@@ -30,24 +31,39 @@ export class StorageConfigError extends Error {
 
 export type ServerStorageConfig = {
   mode: "server";
-  databasePath: string;
+  databaseUrl: string;
 };
+
+function isPostgresUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return POSTGRES_PROTOCOLS.has(url.protocol) && url.hostname !== "";
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Server-side view of the storage config. Returns `null` in `local` mode
  * (the server keeps no plan data) and fails loudly when `server` mode lacks a
- * database path instead of guessing one.
+ * PostgreSQL URL instead of guessing one. Error messages never echo the URL,
+ * which carries the database password.
  */
 export function resolveServerStorageConfig(input: {
   mode: StorageMode;
-  databasePath: string | undefined;
+  databaseUrl: string | undefined;
 }): ServerStorageConfig | null {
   if (input.mode === "local") return null;
-  const databasePath = input.databasePath?.trim() ?? "";
-  if (databasePath === "") {
+  const databaseUrl = input.databaseUrl?.trim() ?? "";
+  if (databaseUrl === "") {
     throw new StorageConfigError(
-      `${STORAGE_MODE_ENV_VAR}=server requires ${DATABASE_PATH_ENV_VAR} to point at the SQLite database file.`,
+      `${STORAGE_MODE_ENV_VAR}=server requires ${DATABASE_URL_ENV_VAR} (a postgres:// or postgresql:// connection URL).`,
     );
   }
-  return { mode: "server", databasePath };
+  if (!isPostgresUrl(databaseUrl)) {
+    throw new StorageConfigError(
+      `${DATABASE_URL_ENV_VAR} must be a postgres:// or postgresql:// URL.`,
+    );
+  }
+  return { mode: "server", databaseUrl };
 }

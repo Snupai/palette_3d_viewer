@@ -144,32 +144,51 @@ describe("createProjectRepository storage selection", () => {
 });
 
 describe("resolveServerStorageConfig", () => {
-  it("returns null in local mode even when a database path is set", () => {
+  const composeUrl = "postgresql://palette:palette@127.0.0.1:5432/palette";
+
+  it("returns null in local mode even when a database URL is set", () => {
     expect(
-      resolveServerStorageConfig({
-        mode: "local",
-        databasePath: "/var/lib/palette/palette.db",
-      }),
+      resolveServerStorageConfig({ mode: "local", databaseUrl: composeUrl }),
     ).toBeNull();
   });
 
-  it("returns the trimmed database path in server mode", () => {
+  it.each([
+    [`  ${composeUrl} `, composeUrl],
+    [
+      "postgres://palette:palette@db:5432/palette",
+      "postgres://palette:palette@db:5432/palette",
+    ],
+  ])("returns the trimmed database URL in server mode (%j)", (input, url) => {
     expect(
-      resolveServerStorageConfig({
-        mode: "server",
-        databasePath: "  /var/lib/palette/palette.db ",
-      }),
-    ).toEqual({ mode: "server", databasePath: "/var/lib/palette/palette.db" });
+      resolveServerStorageConfig({ mode: "server", databaseUrl: input }),
+    ).toEqual({ mode: "server", databaseUrl: url });
   });
 
   it.each([undefined, "", "   "])(
-    "rejects server mode without a database path (%j)",
-    (databasePath) => {
+    "rejects server mode without a database URL (%j)",
+    (databaseUrl) => {
       expect(() =>
-        resolveServerStorageConfig({ mode: "server", databasePath }),
+        resolveServerStorageConfig({ mode: "server", databaseUrl }),
       ).toThrow(
         new StorageConfigError(
-          "NEXT_PUBLIC_PALETTE_STORAGE_MODE=server requires PALETTE_DB_PATH to point at the SQLite database file.",
+          "NEXT_PUBLIC_PALETTE_STORAGE_MODE=server requires DATABASE_URL (a postgres:// or postgresql:// connection URL).",
+        ),
+      );
+    },
+  );
+
+  it.each([
+    "/var/lib/palette/palette.db",
+    "mysql://palette:secret@127.0.0.1:3306/palette",
+    "postgresql://",
+  ])(
+    "rejects a non-PostgreSQL database URL without echoing it (%j)",
+    (databaseUrl) => {
+      expect(() =>
+        resolveServerStorageConfig({ mode: "server", databaseUrl }),
+      ).toThrow(
+        new StorageConfigError(
+          "DATABASE_URL must be a postgres:// or postgresql:// URL.",
         ),
       );
     },
