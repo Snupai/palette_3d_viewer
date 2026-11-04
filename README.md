@@ -130,15 +130,36 @@ An unreachable server or an expired session never switches to IndexedDB.
 `createPlannerRecordStorage()` in `src/lib/plannerStorageFactory.ts` is the only
 place that maps the mode to a storage.
 
-### Database (server mode)
+### Running the full stack in containers
+
+One command starts PostgreSQL, applies the migrations (one-shot `migrate`
+service) and then the app, built from the multi-stage `Dockerfile` (Next.js
+standalone output, non-root runtime). Works with Docker Compose and Podman
+(`CONTAINER_ENGINE=podman` switches the scripts):
+
+```sh
+bun run stack:up              # docker compose up -d --build → http://127.0.0.1:3000
+bun run stack:down            # stop everything; data stays in the volume
+```
+
+All ports are bound to `127.0.0.1` (`PALETTE_APP_PORT`, `PALETTE_DB_PORT`);
+LAN exposure needs HTTPS first (ADR 0008). Set `PALETTE_DB_PASSWORD` for any
+shared installation; it goes verbatim into `DATABASE_URL`, so keep it URL-safe
+(`A-Z a-z 0-9 - . _ ~`). The storage mode is a build arg and
+stays `local` until the server storage client exists; rebuild with
+`PALETTE_STORAGE_MODE=server bun run stack:up` to switch later. `OLLAMA_URL`
+and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use
+`host.docker.internal` / `host.containers.internal` for an Ollama on the host).
+
+### Database only (development)
 
 `compose.yaml` starts PostgreSQL 17 (`docker.io/library/postgres:17`) with a
-named volume, bound to `127.0.0.1:5432` only. It works with Docker Compose and
-Podman (`CONTAINER_ENGINE=podman` switches the scripts):
+named volume, bound to `127.0.0.1:5432` only. For `bun run dev` start just the
+database:
 
 ```sh
 cp .env.example .env          # uncomment DATABASE_URL (matches the container)
-bun run db:up                 # docker compose up -d
+bun run db:up                 # docker compose up -d db
 bun run db:migrate            # apply drizzle/ migrations to DATABASE_URL
 bun run db:down               # stop; data stays in the volume
 ```

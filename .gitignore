@@ -62,3 +62,6 @@ yarn-error.log*
 
 # local tool state
 /.cursor/hooks/state/
+
+# bundled migration script (Dockerfile build stage)
+/dist/

@@ -1,15 +1,30 @@
-# PostgreSQL for server storage mode (ADR 0009). Works with `docker compose`
-# and `podman compose` (rootless too): the image is fully qualified and
-# major-pinned, data lives in a named volume, and the port is bound to
-# localhost only — never exposed to the plant network.
+# Full planner stack (ADR 0009, issue #49): PostgreSQL, a one-shot migration
+# run and the Next.js app. Works with `docker compose` and `podman compose`
+# (rootless too): images are fully qualified and major-pinned, data lives in a
+# named volume, and every port is bound to localhost only — never exposed to
+# the plant network (LAN access needs HTTPS first, ADR 0008).
 #
-#   bun run db:up       # or: podman compose up -d
-#   bun run db:migrate  # applies drizzle/ migrations to DATABASE_URL
-#   bun run db:down     # stops it; data stays in the volume
+#   bun run stack:up    # docker compose up -d --build → http://127.0.0.1:3000
+#   bun run stack:down  # stops everything; data stays in the volume
+#   bun run db:up       # only PostgreSQL, for `bun run dev` + `bun run db:migrate`
 #
-# Credentials match DATABASE_URL in .env.example. Change PALETTE_DB_PASSWORD
-# (and DATABASE_URL) for any shared installation.
+# Set CONTAINER_ENGINE=podman for the bun scripts. Credentials match
+# DATABASE_URL in .env.example. Change PALETTE_DB_PASSWORD for any shared
+# installation. It is also placed verbatim into the services' DATABASE_URL, so
+# use URL-safe characters (A-Z a-z 0-9 - . _ ~) — `#`, `@`, `/`, `%` … would
+# break the URL and make `migrate` fail (compose cannot percent-encode).
 name: palette
+
+x-app-build: &app-build
+  context: .
+  dockerfile: Dockerfile
+  args:
+    # Build-time switch (inlined into the client bundle). Stays `local`
+    # (IndexedDB) until the server storage client (#33) exists — `server`
+    # would make every storage call fail today. Flip it later with
+    #   PALETTE_STORAGE_MODE=server docker compose up -d --build
+    NEXT_PUBLIC_PALETTE_STORAGE_MODE: ${PALETTE_STORAGE_MODE:-local}
+    NEXT_PUBLIC_DISABLE_AI_FEATURES: ${PALETTE_DISABLE_AI_FEATURES:-}
 
 services:
   db:
@@ -28,6 +43,48 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+
+  # Applies drizzle/ migrations, then exits 0. Idempotent: runs on every `up`.
+  migrate:
+    build:
+      <<: *app-build
+      target: migrate
+    image: localhost/palette-migrate:latest
+    restart: "no"
+    environment:
+      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
+    depends_on:
+      db:
+        condition: service_healthy
+
+  app:
+    build:
+      <<: *app-build
+      target: runner
+    image: localhost/palette-app:latest
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
+      # Sheet-photo import (optional). Inside the container 127.0.0.1 is the
+      # container itself; point at the host, e.g.
+      # OLLAMA_URL=http://host.docker.internal:11434 (Podman: host.containers.internal).
+      OLLAMA_URL: ${OLLAMA_URL:-http://127.0.0.1:11434}
+      SHEET_EXTRACTION_MODEL: ${SHEET_EXTRACTION_MODEL:-qwen2.5vl:32b}
+    ports:
+      - "127.0.0.1:${PALETTE_APP_PORT:-3000}:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
 
 volumes:
   palette-db:
