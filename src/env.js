@@ -14,6 +14,18 @@ export const env = createEnv({
     SHEET_EXTRACTION_MODEL: z.string().default("qwen2.5vl:32b"),
     /** Concurrent sheet-extraction inferences per process; others get 429. */
     SHEET_EXTRACTION_MAX_CONCURRENT: z.coerce.number().int().min(1).default(1),
+    /**
+     * PostgreSQL connection URL for `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server`
+     * (ADR 0009). Ignored in `local` mode; `resolveServerStorageConfig()` in
+     * `src/lib/storageMode.ts` requires it in `server` mode.
+     */
+    DATABASE_URL: z
+      .string()
+      .url()
+      .refine((value) => /^postgres(ql)?:\/\//.test(value), {
+        message: "DATABASE_URL must be a postgres:// or postgresql:// URL.",
+      })
+      .optional(),
   },
 
   /**
@@ -29,6 +41,14 @@ export const env = createEnv({
     NEXT_PUBLIC_DISABLE_AI_FEATURES: z
       .enum(["true", "false", "1", "0"])
       .optional(),
+    /**
+     * Explicit storage mode (ADR 0002): `local` (default) keeps plans in the
+     * browser's IndexedDB, `server` uses the LAN server. No automatic fallback
+     * between them. Keep in sync with `STORAGE_MODES` in `src/lib/storageMode.ts`.
+     */
+    NEXT_PUBLIC_PALETTE_STORAGE_MODE: z
+      .enum(["local", "server"])
+      .default("local"),
   },
 
   /**
@@ -41,8 +61,11 @@ export const env = createEnv({
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
     SHEET_EXTRACTION_MAX_CONCURRENT:
       process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
+    DATABASE_URL: process.env.DATABASE_URL,
     NEXT_PUBLIC_DISABLE_AI_FEATURES:
       process.env.NEXT_PUBLIC_DISABLE_AI_FEATURES,
+    NEXT_PUBLIC_PALETTE_STORAGE_MODE:
+      process.env.NEXT_PUBLIC_PALETTE_STORAGE_MODE,
   },
   /**
    * Run `build` or `dev` with `SKIP_ENV_VALIDATION` to skip env validation. This is especially
