@@ -5,6 +5,10 @@
 import "./src/env.js";
 
 /** @type {import("next").NextConfig} */
-const config = {};
+const config = {
+  // Self-contained server bundle in `.next/standalone` for the container
+  // image (`Dockerfile`, issue #49). `next start` keeps working locally.
+  output: "standalone",
+};
 
 export default config;

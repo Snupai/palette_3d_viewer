@@ -40,16 +40,17 @@ UI, and docs.
 
 ## Commands
 
-| Purpose                                                               | Command                                                                    |
-| --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Typecheck (run after **every** change, report the result)             | `bun run typecheck`                                                        |
-| Lint + typecheck                                                      | `bun run check`                                                            |
-| Tests (watch / once)                                                  | `bun run test` / `bun run test:run`                                        |
-| Format                                                                | `bun run format:write`                                                     |
-| Dev server                                                            | `bun run dev`                                                              |
-| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)               | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
-| PostgreSQL container up / down (`CONTAINER_ENGINE=podman` for Podman) | `bun run db:up` / `bun run db:down`                                        |
-| DB migrations (generate from schema / apply to `DATABASE_URL`)        | `bun run db:generate` / `bun run db:migrate`                               |
+| Purpose                                                                | Command                                                                    |
+| ---------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Typecheck (run after **every** change, report the result)              | `bun run typecheck`                                                        |
+| Lint + typecheck                                                       | `bun run check`                                                            |
+| Tests (watch / once)                                                   | `bun run test` / `bun run test:run`                                        |
+| Format                                                                 | `bun run format:write`                                                     |
+| Dev server                                                             | `bun run dev`                                                              |
+| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)                | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
+| PostgreSQL container up / down (`CONTAINER_ENGINE=podman` for Podman)  | `bun run db:up` / `bun run db:down`                                        |
+| Full stack in containers: db + migrate + app (`Dockerfile`, issue #49) | `bun run stack:up` / `bun run stack:down`                                  |
+| DB migrations (generate from schema / apply to `DATABASE_URL`)         | `bun run db:generate` / `bun run db:migrate`                               |
 
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,
