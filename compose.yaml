@@ -1,0 +1,33 @@
+# PostgreSQL for server storage mode (ADR 0009). Works with `docker compose`
+# and `podman compose` (rootless too): the image is fully qualified and
+# major-pinned, data lives in a named volume, and the port is bound to
+# localhost only — never exposed to the plant network.
+#
+#   bun run db:up       # or: podman compose up -d
+#   bun run db:migrate  # applies drizzle/ migrations to DATABASE_URL
+#   bun run db:down     # stops it; data stays in the volume
+#
+# Credentials match DATABASE_URL in .env.example. Change PALETTE_DB_PASSWORD
+# (and DATABASE_URL) for any shared installation.
+name: palette
+
+services:
+  db:
+    image: docker.io/library/postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: palette
+      POSTGRES_PASSWORD: ${PALETTE_DB_PASSWORD:-palette}
+      POSTGRES_DB: palette
+    ports:
+      - "127.0.0.1:${PALETTE_DB_PORT:-5432}:5432"
+    volumes:
+      - palette-db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U palette -d palette"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  palette-db:

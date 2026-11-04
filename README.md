@@ -130,6 +130,23 @@ An unreachable server or an expired session never switches to IndexedDB.
 `createPlannerRecordStorage()` in `src/lib/plannerStorageFactory.ts` is the only
 place that maps the mode to a storage.
 
+### Database (server mode)
+
+`compose.yaml` starts PostgreSQL 17 (`docker.io/library/postgres:17`) with a
+named volume, bound to `127.0.0.1:5432` only. It works with Docker Compose and
+Podman (`CONTAINER_ENGINE=podman` switches the scripts):
+
+```sh
+cp .env.example .env          # uncomment DATABASE_URL (matches the container)
+bun run db:up                 # docker compose up -d
+bun run db:migrate            # apply drizzle/ migrations to DATABASE_URL
+bun run db:down               # stop; data stays in the volume
+```
+
+After editing the schema in `src/server/db/schema/`, run `bun run db:generate`
+to write the next migration into `drizzle/`. Tests never need the container:
+server tests run against PGlite with the same migrations.
+
 ## Supported `.rob` invariants
 
 - Blank lines are positionally significant and are preserved while parsing.

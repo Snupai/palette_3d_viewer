@@ -40,14 +40,16 @@ UI, and docs.
 
 ## Commands
 
-| Purpose                                                   | Command                                                                    |
-| --------------------------------------------------------- | -------------------------------------------------------------------------- |
-| Typecheck (run after **every** change, report the result) | `bun run typecheck`                                                        |
-| Lint + typecheck                                          | `bun run check`                                                            |
-| Tests (watch / once)                                      | `bun run test` / `bun run test:run`                                        |
-| Format                                                    | `bun run format:write`                                                     |
-| Dev server                                                | `bun run dev`                                                              |
-| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)   | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
+| Purpose                                                               | Command                                                                    |
+| --------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| Typecheck (run after **every** change, report the result)             | `bun run typecheck`                                                        |
+| Lint + typecheck                                                      | `bun run check`                                                            |
+| Tests (watch / once)                                                  | `bun run test` / `bun run test:run`                                        |
+| Format                                                                | `bun run format:write`                                                     |
+| Dev server                                                            | `bun run dev`                                                              |
+| External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)               | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
+| PostgreSQL container up / down (`CONTAINER_ENGINE=podman` for Podman) | `bun run db:up` / `bun run db:down`                                        |
+| DB migrations (generate from schema / apply to `DATABASE_URL`)        | `bun run db:generate` / `bun run db:migrate`                               |
 
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,
@@ -69,6 +71,7 @@ domain logic into workspaces, `components` render.
 - **`src/components/`** — `RobViewer.tsx` + `rob-viewer/` (scene builder/controller, picking, highlight, resources, camera presets, gripper & robot-cell loaders), `LayerEditor2D.tsx` + `layer-editor/`, `LayerSlider`, `LayerPattern`.
 - **`src/lib/`** — `robParser.ts` (`.rob` parse/serialize + Z math), `projectAdapters.ts` (SavedPallet ⇄ project v2), `projectRepository.ts`, `plannerStorageFactory.ts` (the single mode → `PlannerRecordStorage` switch; `storageMode.ts` reads `NEXT_PUBLIC_PALETTE_STORAGE_MODE` / `DATABASE_URL`, no fallback between modes), `plannerRecordStorage.ts`, `storage.ts` / `plannerDatabase.ts` (IndexedDB), `parity/` (corpus harness), `parityGoldenCase.ts`.
 - **`src/i18n/`** — UI languages (`de` source, `en`; add more in `locales.ts` + `messages/<locale>/`). `LocaleProvider` sits in the root layout, resolves stored choice → system language → `de`, persists to localStorage and exposes `useT()` / `useLocale()`. Messages are flat, namespace-prefixed keys in one file per feature under `messages/de|en/`; English files use `satisfies` against the German key set, so missing keys fail `tsc`. Non-React model code takes a `t: Translate` parameter (tests use `translateDe`); `src/domain` diagnostics stay English and untranslated. Without a provider `useT()` returns German, which is what unit tests rely on.
+- **`src/server/`** — server-only code (never import from client components). `db/database.ts` exposes `openDatabase(url)` → `{ db, migrate(), close() }` (postgres.js) and `openMigratedDatabase`; repositories take the driver-neutral `PlannerDatabase` type. Tables live one per file in `db/schema/` (re-exported from `db/schema/index.ts`), generated migrations in `drizzle/`. Tests use `db/testing.ts` (`openMigratedTestDatabase()`, PGlite, same migrations) — never a running container (ADR 0009).
 - **`src/workers/`** — solver runs off the main thread; `solverClient.ts` + `solverProtocol.ts` are the only supported entry points.
 
 `RobViewer` and `LayerEditor2D` are loaded via `next/dynamic` with `ssr: false`; anything
@@ -87,7 +90,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite is 1218 tests in 153 files (1216 passed, 2 skipped; 1 file skipped) and is
+The suite is 1239 tests in 155 files (1237 passed, 2 skipped; 1 file skipped) and is
 deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for

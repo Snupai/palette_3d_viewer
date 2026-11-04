@@ -332,6 +332,8 @@ Umfang:
   Abfrageschicht; keine verteilten Schreibinstanzen; Tests laufen ohne
   Container gegen PGlite
   ([ADR 0009](docs/adr/0009-postgres-container.md), ersetzt ADR 0001);
+  Start lokal mit `bun run db:up` (bzw. `podman compose up -d`) und
+  `bun run db:migrate`, siehe README „Database (server mode)“;
 - eine generische Tabelle für JSON-Datensätze; der Server prüft Stores, IDs,
   Berechtigungen, erwartete Version, JSON-Struktur und Größenlimits, die
   fachliche Zod-Validierung bleibt im Client
