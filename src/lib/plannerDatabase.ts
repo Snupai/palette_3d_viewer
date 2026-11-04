@@ -1,11 +1,17 @@
 export const PLANNER_DATABASE_NAME = "pallets-db";
-export const PLANNER_DATABASE_VERSION = 4;
+export const PLANNER_DATABASE_VERSION = 5;
 
 export const PALLETS_STORE_NAME = "pallets";
 export const PROJECTS_STORE_NAME = "projects";
 export const PROJECT_RESOURCES_STORE_NAME = "project-resources";
 export const PROJECT_QUARANTINE_STORE_NAME = "project-quarantine";
 export const LEGACY_MIGRATIONS_STORE_NAME = "legacy-migrations";
+/**
+ * Storage-internal record version metadata (ADR 0006), keyed by
+ * `recordVersionKey(store, id)`. Not a PlannerStoreName: callers never read or
+ * write it directly, so record payloads stay free of version fields.
+ */
+export const RECORD_VERSIONS_STORE_NAME = "record-versions";
 
 export type PlannerStoreName =
   | typeof PALLETS_STORE_NAME
@@ -23,6 +29,17 @@ export const PLANNER_STORE_NAMES: readonly PlannerStoreName[] = [
   LEGACY_MIGRATIONS_STORE_NAME,
 ];
 
+export type PlannerDatabaseStoreName =
+  | PlannerStoreName
+  | typeof RECORD_VERSIONS_STORE_NAME;
+
+export function recordVersionKey(
+  storeName: PlannerStoreName,
+  id: string,
+): string {
+  return `${storeName}:${id}`;
+}
+
 const databasePromises = new WeakMap<IDBFactory, Promise<IDBDatabase>>();
 
 function ensureIndex(
@@ -38,7 +55,7 @@ function ensureIndex(
 function ensureStore(
   database: IDBDatabase,
   transaction: IDBTransaction,
-  name: PlannerStoreName,
+  name: PlannerDatabaseStoreName,
 ): IDBObjectStore {
   return database.objectStoreNames.contains(name)
     ? transaction.objectStore(name)
@@ -87,6 +104,8 @@ function upgradeDatabase(request: IDBOpenDBRequest): void {
   );
   ensureIndex(legacyMigrations, "projectId", "projectId");
   ensureIndex(legacyMigrations, "migratedAt", "migratedAt");
+
+  ensureStore(database, transaction, RECORD_VERSIONS_STORE_NAME);
 }
 
 export function openPlannerDatabase(
@@ -161,7 +180,7 @@ export function requestToPromise<T>(request: IDBRequest<T>): Promise<T> {
 }
 
 export async function runPlannerTransaction<T>(
-  storeNames: PlannerStoreName | readonly PlannerStoreName[],
+  storeNames: PlannerDatabaseStoreName | readonly PlannerDatabaseStoreName[],
   mode: IDBTransactionMode,
   operation: (transaction: IDBTransaction) => T | Promise<T>,
   indexedDb: IDBFactory = globalThis.indexedDB,
