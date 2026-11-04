@@ -3,3 +3,4 @@
  * tables as sibling files and re-export them here.
  */
 export * from "./plannerRecords";
+export * from "./users";

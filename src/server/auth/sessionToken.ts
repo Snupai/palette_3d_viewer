@@ -33,7 +33,10 @@ export function sessionTokenHashesEqual(a: string, b: string): boolean {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-export function sessionExpiresAt(nowMs: number, ttlMs = SESSION_TTL_MS): number {
+export function sessionExpiresAt(
+  nowMs: number,
+  ttlMs = SESSION_TTL_MS,
+): number {
   return nowMs + ttlMs;
 }
 

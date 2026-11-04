@@ -3,7 +3,7 @@ import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { assertDatabaseUrl, type OpenDatabase, openDatabase } from "./database";
-import { plannerRecords } from "./schema";
+import { plannerRecords, users } from "./schema";
 import { openMigratedTestDatabase, openTestDatabase } from "./testing";
 
 const opened: OpenDatabase[] = [];
@@ -100,7 +100,7 @@ describe("migrations", () => {
       database,
       sql`SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations`,
     );
-    expect(applied).toEqual([{ count: 1 }]);
+    expect(applied).toEqual([{ count: 2 }]);
   });
 });
 
@@ -119,6 +119,13 @@ describe("planner_records", () => {
   });
   it("round-trips jsonb records and fills version and timestamps", async () => {
     const { db } = shared;
+    // created_by references users.id (#28).
+    await db.insert(users).values({
+      id: "user-7",
+      username: "user-7",
+      passwordHash: "$argon2id$unused",
+      role: "user",
+    });
     const json = {
       id: "p-1",
       name: "Halle 3",
