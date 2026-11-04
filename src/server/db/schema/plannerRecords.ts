@@ -9,6 +9,8 @@ import {
   timestamp,
 } from "drizzle-orm/pg-core";
 
+import { users } from "./users";
+
 /**
  * Generic JSON record table (ADR 0004, ADR 0009): one row per planner record,
  * keyed by the client store name (`projects`, `pallets`, …) and the record id.
@@ -16,8 +18,8 @@ import {
  *
  * - `json` holds the record as a `jsonb` object.
  * - `version` starts at 1 and is bumped by every write (ADR 0006).
- * - `created_by` is the creating user's id; nullable and without a foreign
- *   key until the users table exists (#28), which may add the constraint.
+ * - `created_by` is the creating user's id (`users.id`, #28); nullable, and
+ *   set to null when that user is deleted so their records survive.
  */
 export const plannerRecords = pgTable(
   "planner_records",
@@ -26,7 +28,9 @@ export const plannerRecords = pgTable(
     id: text("id").notNull(),
     json: jsonb("json").$type<Record<string, unknown>>().notNull(),
     version: integer("version").notNull().default(1),
-    createdBy: text("created_by"),
+    createdBy: text("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
