@@ -22,7 +22,8 @@ Import, inspect, and edit `.rob` pallet plans in the browser.
 
 The prioritized path from the current `.rob` viewer/editor to a complete
 pallet planner is documented in [ROADMAP.md](ROADMAP.md). It includes a planned,
-local-only backend (SQLite, user accounts on the plant LAN); browser-local
+local-only backend (PostgreSQL via Docker/Podman Compose, user accounts on the
+plant LAN); browser-local
 IndexedDB storage stays the default.
 Decisions for that backend are recorded as ADRs in [docs/adr/](docs/adr/);
 domain terms are defined in [GLOSSARY.md](GLOSSARY.md).
