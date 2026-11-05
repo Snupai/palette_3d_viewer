@@ -2254,10 +2254,11 @@ describe("deterministic solve orchestration", () => {
           dimensionsMm: { length: 180, width: 120 },
           clearanceMm: 5,
         },
-        envelopeMm: { minX: -10, minY: 5, maxX: 890, maxY: 605 },
-        // Exercise every family in both orders without repeating hundreds of
-        // equivalent spacing variants in this orchestration test.
-        constraints: { maxCandidatesPerGenerator: 100 },
+        envelopeMm: { minX: -10, minY: 5, maxX: 730, maxY: 505 },
+        // Exercise every family in both orders while keeping each family to a
+        // handful of drafts; order and batching independence does not need
+        // hundreds of equivalent spacing variants.
+        constraints: { maxCandidatesPerGenerator: 5 },
       };
       const progressA: string[] = [];
       const progressB: string[] = [];
@@ -2290,6 +2291,16 @@ describe("deterministic solve orchestration", () => {
 
       expect(comparable(second)).toEqual(comparable(first));
       expect(progressA.length).toBeGreaterThan(progressB.length);
+      // Guard against the candidate cap hollowing out coverage: every family
+      // that can produce drafts for this input must still contribute.
+      // staircase-exchange yields no drafts for this geometry at any cap.
+      for (const family of BASE_GENERATOR_FAMILIES) {
+        if (family === "staircase-exchange") continue;
+        expect(
+          first.statistics.generatedByFamily[family],
+          family,
+        ).toBeGreaterThan(0);
+      }
     },
     15_000,
   );
