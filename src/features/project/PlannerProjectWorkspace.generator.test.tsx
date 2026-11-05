@@ -22,6 +22,7 @@ import {
   MemoryPlannerRecordStorage,
   ProjectRepository,
 } from "~/lib/projectRepository";
+import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 
 const clientMocks = vi.hoisted(() => ({
   run: vi.fn(),
@@ -58,9 +59,11 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       solverInput,
       onDirtyChange,
       onEditProject,
+      onBack,
       saveButton,
     }: {
       saveButton?: { disabledReason: string | null };
+      onBack?: () => void;
       onDirtyChange: (dirty: boolean) => void;
       onEditProject: () => void;
       candidates: readonly SolverCandidate[];
@@ -74,6 +77,7 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       <>
         <button onClick={() => onDirtyChange(true)}>Dirty stack draft</button>
         <button onClick={() => onEditProject()}>Edit stack inputs</button>
+        <button onClick={() => onBack?.()}>Back from stack</button>
         <output data-testid="stack-save-lock">
           {saveButton?.disabledReason ?? ""}
         </output>
@@ -87,7 +91,8 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
               ...model.createInitialStackWorkspaceState(candidates),
               requestedLayerCount: 10,
             });
-            void onSave(
+            // The real composer shows a failed save itself.
+            onSave(
               state,
               model.materializeStackWorkspace(
                 project,
@@ -95,7 +100,7 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
                 solverInput,
                 state,
               ),
-            );
+            ).catch(() => undefined);
           }}
         >
           Save stack draft
@@ -327,6 +332,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 function fillNewProjectPackageDimensions() {
@@ -578,6 +584,52 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     await waitFor(async () =>
       expect((await repository.listProjects()).projects).toHaveLength(2),
     );
+  });
+
+  it("drops a failed stack save's backup and pending state once the stack draft is discarded", async () => {
+    // Browser storage for the draft backups (#35); the test runtime has none.
+    const entries = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      get length() {
+        return entries.size;
+      },
+      key: (index: number) => [...entries.keys()][index] ?? null,
+      getItem: (key: string) => entries.get(key) ?? null,
+      setItem: (key: string, value: string) => void entries.set(key, value),
+      removeItem: (key: string) => void entries.delete(key),
+    });
+    const backupKeys = () =>
+      [...entries.keys()].filter((key) =>
+        key.startsWith("palette.draftBackup."),
+      );
+    const repository = emptyRepository();
+    const signedInFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          user: { id: "u-alice", username: "alice", role: "user" },
+        }),
+        { status: 200 },
+      );
+    await createAndGenerate(repository, "4", {
+      storageMode: "server",
+      fetchImpl: signedInFetch,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dirty stack draft" }));
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValueOnce(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    expect(backupKeys()).toHaveLength(1);
+
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Back from stack" }));
+
+    expect(backupKeys()).toEqual([]);
+    expect(
+      screen.queryByText("Speichern ausstehend · Server nicht erreichbar"),
+    ).toBeNull();
   });
 
   it("keeps unsaved inputs when leaving is dismissed and discards them only after confirmation", async () => {

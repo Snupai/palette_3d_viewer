@@ -500,6 +500,7 @@ export function PlannerProjectWorkspace({
     } else if (!editorDirty && editorBackupIdRef.current) {
       handlers.dropDraftBackup(editorBackupIdRef.current);
       editorBackupIdRef.current = null;
+      setSaveFailure(null);
     }
   }, [editorDirty, editorDraftProject, session]);
 
@@ -847,11 +848,19 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const discardUnsavedPlannerChanges = (): void => {
+  /**
+   * The user confirmed discarding the open draft: its local backup and the
+   * pending-save state go with it (#35). Every confirmed discard calls this.
+   */
+  const discardOpenDraftBackup = (): void => {
     if (openDraftBackupIdRef.current) {
       dropDraftBackup(openDraftBackupIdRef.current);
     }
     setSaveFailure(null);
+  };
+
+  const discardUnsavedPlannerChanges = (): void => {
+    discardOpenDraftBackup();
     navigationGeneration.current += 1;
     setFormGeneration((generation) => generation + 1);
     markInputsDirty(false);
@@ -864,8 +873,9 @@ export function PlannerProjectWorkspace({
 
   const confirmLeaveActiveTool = (action: string): boolean => {
     if (!activeTool) return true;
+    const dirty = productionToolIsDirty(activeTool);
     if (
-      productionToolIsDirty(activeTool) &&
+      dirty &&
       !window.confirm(
         t("project.confirm.discardInTool", {
           action,
@@ -875,6 +885,7 @@ export function PlannerProjectWorkspace({
     ) {
       return false;
     }
+    if (dirty) discardOpenDraftBackup();
     discardProductionToolState(activeTool);
     return true;
   };
@@ -2003,11 +2014,11 @@ export function PlannerProjectWorkspace({
                 <StackWorkspace
                   guided
                   onBack={() => {
-                    if (
-                      stackDirty &&
-                      !window.confirm(t("project.confirm.changePattern"))
-                    ) {
-                      return;
+                    if (stackDirty) {
+                      if (!window.confirm(t("project.confirm.changePattern"))) {
+                        return;
+                      }
+                      discardOpenDraftBackup();
                     }
                     setActiveStage("generate");
                   }}
@@ -2274,10 +2285,12 @@ export function PlannerProjectWorkspace({
               : saveButtonFor(generalAccess)
           }
           onClose={() => {
+            const formDirty = inputsDirtyRef.current;
             if (
-              !inputsDirtyRef.current ||
+              !formDirty ||
               window.confirm(t("project.confirm.closeInputs"))
             ) {
+              if (formDirty) discardOpenDraftBackup();
               navigationGeneration.current += 1;
               setDialogMode("closed");
               // Cancelled (nothing saved): go back to where the form was
