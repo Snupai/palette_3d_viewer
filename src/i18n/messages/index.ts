@@ -12,6 +12,7 @@ import { planningCaseDe } from "./de/planningCase";
 import { plannerDe } from "./de/planner";
 import { componentsDe } from "./de/components";
 import { adminDe } from "./de/admin";
+import { conflictDe } from "./de/conflict";
 import { shellEn } from "./en/shell";
 import { projectEn } from "./en/project";
 import { projectFormEn } from "./en/projectForm";
@@ -25,6 +26,7 @@ import { planningCaseEn } from "./en/planningCase";
 import { plannerEn } from "./en/planner";
 import { componentsEn } from "./en/components";
 import { adminEn } from "./en/admin";
+import { conflictEn } from "./en/conflict";
 
 /**
  * German is the source language: its key set defines `MessageKey`. Every other
@@ -48,6 +50,7 @@ export const de = {
   ...plannerDe,
   ...componentsDe,
   ...adminDe,
+  ...conflictDe,
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -67,6 +70,7 @@ export const en: Messages = {
   ...plannerEn,
   ...componentsEn,
   ...adminEn,
+  ...conflictEn,
 };
 
 export const MESSAGES: Record<Locale, Messages> = { de, en };

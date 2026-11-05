@@ -28,6 +28,8 @@ import {
 import {
   recordId,
   type PlannerRecordStorage,
+  type RecordVersion,
+  type RecordWriteOptions,
 } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
 import { ServerPlannerRecordStorage } from "~/lib/serverPlannerRecordStorage";
@@ -126,6 +128,17 @@ export type ProjectListResult = {
 export type ProjectReadResult = {
   project: Project | null;
   diagnostics: RepositoryDiagnostic[];
+  /**
+   * Stored version of the record that was read (ADR 0006); `null` when no
+   * project was returned. Pass it back as `expectedVersion` to save against
+   * exactly this state.
+   */
+  version?: RecordVersion | null;
+};
+
+export type VersionedProject = {
+  project: Project;
+  version: RecordVersion;
 };
 
 export type ResourceListOptions = {
@@ -243,6 +256,19 @@ export class ProjectRepository {
   }
 
   async saveProject(projectInput: unknown): Promise<Project> {
+    return (await this.saveProjectVersioned(projectInput)).project;
+  }
+
+  /**
+   * Saves and reports the record's new version. With `expectedVersion` the
+   * write only succeeds against exactly that stored version and otherwise
+   * rejects with `RecordVersionConflictError` (ADR 0006); without it the write
+   * is unconditional, as `saveProject` always was.
+   */
+  async saveProjectVersioned(
+    projectInput: unknown,
+    options?: RecordWriteOptions,
+  ): Promise<VersionedProject> {
     const result = safeMigrateProject(projectInput);
     if (!result.success) {
       throw new z.ZodError(
@@ -253,8 +279,12 @@ export class ProjectRepository {
         })),
       );
     }
-    await this.storage.put(PROJECTS_STORE_NAME, result.project);
-    return result.project;
+    const version = await this.storage.put(
+      PROJECTS_STORE_NAME,
+      result.project,
+      options,
+    );
+    return { project: result.project, version };
   }
 
   async listProjects(
@@ -296,20 +326,30 @@ export class ProjectRepository {
   }
 
   async getProject(id: string): Promise<ProjectReadResult> {
-    const row = await this.storage.get(PROJECTS_STORE_NAME, id);
-    if (row === undefined) return { project: null, diagnostics: [] };
+    const stored = await this.storage.getVersioned(PROJECTS_STORE_NAME, id);
+    if (stored === undefined) {
+      return { project: null, diagnostics: [], version: null };
+    }
+    const row = stored.record;
     const normalized = safeMigrateProject(row);
     if (!normalized.success) {
       const diagnostics = normalized.diagnostics.map((diagnostic) =>
         this.projectDiagnostic(row, diagnostic),
       );
       await this.quarantine(PROJECTS_STORE_NAME, row, diagnostics);
-      return { project: null, diagnostics };
+      return { project: null, diagnostics, version: null };
     }
+    let version = stored.version;
     if (normalized.migrated) {
-      await this.storage.put(PROJECTS_STORE_NAME, normalized.project);
+      // Write the migration back against the version just read, so it cannot
+      // silently replace a concurrent save of the same record.
+      version = await this.storage.put(
+        PROJECTS_STORE_NAME,
+        normalized.project,
+        { expectedVersion: stored.version },
+      );
     }
-    return { project: normalized.project, diagnostics: [] };
+    return { project: normalized.project, diagnostics: [], version };
   }
 
   async hasProject(id: string): Promise<boolean> {

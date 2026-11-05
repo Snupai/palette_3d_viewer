@@ -6,11 +6,12 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createProject } from "~/domain/project/projectFactory";
+import { createProject, updateProject } from "~/domain/project/projectFactory";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
   ProjectRepository,
+  RecordVersionConflictError,
 } from "~/lib/projectRepository";
 
 vi.mock("~/components/RobViewer", () => ({
@@ -113,6 +114,39 @@ async function openSavedPlan() {
     await screen.findByRole("button", { name: "M5-EDITOR öffnen" }),
   );
 }
+/** Opens the saved plan in the pattern editor and leaves one unsaved edit. */
+async function editLabelSideInEditor(
+  onUnsavedChange: ReturnType<typeof vi.fn>,
+) {
+  await openSavedPlan();
+  expect(
+    await screen.findByRole(
+      "heading",
+      { name: "M5-EDITOR" },
+      { timeout: 5_000 },
+    ),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
+  expect(await screen.findByTestId("project-editor-workspace")).toBeTruthy();
+  const packageRect = document.querySelector<SVGRectElement>(
+    '[data-placement-id="placement-1"] rect',
+  )!;
+  fireEvent.pointerDown(packageRect, {
+    pointerId: 1,
+    clientX: 100,
+    clientY: 200,
+  });
+  fireEvent.pointerUp(packageRect, {
+    pointerId: 1,
+    clientX: 100,
+    clientY: 200,
+  });
+  fireEvent.change(screen.getByLabelText("Etikettseite"), {
+    target: { value: "left" },
+  });
+  await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(true));
+}
+
 describe("PlannerProjectWorkspace editor integration", () => {
   it("guards a dirty editor, propagates its draft, and saves through the repository", async () => {
     const { project, repository } = await repositoryWithProject();
@@ -177,6 +211,116 @@ describe("PlannerProjectWorkspace editor integration", () => {
     await waitFor(() =>
       expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
     );
+  });
+
+  it("opens the conflict view when someone else saved in between (server mode)", async () => {
+    const { project, repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+      />,
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+
+    // Another session saves the plan at version 1 → 2.
+    await repository.saveProjectVersioned(
+      updateProject(project, { projectNumber: "THEIRS" }, { now: () => 20 }),
+      { expectedVersion: 1 },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
+    });
+    expect(
+      dialog.querySelector('[data-row="projectNumber"]')?.textContent,
+    ).toBe("Linie / Auftrag (abweichend)M5-EDITORTHEIRS");
+    expect(
+      [...dialog.querySelectorAll("[data-differs]")].map((row) =>
+        row.getAttribute("data-row"),
+      ),
+    ).toEqual(["projectNumber", "patterns"]);
+    // Nothing was overwritten, and the draft is still unsaved.
+    expect(
+      (await repository.getProject(project.id)).project?.projectNumber,
+    ).toBe("THEIRS");
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Plan wurde inzwischen geändert",
+        }),
+      ).toBeNull(),
+    );
+    const saved = await repository.getProject(project.id);
+    expect(saved.version).toBe(3);
+    expect(saved.project?.projectNumber).toBe("M5-EDITOR");
+    expect(
+      saved.project?.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+    ).toBe("left");
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
+    );
+    expect(
+      await screen.findByText("Dein Entwurf von M5-EDITOR wurde gespeichert."),
+    ).toBeTruthy();
+  });
+
+  it("ignores a conflict for a plan the user has already left (server mode)", async () => {
+    const { project, repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+      />,
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    await repository.saveProjectVersioned(
+      updateProject(project, { projectNumber: "THEIRS" }, { now: () => 20 }),
+      { expectedVersion: 1 },
+    );
+    const persist = repository.saveProjectVersioned.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (input, options) => {
+        await pending;
+        return persist(input, options);
+      });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // The user leaves the plan while the stale save is still in flight.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(
+      await screen.findByRole("region", { name: "Planbibliothek" }),
+    ).toBeTruthy();
+    release();
+
+    await expect(save.mock.results[0]?.value).rejects.toBeInstanceOf(
+      RecordVersionConflictError,
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(
+      screen.queryByRole("dialog", { name: "Plan wurde inzwischen geändert" }),
+    ).toBeNull();
+    expect(
+      (await repository.getProject(project.id)).project?.projectNumber,
+    ).toBe("THEIRS");
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {

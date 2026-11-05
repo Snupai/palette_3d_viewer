@@ -83,7 +83,20 @@ import {
   type ProjectSortField,
   type RepositoryDiagnostic,
   type SortDirection,
+  type VersionedProject,
 } from "~/lib/projectRepository";
+import { configuredStorageMode, type StorageMode } from "~/lib/storageMode";
+import { ProjectConflictView } from "~/features/project/ProjectConflictView";
+import {
+  createProjectConflict,
+  isProjectVersionConflict,
+  projectSaveOptions,
+  readConflictServerState,
+  resolveProjectConflict,
+  type ConflictChoice,
+  type LoadedProjectVersion,
+  type ProjectConflict,
+} from "~/features/project/projectConflictModel";
 
 function WorkspaceLoading() {
   return (
@@ -128,6 +141,11 @@ const StackWorkspace = dynamic(
 export type PlannerProjectWorkspaceProps = {
   repository?: ProjectRepository;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
+  /**
+   * Defaults to the build's configured mode. In `server` mode saves carry the
+   * loaded record version, and a version conflict opens the conflict view.
+   */
+  storageMode?: StorageMode;
 };
 
 type DialogMode = "closed" | "create" | "edit";
@@ -188,6 +206,7 @@ function downloadJson(filename: string, contents: string): void {
 export function PlannerProjectWorkspace({
   repository: providedRepository,
   onUnsavedChange,
+  storageMode = configuredStorageMode,
 }: PlannerProjectWorkspaceProps) {
   const t = useT();
   // Effects and callbacks that must not re-run on a language switch read `t`
@@ -265,6 +284,11 @@ export function PlannerProjectWorkspace({
   const [projectReloadToken, setProjectReloadToken] = useState(0);
   const [routeReady, setRouteReady] = useState(false);
   const pendingEditIdRef = useRef<string | null>(null);
+  /** Stored version the open plan was read at (ADR 0006). */
+  const loadedVersionRef = useRef<LoadedProjectVersion | null>(null);
+  const [conflict, setConflict] = useState<ProjectConflict | null>(null);
+  const [conflictBusy, setConflictBusy] = useState(false);
+  const [conflictError, setConflictError] = useState<string | null>(null);
 
   const generatorLaunchRequestRef = useRef(generatorLaunchRequest);
   generatorLaunchRequestRef.current = generatorLaunchRequest;
@@ -412,6 +436,7 @@ export function PlannerProjectWorkspace({
     setCurrentLayerIndex(0);
     setActiveTool(null);
     if (!selectedId) {
+      loadedVersionRef.current = null;
       setSelectedProject(null);
       setLoadingProject(false);
       return;
@@ -421,6 +446,10 @@ export function PlannerProjectWorkspace({
       .getProject(selectedId)
       .then((result) => {
         if (request !== projectRequest.current) return;
+        loadedVersionRef.current =
+          result.project && typeof result.version === "number"
+            ? { projectId: result.project.id, version: result.version }
+            : null;
         if (!result.project) {
           setSelectedProject(null);
           const diagnostic = diagnosticText(result.diagnostics);
@@ -461,6 +490,46 @@ export function PlannerProjectWorkspace({
       });
   }, [repository, selectedId, projectReloadToken]);
 
+  /**
+   * The one write path for the open plan. In server mode it saves against the
+   * version the plan was loaded at; a concurrent save elsewhere rejects with a
+   * version conflict, which opens the conflict view and rejects the caller so
+   * its draft stays unsaved and intact (ADR 0006).
+   */
+  const persistProject = async (
+    project: Project,
+  ): Promise<VersionedProject> => {
+    const options = projectSaveOptions(
+      storageMode,
+      loadedVersionRef.current,
+      project.id,
+    );
+    const generation = navigationGeneration.current;
+    // Like the success paths: a reply for a plan the user has left (switched,
+    // closed, discarded) must not open a conflict view over the new context.
+    const stillOpen = () =>
+      generation === navigationGeneration.current &&
+      selectedProjectIdRef.current === project.id;
+    try {
+      const saved = await repository.saveProjectVersioned(project, options);
+      if (selectedProjectIdRef.current === saved.project.id) {
+        loadedVersionRef.current = {
+          projectId: saved.project.id,
+          version: saved.version,
+        };
+      }
+      return saved;
+    } catch (cause) {
+      if (!options || !isProjectVersionConflict(cause, project.id)) throw cause;
+      if (!stillOpen()) throw cause;
+      const server = await readConflictServerState(repository, project.id);
+      if (!stillOpen()) throw cause;
+      setConflictError(null);
+      setConflict(createProjectConflict(project, server));
+      throw new Error(t("conflict.saveRejected"), { cause });
+    }
+  };
+
   const saveProject = async (project: Project): Promise<Project> => {
     setShowWelcome(false);
     setProjectDrawerOpen(false);
@@ -468,9 +537,10 @@ export function PlannerProjectWorkspace({
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
     const generation = navigationGeneration.current;
-    const saved = await repository.saveProject(project);
+    const { project: saved, version } = await persistProject(project);
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = saved.id;
+    loadedVersionRef.current = { projectId: saved.id, version };
     setSelectedId(saved.id);
     setSelectedProject(saved);
     setEditorDraftProject(null);
@@ -1269,7 +1339,7 @@ export function PlannerProjectWorkspace({
       solverInput,
       state,
     );
-    const saved = await repository.saveProject(updated);
+    const { project: saved } = await persistProject(updated);
     if (generation !== navigationGeneration.current)
       return "cancelled" as const;
     setSelectedProject(saved);
@@ -1293,6 +1363,80 @@ export function PlannerProjectWorkspace({
     setActiveTool(null);
     setActiveStage("stack");
     return "saved" as const;
+  };
+
+  const resolveConflict = async (choice: ConflictChoice) => {
+    if (!conflict || conflictBusy) return;
+    setConflictBusy(true);
+    setConflictError(null);
+    try {
+      const outcome = await resolveProjectConflict(
+        repository,
+        conflict,
+        choice,
+        {
+          projectNumber: conflict.mine.projectNumber
+            ? t("project.copySuffix", { number: conflict.mine.projectNumber })
+            : t("project.copy"),
+        },
+      );
+      if (outcome.kind === "refreshed") {
+        setConflict(outcome.conflict);
+        return;
+      }
+      // Every other outcome settles the draft: it is saved, replaced by the
+      // server state, or kept as a copy.
+      setConflict(null);
+      discardUnsavedPlannerChanges();
+      setGeneratorLaunchRequest(null);
+      setDialogMode("closed");
+      setError(null);
+      if (outcome.kind === "saved-mine" || outcome.kind === "adopted-server") {
+        loadedVersionRef.current = {
+          projectId: outcome.project.id,
+          version: outcome.version,
+        };
+        setSelectedProject(outcome.project);
+        // Re-read so solver results, tools and robot settings start from the
+        // chosen plan state instead of the discarded draft.
+        setProjectReloadToken((token) => token + 1);
+        setStatusMessage(
+          t(
+            outcome.kind === "saved-mine"
+              ? "conflict.status.savedMine"
+              : "conflict.status.adoptedServer",
+            { name: projectLabel(outcome.project, t) },
+          ),
+        );
+      } else if (outcome.kind === "server-deleted") {
+        selectedProjectIdRef.current = null;
+        loadedVersionRef.current = null;
+        setSelectedProject(null);
+        setSelectedId(null);
+        setStatusMessage(t("conflict.status.serverDeleted"));
+      } else {
+        selectedProjectIdRef.current = outcome.project.id;
+        setSelectedId(outcome.project.id);
+        setSelectedProject(outcome.project);
+        setActiveStage(planningStageForProject(outcome.project));
+        setStatusMessage(
+          t("conflict.status.savedCopy", {
+            name: projectLabel(outcome.project, t),
+          }),
+        );
+      }
+      await refreshProjects();
+    } catch (cause) {
+      console.error("Failed to resolve version conflict", cause);
+      setConflictError(
+        t("conflict.error", {
+          message:
+            cause instanceof Error ? cause.message : t("conflict.errorUnknown"),
+        }),
+      );
+    } finally {
+      setConflictBusy(false);
+    }
   };
 
   const createNew = () => {
@@ -1762,6 +1906,18 @@ export function PlannerProjectWorkspace({
           }}
         />
       </div>
+      {conflict ? (
+        <ProjectConflictView
+          conflict={conflict}
+          busy={conflictBusy}
+          error={conflictError}
+          onChoose={(choice) => void resolveConflict(choice)}
+          onLater={() => {
+            setConflict(null);
+            setConflictError(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
