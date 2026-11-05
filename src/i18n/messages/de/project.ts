@@ -219,6 +219,7 @@ export const projectDe = {
     "Wiederherstellen speichert den Entwurf. Wurde der Plan inzwischen geändert, öffnet sich die Konfliktansicht.",
   "project.draft.backedUpAt": "gesichert {time}",
   "project.draft.restore": "Wiederherstellen",
+  "project.draft.restoring": "Wird wiederhergestellt …",
   "project.draft.discard": "Verwerfen",
   "project.draft.confirmDiscard":
     "Den ungespeicherten Entwurf „{name}“ endgültig verwerfen?",

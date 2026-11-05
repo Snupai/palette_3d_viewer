@@ -9,6 +9,7 @@ import {
   type FormEvent,
 } from "react";
 
+import { Field } from "~/components/ui/Field";
 import { useT, type MessageKey } from "~/i18n";
 import type { StorageMode } from "~/lib/storageMode";
 
@@ -141,18 +142,17 @@ export function SessionMenu({
   };
 
   if (session.status !== "signed-in") {
+    const readOnlyHint = t(
+      session.status === "error"
+        ? "auth.readOnly.sessionUnknown"
+        : "auth.readOnly.signIn",
+    );
     return (
       <>
         {session.status === "loading" ? null : (
-          <span
-            className="session-badge"
-            title={t(
-              session.status === "error"
-                ? "auth.readOnly.sessionUnknown"
-                : "auth.readOnly.signIn",
-            )}
-          >
+          <span className="session-badge" title={readOnlyHint}>
             {t("auth.readOnly.badge")}
+            <span className="sr-only"> {readOnlyHint}</span>
           </span>
         )}
         <details className="fable-tool-menu session-menu">
@@ -163,17 +163,15 @@ export function SessionMenu({
               aria-label={t("auth.signIn")}
               onSubmit={(event) => void submit(event)}
             >
-              <label>
-                <span>{t("auth.field.username")}</span>
+              <Field label={t("auth.field.username")}>
                 <input
                   className="ui-input"
                   autoComplete="username"
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                 />
-              </label>
-              <label>
-                <span>{t("auth.field.password")}</span>
+              </Field>
+              <Field label={t("auth.field.password")}>
                 <input
                   className="ui-input"
                   type="password"
@@ -181,7 +179,7 @@ export function SessionMenu({
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                 />
-              </label>
+              </Field>
               {error ? (
                 <p role="alert" className="session-error">
                   {error}
@@ -212,7 +210,7 @@ export function SessionMenu({
   };
   return (
     <details className="fable-tool-menu session-menu">
-      <summary aria-label={t("auth.menu")}>{user.username}</summary>
+      <summary>{user.username}</summary>
       <div>
         <p className="session-user">
           {t("auth.signedInAs", { username: user.username })}
@@ -236,21 +234,17 @@ export function SessionMenu({
           </p>
         ) : null}
         {confirmSignOut ? (
-          <div
-            role="group"
-            className="session-confirm"
-            aria-label={t("auth.signOut")}
-          >
+          <div role="alert" className="session-confirm">
             <p>{t("auth.confirm.signOutUnsaved")}</p>
-            <button type="button" onClick={() => setConfirmSignOut(false)}>
-              {t("auth.confirm.cancel")}
-            </button>
             <button
               type="button"
-              className="session-danger"
+              className="text-danger"
               onClick={(event) => signOutNow(event.currentTarget)}
             >
               {t("auth.confirm.discardAndSignOut")}
+            </button>
+            <button type="button" onClick={() => setConfirmSignOut(false)}>
+              {t("auth.confirm.cancel")}
             </button>
           </div>
         ) : (

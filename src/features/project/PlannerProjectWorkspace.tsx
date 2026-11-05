@@ -2136,23 +2136,29 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSignedOut}
             />
           ) : null}
-          {saveFailure && backupStatus.hasPendingDrafts ? (
-            <span
-              className="save-pending-badge"
-              role="status"
-              title={t(
-                saveFailure.backedUp
-                  ? "project.draft.pendingBackedUp"
-                  : "project.draft.pendingMemoryOnly",
-              )}
-            >
-              {t(
-                saveFailure.reason === "network"
-                  ? "project.draft.pendingNetwork"
-                  : "project.draft.pendingSession",
-              )}
-            </span>
-          ) : null}
+          {saveFailure && backupStatus.hasPendingDrafts
+            ? (() => {
+                const hint = t(
+                  saveFailure.backedUp
+                    ? "project.draft.pendingBackedUp"
+                    : "project.draft.pendingMemoryOnly",
+                );
+                return (
+                  <span
+                    className="save-pending-badge"
+                    role="status"
+                    title={hint}
+                  >
+                    {t(
+                      saveFailure.reason === "network"
+                        ? "project.draft.pendingNetwork"
+                        : "project.draft.pendingSession",
+                    )}
+                    <span className="sr-only"> {hint}</span>
+                  </span>
+                );
+              })()
+            : null}
           <SessionMenu
             controls={sessionControls}
             hasUnsavedDrafts={pendingDraftsAtSignOut}
@@ -2258,6 +2264,7 @@ export function PlannerProjectWorkspace({
             onOpenProjects={browsePlans}
             onCreateProject={createNew}
             onEditProject={() => openInputs()}
+            editDisabledReason={readOnlyHint}
             onOpenTool={openProductionTool}
             onImportRob={(file) => void importRobAsProject(file)}
             solverResult={solverResult}

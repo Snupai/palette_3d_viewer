@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import { useLocale } from "~/i18n";
 
 import type { DraftBackup } from "./draftBackupModel";
@@ -22,6 +24,7 @@ export function DraftRestoreOffer({
   onDiscard: (backup: DraftBackup) => void;
 }) {
   const { t, tag } = useLocale();
+  const titleId = useId();
   if (backups.length === 0) return null;
   const time = new Intl.DateTimeFormat(tag, {
     dateStyle: "short",
@@ -31,9 +34,12 @@ export function DraftRestoreOffer({
     <div className="fable-page">
       <section
         className="fable-notice draft-restore"
-        aria-label={t("project.draft.restoreTitle")}
+        aria-labelledby={titleId}
+        aria-busy={busy}
       >
-        <strong>{t("project.draft.restoreTitle")}</strong>
+        <h2 id={titleId} className="text-ink text-base font-semibold">
+          {t("project.draft.restoreTitle")}
+        </h2>
         <span>{t("project.draft.restoreHint")}</span>
         <ul>
           {backups.map((backup) => (
@@ -46,19 +52,21 @@ export function DraftRestoreOffer({
               </span>
               <button
                 type="button"
-                className="ui-btn-primary"
-                disabled={busy}
-                onClick={() => onRestore(backup)}
-              >
-                {t("project.draft.restore")}
-              </button>
-              <button
-                type="button"
                 className="text-action"
                 disabled={busy}
                 onClick={() => onDiscard(backup)}
               >
                 {t("project.draft.discard")}
+              </button>
+              <button
+                type="button"
+                className="ui-btn-primary"
+                disabled={busy}
+                onClick={() => onRestore(backup)}
+              >
+                {busy
+                  ? t("project.draft.restoring")
+                  : t("project.draft.restore")}
               </button>
             </li>
           ))}

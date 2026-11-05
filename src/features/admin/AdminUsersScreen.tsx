@@ -69,22 +69,30 @@ export function AdminUsersScreen({
   return (
     <div className="admin-screen">
       <header className="fable-header">
-        <Link className="fable-logo" href="/">
+        <Link className="fable-logo" href="/" aria-label={t("shell.home")}>
+          <svg viewBox="0 0 32 32" aria-hidden="true">
+            <path d="M16 2 29 9 16 17 3 9Z" fill="var(--carton-top)" />
+            <path d="M3 9 16 17 16 31 3 23Z" fill="var(--carton-left)" />
+            <path d="M29 9 16 17 16 31 29 23Z" fill="var(--carton-right)" />
+            <path d="M9 6 22 14" stroke="var(--carton-tape)" strokeWidth="3" />
+          </svg>
           {t("shell.appName")}
         </Link>
         <span className="header-context">{t("admin.title")}</span>
         <div className="header-actions">
-          <Link className="ui-btn ui-btn-sm" href="/">
+          <Link className="text-action" href="/">
             {t("admin.backToPlanner")}
           </Link>
           <LanguageSwitcher />
         </div>
       </header>
-      <div className="admin-content">
-        <h1 className="admin-title">{t("admin.title")}</h1>
+      <div className="fable-page admin-content">
+        <header className="page-intro">
+          <h1>{t("admin.title")}</h1>
+        </header>
         {notice ? (
           <p
-            className={`admin-notice admin-notice-${notice.tone}`}
+            className="fable-notice"
             role={notice.tone === "error" ? "alert" : "status"}
           >
             {notice.text}
@@ -125,14 +133,26 @@ function ScreenBody({
   const { t } = useLocale();
   switch (screen.status) {
     case "loading":
-      return <p className="text-muted">{t("admin.loading")}</p>;
+      return (
+        <p role="status" className="text-muted">
+          {t("admin.loading")}
+        </p>
+      );
     case "unavailable":
-      return <p className="text-muted">{t("admin.state.unavailable")}</p>;
+      return (
+        <p role="status" className="fable-notice">
+          {t("admin.state.unavailable")}
+        </p>
+      );
     case "unauthenticated":
-      return <p className="text-muted">{t("admin.state.unauthenticated")}</p>;
+      return (
+        <p role="status" className="fable-notice">
+          {t("admin.state.unauthenticated")}
+        </p>
+      );
     case "forbidden":
       return (
-        <p className="text-muted">
+        <p role="status" className="fable-notice">
           {screen.username
             ? t("admin.state.forbidden", { username: screen.username })
             : t("admin.state.forbiddenAnonymous")}
@@ -141,7 +161,9 @@ function ScreenBody({
     case "error":
       return (
         <div className="admin-state">
-          <p className="text-muted">{t("admin.state.error")}</p>
+          <p role="alert" className="fable-notice">
+            {t("admin.state.error")}
+          </p>
           <button className="ui-btn" type="button" onClick={onReload}>
             {t("admin.retry")}
           </button>
@@ -284,12 +306,14 @@ function ResetPasswordForm({
     <form
       className="admin-form"
       aria-label={t("admin.reset.heading", { username: user.username })}
+      aria-busy={busy}
       onSubmit={submit}
     >
       <Field label={t("admin.field.password")}>
         <input
           className="ui-input"
           type="password"
+          autoFocus
           autoComplete="new-password"
           value={password}
           onChange={(event) => setPassword(event.target.value)}
@@ -304,12 +328,17 @@ function ResetPasswordForm({
           onChange={(event) => setConfirmation(event.target.value)}
         />
       </Field>
-      <div className="admin-form-actions">
-        <button className="ui-btn ui-btn-primary" type="submit" disabled={busy}>
-          {t("admin.reset.submit")}
-        </button>
-        <button className="ui-btn" type="button" onClick={onCancel}>
+      <div className="button-row">
+        <button
+          className="ui-btn"
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+        >
           {t("admin.reset.cancel")}
+        </button>
+        <button className="ui-btn ui-btn-primary" type="submit" disabled={busy}>
+          {busy ? t("admin.saving") : t("admin.reset.submit")}
         </button>
       </div>
     </form>
@@ -352,7 +381,7 @@ function CreateUserSection({
       <h2 id="admin-create-heading" className="admin-heading">
         {t("admin.create.heading")}
       </h2>
-      <form className="admin-form" onSubmit={submit}>
+      <form className="admin-form" aria-busy={busy} onSubmit={submit}>
         <Field
           label={t("admin.field.username")}
           hint={t("admin.field.usernameHint")}
@@ -399,13 +428,13 @@ function CreateUserSection({
             <option value="admin">{t("admin.role.admin")}</option>
           </select>
         </Field>
-        <div className="admin-form-actions">
+        <div className="button-row">
           <button
             className="ui-btn ui-btn-primary"
             type="submit"
             disabled={busy}
           >
-            {t("admin.create.submit")}
+            {busy ? t("admin.saving") : t("admin.create.submit")}
           </button>
         </div>
       </form>

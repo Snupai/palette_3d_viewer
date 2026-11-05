@@ -62,7 +62,7 @@ describe("AdminUsersScreen", () => {
     fireEvent.change(screen.getByLabelText(/^Benutzername/), {
       target: { value: "lager" },
     });
-    fireEvent.change(screen.getByLabelText(/^Kennwort mindestens/), {
+    fireEvent.change(screen.getByLabelText(/^Kennwort Mindestens/), {
       target: { value: "Frische Palette 42" },
     });
     fireEvent.change(screen.getByLabelText("Kennwort wiederholen"), {

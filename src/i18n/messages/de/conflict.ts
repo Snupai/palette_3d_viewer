@@ -2,11 +2,11 @@
 export const conflictDe = {
   "conflict.title": "Plan wurde inzwischen geändert",
   "conflict.intro":
-    "Jemand hat diesen Plan auf dem Server gespeichert, während du ihn bearbeitet hast. Dein Entwurf ist nicht verloren. Wähle einen vollständigen Planstand oder speichere deinen Entwurf als Kopie.",
+    "Jemand hat diesen Plan auf dem Server gespeichert, während Sie ihn bearbeitet haben. Ihr Entwurf ist nicht verloren. Wählen Sie einen vollständigen Planstand oder speichern Sie Ihren Entwurf als Kopie.",
   "conflict.refreshed":
     "Der Serverstand hat sich gerade erneut geändert. Der Vergleich zeigt jetzt den neuesten Stand – bitte erneut entscheiden.",
   "conflict.serverDeleted":
-    "Der Plan wurde auf dem Server gelöscht. Du kannst deinen Entwurf neu speichern oder als Kopie anlegen.",
+    "Der Plan wurde auf dem Server gelöscht. Sie können Ihren Entwurf neu speichern oder als Kopie anlegen.",
   "conflict.mine.heading": "Mein Entwurf",
   "conflict.mine.caption": "Nicht gespeichert",
   "conflict.server.heading": "Aktueller Serverstand",
@@ -57,7 +57,7 @@ export const conflictDe = {
   "conflict.action.keepMineHint":
     "Ersetzt den Serverstand – nur wenn er sich nicht noch einmal geändert hat.",
   "conflict.action.keepServer": "Serverstand übernehmen",
-  "conflict.action.keepServerHint": "Verwirft deinen Entwurf.",
+  "conflict.action.keepServerHint": "Verwirft Ihren Entwurf.",
   "conflict.action.keepServerDeleted": "Entwurf verwerfen",
   "conflict.action.keepServerDeletedHint": "Schließt den gelöschten Plan.",
   "conflict.action.saveCopy": "Entwurf als Kopie speichern",
@@ -67,14 +67,14 @@ export const conflictDe = {
     "Der Entwurf bleibt geöffnet; beim nächsten Speichern erscheint der Vergleich erneut.",
   "conflict.errorUnknown": "unbekannter Fehler",
   "conflict.busy": "Wird gespeichert …",
-  "conflict.error": "Das hat nicht geklappt: {message}",
+  "conflict.error": "Speichern fehlgeschlagen: {message}",
   "conflict.saveRejected":
-    "Der Plan wurde inzwischen auf dem Server geändert. Bitte im Vergleich entscheiden; dein Entwurf bleibt erhalten.",
-  "conflict.status.savedMine": "Dein Entwurf von {name} wurde gespeichert.",
+    "Der Plan wurde inzwischen auf dem Server geändert. Bitte im Vergleich entscheiden; Ihr Entwurf bleibt erhalten.",
+  "conflict.status.savedMine": "Ihr Entwurf von {name} wurde gespeichert.",
   "conflict.status.adoptedServer":
     "Der Serverstand von {name} wurde übernommen.",
   "conflict.status.serverDeleted":
     "Der Entwurf wurde verworfen; der Plan ist auf dem Server gelöscht.",
   "conflict.status.savedCopy":
-    "Dein Entwurf wurde als Kopie {name} gespeichert.",
+    "Ihr Entwurf wurde als Kopie {name} gespeichert.",
 } as const;

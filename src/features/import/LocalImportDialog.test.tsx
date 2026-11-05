@@ -81,7 +81,7 @@ describe("LocalImportController", () => {
     });
     expect(catalogBox).toHaveProperty("disabled", true);
     expect(
-      screen.getByText("Nur Admins dürfen den Werkskatalog befüllen"),
+      screen.getByText("Nur Admins dürfen den Werkskatalog befüllen."),
     ).toBeTruthy();
 
     const start = screen.getByRole("button", {
@@ -120,10 +120,11 @@ describe("LocalImportController", () => {
       const dialog = await screen.findByRole("dialog", {
         name: "Lokale Pläne auf den Server übernehmen",
       });
+      // The header's close button is the first control; Shift+Tab from it
+      // wraps to the last control inside the overview.
       const close = screen.getByRole("button", { name: "Schließen" });
       close.focus();
-      fireEvent.keyDown(close, { key: "Tab" });
-      // Focus wraps to the first control inside the overview.
+      fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
       expect(dialog.contains(document.activeElement)).toBe(true);
       expect(document.activeElement).not.toBe(close);
 

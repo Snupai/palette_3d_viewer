@@ -173,8 +173,12 @@ h3 {
   padding: 10px 0;
   font-size: 15px;
 }
-.text-action:hover {
+.text-action:hover:not(:disabled) {
   color: var(--brand);
+}
+.text-action:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .welcome-doors {
   display: grid;
@@ -452,7 +456,7 @@ h3 {
   background: none;
   border: 0;
 }
-.plan-actions button:hover {
+.plan-actions button:hover:not(:disabled) {
   background: var(--surface-hover);
 }
 .inline-confirm {
@@ -640,7 +644,7 @@ h3 {
   border: 1px solid var(--line);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--ink) 14%, transparent);
 }
-.fable-tool-menu button {
+.fable-tool-menu button:not(.ui-btn-primary) {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -650,7 +654,7 @@ h3 {
   background: none;
   border: 0;
 }
-.fable-tool-menu button:hover {
+.fable-tool-menu button:not(.ui-btn-primary):hover {
   background: var(--surface-hover);
 }
 .viewer-main {
@@ -731,6 +735,8 @@ h3 {
   }
   .header-actions {
     gap: 6px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   .header-actions .ui-btn {
     padding: 8px 10px;
@@ -1517,19 +1523,14 @@ details:has(> .report-sheet) {
 .admin-content {
   display: grid;
   gap: 24px;
-  max-width: 960px;
-  margin: 0 auto;
-  padding: 24px 16px 48px;
 }
-.admin-title {
-  font-family: var(--font-barlow-condensed), sans-serif;
-  font-size: 28px;
-  font-weight: 700;
+/* The grid gap spaces the intro; its own margin would stack on top. */
+.admin-content > .page-intro {
+  margin-bottom: 0;
 }
 .admin-heading {
-  font-family: var(--font-barlow-condensed), sans-serif;
-  font-size: 19px;
-  font-weight: 700;
+  font-size: 21px;
+  font-weight: 600;
   margin-bottom: 8px;
 }
 .admin-section,
@@ -1541,7 +1542,6 @@ details:has(> .report-sheet) {
 .admin-table-scroll {
   overflow-x: auto;
   border: 1px solid var(--line);
-  border-radius: 4px;
   background: var(--surface);
 }
 .admin-form {
@@ -1549,33 +1549,22 @@ details:has(> .report-sheet) {
   gap: 12px;
   max-width: 420px;
 }
-.admin-form-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-.admin-notice {
-  border: 1px solid var(--line);
-  border-left-width: 3px;
-  border-radius: 4px;
-  padding: 8px 12px;
-  background: var(--surface);
-}
-.admin-notice-success {
-  border-left-color: var(--ok);
-}
-.admin-notice-error {
-  border-left-color: var(--danger);
+/* Page-level label size, like `.filter-content label`; the shared Field is drawer-sized. */
+.admin-form > label,
+.session-form > label {
+  font-size: 14px;
+  line-height: 1.4;
 }
 
-/* Sign-in menu and read-only hints in server mode (#34). */
-.session-badge {
+/* Sign-in menu and read-only hints in server mode (#34). Both header badges
+   share the square-cornered `.plan-origin` look; only the tone differs. */
+.session-badge,
+.save-pending-badge {
   display: inline-flex;
   align-items: center;
   min-height: 28px;
   padding: 2px 8px;
   border: 1px solid var(--line);
-  border-radius: 2px;
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;
@@ -1587,22 +1576,6 @@ details:has(> .report-sheet) {
 .session-menu > div {
   display: grid;
   gap: 10px;
-}
-.session-form label {
-  display: grid;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--muted);
-}
-/* `.fable-tool-menu button` resets menu entries; the submit stays primary. */
-.session-form button.ui-btn-primary {
-  justify-content: center;
-  background: var(--brand);
-  border: 1px solid var(--brand);
-  color: var(--brand-on);
-}
-.session-form button.ui-btn-primary:hover:not(:disabled) {
-  background: var(--brand-hover);
 }
 .session-user {
   display: grid;
@@ -1618,23 +1591,11 @@ details:has(> .report-sheet) {
 .session-error {
   color: var(--danger);
 }
+/* The user-management link is a menu entry like the buttons around it. */
 .session-menu a {
+  display: flex;
+  width: 100%;
   padding: 11px;
-}
-/* Header entry of the local import in server mode (#37). */
-.local-import-button {
-  min-height: 44px;
-  display: inline-flex;
-  align-items: center;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
-  background: var(--surface);
-  color: var(--ink);
-  cursor: pointer;
-  white-space: nowrap;
-}
-.local-import-button:hover {
-  background: var(--surface-hover);
 }
 .session-menu a:hover {
   background: var(--surface-hover);
@@ -1649,20 +1610,10 @@ details:has(> .report-sheet) {
   font-size: 13px;
   line-height: 1.4;
 }
-.fable-tool-menu .session-confirm button.session-danger {
-  color: var(--danger);
-}
 /* A save the server did not take: the draft waits in the browser (#35). */
 .save-pending-badge {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 2px 8px;
-  border: 1px solid var(--danger);
-  border-radius: 2px;
-  color: var(--danger);
-  font-size: 13px;
-  white-space: nowrap;
+  border-color: var(--caution);
+  color: var(--caution);
 }
 .draft-restore {
   display: grid;
@@ -1681,9 +1632,19 @@ details:has(> .report-sheet) {
 .draft-restore li > span {
   flex: 1 1 220px;
 }
-.welcome-door:disabled,
+/* Locked by a read-only session: the shared disabled look (muted text,
+   not-allowed cursor), and the door's pseudo-button loses its brand fill. */
+.welcome-door:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.welcome-door:disabled .door-foot strong {
+  background: var(--surface-hover);
+  color: var(--muted);
+}
 .plan-actions button:disabled {
-  opacity: 0.55;
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .welcome-door:disabled:hover {
   border-color: var(--line);

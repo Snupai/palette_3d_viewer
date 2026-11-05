@@ -328,7 +328,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
       expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
     );
     expect(
-      await screen.findByText("Dein Entwurf von M5-EDITOR wurde gespeichert."),
+      await screen.findByText("Ihr Entwurf von M5-EDITOR wurde gespeichert."),
     ).toBeTruthy();
   });
 
@@ -1405,6 +1405,47 @@ describe("PlannerProjectWorkspace editor integration", () => {
     const storage = await editDuringSlowSave("fail");
     await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
     expect(labelSides(storage)).toEqual([["right", 1]]);
+  });
+
+  it("disables the finished plan's editing actions without a session (server mode)", async () => {
+    const { repository } = await repositoryWithProject();
+    const anonymousFetch: typeof fetch = async (input) => {
+      if (input !== "/api/auth/me") throw new Error("unexpected request");
+      return new Response(null, { status: 401 });
+    };
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={anonymousFetch}
+      />,
+    );
+    await openSavedPlan();
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    const hint =
+      "Ohne Anmeldung sind alle Pläne lesbar und exportierbar. Zum Bearbeiten bitte anmelden.";
+    for (const name of [
+      "Muster bearbeiten",
+      "Weitere Muster erzeugen",
+      "Planangaben bearbeiten",
+    ]) {
+      const button = await screen.findByRole("button", { name });
+      await waitFor(() => expect(button.hasAttribute("disabled")).toBe(true));
+      expect(button.getAttribute("title")).toBe(hint);
+    }
+    // Reading stays available.
+    expect(
+      screen
+        .getByRole("button", { name: "Palettierblatt ansehen" })
+        .hasAttribute("disabled"),
+    ).toBe(false);
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {

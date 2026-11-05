@@ -24,16 +24,17 @@ export const adminEn = {
   "admin.create.submit": "Create user",
   "admin.create.success": "User {username} was created.",
   "admin.field.username": "Username",
-  "admin.field.usernameHint": "3–64 characters: a–z, 0–9, dot, _ or -",
+  "admin.field.usernameHint": "3–64 characters: a–z, 0–9, dot, _ or -.",
   "admin.field.password": "Password",
   "admin.field.passwordHint":
-    "at least 12 characters, 5 different, without the username",
+    "At least 12 characters, 5 of them different, without the username.",
   "admin.field.confirmation": "Repeat password",
   "admin.field.role": "Role",
   "admin.reset.open": "Reset password",
   "admin.reset.heading": "New password for {username}",
   "admin.reset.submit": "Set password",
   "admin.reset.cancel": "Cancel",
+  "admin.saving": "Saving …",
   "admin.reset.success":
     "Password for {username} was set; existing sessions have ended.",
   "admin.reset.ownSessionEnded":
@@ -55,5 +56,5 @@ export const adminEn = {
     "The password must contain at least 5 different characters.",
   "admin.error.sessionLost":
     "Your sign-in has expired or no longer has admin rights.",
-  "admin.error.generic": "That did not work. Please try again.",
+  "admin.error.generic": "Saving failed.",
 } as const satisfies Record<keyof typeof adminDe, string>;
