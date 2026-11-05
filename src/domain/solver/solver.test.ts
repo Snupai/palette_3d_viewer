@@ -2254,10 +2254,11 @@ describe("deterministic solve orchestration", () => {
           dimensionsMm: { length: 180, width: 120 },
           clearanceMm: 5,
         },
-        envelopeMm: { minX: -10, minY: 5, maxX: 890, maxY: 605 },
-        // Exercise every family in both orders without repeating hundreds of
-        // equivalent spacing variants in this orchestration test.
-        constraints: { maxCandidatesPerGenerator: 100 },
+        envelopeMm: { minX: -10, minY: 5, maxX: 730, maxY: 505 },
+        // Exercise every family in both orders while keeping each family to a
+        // handful of drafts; order and batching independence does not need
+        // hundreds of equivalent spacing variants.
+        constraints: { maxCandidatesPerGenerator: 5 },
       };
       const progressA: string[] = [];
       const progressB: string[] = [];
@@ -2290,6 +2291,35 @@ describe("deterministic solve orchestration", () => {
 
       expect(comparable(second)).toEqual(comparable(first));
       expect(progressA.length).toBeGreaterThan(progressB.length);
+      // Pin every family's draft count so the candidate cap cannot hollow out
+      // coverage unnoticed. staircase-exchange yields no drafts for this
+      // geometry at any cap.
+      expect(first.statistics.generatedByFamily).toEqual({
+        row: 5,
+        block: 5,
+        "justified-grid": 5,
+        pinwheel: 5,
+        "nested-side": 4,
+        "edge-ring": 5,
+        "mixed-orientation": 5,
+        "crossed-strip": 5,
+        "stepped-strip": 5,
+        "stepped-block": 5,
+        "slice-grid": 5,
+        "paired-grid": 5,
+        mosaic: 5,
+        "rounded-slice": 5,
+        "anchored-ring": 5,
+        "capped-ring": 5,
+        "asymmetric-ring": 5,
+        "nested-edge": 5,
+        "nested-strip": 5,
+        staircase: 5,
+        "staircase-variable": 5,
+        "staircase-exchange": 0,
+        "block-plan": 5,
+        symmetry: 5,
+      });
     },
     15_000,
   );
