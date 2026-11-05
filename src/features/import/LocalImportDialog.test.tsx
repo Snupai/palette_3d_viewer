@@ -70,18 +70,18 @@ describe("LocalImportController", () => {
     // The Werkskatalog entry is shown but not selectable for a non-admin.
     const catalogBox = screen.getByRole("checkbox", {
       name: "EURO pallet übernehmen",
-    }) as HTMLInputElement;
-    expect(catalogBox.disabled).toBe(true);
+    });
+    expect(catalogBox).toHaveProperty("disabled", true);
     expect(
       screen.getByText("Nur Admins dürfen den Werkskatalog befüllen"),
     ).toBeTruthy();
 
     const start = screen.getByRole("button", {
       name: "1 übernehmen",
-    }) as HTMLButtonElement;
-    expect(start.disabled).toBe(true);
+    });
+    expect(start).toHaveProperty("disabled", true);
     fireEvent.click(screen.getByRole("checkbox", { name: /für alle lesbar/ }));
-    expect(start.disabled).toBe(false);
+    expect(start).toHaveProperty("disabled", false);
     fireEvent.click(start);
 
     expect(await screen.findByText("1 Eintrag wurde übernommen.")).toBeTruthy();
