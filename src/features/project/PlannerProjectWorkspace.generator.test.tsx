@@ -366,16 +366,16 @@ async function solveExisting(repository: ProjectRepository) {
 describe("PlannerProjectWorkspace guided generation integration", () => {
   it("does not let FIRST's pending save close or clean a new SECOND form", async () => {
     const repository = emptyRepository();
-    const persist = repository.saveProject.bind(repository);
+    const persist = repository.saveProjectVersioned.bind(repository);
     let release!: () => void;
     const pending = new Promise<void>((resolve) => {
       release = resolve;
     });
     const saveSpy = vi
-      .spyOn(repository, "saveProject")
-      .mockImplementationOnce(async (project) => {
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (project, options) => {
         await pending;
-        return persist(project);
+        return persist(project, options);
       });
     vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<PlannerProjectWorkspace repository={repository} />);
@@ -447,7 +447,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
     fireEvent.click(screen.getByRole("button", { name: "Dirty stack draft" }));
     fireEvent.click(screen.getByRole("button", { name: "Edit stack inputs" }));
-    const save = vi.spyOn(repository, "saveProject");
+    const save = vi.spyOn(repository, "saveProjectVersioned");
     const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.change(screen.getByLabelText("Länge"), {
       target: { value: "410" },
@@ -486,16 +486,16 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     const repository = emptyRepository();
     await createAndGenerate(repository);
     fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
-    const persist = repository.saveProject.bind(repository);
+    const persist = repository.saveProjectVersioned.bind(repository);
     let release!: () => void;
     const pending = new Promise<void>((resolve) => {
       release = resolve;
     });
     const save = vi
-      .spyOn(repository, "saveProject")
-      .mockImplementationOnce(async (project) => {
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (project, options) => {
         await pending;
-        return persist(project);
+        return persist(project, options);
       });
     fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
     await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
