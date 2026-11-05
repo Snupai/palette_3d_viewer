@@ -467,11 +467,20 @@ export function PlannerProjectWorkspace({
   }, []);
 
   // The open editor draft is backed up as it changes (server mode only).
-  const backUpDraftRef = useRef(backUpDraft);
-  backUpDraftRef.current = backUpDraft;
+  // Once the editor is clean again (saved, undone) its backup goes too; the
+  // editor re-reports a just-saved draft as dirty for a moment.
+  const backupHandlersRef = useRef({ backUpDraft, dropDraftBackup });
+  backupHandlersRef.current = { backUpDraft, dropDraftBackup };
+  const editorBackupIdRef = useRef<string | null>(null);
   useEffect(() => {
+    const handlers = backupHandlersRef.current;
     if (editorDirty && editorDraftProject) {
-      backUpDraftRef.current(editorDraftProject);
+      if (handlers.backUpDraft(editorDraftProject)) {
+        editorBackupIdRef.current = editorDraftProject.id;
+      }
+    } else if (!editorDirty && editorBackupIdRef.current) {
+      handlers.dropDraftBackup(editorBackupIdRef.current);
+      editorBackupIdRef.current = null;
     }
   }, [editorDirty, editorDraftProject, session]);
 
