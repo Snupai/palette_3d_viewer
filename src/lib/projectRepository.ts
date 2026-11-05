@@ -304,9 +304,7 @@ export class ProjectRepository {
         continue;
       }
       projects.push(normalized.project);
-      if (normalized.migrated) {
-        await this.storage.put(PROJECTS_STORE_NAME, normalized.project);
-      }
+      if (normalized.migrated) await this.persistUpgrade(normalized.project);
     }
 
     const filtered = projects.filter((project) =>
@@ -340,7 +338,9 @@ export class ProjectRepository {
       return { project: null, diagnostics, version: null };
     }
     let version = stored.version;
-    if (normalized.migrated) {
+    // Not on the server: a read must not need write access (see
+    // persistUpgrade); the next save of the plan stores the upgrade.
+    if (normalized.migrated && !this.isServerStorage()) {
       // Write the migration back against the version just read, so it cannot
       // silently replace a concurrent save of the same record.
       version = await this.storage.put(
@@ -672,6 +672,17 @@ export class ProjectRepository {
     };
   }
 
+  /**
+   * Stores a project upgraded while reading. Not on the server: a read must
+   * not need write access (anonymous visitors and non-creators would get
+   * 401/403 and the whole list would fail), so the upgrade stays in memory
+   * until someone allowed to save the project saves it.
+   */
+  private async persistUpgrade(project: Project): Promise<void> {
+    if (this.isServerStorage()) return;
+    await this.storage.put(PROJECTS_STORE_NAME, project);
+  }
+
   private async quarantine(
     sourceStore: PlannerStoreName,
     row: unknown,
@@ -691,6 +702,17 @@ export class ProjectRepository {
       record: row,
     };
     await this.storage.put(PROJECT_QUARANTINE_STORE_NAME, record);
+  }
+
+  /**
+   * The creator the server reported for a project, as last seen by this
+   * repository's storage: a user id, `null` when it records none, or
+   * `undefined` when unknown or not stored on a server (#34).
+   */
+  projectCreatedBy(id: string): string | null | undefined {
+    return this.storage instanceof ServerPlannerRecordStorage
+      ? this.storage.createdBy(PROJECTS_STORE_NAME, id)
+      : undefined;
   }
 
   private isServerStorage(): boolean {

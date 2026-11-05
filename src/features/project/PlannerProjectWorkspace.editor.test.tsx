@@ -13,6 +13,7 @@ import {
   ProjectRepository,
   RecordVersionConflictError,
 } from "~/lib/projectRepository";
+import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 
 vi.mock("~/components/RobViewer", () => ({
   RobViewer: () => <div data-testid="rob-viewer" />,
@@ -115,6 +116,17 @@ async function openSavedPlan() {
   );
 }
 /** Opens the saved plan in the pattern editor and leaves one unsaved edit. */
+/** Server mode needs a session that may save (#34): the plan's creator. */
+const signedInFetch: typeof fetch = async (input) => {
+  if (input !== "/api/auth/me") throw new Error("unexpected request");
+  return new Response(
+    JSON.stringify({
+      user: { id: "u-alice", username: "alice", role: "user" },
+    }),
+    { status: 200 },
+  );
+};
+
 async function editLabelSideInEditor(
   onUnsavedChange: ReturnType<typeof vi.fn>,
 ) {
@@ -222,6 +234,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         repository={repository}
         onUnsavedChange={onUnsavedChange}
         storageMode="server"
+        fetchImpl={signedInFetch}
       />,
     );
     await editLabelSideInEditor(onUnsavedChange);
@@ -282,6 +295,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         repository={repository}
         onUnsavedChange={onUnsavedChange}
         storageMode="server"
+        fetchImpl={signedInFetch}
       />,
     );
     await editLabelSideInEditor(onUnsavedChange);
@@ -321,6 +335,94 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(
       (await repository.getProject(project.id)).project?.projectNumber,
     ).toBe("THEIRS");
+  });
+
+  it("keeps the editor draft when a save hits an expired session and saves it after signing in again", async () => {
+    const { project, repository } = await repositoryWithProject();
+    // The first save meets an expired session (401), like the records API.
+    let sessionExpired = true;
+    const save = repository.saveProjectVersioned.bind(repository);
+    vi.spyOn(repository, "saveProjectVersioned").mockImplementation(
+      async (input, options) => {
+        if (sessionExpired) {
+          sessionExpired = false;
+          throw new ServerStorageError(
+            "unauthenticated",
+            "put",
+            "projects",
+            401,
+            "unauthenticated",
+          );
+        }
+        return save(input, options);
+      },
+    );
+    const alice = { id: "u-alice", username: "alice", role: "user" };
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      const path = typeof input === "string" ? input : "";
+      if (path === "/api/auth/me" || path === "/api/auth/login") {
+        return new Response(JSON.stringify({ user: alice }), { status: 200 });
+      }
+      throw new Error(`unexpected request ${path}`);
+    });
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText(
+        "Die Sitzung ist abgelaufen. Bitte erneut anmelden; die Änderungen bleiben in diesem Fenster erhalten.",
+      ),
+    ).toBeTruthy();
+    // Signed out, but the editor and its draft are still there.
+    expect(screen.getByText("Nur lesen")).toBeTruthy();
+    expect(screen.getByTestId("project-editor-workspace")).toBeTruthy();
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "left",
+    );
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(true);
+    const lockedSave: HTMLButtonElement = screen.getByRole("button", {
+      name: "Speichern",
+    });
+    expect(lockedSave.disabled).toBe(true);
+
+    fireEvent.change(screen.getByLabelText("Benutzername"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Kennwort"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await waitFor(() => {
+      const button: HTMLButtonElement = screen.getByRole("button", {
+        name: "Speichern",
+      });
+      expect(button.disabled).toBe(false);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(async () => {
+      const saved = await repository.getProject(project.id);
+      expect(
+        saved.project?.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+      ).toBe("left");
+    });
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
+    );
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {

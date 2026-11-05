@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
 import { useLocale, useT } from "~/i18n";
@@ -66,6 +67,8 @@ export type GuidedProjectFormProps = {
    * unmount. The caller owns any discard confirmation.
    */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Relabels or disables the save buttons (server mode, #34). */
+  saveButton?: SaveButtonState;
 };
 
 function domId(base: string, path: string): string {
@@ -233,6 +236,8 @@ type SectionProps = {
   status: SectionStatus;
   open: boolean;
   onToggle: () => void;
+  /** Read-only session (server mode, #34): the fields are disabled. */
+  locked?: boolean;
   children: ReactNode;
 };
 
@@ -245,6 +250,7 @@ function Section({
   status,
   open,
   onToggle,
+  locked = false,
   children,
 }: SectionProps) {
   const t = useT();
@@ -290,7 +296,10 @@ function Section({
         className="fw-sec-body"
         hidden={!open}
       >
-        {children}
+        {/* The header toggle stays outside: details remain readable. */}
+        <fieldset className="fw-locked-fields" disabled={locked}>
+          {children}
+        </fieldset>
       </div>
     </section>
   );
@@ -421,7 +430,9 @@ export function GuidedProjectForm({
   onClose,
   onSave,
   onDirtyChange,
+  saveButton,
 }: GuidedProjectFormProps) {
+  const saveLocked = saveButton?.disabledReason ?? null;
   const t = useT();
   const { tag } = useLocale();
   const baseId = useId().replace(/:/g, "");
@@ -790,6 +801,7 @@ export function GuidedProjectForm({
               status={sectionStatus("meta")}
               open={openSection === "meta"}
               onToggle={() => toggle("meta")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2">
                 <TextField
@@ -826,6 +838,7 @@ export function GuidedProjectForm({
               status={sectionStatus("package")}
               open={openSection === "package"}
               onToggle={() => toggle("package")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid3">
                 <NumberField
@@ -894,6 +907,7 @@ export function GuidedProjectForm({
               status={sectionStatus("pallet")}
               open={openSection === "pallet"}
               onToggle={() => toggle("pallet")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2">
                 <div className="fw-field">
@@ -1022,6 +1036,7 @@ export function GuidedProjectForm({
               status={sectionStatus("limits")}
               open={openSection === "limits"}
               onToggle={() => toggle("limits")}
+              locked={saveLocked !== null}
             >
               <label className="fw-check">
                 <input
@@ -1112,6 +1127,7 @@ export function GuidedProjectForm({
               status={sectionStatus("handling")}
               open={openSection === "handling"}
               onToggle={() => toggle("handling")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2 fw-handling">
                 <div className="fw-stack-gap">
@@ -1271,7 +1287,7 @@ export function GuidedProjectForm({
 
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
-          {footerHint}
+          {saveLocked ?? footerHint}
         </p>
         <div className="fw-footer-actions">
           <button
@@ -1288,7 +1304,8 @@ export function GuidedProjectForm({
               name="creationAction"
               value="create-only"
               className="ui-btn"
-              disabled={saving || readingSheet}
+              disabled={saving || readingSheet || saveLocked !== null}
+              title={saveLocked ?? undefined}
             >
               {t("projectForm.saveOnly")}
             </button>
@@ -1298,13 +1315,14 @@ export function GuidedProjectForm({
             name="creationAction"
             value={creating ? "generate" : "save"}
             className="ui-btn-primary"
-            disabled={saving || readingSheet}
+            disabled={saving || readingSheet || saveLocked !== null}
+            title={saveLocked ?? undefined}
           >
             {saving
               ? t("projectForm.saving")
               : creating
                 ? t("projectForm.generate")
-                : t("projectForm.saveChanges")}
+                : (saveButton?.label ?? t("projectForm.saveChanges"))}
           </button>
         </div>
       </footer>

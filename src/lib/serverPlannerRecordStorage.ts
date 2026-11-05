@@ -73,6 +73,8 @@ export type ServerPlannerRecordStorageOptions = {
 const apiRecordSchema = z.object({
   record: z.record(z.string(), z.unknown()),
   version: z.number().int().positive(),
+  /** Absent in answers of older servers; treated as unknown. */
+  createdBy: z.string().nullable().optional(),
 });
 const listSchema = z.object({ records: z.array(apiRecordSchema) });
 const conflictSchema = z.object({
@@ -105,6 +107,8 @@ type Request = {
 export class ServerPlannerRecordStorage implements PlannerRecordStorage {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch | undefined;
+  /** Last creator seen per store and record id (`null`: none recorded). */
+  private readonly creators = new Map<string, string | null>();
 
   constructor(options: ServerPlannerRecordStorageOptions = {}) {
     this.baseUrl = (options.baseUrl ?? "").replace(/\/+$/, "");
@@ -123,7 +127,22 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
       throw await failure(response, "list", storeName);
     }
     const body = await parseBody(response, listSchema, "list", storeName);
+    this.forgetCreators(storeName);
+    for (const entry of body.records) this.rememberCreator(storeName, entry);
     return body.records.map(({ record }) => record);
+  }
+
+  /**
+   * The id of the user who created the record, as last seen by a list, read
+   * or write of this client: `null` when the server records no creator (the
+   * account was deleted), `undefined` when this client has not seen the
+   * record. A hint for the UI only; the server enforces write access.
+   */
+  createdBy(
+    storeName: PlannerStoreName,
+    id: string,
+  ): string | null | undefined {
+    return this.creators.get(creatorKey(storeName, id));
   }
 
   async get(storeName: PlannerStoreName, id: string): Promise<unknown> {
@@ -164,8 +183,9 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
     if (response.status !== 200 && response.status !== 201) {
       throw await failure(response, "put", storeName);
     }
-    return (await parseBody(response, apiRecordSchema, "put", storeName))
-      .version;
+    const body = await parseBody(response, apiRecordSchema, "put", storeName);
+    this.rememberCreator(storeName, body);
+    return body.version;
   }
 
   async delete(
@@ -201,7 +221,10 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
       method: "DELETE",
       path: `${recordPath(storeName, id)}?expectedVersion=${expectedVersion}`,
     });
-    if (response.status === 204) return;
+    if (response.status === 204) {
+      this.creators.delete(creatorKey(storeName, id));
+      return;
+    }
     if (response.status === 409) {
       const error = await conflict(
         response,
@@ -231,7 +254,10 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
     });
     if (response.status === 404) {
       const code = await errorCodeOf(response.clone());
-      if (code === "record_not_found") return undefined;
+      if (code === "record_not_found") {
+        this.creators.delete(creatorKey(storeName, id));
+        return undefined;
+      }
       throw await failure(response, operation, storeName);
     }
     if (response.status !== 200) {
@@ -243,7 +269,24 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
       operation,
       storeName,
     );
+    this.rememberCreator(storeName, body);
     return { record: body.record, version: body.version };
+  }
+
+  private rememberCreator(
+    storeName: PlannerStoreName,
+    entry: z.infer<typeof apiRecordSchema>,
+  ): void {
+    const id = recordId(entry.record);
+    if (!id || entry.createdBy === undefined) return;
+    this.creators.set(creatorKey(storeName, id), entry.createdBy);
+  }
+
+  private forgetCreators(storeName: PlannerStoreName): void {
+    const prefix = creatorKey(storeName, "");
+    for (const key of [...this.creators.keys()]) {
+      if (key.startsWith(prefix)) this.creators.delete(key);
+    }
   }
 
   private async send(request: Request): Promise<Response> {
@@ -272,6 +315,10 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
       );
     }
   }
+}
+
+function creatorKey(storeName: PlannerStoreName, id: string): string {
+  return `${storeName}\u0000${id}`;
 }
 
 function isServerStore(storeName: PlannerStoreName): boolean {

@@ -871,6 +871,26 @@ describe("StackWorkspace", () => {
     ).toBeNull();
   });
 
+  it("locks the classic composer's inputs while saving is locked, e.g. during a copy save", () => {
+    render(
+      <StackWorkspace
+        project={project}
+        candidates={candidates}
+        solverInput={solverInput}
+        onSave={vi.fn()}
+        saveButton={{ label: null, disabledReason: "Kopie wird gespeichert" }}
+      />,
+    );
+
+    expect(
+      [
+        screen.getByLabelText("Muster B"),
+        screen.getByLabelText("Gewünschte Lagen"),
+        screen.getByLabelText("Transformation von Lage 1"),
+      ].map((control) => control.matches(":disabled")),
+    ).toEqual([true, true, true]);
+  });
+
   it("keeps edits when a background run adds no new candidates", () => {
     const props = { project, solverInput, onSave: vi.fn() };
     const view = render(<StackWorkspace {...props} candidates={candidates} />);

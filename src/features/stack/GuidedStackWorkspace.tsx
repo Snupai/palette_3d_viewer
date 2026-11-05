@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { LayerPattern } from "~/components/LayerPattern";
 import { useLocale, useT } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
@@ -62,6 +63,7 @@ export type GuidedStackWorkspaceProps = {
   saveFailure: string | null;
   saveMessage: string | null;
   onSaveClick: () => void;
+  saveButton?: SaveButtonState;
   onBack?: () => void;
   onEditProject?: (section?: GuidedSectionId) => void;
   onSubstepChange?: (substep: GuidedStackSubstep) => void;
@@ -192,6 +194,7 @@ export function GuidedStackWorkspace({
   saveFailure,
   saveMessage,
   onSaveClick,
+  saveButton,
   onBack,
   onEditProject,
   onSubstepChange,
@@ -1121,19 +1124,26 @@ export function GuidedStackWorkspace({
     <div ref={rootRef} className="fw fw-stack" aria-busy={saving}>
       <div className="fw-layout">
         <div className="fw-main">
-          {substep === "stack" ? stackStep : reviewStep}
+          {/* Read-only session (#34): composing is disabled, viewing is not. */}
+          <fieldset
+            className="fw-locked-fields"
+            disabled={Boolean(saveButton?.disabledReason)}
+          >
+            {substep === "stack" ? stackStep : reviewStep}
+          </fieldset>
         </div>
         {stage}
       </div>
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
-          {substep === "stack" && canReview
-            ? dirty
-              ? t("stack.footer.dirty")
-              : limitWarnings.length > 0
-                ? t("stack.footer.limits")
-                : null
-            : null}
+          {saveButton?.disabledReason ??
+            (substep === "stack" && canReview
+              ? dirty
+                ? t("stack.footer.dirty")
+                : limitWarnings.length > 0
+                  ? t("stack.footer.limits")
+                  : null
+              : null)}
         </p>
         <div className="fw-footer-actions">
           {substep === "review" ? (
@@ -1149,10 +1159,15 @@ export function GuidedStackWorkspace({
               <button
                 type="button"
                 className="ui-btn-primary"
-                disabled={saving || !canReview}
+                disabled={
+                  saving || !canReview || Boolean(saveButton?.disabledReason)
+                }
+                title={saveButton?.disabledReason ?? undefined}
                 onClick={onSaveClick}
               >
-                {saving ? t("stack.footer.saving") : t("stack.footer.savePlan")}
+                {saving
+                  ? t("stack.footer.saving")
+                  : (saveButton?.label ?? t("stack.footer.savePlan"))}
               </button>
             </>
           ) : (
