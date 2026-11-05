@@ -2291,16 +2291,35 @@ describe("deterministic solve orchestration", () => {
 
       expect(comparable(second)).toEqual(comparable(first));
       expect(progressA.length).toBeGreaterThan(progressB.length);
-      // Guard against the candidate cap hollowing out coverage: every family
-      // that can produce drafts for this input must still contribute.
-      // staircase-exchange yields no drafts for this geometry at any cap.
-      for (const family of BASE_GENERATOR_FAMILIES) {
-        if (family === "staircase-exchange") continue;
-        expect(
-          first.statistics.generatedByFamily[family],
-          family,
-        ).toBeGreaterThan(0);
-      }
+      // Pin every family's draft count so the candidate cap cannot hollow out
+      // coverage unnoticed. staircase-exchange yields no drafts for this
+      // geometry at any cap.
+      expect(first.statistics.generatedByFamily).toEqual({
+        row: 5,
+        block: 5,
+        "justified-grid": 5,
+        pinwheel: 5,
+        "nested-side": 4,
+        "edge-ring": 5,
+        "mixed-orientation": 5,
+        "crossed-strip": 5,
+        "stepped-strip": 5,
+        "stepped-block": 5,
+        "slice-grid": 5,
+        "paired-grid": 5,
+        mosaic: 5,
+        "rounded-slice": 5,
+        "anchored-ring": 5,
+        "capped-ring": 5,
+        "asymmetric-ring": 5,
+        "nested-edge": 5,
+        "nested-strip": 5,
+        staircase: 5,
+        "staircase-variable": 5,
+        "staircase-exchange": 0,
+        "block-plan": 5,
+        symmetry: 5,
+      });
     },
     15_000,
   );
