@@ -265,7 +265,14 @@ export function LocalImportController({
     if (busy) return;
     if (userId) rememberDismissed(userId);
     setOpen(false);
-  }, [busy, userId]);
+    setConflicts([]);
+    setConflictsOpen(false);
+    setCatalogConflicts([]);
+    setLog([]);
+    setError(null);
+    // Refresh the header count after an import.
+    if (inventory && phase === "done") void replan(inventory, false);
+  }, [busy, inventory, phase, replan, userId]);
 
   const start = async () => {
     if (!user || !plan || !canStartImport(plan, selection, confirmed)) return;
@@ -361,7 +368,9 @@ export function LocalImportController({
               : outcome.kind === "copied"
                 ? t("localImport.outcome.copied", {
                     name,
-                    copy: planName(outcome.project, t),
+                    copy:
+                      outcome.project.projectNumber ||
+                      planName(outcome.project, t),
                   })
                 : outcome.kind === "copy-exists"
                   ? t("localImport.outcome.copyExists", { name })
