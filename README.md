@@ -146,6 +146,9 @@ place that maps the mode to a storage.
 
 ### Running the full stack in containers
 
+Step-by-step instructions for both engines, configuration, updates and recovery:
+[Deployment with Docker or Podman](docs/DEPLOYMENT.md).
+
 One command starts PostgreSQL, applies the migrations (one-shot `migrate`
 service) and then the app, built from the multi-stage `Dockerfile` (Next.js
 standalone output, non-root runtime). Works with Docker Compose and Podman
