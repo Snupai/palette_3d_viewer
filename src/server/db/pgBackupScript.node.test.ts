@@ -42,11 +42,19 @@ describe.skipIf(!hasSh)("pg-backup.sh", { timeout: 30_000 }, () => {
 [ -z "\${FAKE_DUMP_FAIL:-}" ] || { printf 'half' >"$f"; exit 1; }
 printf '%s' "\${FAKE_DUMP_CONTENT:-PGDMP fake}" >"$f"`,
     );
-    // pg_restore: --list accepts files starting with PGDMP; a restore logs its args.
+    // pg_restore: --list accepts files starting with PGDMP; otherwise it
+    // writes the dump as SQL to --file=… (FAKE_SQL_FAIL makes that fail).
     writeFake(
       "pg_restore",
       `if [ "$1" = --list ]; then head -c 5 "$2" | grep -q PGDMP; exit; fi
-echo "$@" >"${posix(restoreLog)}"`,
+[ -z "\${FAKE_SQL_FAIL:-}" ] || exit 1
+for a; do case $a in --file=*) f=\${a#--file=} ;; esac; done
+printf 'RESTORE SQL' >"$f"`,
+    );
+    // psql: logs its arguments, with the -f file replaced by its content.
+    writeFake(
+      "psql",
+      `for a; do [ -f "$a" ] && cat "$a" || printf '%s' "$a"; echo; done >"${posix(restoreLog)}"`,
     );
   });
 
@@ -68,6 +76,7 @@ echo "$@" >"${posix(restoreLog)}"`,
         PALETTE_BACKUP_DIR: posix(backups),
         PG_DUMP: posix(path.join(root, "pg_dump")),
         PG_RESTORE: posix(path.join(root, "pg_restore")),
+        PSQL: posix(path.join(root, "psql")),
         ...env,
       },
     });
@@ -161,9 +170,33 @@ echo "$@" >"${posix(restoreLog)}"`,
       },
     );
     expect(restored.status).toBe(0);
-    expect(readFileSync(restoreLog, "utf8").trim()).toBe(
-      `--clean --if-exists --no-owner --single-transaction --exit-on-error --dbname=palette ${posix(backups)}/palette-20260101T000000Z.dump`,
-    );
+    const psqlArgs = readFileSync(restoreLog, "utf8").trim().split("\n");
+    expect(psqlArgs.slice(0, 8)).toEqual([
+      "-X",
+      "-q",
+      "-o",
+      "/dev/null",
+      "-v",
+      "ON_ERROR_STOP=1",
+      "--single-transaction",
+      "--dbname=palette",
+    ]);
+    // Drops every non-system schema before replaying the dump, in that order.
+    expect(psqlArgs[8]).toBe("-c");
+    expect(psqlArgs[9]).toBe("DO $$ DECLARE s name; BEGIN");
+    expect(psqlArgs.at(-3)).toBe("END $$; CREATE SCHEMA public;");
+    expect(psqlArgs.slice(-2)).toEqual(["-f", "RESTORE SQL"]);
+  });
+
+  it("changes nothing when the dump cannot be converted for restore", () => {
+    seed("palette-20260101T000000Z.dump", 60);
+
+    const result = run(["restore", "palette-20260101T000000Z.dump", "--yes"], {
+      FAKE_SQL_FAIL: "1",
+    });
+
+    expect(result.status).toBe(1);
+    expect(existsSync(restoreLog)).toBe(false);
   });
 
   it("rejects a missing backup file and invalid settings", () => {

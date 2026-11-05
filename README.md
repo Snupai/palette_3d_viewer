@@ -182,9 +182,11 @@ directory to exist before `up`; `bun run stack:up` creates it. The logic lives
 in `scripts/pg-backup.sh` (POSIX sh, tested by
 `src/server/db/pgBackupScript.node.test.ts`).
 
-**Restore** replaces all data in the database with the dump, in one
-transaction (on any error nothing changes). Stop the app first so no one keeps
-writing, then pass a file name from `PALETTE_BACKUP_DIR` and `--yes`:
+**Restore** replaces the whole database with the dump, in one transaction (on
+any error nothing changes): every schema is dropped first, so tables from a
+migration newer than the dump disappear and `migrate` re-applies them on the
+next start. Stop the app first so no one keeps writing, then pass a file name
+from `PALETTE_BACKUP_DIR` and `--yes`:
 
 ```sh
 docker compose stop app

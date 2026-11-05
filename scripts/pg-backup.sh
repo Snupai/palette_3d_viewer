@@ -22,6 +22,12 @@ INTERVAL_SECONDS=${PALETTE_BACKUP_INTERVAL_SECONDS:-3600}
 RETENTION_DAYS=${PALETTE_BACKUP_RETENTION_DAYS:-7}
 PG_DUMP=${PG_DUMP:-pg_dump}
 PG_RESTORE=${PG_RESTORE:-pg_restore}
+PSQL=${PSQL:-psql}
+DROP_ALL_SCHEMAS="DO \$\$ DECLARE s name; BEGIN
+  FOR s IN SELECT nspname FROM pg_namespace
+    WHERE nspname NOT LIKE 'pg\\_%' AND nspname <> 'information_schema'
+  LOOP EXECUTE format('DROP SCHEMA %I CASCADE', s); END LOOP;
+END \$\$; CREATE SCHEMA public;"
 # Connection: libpq reads PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE.
 
 log() {
@@ -111,9 +117,16 @@ restore() {
     exit 2
   fi
   log "restoring $(basename "$path") into ${PGDATABASE:-palette}"
-  # One transaction: on any error nothing is changed.
-  "$PG_RESTORE" --clean --if-exists --no-owner --single-transaction \
-    --exit-on-error --dbname="${PGDATABASE:-palette}" "$path"
+  # The dump as SQL first, so a broken archive stops before anything changes.
+  sql=$(mktemp)
+  trap 'rm -f -- "$sql"' EXIT
+  "$PG_RESTORE" --no-owner --file="$sql" "$path"
+  # One transaction: drop every non-system schema (also tables a newer
+  # migration added after the dump was taken), recreate `public`, replay the
+  # dump. On any error nothing is changed.
+  PGOPTIONS="-c client_min_messages=warning" "$PSQL" -X -q -o /dev/null \
+    -v ON_ERROR_STOP=1 --single-transaction \
+    --dbname="${PGDATABASE:-palette}" -c "$DROP_ALL_SCHEMAS" -f "$sql"
   log "restore finished"
 }
 
