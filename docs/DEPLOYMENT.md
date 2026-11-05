@@ -143,4 +143,3 @@ setzen. Anschließend `compose up -d` mit der gewählten Engine ausführen.
   `podman compose version` erfolgreich ausführen.
 - Bei fehlenden Backups Verzeichnis, Schreibrechte und `compose logs backup`
   prüfen. Das erste Backup kann etwas Zeit benötigen.
-
