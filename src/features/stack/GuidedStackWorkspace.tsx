@@ -1124,19 +1124,26 @@ export function GuidedStackWorkspace({
     <div ref={rootRef} className="fw fw-stack" aria-busy={saving}>
       <div className="fw-layout">
         <div className="fw-main">
-          {substep === "stack" ? stackStep : reviewStep}
+          {/* Read-only session (#34): composing is disabled, viewing is not. */}
+          <fieldset
+            className="fw-locked-fields"
+            disabled={Boolean(saveButton?.disabledReason)}
+          >
+            {substep === "stack" ? stackStep : reviewStep}
+          </fieldset>
         </div>
         {stage}
       </div>
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
-          {substep === "stack" && canReview
-            ? dirty
-              ? t("stack.footer.dirty")
-              : limitWarnings.length > 0
-                ? t("stack.footer.limits")
-                : null
-            : null}
+          {saveButton?.disabledReason ??
+            (substep === "stack" && canReview
+              ? dirty
+                ? t("stack.footer.dirty")
+                : limitWarnings.length > 0
+                  ? t("stack.footer.limits")
+                  : null
+              : null)}
         </p>
         <div className="fw-footer-actions">
           {substep === "review" ? (

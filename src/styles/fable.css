@@ -1631,3 +1631,12 @@ details:has(> .report-sheet) {
 .welcome-door:disabled:hover {
   border-color: var(--line);
 }
+/* Disabled field groups of a read-only session keep the normal layout. */
+.fw-locked-fields {
+  display: grid;
+  gap: inherit;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}

@@ -236,6 +236,8 @@ type SectionProps = {
   status: SectionStatus;
   open: boolean;
   onToggle: () => void;
+  /** Read-only session (server mode, #34): the fields are disabled. */
+  locked?: boolean;
   children: ReactNode;
 };
 
@@ -248,6 +250,7 @@ function Section({
   status,
   open,
   onToggle,
+  locked = false,
   children,
 }: SectionProps) {
   const t = useT();
@@ -293,7 +296,10 @@ function Section({
         className="fw-sec-body"
         hidden={!open}
       >
-        {children}
+        {/* The header toggle stays outside: details remain readable. */}
+        <fieldset className="fw-locked-fields" disabled={locked}>
+          {children}
+        </fieldset>
       </div>
     </section>
   );
@@ -795,6 +801,7 @@ export function GuidedProjectForm({
               status={sectionStatus("meta")}
               open={openSection === "meta"}
               onToggle={() => toggle("meta")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2">
                 <TextField
@@ -831,6 +838,7 @@ export function GuidedProjectForm({
               status={sectionStatus("package")}
               open={openSection === "package"}
               onToggle={() => toggle("package")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid3">
                 <NumberField
@@ -899,6 +907,7 @@ export function GuidedProjectForm({
               status={sectionStatus("pallet")}
               open={openSection === "pallet"}
               onToggle={() => toggle("pallet")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2">
                 <div className="fw-field">
@@ -1027,6 +1036,7 @@ export function GuidedProjectForm({
               status={sectionStatus("limits")}
               open={openSection === "limits"}
               onToggle={() => toggle("limits")}
+              locked={saveLocked !== null}
             >
               <label className="fw-check">
                 <input
@@ -1117,6 +1127,7 @@ export function GuidedProjectForm({
               status={sectionStatus("handling")}
               open={openSection === "handling"}
               onToggle={() => toggle("handling")}
+              locked={saveLocked !== null}
             >
               <div className="fw-grid2 fw-handling">
                 <div className="fw-stack-gap">
@@ -1276,7 +1287,7 @@ export function GuidedProjectForm({
 
       <footer className="fw-footer">
         <p className="fw-footer-hint" aria-live="polite">
-          {footerHint}
+          {saveLocked ?? footerHint}
         </p>
         <div className="fw-footer-actions">
           <button
