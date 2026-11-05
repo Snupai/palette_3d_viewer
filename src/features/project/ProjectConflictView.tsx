@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useId, useMemo, useRef } from "react";
 import type { Project } from "~/domain/project/projectSchema";
-import { useLocale } from "~/i18n";
+import { useLocale, type MessageKey } from "~/i18n";
 import { focusableWithin, wrapFocusIndex } from "~/components/ui/focusTrap";
 import { PlanRender } from "~/features/planner/PlanRender";
 import { planLibraryEntry } from "~/features/planner/planLibraryModel";
@@ -20,6 +20,73 @@ export type ProjectConflictViewProps = {
   onChoose: (choice: ConflictChoice) => void;
   /** Close without deciding; the draft stays open and unsaved. */
   onLater: () => void;
+  /**
+   * `draft` (default): a rejected save of the open plan (#36). `import`: a
+   * local plan whose id the server already holds (#37, ADR 0007).
+   */
+  variant?: ConflictViewVariant;
+  /**
+   * Set when "keep mine" would replace a plan the user may not change: the
+   * action is disabled and this text says why.
+   */
+  keepMineDisabledReason?: string | null;
+};
+
+export type ConflictViewVariant = "draft" | "import";
+
+type VariantTexts = {
+  title: MessageKey;
+  intro: MessageKey;
+  serverDeleted: MessageKey;
+  mineHeading: MessageKey;
+  mineCaption: MessageKey;
+  keepMine: MessageKey;
+  keepMineHint: MessageKey;
+  keepServer: MessageKey;
+  keepServerHint: MessageKey;
+  keepServerDeleted: MessageKey;
+  keepServerDeletedHint: MessageKey;
+  saveCopy: MessageKey;
+  saveCopyHint: MessageKey;
+  later: MessageKey;
+  laterHint: MessageKey;
+};
+
+const VARIANT_TEXTS: Record<ConflictViewVariant, VariantTexts> = {
+  draft: {
+    title: "conflict.title",
+    intro: "conflict.intro",
+    serverDeleted: "conflict.serverDeleted",
+    mineHeading: "conflict.mine.heading",
+    mineCaption: "conflict.mine.caption",
+    keepMine: "conflict.action.keepMine",
+    keepMineHint: "conflict.action.keepMineHint",
+    keepServer: "conflict.action.keepServer",
+    keepServerHint: "conflict.action.keepServerHint",
+    keepServerDeleted: "conflict.action.keepServerDeleted",
+    keepServerDeletedHint: "conflict.action.keepServerDeletedHint",
+    saveCopy: "conflict.action.saveCopy",
+    saveCopyHint: "conflict.action.saveCopyHint",
+    later: "conflict.action.later",
+    laterHint: "conflict.action.laterHint",
+  },
+  import: {
+    title: "localImport.conflict.title",
+    intro: "localImport.conflict.intro",
+    serverDeleted: "localImport.conflict.serverDeleted",
+    mineHeading: "localImport.conflict.mineHeading",
+    mineCaption: "localImport.conflict.mineCaption",
+    keepMine: "localImport.conflict.keepMine",
+    keepMineHint: "localImport.conflict.keepMineHint",
+    keepServer: "localImport.conflict.keepServer",
+    keepServerHint: "localImport.conflict.keepServerHint",
+    keepServerDeleted: "localImport.conflict.keepServerDeleted",
+    keepServerDeletedHint: "localImport.conflict.keepServerDeletedHint",
+    saveCopy: "localImport.conflict.saveCopy",
+    saveCopyHint: "localImport.conflict.saveCopyHint",
+    later: "localImport.conflict.later",
+    laterHint: "localImport.conflict.laterHint",
+  },
 };
 
 const GROUPS: readonly ConflictRowGroup[] = [
@@ -53,8 +120,11 @@ export function ProjectConflictView({
   error,
   onChoose,
   onLater,
+  variant = "draft",
+  keepMineDisabledReason = null,
 }: ProjectConflictViewProps) {
   const { t, tag } = useLocale();
+  const texts = VARIANT_TEXTS[variant];
   const titleId = useId();
   const dialogRef = useRef<HTMLElement>(null);
   const { mine, server } = conflict;
@@ -124,12 +194,13 @@ export function ProjectConflictView({
     choice: ConflictChoice | "later",
     label: string,
     hint: string,
+    disabled = false,
   ) => (
     <div className="flex flex-col gap-1">
       <button
         type="button"
         className="ui-btn min-h-11 cursor-pointer"
-        disabled={busy}
+        disabled={busy || disabled}
         onClick={() => (choice === "later" ? onLater() : onChoose(choice))}
       >
         {label}
@@ -154,9 +225,9 @@ export function ProjectConflictView({
       >
         <header className="border-line shrink-0 border-b px-5 py-4">
           <h2 id={titleId} className="text-ink text-base font-semibold">
-            {t("conflict.title")}
+            {t(texts.title)}
           </h2>
-          <p className="text-muted mt-1 text-sm">{t("conflict.intro")}</p>
+          <p className="text-muted mt-1 text-sm">{t(texts.intro)}</p>
           {conflict.refreshed ? (
             <p
               role="status"
@@ -167,7 +238,7 @@ export function ProjectConflictView({
           ) : null}
           {server === null ? (
             <p className="border-danger text-ink mt-2 border-l-4 pl-3 text-sm">
-              {t("conflict.serverDeleted")}
+              {t(texts.serverDeleted)}
             </p>
           ) : null}
         </header>
@@ -177,16 +248,16 @@ export function ProjectConflictView({
             <figure className="border-line m-0 border p-3">
               <figcaption className="mb-2">
                 <span className="text-ink block text-sm font-semibold">
-                  {t("conflict.mine.heading")}
+                  {t(texts.mineHeading)}
                 </span>
                 <span className="text-muted text-xs">
-                  {t("conflict.mine.caption")}
+                  {t(texts.mineCaption)}
                 </span>
               </figcaption>
               <PlanThumb
                 project={mine}
                 title={t("conflict.thumbTitle", {
-                  side: t("conflict.mine.heading"),
+                  side: t(texts.mineHeading),
                   title: planTitle(mine),
                 })}
               />
@@ -230,7 +301,7 @@ export function ProjectConflictView({
                     {t("conflict.column.field")}
                   </th>
                   <th scope="col" className="py-2 pr-3 font-medium">
-                    {t("conflict.mine.heading")}
+                    {t(texts.mineHeading)}
                   </th>
                   <th scope="col" className="py-2 font-medium">
                     {t("conflict.server.heading")}
@@ -319,30 +390,23 @@ export function ProjectConflictView({
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {action(
               "keep-mine",
-              t("conflict.action.keepMine"),
-              t("conflict.action.keepMineHint"),
+              t(texts.keepMine),
+              keepMineDisabledReason ?? t(texts.keepMineHint),
+              keepMineDisabledReason !== null,
             )}
             {server
               ? action(
                   "keep-server",
-                  t("conflict.action.keepServer"),
-                  t("conflict.action.keepServerHint"),
+                  t(texts.keepServer),
+                  t(texts.keepServerHint),
                 )
               : action(
                   "keep-server",
-                  t("conflict.action.keepServerDeleted"),
-                  t("conflict.action.keepServerDeletedHint"),
+                  t(texts.keepServerDeleted),
+                  t(texts.keepServerDeletedHint),
                 )}
-            {action(
-              "save-copy",
-              t("conflict.action.saveCopy"),
-              t("conflict.action.saveCopyHint"),
-            )}
-            {action(
-              "later",
-              t("conflict.action.later"),
-              t("conflict.action.laterHint"),
-            )}
+            {action("save-copy", t(texts.saveCopy), t(texts.saveCopyHint))}
+            {action("later", t(texts.later), t(texts.laterHint))}
           </div>
         </footer>
       </section>

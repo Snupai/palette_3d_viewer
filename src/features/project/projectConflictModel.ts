@@ -220,7 +220,8 @@ function activeSolution(project: Project) {
   );
 }
 
-function stableJson(value: unknown): string {
+/** JSON with sorted keys and without `undefined` members, for comparisons. */
+export function stableJson(value: unknown): string {
   const normalize = (input: unknown): unknown => {
     if (typeof input !== "object" || input === null) return input;
     if (Array.isArray(input)) return input.map(normalize);
@@ -235,8 +236,13 @@ function stableJson(value: unknown): string {
 }
 
 /** Plan content without the bookkeeping timestamp every save rewrites. */
-function planContent(project: Project): string {
+export function planContent(project: Project): string {
   return stableJson({ ...project, updatedAt: undefined });
+}
+
+/** Whether two plan states are the same apart from `updatedAt`. */
+export function samePlanContent(left: Project, right: Project): boolean {
+  return planContent(left) === planContent(right);
 }
 
 type RowSpec = {

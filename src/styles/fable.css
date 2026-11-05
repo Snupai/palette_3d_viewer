@@ -1621,6 +1621,21 @@ details:has(> .report-sheet) {
 .session-menu a {
   padding: 11px;
 }
+/* Header entry of the local import in server mode (#37). */
+.local-import-button {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.local-import-button:hover {
+  background: var(--surface-hover);
+}
 .session-menu a:hover {
   background: var(--surface-hover);
 }

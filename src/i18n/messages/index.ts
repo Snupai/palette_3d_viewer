@@ -14,6 +14,7 @@ import { componentsDe } from "./de/components";
 import { adminDe } from "./de/admin";
 import { conflictDe } from "./de/conflict";
 import { authDe } from "./de/auth";
+import { localImportDe } from "./de/localImport";
 import { shellEn } from "./en/shell";
 import { projectEn } from "./en/project";
 import { projectFormEn } from "./en/projectForm";
@@ -29,6 +30,7 @@ import { componentsEn } from "./en/components";
 import { adminEn } from "./en/admin";
 import { conflictEn } from "./en/conflict";
 import { authEn } from "./en/auth";
+import { localImportEn } from "./en/localImport";
 
 /**
  * German is the source language: its key set defines `MessageKey`. Every other
@@ -54,6 +56,7 @@ export const de = {
   ...adminDe,
   ...conflictDe,
   ...authDe,
+  ...localImportDe,
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -75,6 +78,7 @@ export const en: Messages = {
   ...adminEn,
   ...conflictEn,
   ...authEn,
+  ...localImportEn,
 };
 
 export const MESSAGES: Record<Locale, Messages> = { de, en };
