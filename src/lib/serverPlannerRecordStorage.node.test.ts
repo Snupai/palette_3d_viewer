@@ -122,8 +122,8 @@ let nextServer = 0;
 beforeAll(async () => {
   // Two databases rotated per factory call: every storage starts empty, and
   // the two storages a test may create never share one.
-  servers.push(await openServer(), await openServer());
-});
+  servers.push(...(await Promise.all([openServer(), openServer()])));
+}, 30_000);
 
 afterAll(async () => {
   setServerDatabaseForTesting(undefined);
