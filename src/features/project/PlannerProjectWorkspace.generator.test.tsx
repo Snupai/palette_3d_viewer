@@ -263,6 +263,30 @@ function candidateVariant(
   };
 }
 
+/** Browser storage for the draft backups (#35); the test runtime has none. */
+function stubDraftBackupStorage() {
+  const entries = new Map<string, string>();
+  vi.stubGlobal("localStorage", {
+    get length() {
+      return entries.size;
+    },
+    key: (index: number) => [...entries.keys()][index] ?? null,
+    getItem: (key: string) => entries.get(key) ?? null,
+    setItem: (key: string, value: string) => void entries.set(key, value),
+    removeItem: (key: string) => void entries.delete(key),
+  });
+  return () =>
+    [...entries.keys()].filter((key) => key.startsWith("palette.draftBackup."));
+}
+
+const aliceFetch: typeof fetch = async () =>
+  new Response(
+    JSON.stringify({
+      user: { id: "u-alice", username: "alice", role: "user" },
+    }),
+    { status: 200 },
+  );
+
 function emptyRepository() {
   return new ProjectRepository(new MemoryPlannerRecordStorage(), {
     now: () => 10,
@@ -587,21 +611,7 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
   });
 
   it("drops a failed stack save's backup and pending state once the stack draft is discarded", async () => {
-    // Browser storage for the draft backups (#35); the test runtime has none.
-    const entries = new Map<string, string>();
-    vi.stubGlobal("localStorage", {
-      get length() {
-        return entries.size;
-      },
-      key: (index: number) => [...entries.keys()][index] ?? null,
-      getItem: (key: string) => entries.get(key) ?? null,
-      setItem: (key: string, value: string) => void entries.set(key, value),
-      removeItem: (key: string) => void entries.delete(key),
-    });
-    const backupKeys = () =>
-      [...entries.keys()].filter((key) =>
-        key.startsWith("palette.draftBackup."),
-      );
+    const backupKeys = stubDraftBackupStorage();
     const repository = emptyRepository();
     const signedInFetch: typeof fetch = async () =>
       new Response(
@@ -789,6 +799,44 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     expect(clientMocks.run).not.toHaveBeenCalled();
     expect((await repository.listProjects()).projects).toHaveLength(1);
   });
+  it("keeps a new plan's id when its first save failed, so the retry saves one plan", async () => {
+    const backupKeys = stubDraftBackupStorage();
+    const repository = emptyRepository();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={aliceFetch}
+      />,
+    );
+    const create = screen.getByRole<HTMLButtonElement>("button", {
+      name: /^Neuen Plan erstellen/,
+    });
+    await waitFor(() => expect(create.disabled).toBe(false));
+    fireEvent.click(create);
+    fillNewProjectPackageDimensions();
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockRejectedValueOnce(
+        new ServerStorageError("network", "put", "projects", null),
+      );
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    expect(backupKeys()).toHaveLength(1);
+
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await screen.findByRole("button", { name: "Weiter zu den Mustern" });
+
+    const [first, retry] = save.mock.calls.map(
+      ([project]) => (project as { id: string }).id,
+    );
+    expect(retry).toBe(first);
+    expect(
+      (await repository.listProjects()).projects.map(({ id }) => id),
+    ).toEqual([first]);
+    expect(backupKeys()).toEqual([]);
+  });
+
   it("reopens imported projects as plans and never starts generation", async () => {
     const repository = emptyRepository();
     await repository.saveProject(

@@ -10,7 +10,7 @@ import {
   readDraftBackups,
   removeAllDraftBackups,
   removeDraftBackup,
-  restorableDraftBackups,
+  draftBackupStatus,
   saveFailureReason,
   writeDraftBackup,
   type DraftBackupStorage,
@@ -152,19 +152,54 @@ describe("draft backup lifecycle", () => {
   });
 });
 
-describe("restorableDraftBackups", () => {
-  it("offers every backup except the draft still open in this window", () => {
-    const storage = new MemoryStorage();
-    writeDraftBackup(storage, alice, plan("a", "A"), 1, 2000);
-    writeDraftBackup(storage, alice, plan("b", "B"), 1, 1000);
-    const backups = readDraftBackups(storage, alice);
+describe("draftBackupStatus", () => {
+  const storage = new MemoryStorage();
+  writeDraftBackup(storage, alice, plan("a", "A"), 1, 2000);
+  writeDraftBackup(storage, alice, plan("b", "B"), 1, 1000);
+  const backups = readDraftBackups(storage, alice);
+  const ids = (list: readonly { projectId: string }[]) =>
+    list.map(({ projectId }) => projectId);
 
+  it("offers every backup except the draft still open and unsaved here", () => {
+    const status = draftBackupStatus({
+      backups,
+      openDraftProjectId: "project-a",
+      draftOpen: true,
+      signedIn: true,
+    });
+    expect(ids(status.restorable)).toEqual(["project-b"]);
+    expect(status.hasPendingDrafts).toBe(true);
+  });
+
+  it("offers a backup no open draft mirrors, e.g. a failed .rob import", () => {
+    const status = draftBackupStatus({
+      backups,
+      openDraftProjectId: "project-a",
+      draftOpen: false,
+      signedIn: true,
+    });
+    expect(ids(status.restorable)).toEqual(["project-a", "project-b"]);
+    // Nothing is dirty, but sign-out would still discard the backups.
+    expect(status.hasPendingDrafts).toBe(true);
+  });
+
+  it("offers nothing while signed out and has nothing pending without drafts", () => {
     expect(
-      restorableDraftBackups(backups, "project-a").map(
-        ({ projectId }) => projectId,
-      ),
-    ).toEqual(["project-b"]);
-    expect(restorableDraftBackups(backups, null)).toHaveLength(2);
+      draftBackupStatus({
+        backups,
+        openDraftProjectId: null,
+        draftOpen: false,
+        signedIn: false,
+      }).restorable,
+    ).toEqual([]);
+    expect(
+      draftBackupStatus({
+        backups: [],
+        openDraftProjectId: null,
+        draftOpen: false,
+        signedIn: true,
+      }),
+    ).toEqual({ restorable: [], hasPendingDrafts: false });
   });
 });
 

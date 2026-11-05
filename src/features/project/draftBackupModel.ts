@@ -191,14 +191,44 @@ export function removeAllDraftBackups(
 }
 
 /**
- * The backups to offer for restore: all of the user's, except the plan whose
- * draft is still open in this window — that one is simply saved again.
+ * What the live backup store means for the UI, derived on every change
+ * rather than snapshotted at sign-in, so a backup written during the session
+ * (a failed `.rob` import, a failed save) counts at once.
  */
-export function restorableDraftBackups(
-  backups: readonly DraftBackup[],
-  openDraftProjectId: string | null,
-): DraftBackup[] {
-  return backups.filter(({ projectId }) => projectId !== openDraftProjectId);
+export type DraftBackupStatus = {
+  /**
+   * Backups to offer for restore: only while signed in, and not the draft
+   * still open (and unsaved) in this window — that one is simply saved again.
+   */
+  restorable: DraftBackup[];
+  /**
+   * Unsaved work an explicit sign-out would discard: an open unsaved draft or
+   * any backup of this user on this server.
+   */
+  hasPendingDrafts: boolean;
+};
+
+export function draftBackupStatus({
+  backups,
+  openDraftProjectId,
+  draftOpen,
+  signedIn,
+}: {
+  /** The live backups of the current (or last signed-in) user. */
+  backups: readonly DraftBackup[];
+  /** The plan whose backup mirrors the draft open in this window. */
+  openDraftProjectId: string | null;
+  /** Some surface holds unsaved changes in this window. */
+  draftOpen: boolean;
+  signedIn: boolean;
+}): DraftBackupStatus {
+  const mirrored = draftOpen ? openDraftProjectId : null;
+  return {
+    restorable: signedIn
+      ? backups.filter(({ projectId }) => projectId !== mirrored)
+      : [],
+    hasPendingDrafts: draftOpen || backups.length > 0,
+  };
 }
 
 /** Why a save did not reach the server; the draft stays in the browser. */

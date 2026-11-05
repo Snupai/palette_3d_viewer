@@ -109,7 +109,7 @@ import {
   readDraftBackups,
   removeAllDraftBackups,
   removeDraftBackup,
-  restorableDraftBackups,
+  draftBackupStatus,
   saveFailureReason,
   writeDraftBackup,
   type DraftBackup,
@@ -327,7 +327,13 @@ export function PlannerProjectWorkspace({
     reason: SaveFailure;
     backedUp: boolean;
   } | null>(null);
-  const [restorableBackups, setRestorableBackups] = useState<DraftBackup[]>([]);
+  /**
+   * Bumped by every backup write and removal: the restore offer, the pending
+   * badge and the sign-out warning are derived from the live store.
+   */
+  const [backupRevision, setBackupRevision] = useState(0);
+  /** A new plan keeps its id across failed saves, so retries never fork it. */
+  const failedCreateIdRef = useRef<string | null>(null);
   const [restoringDraft, setRestoringDraft] = useState(false);
 
   /** A 401 from the server: the session is gone; the draft stays here. */
@@ -430,6 +436,7 @@ export function PlannerProjectWorkspace({
     if (written) {
       openDraftBackupIdRef.current = project.id;
       openDraftOwnerRef.current = owner;
+      setBackupRevision((revision) => revision + 1);
     }
     return written;
   };
@@ -440,11 +447,7 @@ export function PlannerProjectWorkspace({
     if (openDraftBackupIdRef.current === projectId) {
       openDraftBackupIdRef.current = null;
     }
-    setRestorableBackups((current) =>
-      current.some((backup) => backup.projectId === projectId)
-        ? current.filter((backup) => backup.projectId !== projectId)
-        : current,
-    );
+    setBackupRevision((revision) => revision + 1);
   };
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
@@ -504,25 +507,20 @@ export function PlannerProjectWorkspace({
     }
   }, [editorDirty, editorDraftProject, session]);
 
-  // After sign-in (or a reload with a live session) offer the user's backups
-  // except the draft still open here, which is simply saved again.
+  // The backups of the signed-in user (after an expired session: of the last
+  // one), re-read on every write, removal and sign-in.
   const signedInUserId =
     session.status === "signed-in" ? session.user.id : null;
-  useEffect(() => {
+  const backupOwnerId = signedInUserId ?? backupUserRef.current;
+  const liveBackups = useMemo(() => {
+    void backupRevision;
     const scope = draftBackupScope(
       storageMode,
       globalThis.location?.origin ?? "",
-      signedInUserId,
+      backupOwnerId,
     );
-    setRestorableBackups(
-      scope
-        ? restorableDraftBackups(
-            readDraftBackups(browserDraftStorage(), scope),
-            openDraftBackupIdRef.current,
-          )
-        : [],
-    );
-  }, [signedInUserId, storageMode]);
+    return scope ? readDraftBackups(browserDraftStorage(), scope) : [];
+  }, [backupOwnerId, backupRevision, storageMode]);
 
   useEffect(() => {
     onUnsavedChange?.(stackDirty || editorDirty || inputsDirty);
@@ -830,6 +828,12 @@ export function PlannerProjectWorkspace({
   const saveProject = (project: Project) => saveProjectAt(project);
 
   const hasUnsavedChanges = stackDirty || editorDirty || inputsDirty;
+  const backupStatus = draftBackupStatus({
+    backups: liveBackups,
+    openDraftProjectId: openDraftBackupIdRef.current,
+    draftOpen: hasUnsavedChanges,
+    signedIn: signedInUserId !== null,
+  });
   const confirmDiscardUnsaved = (action: string): boolean =>
     !(stackDirty || editorDirty || inputsDirtyRef.current) ||
     window.confirm(t("project.confirm.discardUnsaved", { action }));
@@ -1813,6 +1817,7 @@ export function PlannerProjectWorkspace({
   const createNew = () => {
     if (!confirmDiscardUnsaved(t("project.action.createPlan"))) return;
     discardUnsavedPlannerChanges();
+    failedCreateIdRef.current = null;
     createOriginRef.current = {
       screen: showWelcome
         ? "welcome"
@@ -1939,7 +1944,7 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSignedOut}
             />
           ) : null}
-          {saveFailure ? (
+          {saveFailure && backupStatus.hasPendingDrafts ? (
             <span
               className="save-pending-badge"
               role="status"
@@ -1958,7 +1963,7 @@ export function PlannerProjectWorkspace({
           ) : null}
           <SessionMenu
             controls={sessionControls}
-            hasUnsavedDrafts={hasUnsavedChanges || restorableBackups.length > 0}
+            hasUnsavedDrafts={backupStatus.hasPendingDrafts}
             beforeLeave={() =>
               confirmDiscardUnsaved(t("auth.action.openUserManagement"))
             }
@@ -1970,7 +1975,7 @@ export function PlannerProjectWorkspace({
               if (scope) removeAllDraftBackups(backupStorage(), scope);
               backupUserRef.current = null;
               openDraftBackupIdRef.current = null;
-              setRestorableBackups([]);
+              setBackupRevision((revision) => revision + 1);
               setSaveFailure(null);
             }}
           />
@@ -1978,7 +1983,7 @@ export function PlannerProjectWorkspace({
         </div>
       </header>
       <DraftRestoreOffer
-        backups={restorableBackups}
+        backups={backupStatus.restorable}
         busy={restoringDraft}
         label={(backup) => projectLabel(backup.project, t)}
         onRestore={(backup) => void restoreDraft(backup)}
@@ -2307,9 +2312,17 @@ export function PlannerProjectWorkspace({
             }
           }}
           onSave={async ({
-            project,
+            project: submitted,
             generationIntent,
           }: ProjectDialogSubmission) => {
+            // A new plan whose save failed keeps that attempt's id: the retry
+            // replaces its backup (and a first save that did reach the
+            // server) instead of creating a second plan (#35).
+            const creating = dialogMode === "create";
+            const project =
+              creating && failedCreateIdRef.current
+                ? { ...submitted, id: failedCreateIdRef.current }
+                : submitted;
             const previous = selectedProject;
             const changesGeometry =
               previous?.id === project.id &&
@@ -2323,7 +2336,14 @@ export function PlannerProjectWorkspace({
               return "cancelled";
             }
             const generation = navigationGeneration.current;
-            const saved = await saveProject(project);
+            let saved: Project;
+            try {
+              saved = await saveProject(project);
+            } catch (cause) {
+              if (creating) failedCreateIdRef.current = project.id;
+              throw cause;
+            }
+            if (creating) failedCreateIdRef.current = null;
             if (generation !== navigationGeneration.current) return "cancelled";
             markInputsDirty(false);
             if (dialogMode === "edit" && saved.id !== project.id) {

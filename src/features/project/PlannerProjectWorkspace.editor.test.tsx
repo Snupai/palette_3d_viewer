@@ -727,6 +727,64 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(screen.queryByRole("region", { name: /Ungespeicherte/ })).toBeNull();
   });
 
+  it("warns before signing out when only a backup from a failed .rob import is pending", async () => {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValue(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      input === "/api/auth/logout"
+        ? new Response(null, { status: 204 })
+        : signedInFetch(input),
+    );
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    await screen.findByRole("region", { name: "Planbibliothek" });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="file"][accept=".rob,text/plain"]',
+    )!;
+    const file = new File([referenceRob], "reference.rob", {
+      type: "text/plain",
+    });
+    Object.defineProperty(file, "text", {
+      value: () => Promise.resolve(referenceRob),
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+    // Nothing is open, so the backup is offered for restore right away.
+    expect(
+      screen.getByRole("region", {
+        name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+      }),
+    ).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+    expect(
+      screen.getByRole("button", { name: "Entwürfe verwerfen und abmelden" }),
+    ).toBeTruthy();
+    expect(fetchImpl).not.toHaveBeenCalledWith("/api/auth/logout", {
+      method: "POST",
+    });
+    expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+  });
+
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {
     const { project, repository } = await repositoryWithProject();
 
