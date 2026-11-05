@@ -204,7 +204,56 @@ describe("project repository", () => {
     expect(second.project).toEqual(first.project);
     expect(persisted).toEqual(first.project);
     expect(put).toHaveBeenCalledTimes(1);
-    expect(put).toHaveBeenCalledWith(PROJECTS_STORE_NAME, first.project);
+    // The repair is written against the version it was read at, so it
+    // cannot replace a concurrent save of the same record (ADR 0006).
+    expect(put).toHaveBeenCalledWith(PROJECTS_STORE_NAME, first.project, {
+      expectedVersion: 1,
+    });
+    expect(first.version).toBe(2);
+    expect(second.version).toBe(2);
+  });
+
+  it("reads and saves projects with their record version", async () => {
+    const storage = new MemoryPlannerRecordStorage();
+    const repository = new ProjectRepository(storage);
+    const a = project("a", "A-100", "Coffee", 10);
+
+    expect(await repository.saveProjectVersioned(a)).toEqual({
+      project: a,
+      version: 1,
+    });
+    expect(await repository.getProject("a")).toEqual({
+      project: a,
+      diagnostics: [],
+      version: 1,
+    });
+    expect(
+      (
+        await repository.saveProjectVersioned(
+          { ...a, projectNumber: "A-101" },
+          { expectedVersion: 1 },
+        )
+      ).version,
+    ).toBe(2);
+    await expect(
+      repository.saveProjectVersioned(
+        { ...a, projectNumber: "stale" },
+        { expectedVersion: 1 },
+      ),
+    ).rejects.toMatchObject({
+      name: "RecordVersionConflictError",
+      id: "a",
+      expectedVersion: 1,
+      actualVersion: 2,
+    });
+    expect((await repository.getProject("a")).project?.projectNumber).toBe(
+      "A-101",
+    );
+    expect(await repository.getProject("missing")).toEqual({
+      project: null,
+      diagnostics: [],
+      version: null,
+    });
   });
 
   it("quarantines malformed rows and returns exact diagnostics", async () => {

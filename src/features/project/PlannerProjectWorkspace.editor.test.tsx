@@ -6,7 +6,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { createProject } from "~/domain/project/projectFactory";
+import { createProject, updateProject } from "~/domain/project/projectFactory";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
@@ -177,6 +177,93 @@ describe("PlannerProjectWorkspace editor integration", () => {
     await waitFor(() =>
       expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
     );
+  });
+
+  it("opens the conflict view when someone else saved in between (server mode)", async () => {
+    const { project, repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+      />,
+    );
+    await openSavedPlan();
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
+    expect(await screen.findByTestId("project-editor-workspace")).toBeTruthy();
+    const packageRect = document.querySelector<SVGRectElement>(
+      '[data-placement-id="placement-1"] rect',
+    )!;
+    fireEvent.pointerDown(packageRect, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 200,
+    });
+    fireEvent.pointerUp(packageRect, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 200,
+    });
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
+      target: { value: "left" },
+    });
+    await waitFor(() => expect(onUnsavedChange).toHaveBeenLastCalledWith(true));
+
+    // Another session saves the plan at version 1 → 2.
+    await repository.saveProjectVersioned(
+      updateProject(project, { projectNumber: "THEIRS" }, { now: () => 20 }),
+      { expectedVersion: 1 },
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
+    });
+    expect(
+      dialog.querySelector('[data-row="projectNumber"]')?.textContent,
+    ).toBe("Liniennummer (abweichend)M5-EDITORTHEIRS");
+    expect(
+      [...dialog.querySelectorAll("[data-differs]")].map((row) =>
+        row.getAttribute("data-row"),
+      ),
+    ).toEqual(["projectNumber", "patterns"]);
+    // Nothing was overwritten, and the draft is still unsaved.
+    expect(
+      (await repository.getProject(project.id)).project?.projectNumber,
+    ).toBe("THEIRS");
+    expect(onUnsavedChange).toHaveBeenLastCalledWith(true);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf speichern" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Plan wurde inzwischen geändert",
+        }),
+      ).toBeNull(),
+    );
+    const saved = await repository.getProject(project.id);
+    expect(saved.version).toBe(3);
+    expect(saved.project?.projectNumber).toBe("M5-EDITOR");
+    expect(
+      saved.project?.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+    ).toBe("left");
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
+    );
+    expect(
+      await screen.findByText("Dein Entwurf von M5-EDITOR wurde gespeichert."),
+    ).toBeTruthy();
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {
