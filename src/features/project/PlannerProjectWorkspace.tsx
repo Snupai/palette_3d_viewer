@@ -80,12 +80,14 @@ import { useT, type Translate } from "~/i18n";
 import { parseRobText } from "~/lib/robParser";
 import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
 import { SessionMenu, usePlannerSession } from "~/features/auth/SessionMenu";
+import { LocalImportController } from "~/features/import/LocalImportDialog";
 import {
   plannerAccess,
   saveControl,
   type PlannerAccess,
   type SaveButtonState,
 } from "~/features/auth/plannerAccessModel";
+import type { PlannerStoreName } from "~/lib/plannerDatabase";
 import type { RecordVersion } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
 import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
@@ -256,6 +258,12 @@ export function PlannerProjectWorkspace({
       disabledReason: control.disabledReason ? t(control.disabledReason) : null,
     };
   };
+  /** Creator the server reported for a record (local import, #37). */
+  const serverCreatorOf = useCallback(
+    (store: PlannerStoreName, id: string) =>
+      repository.recordCreatedBy(store, id),
+    [repository],
+  );
   const generalAccess = plannerAccess(session, undefined);
   const readOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
@@ -1687,6 +1695,15 @@ export function PlannerProjectWorkspace({
                 </div>
               </details>
             )}
+          {storageMode === "server" ? (
+            <LocalImportController
+              session={session}
+              repository={repository}
+              creatorOf={serverCreatorOf}
+              onImported={() => void refreshProjects()}
+              onSessionLost={sessionControls.markSignedOut}
+            />
+          ) : null}
           <SessionMenu
             controls={sessionControls}
             beforeSignOut={() =>

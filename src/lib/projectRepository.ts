@@ -156,6 +156,16 @@ export type ResourceListResult = {
 export type ResourceReadResult = {
   resource: ProjectResource | null;
   diagnostics: RepositoryDiagnostic[];
+  /**
+   * Stored version of the record that was read (ADR 0006); `null` when no
+   * resource was returned.
+   */
+  version?: RecordVersion | null;
+};
+
+export type VersionedResource = {
+  resource: ProjectResource;
+  version: RecordVersion;
 };
 
 export type ProjectRepositoryDependencies = ProjectFactoryDependencies;
@@ -392,9 +402,25 @@ export class ProjectRepository {
   }
 
   async saveResource(resourceInput: unknown): Promise<ProjectResource> {
+    return (await this.saveResourceVersioned(resourceInput)).resource;
+  }
+
+  /**
+   * Saves a Werkskatalog entry and reports its new version. Like
+   * `saveProjectVersioned`, `expectedVersion` makes the write conditional
+   * (`null`: the entry must not exist yet).
+   */
+  async saveResourceVersioned(
+    resourceInput: unknown,
+    options?: RecordWriteOptions,
+  ): Promise<VersionedResource> {
     const resource = projectResourceSchema.parse(resourceInput);
-    await this.storage.put(PROJECT_RESOURCES_STORE_NAME, resource);
-    return resource;
+    const version = await this.storage.put(
+      PROJECT_RESOURCES_STORE_NAME,
+      resource,
+      options,
+    );
+    return { resource, version };
   }
 
   async listResources(
@@ -453,10 +479,22 @@ export class ProjectRepository {
   }
 
   async getResource(id: string): Promise<ResourceReadResult> {
-    const row = await this.storage.get(PROJECT_RESOURCES_STORE_NAME, id);
-    if (row === undefined) return { resource: null, diagnostics: [] };
+    const stored = await this.storage.getVersioned(
+      PROJECT_RESOURCES_STORE_NAME,
+      id,
+    );
+    if (stored === undefined) {
+      return { resource: null, diagnostics: [], version: null };
+    }
+    const row = stored.record;
     const parsed = safeParseProjectResource(row);
-    if (parsed.success) return { resource: parsed.resource, diagnostics: [] };
+    if (parsed.success) {
+      return {
+        resource: parsed.resource,
+        diagnostics: [],
+        version: stored.version,
+      };
+    }
     const diagnostics: RepositoryDiagnostic[] = parsed.diagnostics.map(
       (diagnostic) => ({
         severity: "error",
@@ -468,7 +506,7 @@ export class ProjectRepository {
       }),
     );
     await this.quarantine(PROJECT_RESOURCES_STORE_NAME, row, diagnostics);
-    return { resource: null, diagnostics };
+    return { resource: null, diagnostics, version: null };
   }
 
   async hasResource(id: string): Promise<boolean> {
@@ -710,8 +748,16 @@ export class ProjectRepository {
    * `undefined` when unknown or not stored on a server (#34).
    */
   projectCreatedBy(id: string): string | null | undefined {
+    return this.recordCreatedBy(PROJECTS_STORE_NAME, id);
+  }
+
+  /** Same as `projectCreatedBy` for a record of any store (local import, #37). */
+  recordCreatedBy(
+    store: PlannerStoreName,
+    id: string,
+  ): string | null | undefined {
     return this.storage instanceof ServerPlannerRecordStorage
-      ? this.storage.createdBy(PROJECTS_STORE_NAME, id)
+      ? this.storage.createdBy(store, id)
       : undefined;
   }
 
