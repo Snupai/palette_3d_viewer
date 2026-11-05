@@ -413,7 +413,7 @@ describe("ProjectRepository on the server storage", () => {
       ...new Set(resources.diagnostics.map(({ recordId }) => recordId)),
     ]).toEqual(["bad-resource"]);
     expect(single.project).toBeNull();
-    expect(single.diagnostics.length).toBeGreaterThan(0);
+    expect(single.diagnostics).toEqual(projects.diagnostics);
     expect(await storage.get(PROJECTS_STORE_NAME, "broken")).toEqual({
       id: "broken",
       schemaVersion: 99,
