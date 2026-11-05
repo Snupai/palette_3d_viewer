@@ -748,8 +748,16 @@ export class ProjectRepository {
    * `undefined` when unknown or not stored on a server (#34).
    */
   projectCreatedBy(id: string): string | null | undefined {
+    return this.recordCreatedBy(PROJECTS_STORE_NAME, id);
+  }
+
+  /** Same as `projectCreatedBy` for a record of any store (local import, #37). */
+  recordCreatedBy(
+    store: PlannerStoreName,
+    id: string,
+  ): string | null | undefined {
     return this.storage instanceof ServerPlannerRecordStorage
-      ? this.storage.createdBy(PROJECTS_STORE_NAME, id)
+      ? this.storage.createdBy(store, id)
       : undefined;
   }
 

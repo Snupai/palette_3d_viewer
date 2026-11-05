@@ -87,14 +87,8 @@ import {
   type PlannerAccess,
   type SaveButtonState,
 } from "~/features/auth/plannerAccessModel";
-import {
-  PROJECTS_STORE_NAME,
-  type PlannerStoreName,
-} from "~/lib/plannerDatabase";
-import type {
-  PlannerRecordStorage,
-  RecordVersion,
-} from "~/lib/plannerRecordStorage";
+import type { PlannerStoreName } from "~/lib/plannerDatabase";
+import type { RecordVersion } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
 import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
@@ -265,12 +259,11 @@ export function PlannerProjectWorkspace({
     };
   };
   /** Creator the server reported for a record (local import, #37). */
-  const serverCreatorOf = useCallback((store: PlannerStoreName, id: string) => {
-    const storage = storageRef.current;
-    return storage instanceof ServerPlannerRecordStorage
-      ? storage.createdBy(store, id)
-      : undefined;
-  }, []);
+  const serverCreatorOf = useCallback(
+    (store: PlannerStoreName, id: string) =>
+      repository.recordCreatedBy(store, id),
+    [repository],
+  );
   const generalAccess = plannerAccess(session, undefined);
   const readOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
