@@ -162,9 +162,9 @@ runs `pg_dump -Fc` against `db` and writes
 `./backups`, git-ignored). `pg_dump` takes one consistent snapshot while the
 app keeps running, so at most one hour of changes can be lost. **Point
 `PALETTE_BACKUP_DIR` at a separate disk** so a dead data disk does not take
-the backups with it. A dump is written to a hidden `.partial` file, checked
+the backups with it. A dump is written to its own hidden temporary file, checked
 with `pg_restore --list` and only then renamed, so every `palette-*.dump` is
-complete. Dumps older than 7 days are deleted, but only after a successful
+complete, also when a manual `db:backup` overlaps the hourly run. Dumps older than 7 days are deleted, but only after a successful
 dump. Dumps contain password hashes; they are created owner-only (`0600`).
 
 ```sh

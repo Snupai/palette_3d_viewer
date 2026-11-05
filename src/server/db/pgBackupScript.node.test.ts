@@ -100,7 +100,7 @@ printf 'RESTORE SQL' >"$f"`,
     seed("palette-20260101T000000Z.dump", 8 * DAY_S);
     seed("palette-20260103T000000Z.dump", 6 * DAY_S);
     seed("notes.dump", 30 * DAY_S);
-    seed(".palette-20260101T010000Z.dump.partial", 2 * DAY_S);
+    seed(".palette-partial.AbC123", 2 * DAY_S);
 
     const result = run(["once"]);
 
@@ -116,6 +116,42 @@ printf 'RESTORE SQL' >"$f"`,
       "PGDMP fake",
     );
     expect(result.stderr).toContain("pruned palette-20260101T000000Z.dump");
+  });
+
+  it("keeps two dumps started in the same second apart", () => {
+    // A scheduled dump and `db:backup` overlapping: both must publish their
+    // own complete file, and no temporary file may be shared or left behind.
+    writeFake(
+      "pg_dump",
+      `for a; do case $a in --file=*) f=\${a#--file=} ;; esac; done
+printf 'PGDMP ' >"$f"; sleep 1; printf '%s' "$$" >>"$f"`,
+    );
+    const env = {
+      ...process.env,
+      PALETTE_BACKUP_DIR: posix(backups),
+      PG_DUMP: posix(path.join(root, "pg_dump")),
+      PG_RESTORE: posix(path.join(root, "pg_restore")),
+      PSQL: posix(path.join(root, "psql")),
+    };
+    const both = spawnSync(
+      "sh",
+      ["-c", `sh "$0" once & sh "$0" once & wait`, posix(SCRIPT)],
+      { encoding: "utf8", env },
+    );
+
+    expect(both.status).toBe(0);
+    const files = listing();
+    expect(files).toHaveLength(2);
+    for (const file of files) {
+      expect(file).toMatch(/^palette-\d{8}T\d{6}Z(-2)?\.dump$/);
+      expect(readFileSync(path.join(backups, file), "utf8")).toMatch(
+        /^PGDMP \d+$/,
+      );
+    }
+    const contents = files.map((file) =>
+      readFileSync(path.join(backups, file), "utf8"),
+    );
+    expect(new Set(contents).size).toBe(2);
   });
 
   it("honours PALETTE_BACKUP_RETENTION_DAYS", () => {

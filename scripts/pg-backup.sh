@@ -10,8 +10,8 @@
 #                                  replace the database contents with FILE
 #
 # A dump is `pg_dump -Fc`: one transaction (consistent MVCC snapshot) while
-# the app keeps running. It is written to a hidden partial file, checked with
-# `pg_restore --list` and only then renamed, so a finished `palette-*.dump`
+# the app keeps running. It is written to a unique hidden temp file, checked with
+# `pg_restore --list` and only then published, so a finished `palette-*.dump`
 # is always complete. Dumps older than PALETTE_BACKUP_RETENTION_DAYS are
 # deleted — only after a successful dump, so a broken database connection
 # never erases the last good backups.
@@ -63,19 +63,38 @@ prune() {
     rm -f -- "$old" && log "pruned $(basename "$old")"
   done
   # Leftovers of a dump that was killed mid-write.
-  find "$BACKUP_DIR" -maxdepth 1 -type f -name '.palette-*.partial' -mmin +1440 -exec rm -f -- {} +
+  find "$BACKUP_DIR" -maxdepth 1 -type f -name '.palette-partial.*' -mmin +1440 -exec rm -f -- {} +
 }
 
 backup_once() {
-  name="palette-$(date -u +%Y%m%dT%H%M%SZ).dump"
-  partial="$BACKUP_DIR/.$name.partial"
+  stamp=$(date -u +%Y%m%dT%H%M%SZ)
+  # A unique temporary file per run (mktemp creates it 0600): a scheduled
+  # dump and `db:backup` started in the same second never share a file.
+  partial=$(mktemp "$BACKUP_DIR/.palette-partial.XXXXXX") || {
+    log "backup FAILED: cannot create a temporary file in $BACKUP_DIR"
+    return 1
+  }
   # Dumps contain password hashes: readable by the owner only.
   if (umask 077 && "$PG_DUMP" --format=custom --file="$partial") &&
     "$PG_RESTORE" --list "$partial" >/dev/null; then
-    mv -f -- "$partial" "$BACKUP_DIR/$name"
-    log "wrote $name ($(wc -c <"$BACKUP_DIR/$name" | tr -d ' ') bytes)"
-    prune
-    return 0
+    # Reserve the final name with an exclusive create (noclobber), so two
+    # runs in the same second never replace each other's dump; then move the
+    # checked dump over the empty placeholder.
+    name="palette-$stamp.dump"
+    n=1
+    until (set -C && : >"$BACKUP_DIR/$name") 2>/dev/null; do
+      n=$((n + 1))
+      [ "$n" -le 100 ] || break
+      name="palette-$stamp-$n.dump"
+    done
+    if [ "$n" -le 100 ]; then
+      if mv -f -- "$partial" "$BACKUP_DIR/$name"; then
+        log "wrote $name ($(wc -c <"$BACKUP_DIR/$name" | tr -d ' ') bytes)"
+        prune
+        return 0
+      fi
+      rm -f -- "$BACKUP_DIR/$name"
+    fi
   fi
   rm -f -- "$partial"
   log "backup FAILED; existing dumps kept"
