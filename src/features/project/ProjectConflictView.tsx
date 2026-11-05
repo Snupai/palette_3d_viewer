@@ -86,6 +86,12 @@ export function ProjectConflictView({
         return;
       }
       const items = focusableWithin(dialog);
+      if (items.length === 0) {
+        // While saving every action is disabled; keep focus on the dialog.
+        event.preventDefault();
+        dialog.focus();
+        return;
+      }
       const index = items.findIndex((item) => item === document.activeElement);
       const next = wrapFocusIndex(index, items.length, event.shiftKey);
       if (next !== null) {

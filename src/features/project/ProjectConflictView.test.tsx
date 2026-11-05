@@ -23,7 +23,7 @@ function conflict() {
 }
 
 /** The conflict view opened over a production tool, as in the editor. */
-function renderOverDrawer() {
+function renderOverDrawer(busy = false) {
   const closeDrawer = vi.fn();
   const later = vi.fn();
   render(
@@ -33,7 +33,7 @@ function renderOverDrawer() {
       </Drawer>
       <ProjectConflictView
         conflict={conflict()}
-        busy={false}
+        busy={busy}
         error={null}
         onChoose={vi.fn()}
         onLater={later}
@@ -68,5 +68,17 @@ describe("ProjectConflictView over an open Drawer", () => {
 
     fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
     expect(document.activeElement).toBe(last);
+  });
+
+  it("keeps Tab inside while saving disables every action", () => {
+    renderOverDrawer(true);
+    const dialog = screen.getByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
+    });
+    const tool = screen.getByRole("button", { name: "Im Editor" });
+
+    tool.focus();
+    fireEvent.keyDown(tool, { key: "Tab" });
+    expect(document.activeElement).toBe(dialog);
   });
 });
