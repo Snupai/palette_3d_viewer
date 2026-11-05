@@ -391,7 +391,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     // Signed out, but the editor and its draft are still there.
     expect(screen.getByText("Nur lesen")).toBeTruthy();
     expect(screen.getByTestId("project-editor-workspace")).toBeTruthy();
-    expect(screen.getByLabelText("Etikettseite").value).toBe("left");
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "left",
+    );
     expect(onUnsavedChange).toHaveBeenLastCalledWith(true);
     const lockedSave: HTMLButtonElement = screen.getByRole("button", {
       name: "Speichern",
