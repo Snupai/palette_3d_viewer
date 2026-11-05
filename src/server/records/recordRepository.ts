@@ -18,7 +18,8 @@ import { plannerRecords, type PlannerRecordRow } from "../db/schema";
  * instead of overwriting (ADR 0006).
  *
  * Every function returns a result union instead of throwing for caller
- * mistakes, so a route handler can map `invalid` → 400 and `conflict` → 409.
+ * mistakes, so a route handler can map `invalid` → 400, `forbidden` → 403
+ * and `conflict` → 409.
  * Database failures still throw.
  *
  * Known limitation: a delete removes the row, so a record recreated after a
@@ -68,6 +69,17 @@ export type RecordConflict = {
   actualVersion: RecordVersion | null;
 };
 
+/**
+ * An update or delete restricted by `onlyCreatedBy` hit a record created by
+ * someone else (or by a deleted user).
+ */
+export type RecordForbidden = {
+  ok: false;
+  kind: "forbidden";
+  store: PlannerStoreName;
+  id: string;
+};
+
 export type ListRecordsResult =
   | { ok: true; records: StoredRecord[] }
   | RecordInvalid;
@@ -79,9 +91,14 @@ export type GetRecordResult =
 export type PutRecordResult =
   | { ok: true; record: StoredRecord }
   | RecordInvalid
+  | RecordForbidden
   | RecordConflict;
 
-export type DeleteRecordResult = { ok: true } | RecordInvalid | RecordConflict;
+export type DeleteRecordResult =
+  | { ok: true }
+  | RecordInvalid
+  | RecordForbidden
+  | RecordConflict;
 
 export type PutRecordInput = {
   store: string;
@@ -94,6 +111,11 @@ export type PutRecordInput = {
   expectedVersion: RecordVersion | null;
   /** Stored as `created_by` on insert only; never changed by an update. */
   userId: string | null;
+  /**
+   * Update only: apply only if the record's `created_by` is this user id,
+   * checked in the same statement as the version. Ignored for inserts.
+   */
+  onlyCreatedBy?: string;
 };
 
 export type DeleteRecordInput = {
@@ -101,6 +123,8 @@ export type DeleteRecordInput = {
   id: string;
   /** The record must exist with exactly this version. */
   expectedVersion: RecordVersion;
+  /** Delete only if the record's `created_by` is this user id (atomic). */
+  onlyCreatedBy?: string;
 };
 
 function invalid(reason: RecordInvalidReason, message: string): RecordInvalid {
@@ -238,17 +262,43 @@ function recordKey(store: string, id: string) {
   return and(eq(plannerRecords.store, store), eq(plannerRecords.id, id));
 }
 
-async function currentVersion(
+function creatorGuard(onlyCreatedBy: string | undefined) {
+  return onlyCreatedBy === undefined
+    ? undefined
+    : eq(plannerRecords.createdBy, onlyCreatedBy);
+}
+
+/**
+ * Why a guarded write matched no row: `forbidden` when the record exists but
+ * belongs to someone else, otherwise a version conflict. The write itself was
+ * atomic; this follow-up read only picks the error to report.
+ */
+async function rejectedWrite(
   db: PlannerDatabase,
-  store: string,
+  store: PlannerStoreName,
   id: string,
-): Promise<RecordVersion | null> {
+  expectedVersion: RecordVersion | null,
+  onlyCreatedBy: string | undefined,
+): Promise<RecordForbidden | RecordConflict> {
   const [row] = await db
-    .select({ version: plannerRecords.version })
+    .select({
+      version: plannerRecords.version,
+      createdBy: plannerRecords.createdBy,
+    })
     .from(plannerRecords)
     .where(recordKey(store, id))
     .limit(1);
-  return row?.version ?? null;
+  if (row && onlyCreatedBy !== undefined && row.createdBy !== onlyCreatedBy) {
+    return { ok: false, kind: "forbidden", store, id };
+  }
+  return {
+    ok: false,
+    kind: "conflict",
+    store,
+    id,
+    expectedVersion,
+    actualVersion: row?.version ?? null,
+  };
 }
 
 /** All records of one store, ordered by id. */
@@ -333,20 +383,21 @@ export async function putRecord(
             and(
               recordKey(store, id),
               eq(plannerRecords.version, expectedVersion),
+              creatorGuard(input.onlyCreatedBy),
             ),
           )
           .returning();
 
   const [row] = rows;
   if (row) return { ok: true, record: toStoredRecord(row) };
-  return {
-    ok: false,
-    kind: "conflict",
+  return rejectedWrite(
+    db,
     store,
     id,
     expectedVersion,
-    actualVersion: await currentVersion(db, store, id),
-  };
+    // An insert never touches an existing row, so it only ever conflicts.
+    expectedVersion === null ? undefined : input.onlyCreatedBy,
+  );
 }
 
 /** Deletes one record if it is still at `expectedVersion`. */
@@ -367,16 +418,13 @@ export async function deleteRecord(
   const removed = await db
     .delete(plannerRecords)
     .where(
-      and(recordKey(store, id), eq(plannerRecords.version, expectedVersion)),
+      and(
+        recordKey(store, id),
+        eq(plannerRecords.version, expectedVersion),
+        creatorGuard(input.onlyCreatedBy),
+      ),
     )
     .returning({ id: plannerRecords.id });
   if (removed.length > 0) return { ok: true };
-  return {
-    ok: false,
-    kind: "conflict",
-    store,
-    id,
-    expectedVersion,
-    actualVersion: await currentVersion(db, store, id),
-  };
+  return rejectedWrite(db, store, id, expectedVersion, input.onlyCreatedBy);
 }
