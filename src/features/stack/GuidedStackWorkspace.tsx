@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { LayerPattern } from "~/components/LayerPattern";
 import { useLocale, useT } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
@@ -62,6 +63,7 @@ export type GuidedStackWorkspaceProps = {
   saveFailure: string | null;
   saveMessage: string | null;
   onSaveClick: () => void;
+  saveButton?: SaveButtonState;
   onBack?: () => void;
   onEditProject?: (section?: GuidedSectionId) => void;
   onSubstepChange?: (substep: GuidedStackSubstep) => void;
@@ -192,6 +194,7 @@ export function GuidedStackWorkspace({
   saveFailure,
   saveMessage,
   onSaveClick,
+  saveButton,
   onBack,
   onEditProject,
   onSubstepChange,
@@ -1149,10 +1152,15 @@ export function GuidedStackWorkspace({
               <button
                 type="button"
                 className="ui-btn-primary"
-                disabled={saving || !canReview}
+                disabled={
+                  saving || !canReview || Boolean(saveButton?.disabledReason)
+                }
+                title={saveButton?.disabledReason ?? undefined}
                 onClick={onSaveClick}
               >
-                {saving ? t("stack.footer.saving") : t("stack.footer.savePlan")}
+                {saving
+                  ? t("stack.footer.saving")
+                  : (saveButton?.label ?? t("stack.footer.savePlan"))}
               </button>
             </>
           ) : (

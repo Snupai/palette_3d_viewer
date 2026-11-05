@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { LayerPattern } from "~/components/LayerPattern";
 import { RobViewer } from "~/components/RobViewer";
 import { Notice, Panel } from "~/components/ui";
@@ -48,6 +49,8 @@ export type StackWorkspaceProps = {
   onEditProject?: (section?: GuidedSectionId) => void;
   /** Guided mode: reports whether the stack or the review substep is shown. */
   onSubstepChange?: (substep: GuidedStackSubstep) => void;
+  /** Relabels or disables the save button (server mode, #34). */
+  saveButton?: SaveButtonState;
 };
 
 export function StackWorkspace({
@@ -60,6 +63,7 @@ export function StackWorkspace({
   onBack,
   onEditProject,
   onSubstepChange,
+  saveButton,
 }: StackWorkspaceProps) {
   const t = useT();
   const candidateSignature = candidates.map(({ id }) => id).join("|");
@@ -216,6 +220,7 @@ export function StackWorkspace({
         saveFailure={saveFailure}
         saveMessage={saveMessage}
         onSaveClick={() => void save()}
+        saveButton={saveButton}
         onBack={onBack}
         onEditProject={onEditProject}
         onSubstepChange={onSubstepChange}
@@ -239,13 +244,17 @@ export function StackWorkspace({
             type="button"
             onClick={() => void save()}
             disabled={
-              saving || !materialized.result || state.layers.length === 0
+              saving ||
+              !materialized.result ||
+              state.layers.length === 0 ||
+              Boolean(saveButton?.disabledReason)
             }
+            title={saveButton?.disabledReason ?? undefined}
             className="ui-btn-primary text-micro"
           >
             {saving
               ? t("stack.classic.saving")
-              : t("stack.classic.saveAndContinue")}
+              : (saveButton?.label ?? t("stack.classic.saveAndContinue"))}
           </button>
         </>
       }

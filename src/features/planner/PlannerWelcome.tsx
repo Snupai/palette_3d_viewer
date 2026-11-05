@@ -38,7 +38,10 @@ export function PlannerWelcome({
   onCreate,
   onBrowse,
   onResume,
+  createDisabledReason = null,
 }: {
+  /** Disables "create" with this explanation (read-only server mode). */
+  createDisabledReason?: string | null;
   onCreate: () => void;
   onBrowse: () => void;
   onResume?: () => void;
@@ -49,8 +52,16 @@ export function PlannerWelcome({
       <header className="page-intro">
         <h1>{t("planner.welcome.title")}</h1>
       </header>
+      {createDisabledReason ? (
+        <p className="fable-notice">{createDisabledReason}</p>
+      ) : null}
       <div className="welcome-doors">
-        <button className="welcome-door" onClick={onCreate}>
+        <button
+          className="welcome-door"
+          disabled={createDisabledReason !== null}
+          title={createDisabledReason ?? undefined}
+          onClick={onCreate}
+        >
           <div>
             <h2>{t("planner.welcome.createTitle")}</h2>
           </div>

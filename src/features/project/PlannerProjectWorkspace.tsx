@@ -2,7 +2,10 @@
 
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { updateProject } from "~/domain/project/projectFactory";
+import {
+  duplicateProjectModel,
+  updateProject,
+} from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import type {
   LayerSolverInput,
@@ -76,6 +79,23 @@ import { LanguageSwitcher } from "~/i18n/LanguageSwitcher";
 import { useT, type Translate } from "~/i18n";
 import { parseRobText } from "~/lib/robParser";
 import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
+import { SessionMenu, usePlannerSession } from "~/features/auth/SessionMenu";
+import {
+  plannerAccess,
+  saveControl,
+  type PlannerAccess,
+  type SaveButtonState,
+} from "~/features/auth/plannerAccessModel";
+import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
+import type {
+  PlannerRecordStorage,
+  RecordVersion,
+} from "~/lib/plannerRecordStorage";
+import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
+import {
+  ServerPlannerRecordStorage,
+  ServerStorageError,
+} from "~/lib/serverPlannerRecordStorage";
 import {
   createProjectRepository,
   type ProjectConflictPolicy,
@@ -146,6 +166,8 @@ export type PlannerProjectWorkspaceProps = {
    * loaded record version, and a version conflict opens the conflict view.
    */
   storageMode?: StorageMode;
+  /** Session API calls in server mode; default `globalThis.fetch`. */
+  fetchImpl?: typeof fetch;
 };
 
 type DialogMode = "closed" | "create" | "edit";
@@ -207,6 +229,7 @@ export function PlannerProjectWorkspace({
   repository: providedRepository,
   onUnsavedChange,
   storageMode = configuredStorageMode,
+  fetchImpl,
 }: PlannerProjectWorkspaceProps) {
   const t = useT();
   // Effects and callbacks that must not re-run on a language switch read `t`
@@ -214,9 +237,50 @@ export function PlannerProjectWorkspace({
   const tRef = useRef(t);
   tRef.current = t;
   const toolTitles = productionToolTitles(t);
+  const storageRef = useRef<PlannerRecordStorage | null>(null);
   const repositoryRef = useRef<ProjectRepository | null>(null);
-  repositoryRef.current ??= providedRepository ?? createProjectRepository();
+  if (!repositoryRef.current) {
+    if (providedRepository) {
+      repositoryRef.current = providedRepository;
+    } else {
+      storageRef.current = createPlannerRecordStorage({ mode: storageMode });
+      repositoryRef.current = createProjectRepository(storageRef.current);
+    }
+  }
   const repository = repositoryRef.current;
+  const sessionControls = usePlannerSession(storageMode, fetchImpl);
+  const { session } = sessionControls;
+  /** What the session may do with a stored project (or a new one). */
+  const accessFor = (projectId: string | null | undefined): PlannerAccess => {
+    const storage = storageRef.current;
+    const createdBy =
+      projectId && storage instanceof ServerPlannerRecordStorage
+        ? storage.createdBy(PROJECTS_STORE_NAME, projectId)
+        : undefined;
+    return plannerAccess(session, createdBy);
+  };
+  const saveButtonFor = (access: PlannerAccess): SaveButtonState => {
+    const control = saveControl(access);
+    return {
+      label: control.label ? t(control.label) : null,
+      disabledReason: control.disabledReason ? t(control.disabledReason) : null,
+    };
+  };
+  const generalAccess = plannerAccess(session, undefined);
+  const readOnlyHint = generalAccess.readOnlyHint
+    ? t(generalAccess.readOnlyHint)
+    : null;
+  /** A 401 from the server: the session is gone; the draft stays here. */
+  const sessionLossMessage = (cause: unknown): string | null => {
+    if (
+      cause instanceof ServerStorageError &&
+      cause.kind === "unauthenticated"
+    ) {
+      sessionControls.markSignedOut();
+      return t("auth.error.sessionExpired");
+    }
+    return null;
+  };
 
   const navigationGeneration = useRef(0);
   const [formGeneration, setFormGeneration] = useState(0);
@@ -530,6 +594,41 @@ export function PlannerProjectWorkspace({
     }
   };
 
+  /**
+   * Stores `project` as the session may (#34): the open plan itself through
+   * {@link persistProject}, a new copy the user owns (another user's plan;
+   * created fresh, so it never conflicts with the original), or not at all
+   * (read-only). A 401 marks the session signed out; the draft stays.
+   */
+  const saveForSession = async (
+    project: Project,
+  ): Promise<{ saved: Project; version: RecordVersion; copied: boolean }> => {
+    const access = accessFor(project.id);
+    if (access.save === "none") {
+      throw new Error(t(access.readOnlyHint ?? "auth.readOnly.signIn"));
+    }
+    try {
+      if (access.save === "copy") {
+        const copy = duplicateProjectModel(project, {
+          projectNumber: project.projectNumber
+            ? t("project.copySuffix", { number: project.projectNumber })
+            : t("project.copy"),
+        });
+        const { project: saved, version } =
+          await repository.saveProjectVersioned(copy, {
+            expectedVersion: null,
+          });
+        return { saved, version, copied: true };
+      }
+      const { project: saved, version } = await persistProject(project);
+      return { saved, version, copied: false };
+    } catch (cause) {
+      const message = sessionLossMessage(cause);
+      if (message) throw new Error(message, { cause });
+      throw cause;
+    }
+  };
+
   const saveProject = async (project: Project): Promise<Project> => {
     setShowWelcome(false);
     setProjectDrawerOpen(false);
@@ -537,7 +636,7 @@ export function PlannerProjectWorkspace({
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
     const generation = navigationGeneration.current;
-    const { project: saved, version } = await persistProject(project);
+    const { saved, version, copied } = await saveForSession(project);
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = saved.id;
     loadedVersionRef.current = { projectId: saved.id, version };
@@ -553,7 +652,9 @@ export function PlannerProjectWorkspace({
       setActiveTool(null);
     }
     setStatusMessage(
-      t("project.status.planSaved", { name: projectLabel(saved, t) }),
+      t(copied ? "auth.status.savedAsCopy" : "project.status.planSaved", {
+        name: projectLabel(saved, t),
+      }),
     );
     await refreshProjects();
     return saved;
@@ -706,6 +807,11 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to duplicate project", cause);
+      const lost = sessionLossMessage(cause);
+      if (lost) {
+        setError(lost);
+        return;
+      }
       setError(
         cause instanceof Error
           ? t("project.error.duplicateFailed", { message: cause.message })
@@ -750,6 +856,11 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to save project as", cause);
+      const lost = sessionLossMessage(cause);
+      if (lost) {
+        setError(lost);
+        return;
+      }
       setError(
         cause instanceof Error
           ? t("project.error.saveAsFailed", { message: cause.message })
@@ -791,6 +902,11 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to delete project", cause);
+      const lost = sessionLossMessage(cause);
+      if (lost) {
+        setError(lost);
+        return;
+      }
       setError(
         cause instanceof Error
           ? t("project.error.deleteFailed", { message: cause.message })
@@ -905,6 +1021,11 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to import project package", cause);
+      const lost = sessionLossMessage(cause);
+      if (lost) {
+        setError(lost);
+        return;
+      }
       setError(
         cause instanceof Error
           ? t("project.error.importFailed", { message: cause.message })
@@ -1043,6 +1164,7 @@ export function PlannerProjectWorkspace({
       : all;
   }, [selectedCandidateId, solverResult]);
   const workspaceProject = editorDraftProject ?? selectedProject;
+  const workspaceSaveButton = saveButtonFor(accessFor(workspaceProject?.id));
   const physicalPalletBoundsMm = useMemo(
     () =>
       workspaceProject?.pallet
@@ -1321,8 +1443,10 @@ export function PlannerProjectWorkspace({
       ({ id }) => id === workspaceProject.activeSolutionId,
     );
     const existingLayerCount = activeSolution?.stack.layers.length ?? 0;
+    // A copy leaves the original's stack untouched: nothing to confirm.
     if (
       existingLayerCount > 0 &&
+      accessFor(workspaceProject.id).save !== "copy" &&
       !window.confirm(
         t("project.confirm.replaceStack", {
           existing: existingLayerCount,
@@ -1339,9 +1463,14 @@ export function PlannerProjectWorkspace({
       solverInput,
       state,
     );
-    const { project: saved } = await persistProject(updated);
+    const { saved, version, copied } = await saveForSession(updated);
     if (generation !== navigationGeneration.current)
       return "cancelled" as const;
+    if (copied) {
+      selectedProjectIdRef.current = saved.id;
+      loadedVersionRef.current = { projectId: saved.id, version };
+      setSelectedId(saved.id);
+    }
     setSelectedProject(saved);
     setEditorDraftProject(null);
     setEditorDirty(false);
@@ -1350,10 +1479,12 @@ export function PlannerProjectWorkspace({
     setSelectedCandidateId(null);
     setCurrentLayerIndex(0);
     setStatusMessage(
-      t("project.status.stackSaved", {
-        packages: materialized.metrics.packages.totalPackageCount,
-        layers: materialized.packageLayers.length,
-      }),
+      copied
+        ? t("auth.status.savedAsCopy", { name: projectLabel(saved, t) })
+        : t("project.status.stackSaved", {
+            packages: materialized.metrics.packages.totalPackageCount,
+            layers: materialized.packageLayers.length,
+          }),
     );
     await refreshProjects();
     if (generation !== navigationGeneration.current)
@@ -1552,11 +1683,22 @@ export function PlannerProjectWorkspace({
                 </div>
               </details>
             )}
+          <SessionMenu
+            controls={sessionControls}
+            beforeSignOut={() =>
+              !hasUnsavedChanges ||
+              window.confirm(t("auth.confirm.signOutUnsaved"))
+            }
+            onSignedOut={() => {
+              if (hasUnsavedChanges) discardUnsavedPlannerChanges();
+            }}
+          />
           <LanguageSwitcher />
         </div>
       </header>
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
+          createDisabledReason={readOnlyHint}
           onCreate={createNew}
           onBrowse={browsePlans}
           onResume={
@@ -1598,6 +1740,7 @@ export function PlannerProjectWorkspace({
                   solverInput={solverInput}
                   onSave={saveStack}
                   onDirtyChange={setStackDirty}
+                  saveButton={workspaceSaveButton}
                 />
               ) : undefined
             }
@@ -1685,6 +1828,10 @@ export function PlannerProjectWorkspace({
             onDownloadRob={downloadRob}
             onExportAll={() => void exportProjects("all")}
             onImport={(file) => void importProjects(file)}
+            editDisabledReason={readOnlyHint}
+            deleteDisabledReason={(id) =>
+              accessFor(id).canDelete ? null : t("auth.deleteNotAllowed")
+            }
           />
         </>
       ) : null}
@@ -1755,6 +1902,7 @@ export function PlannerProjectWorkspace({
                 solverInput={solverInput}
                 onSave={saveStack}
                 onDirtyChange={setStackDirty}
+                saveButton={workspaceSaveButton}
               />
             ) : null}
 
@@ -1767,6 +1915,7 @@ export function PlannerProjectWorkspace({
                 onDraftChange={setEditorDraftProject}
                 onDirtyChange={setEditorDirty}
                 onSaveProject={saveProject}
+                saveButton={workspaceSaveButton}
               />
             ) : null}
 
@@ -1836,6 +1985,11 @@ export function PlannerProjectWorkspace({
           {...{ onDirtyChange: markInputsDirty }}
           open={dialogMode !== "closed"}
           project={dialogMode === "edit" ? workspaceProject : null}
+          saveButton={
+            dialogMode === "edit"
+              ? workspaceSaveButton
+              : saveButtonFor(generalAccess)
+          }
           onClose={() => {
             if (
               !inputsDirtyRef.current ||
@@ -1876,6 +2030,13 @@ export function PlannerProjectWorkspace({
             const saved = await saveProject(project);
             if (generation !== navigationGeneration.current) return "cancelled";
             markInputsDirty(false);
+            if (dialogMode === "edit" && saved.id !== project.id) {
+              // Saved as a copy: the form no longer shows the saved project
+              // and will not close itself, so close it here.
+              navigationGeneration.current += 1;
+              setDialogMode("closed");
+              return;
+            }
             if (
               previous?.id === saved.id &&
               solverInputSignature(previous) !== solverInputSignature(saved)

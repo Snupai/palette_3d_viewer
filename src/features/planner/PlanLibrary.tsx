@@ -12,9 +12,21 @@ import {
   type PlanFilters,
 } from "./planLibraryModel";
 
+export type PlanLibraryAccess = {
+  /** Disables creating, importing and editing, with this explanation. */
+  editDisabledReason?: string | null;
+  /** Why the project may not be deleted, or `null` when it may. */
+  deleteDisabledReason?: (id: string) => string | null;
+};
+
 export function PlanLibrary(
-  p: ProjectLibraryProps & { onImportRob: (file: File) => void },
+  p: ProjectLibraryProps & {
+    onImportRob: (file: File) => void;
+  } & PlanLibraryAccess,
 ) {
+  const editLocked = p.editDisabledReason ?? null;
+  const deleteLocked = (id: string): string | null =>
+    editLocked ?? p.deleteDisabledReason?.(id) ?? null;
   const { t, tag } = useLocale();
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -98,14 +110,25 @@ export function PlanLibrary(
           <h1>{t("planner.library.title")}</h1>
         </div>
         <div className="button-row">
-          <button className="ui-btn" onClick={() => robInput.current?.click()}>
+          <button
+            className="ui-btn"
+            disabled={editLocked !== null}
+            title={editLocked ?? undefined}
+            onClick={() => robInput.current?.click()}
+          >
             {t("planner.library.openRob")}
           </button>
-          <button className="ui-btn-primary" onClick={p.onCreate}>
+          <button
+            className="ui-btn-primary"
+            disabled={editLocked !== null}
+            title={editLocked ?? undefined}
+            onClick={p.onCreate}
+          >
             {t("planner.library.newPlan")}
           </button>
         </div>
       </header>
+      {editLocked ? <p className="fable-notice">{editLocked}</p> : null}
       <input
         className="hidden"
         ref={robInput}
@@ -270,6 +293,9 @@ export function PlanLibrary(
               </p>
               <button
                 className="ui-btn"
+                disabled={
+                  !(p.projects.length || hasSearch) && editLocked !== null
+                }
                 onClick={p.projects.length || hasSearch ? reset : p.onCreate}
               >
                 {p.projects.length || hasSearch
@@ -368,13 +394,25 @@ export function PlanLibrary(
                         <details className="plan-actions">
                           <summary>{t("planner.library.moreActions")}</summary>
                           <div>
-                            <button onClick={() => p.onEdit(pr.id)}>
+                            <button
+                              disabled={editLocked !== null}
+                              title={editLocked ?? undefined}
+                              onClick={() => p.onEdit(pr.id)}
+                            >
                               {t("planner.library.editDetails")}
                             </button>
-                            <button onClick={() => p.onDuplicate(pr.id)}>
+                            <button
+                              disabled={editLocked !== null}
+                              title={editLocked ?? undefined}
+                              onClick={() => p.onDuplicate(pr.id)}
+                            >
                               {t("planner.library.duplicate")}
                             </button>
-                            <button onClick={() => p.onSaveAs(pr.id)}>
+                            <button
+                              disabled={editLocked !== null}
+                              title={editLocked ?? undefined}
+                              onClick={() => p.onSaveAs(pr.id)}
+                            >
                               {t("planner.library.saveCopy")}
                             </button>
                             <button onClick={() => p.onExportSelected(pr.id)}>
@@ -382,6 +420,8 @@ export function PlanLibrary(
                             </button>
                             <button
                               className="text-danger"
+                              disabled={deleteLocked(pr.id) !== null}
+                              title={deleteLocked(pr.id) ?? undefined}
                               onClick={() => setPendingDelete(pr.id)}
                             >
                               {t("planner.library.delete")}
@@ -439,7 +479,12 @@ export function PlanLibrary(
           <button className="ui-btn" onClick={p.onExportAll}>
             {t("planner.library.exportAll")}
           </button>
-          <button className="ui-btn" onClick={() => jsonInput.current?.click()}>
+          <button
+            className="ui-btn"
+            disabled={editLocked !== null}
+            title={editLocked ?? undefined}
+            onClick={() => jsonInput.current?.click()}
+          >
             {t("planner.library.importPackage")}
           </button>
         </div>

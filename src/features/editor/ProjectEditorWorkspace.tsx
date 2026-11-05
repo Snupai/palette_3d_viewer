@@ -8,6 +8,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { updateProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import type { RobotCycleMaterialization } from "~/domain/robotics";
@@ -42,6 +43,8 @@ export type ProjectEditorWorkspaceProps = {
   onDraftChange?: (project: Project | null) => void;
   onDirtyChange?: (dirty: boolean) => void;
   onSaveProject: (project: Project) => Promise<Project>;
+  /** Relabels or disables the save button (server mode, #34). */
+  saveButton?: SaveButtonState;
 };
 
 function isTextControl(target: EventTarget | null): boolean {
@@ -67,6 +70,7 @@ export function ProjectEditorWorkspace({
   onDraftChange,
   onDirtyChange,
   onSaveProject,
+  saveButton,
 }: ProjectEditorWorkspaceProps) {
   const t = useT();
   const views: ReadonlyArray<readonly [EditorView, string]> = [
@@ -544,10 +548,13 @@ export function ProjectEditorWorkspace({
           <button
             type="button"
             className="ui-btn-primary"
-            disabled={!dirty || saving}
+            disabled={!dirty || saving || Boolean(saveButton?.disabledReason)}
+            title={saveButton?.disabledReason ?? undefined}
             onClick={() => void save()}
           >
-            {saving ? t("editor.saving") : t("editor.save")}
+            {saving
+              ? t("editor.saving")
+              : (saveButton?.label ?? t("editor.save"))}
           </button>
         </div>
       </div>

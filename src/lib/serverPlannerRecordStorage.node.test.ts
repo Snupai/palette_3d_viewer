@@ -248,6 +248,31 @@ describe("ServerPlannerRecordStorage", () => {
     });
   });
 
+  it("remembers each record's creator from lists, reads and writes", async () => {
+    const server = await freshServer();
+    const alice = client(handlerFetch(server, "alice"));
+    const bob = client(handlerFetch(server, "bob"));
+    await alice.put(PROJECTS_STORE_NAME, { id: "a" });
+    await bob.put(PROJECTS_STORE_NAME, { id: "b" });
+    const anonymous = client(handlerFetch(server, "anonymous"));
+
+    const before = anonymous.createdBy(PROJECTS_STORE_NAME, "a");
+    await anonymous.list(PROJECTS_STORE_NAME);
+    const listed = ["a", "b", "c"].map((id) =>
+      anonymous.createdBy(PROJECTS_STORE_NAME, id),
+    );
+    await bob.get(PROJECTS_STORE_NAME, "a");
+    await alice.delete(PROJECTS_STORE_NAME, "a");
+    await anonymous.get(PROJECTS_STORE_NAME, "a");
+
+    expect(before).toBeUndefined();
+    expect(listed).toEqual(["alice", "bob", undefined]);
+    expect(alice.createdBy(PROJECTS_STORE_NAME, "a")).toBeUndefined();
+    expect(bob.createdBy(PROJECTS_STORE_NAME, "a")).toBe("alice");
+    expect(bob.createdBy(PROJECTS_STORE_NAME, "b")).toBe("bob");
+    expect(anonymous.createdBy(PROJECTS_STORE_NAME, "a")).toBeUndefined();
+  });
+
   it("maps 403 to forbidden for another user's project and a user's Werkskatalog write", async () => {
     const server = await freshServer();
     await client(handlerFetch(server, "alice")).put(PROJECTS_STORE_NAME, {

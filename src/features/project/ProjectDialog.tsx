@@ -8,6 +8,7 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { z } from "zod";
 import { useT } from "~/i18n";
 import type { Project } from "~/domain/project/projectSchema";
@@ -48,6 +49,8 @@ export type ProjectDialogProps = {
    * an exact package count (create mode only).
    */
   inline?: boolean;
+  /** Inline form only: relabels or disables its save button (#34). */
+  saveButton?: SaveButtonState;
   /** Inline mode only: section opened first, e.g. when editing from review. */
   initialSection?: GuidedSectionId;
   /**
@@ -86,6 +89,7 @@ export function ProjectDialog({
   inline = false,
   initialSection,
   onDirtyChange,
+  saveButton,
   ...props
 }: ProjectDialogProps) {
   if (!props.open) return null;
@@ -97,6 +101,7 @@ export function ProjectDialog({
         onClose={props.onClose}
         onSave={props.onSave}
         onDirtyChange={onDirtyChange}
+        saveButton={saveButton}
       />
     );
   }

@@ -10,6 +10,7 @@ import {
   type ReactNode,
   type Ref,
 } from "react";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { z } from "zod";
 import type { Project } from "~/domain/project/projectSchema";
 import { useLocale, useT } from "~/i18n";
@@ -66,6 +67,8 @@ export type GuidedProjectFormProps = {
    * unmount. The caller owns any discard confirmation.
    */
   onDirtyChange?: (dirty: boolean) => void;
+  /** Relabels or disables the save buttons (server mode, #34). */
+  saveButton?: SaveButtonState;
 };
 
 function domId(base: string, path: string): string {
@@ -421,7 +424,9 @@ export function GuidedProjectForm({
   onClose,
   onSave,
   onDirtyChange,
+  saveButton,
 }: GuidedProjectFormProps) {
+  const saveLocked = saveButton?.disabledReason ?? null;
   const t = useT();
   const { tag } = useLocale();
   const baseId = useId().replace(/:/g, "");
@@ -1288,7 +1293,8 @@ export function GuidedProjectForm({
               name="creationAction"
               value="create-only"
               className="ui-btn"
-              disabled={saving || readingSheet}
+              disabled={saving || readingSheet || saveLocked !== null}
+              title={saveLocked ?? undefined}
             >
               {t("projectForm.saveOnly")}
             </button>
@@ -1298,13 +1304,14 @@ export function GuidedProjectForm({
             name="creationAction"
             value={creating ? "generate" : "save"}
             className="ui-btn-primary"
-            disabled={saving || readingSheet}
+            disabled={saving || readingSheet || saveLocked !== null}
+            title={saveLocked ?? undefined}
           >
             {saving
               ? t("projectForm.saving")
               : creating
                 ? t("projectForm.generate")
-                : t("projectForm.saveChanges")}
+                : (saveButton?.label ?? t("projectForm.saveChanges"))}
           </button>
         </div>
       </footer>

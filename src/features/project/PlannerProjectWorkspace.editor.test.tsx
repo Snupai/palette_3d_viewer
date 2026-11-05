@@ -115,6 +115,17 @@ async function openSavedPlan() {
   );
 }
 /** Opens the saved plan in the pattern editor and leaves one unsaved edit. */
+/** Server mode needs a session that may save (#34): the plan's creator. */
+const signedInFetch: typeof fetch = async (input) => {
+  if (input !== "/api/auth/me") throw new Error("unexpected request");
+  return new Response(
+    JSON.stringify({
+      user: { id: "u-alice", username: "alice", role: "user" },
+    }),
+    { status: 200 },
+  );
+};
+
 async function editLabelSideInEditor(
   onUnsavedChange: ReturnType<typeof vi.fn>,
 ) {
@@ -222,6 +233,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         repository={repository}
         onUnsavedChange={onUnsavedChange}
         storageMode="server"
+        fetchImpl={signedInFetch}
       />,
     );
     await editLabelSideInEditor(onUnsavedChange);
@@ -282,6 +294,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         repository={repository}
         onUnsavedChange={onUnsavedChange}
         storageMode="server"
+        fetchImpl={signedInFetch}
       />,
     );
     await editLabelSideInEditor(onUnsavedChange);
