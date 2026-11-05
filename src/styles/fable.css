@@ -1512,3 +1512,58 @@ h3 {
 details:has(> .report-sheet) {
   min-width: 0;
 }
+
+/* Admin user management (#32). */
+.admin-content {
+  display: grid;
+  gap: 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px 48px;
+}
+.admin-title {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 28px;
+  font-weight: 700;
+}
+.admin-heading {
+  font-family: var(--font-barlow-condensed), sans-serif;
+  font-size: 19px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.admin-section,
+.admin-state {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.admin-table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--surface);
+}
+.admin-form {
+  display: grid;
+  gap: 12px;
+  max-width: 420px;
+}
+.admin-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.admin-notice {
+  border: 1px solid var(--line);
+  border-left-width: 3px;
+  border-radius: 4px;
+  padding: 8px 12px;
+  background: var(--surface);
+}
+.admin-notice-success {
+  border-left-color: var(--ok);
+}
+.admin-notice-error {
+  border-left-color: var(--danger);
+}

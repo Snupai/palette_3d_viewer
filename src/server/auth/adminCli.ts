@@ -8,7 +8,7 @@ import {
   UsernameTakenError,
   type AuthUser,
 } from "./accounts";
-import { assertPasswordPolicy, PasswordPolicyError } from "./password";
+import { describePasswordProblem, passwordProblem } from "./passwordStrength";
 import { normalizeUsername } from "./userModel";
 
 /**
@@ -26,33 +26,18 @@ export const DEFAULT_ADMIN_USERNAME = "admin";
 /** Weak passwords and mismatched confirmations are retried this many times. */
 export const MAX_PASSWORD_ATTEMPTS = 3;
 
-/** Smallest number of distinct characters an admin password must contain. */
-export const MIN_DISTINCT_PASSWORD_CHARS = 5;
-
 export class AdminCliError extends Error {}
 
 /**
- * Minimal strength check on top of the length policy: no password that
- * contains the username, and enough distinct characters that `aaaaaaaaaaaa`
- * or `121212121212` are rejected. Returns the reason, or `null` if accepted.
+ * Strength check from {@link passwordProblem} as English text for the
+ * terminal. Returns the reason, or `null` if accepted.
  */
 export function adminPasswordProblem(
   password: string,
   username: string,
 ): string | null {
-  try {
-    assertPasswordPolicy(password);
-  } catch (error) {
-    if (error instanceof PasswordPolicyError) return error.message;
-    throw error;
-  }
-  if (password.toLowerCase().includes(username.toLowerCase())) {
-    return "password must not contain the username";
-  }
-  if (new Set(password).size < MIN_DISTINCT_PASSWORD_CHARS) {
-    return `password must contain at least ${MIN_DISTINCT_PASSWORD_CHARS} different characters`;
-  }
-  return null;
+  const problem = passwordProblem(password, username);
+  return problem ? describePasswordProblem(problem) : null;
 }
 
 /**
