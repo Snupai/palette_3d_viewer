@@ -45,6 +45,12 @@ export type ProjectEditorWorkspaceProps = {
   onSaveProject: (project: Project) => Promise<Project>;
   /** Relabels or disables the save button (server mode, #34). */
   saveButton?: SaveButtonState;
+  /**
+   * Ignore edits while a save runs. Set when saving stores a copy under a new
+   * id (#34): the workspace then reopens the copy and edits made meanwhile
+   * could not be carried over.
+   */
+  lockEditsWhileSaving?: boolean;
 };
 
 function isTextControl(target: EventTarget | null): boolean {
@@ -71,6 +77,7 @@ export function ProjectEditorWorkspace({
   onDirtyChange,
   onSaveProject,
   saveButton,
+  lockEditsWhileSaving = false,
 }: ProjectEditorWorkspaceProps) {
   const t = useT();
   const views: ReadonlyArray<readonly [EditorView, string]> = [
@@ -242,7 +249,9 @@ export function ProjectEditorWorkspace({
     [effectiveSelection, history.present, pattern, solution, view],
   );
 
+  const editsLocked = saving && lockEditsWhileSaving;
   const execute = (command: ProjectEditorCommand) => {
+    if (editsLocked) return;
     dispatch({ type: "execute", command });
     setSaveError(null);
     setStatus(null);
@@ -386,6 +395,7 @@ export function ProjectEditorWorkspace({
 
   const handleKeyboard = (event: ReactKeyboardEvent<HTMLDivElement>) => {
     if (event.defaultPrevented || isTextControl(event.target)) return;
+    if (editsLocked) return;
     const modifier = event.ctrlKey || event.metaKey;
     const key = event.key.toLocaleLowerCase();
     if (modifier && key === "z") {

@@ -1930,6 +1930,9 @@ export function PlannerProjectWorkspace({
                 onDirtyChange={setEditorDirty}
                 onSaveProject={saveProject}
                 saveButton={workspaceSaveButton}
+                lockEditsWhileSaving={
+                  accessFor(selectedProject.id).save === "copy"
+                }
               />
             ) : null}
 

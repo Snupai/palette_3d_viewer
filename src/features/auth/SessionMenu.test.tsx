@@ -140,4 +140,34 @@ describe("SessionMenu", () => {
     expect(fireEvent.click(link)).toBe(false);
     expect(beforeLeave).toHaveBeenCalledOnce();
   });
+
+  it("keeps a sign-in when the slower initial session check answers later", async () => {
+    const alice = { id: "u-alice", username: "alice", role: "user" };
+    let answerMe: ((response: Response) => void) | undefined;
+    const fetchImpl = vi.fn<typeof fetch>((input) =>
+      pathOf(input) === "/api/auth/me"
+        ? new Promise<Response>((resolve) => {
+            answerMe = resolve;
+          })
+        : Promise.resolve(json({ user: alice })),
+    );
+    render(<Harness mode="server" fetchImpl={fetchImpl} />);
+    expect(screen.getByTestId("status").textContent).toBe("loading");
+
+    fireEvent.change(screen.getByLabelText("Benutzername"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Kennwort"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("status").textContent).toBe("signed-in"),
+    );
+    // The check started before the sign-in answers "anonymous" only now.
+    answerMe?.(json({ error: "unauthenticated" }, 401));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(screen.getByTestId("status").textContent).toBe("signed-in");
+  });
 });

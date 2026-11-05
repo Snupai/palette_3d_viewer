@@ -245,6 +245,7 @@ function renderEditor(
     onDraftChange?: (project: Project | null) => void;
     onDirtyChange?: (dirty: boolean) => void;
     onSaveProject?: (project: Project) => Promise<Project>;
+    lockEditsWhileSaving?: boolean;
   } = {},
 ) {
   const project = overrides.project ?? projectFixture();
@@ -264,6 +265,7 @@ function renderEditor(
       onDraftChange={overrides.onDraftChange}
       onDirtyChange={overrides.onDirtyChange}
       onSaveProject={onSaveProject}
+      lockEditsWhileSaving={overrides.lockEditsWhileSaving}
     />,
   );
   return { project, materialization, onSaveProject, ...view };
@@ -612,6 +614,38 @@ describe("ProjectEditorWorkspace order and persistence", () => {
       "",
     );
     confirm.mockRestore();
+  });
+
+  it("ignores edits while a save that stores a copy is pending", async () => {
+    let resolveSave: ((project: Project) => void) | undefined;
+    const onSaveProject = vi.fn(
+      (_project: Project) =>
+        new Promise<Project>((resolve) => {
+          resolveSave = resolve;
+        }),
+    );
+    renderEditor({ onSaveProject, lockEditsWhileSaving: true });
+    const first = placementRect("p1");
+    fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
+    fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
+    const labelSide = screen.getByLabelText<HTMLSelectElement>("Etikettseite");
+    fireEvent.change(labelSide, { target: { value: "top" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(onSaveProject).toHaveBeenCalledTimes(1);
+
+    // The copy will reopen under a new id: a later edit could not be kept.
+    fireEvent.change(labelSide, { target: { value: "right" } });
+    expect(labelSide.value).toBe("top");
+
+    resolveSave?.(onSaveProject.mock.calls[0]![0]);
+    await waitFor(() =>
+      expect(
+        screen.getByRole<HTMLButtonElement>("button", { name: "Speichern" })
+          .disabled,
+      ).toBe(true),
+    );
+    fireEvent.change(labelSide, { target: { value: "right" } });
+    expect(labelSide.value).toBe("right");
   });
 
   it("preserves edits made while an older save is pending", async () => {

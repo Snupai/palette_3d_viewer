@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { useT, type MessageKey } from "~/i18n";
 import type { StorageMode } from "~/lib/storageMode";
@@ -35,15 +41,20 @@ export function usePlannerSession(
   const [session, setSession] = useState<PlannerSession>(() =>
     initialPlannerSession(mode),
   );
+  /**
+   * Bumped by every session change; a `/api/auth/me` answer that arrives
+   * after a sign-in or sign-out is stale and must not overwrite it.
+   */
+  const sessionGeneration = useRef(0);
 
   useEffect(() => {
     if (mode === "local") return;
-    let active = true;
+    const generation = ++sessionGeneration.current;
     void loadPlannerSession(fetchImpl).then((next) => {
-      if (active) setSession(next);
+      if (generation === sessionGeneration.current) setSession(next);
     });
     return () => {
-      active = false;
+      sessionGeneration.current += 1;
     };
   }, [mode, fetchImpl]);
 
@@ -51,6 +62,7 @@ export function usePlannerSession(
     async (username: string, password: string) => {
       const result = await signIn(fetchImpl, username, password);
       if (!result.ok) return result.message;
+      sessionGeneration.current += 1;
       setSession(result.session);
       return null;
     },
@@ -58,10 +70,14 @@ export function usePlannerSession(
   );
   const doSignOut = useCallback(async () => {
     const ok = await signOut(fetchImpl);
-    if (ok) setSession({ status: "anonymous" });
+    if (ok) {
+      sessionGeneration.current += 1;
+      setSession({ status: "anonymous" });
+    }
     return ok;
   }, [fetchImpl]);
   const markSignedOut = useCallback(() => {
+    sessionGeneration.current += 1;
     setSession((current) =>
       current.status === "local" ? current : { status: "anonymous" },
     );
