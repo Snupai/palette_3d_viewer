@@ -151,6 +151,30 @@ stays `local` until the server storage client exists; rebuild with
 and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use
 `host.docker.internal` / `host.containers.internal` for an Ollama on the host).
 
+### Admin account
+
+There is no public sign-up (ADR 0005): the first admin is created with a local
+command on the server, which asks for the password twice without echoing it
+(at least 12 characters, at least 5 different ones, not containing the
+username). Both commands take `--username <name>` (default `admin`).
+
+```sh
+bun run admin:init            # creates the admin; if one exists, nothing changes
+bun run admin:reset-password  # new password; revokes all of that admin's sessions
+```
+
+They connect to `DATABASE_URL` (run `bun run db:migrate` first). With the
+containerized stack, run them from the `migrate` image, which reaches the
+database on the compose network:
+
+```sh
+docker compose run --rm migrate node admin.mjs init
+docker compose run --rm migrate node admin.mjs reset-password --username admin
+```
+
+(`podman compose` works the same.) Piped stdin is read one password per line,
+e.g. for provisioning scripts.
+
 ### Database only (development)
 
 `compose.yaml` starts PostgreSQL 17 (`docker.io/library/postgres:17`) with a

@@ -5,6 +5,8 @@
   "type": "module",
   "packageManager": "bun@1.3.14",
   "scripts": {
+    "admin:init": "bun run scripts/admin.ts init",
+    "admin:reset-password": "bun run scripts/admin.ts reset-password",
     "build": "next build",
     "check": "eslint . && tsc --noEmit",
     "corpus:rob": "bun run src/lib/parity/cli.node.ts",
