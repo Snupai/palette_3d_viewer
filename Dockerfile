@@ -26,9 +26,8 @@ RUN bun install --frozen-lockfile
 
 # --- build: Next.js standalone output + bundled migration and admin scripts
 FROM toolchain AS build
-# Inlined into the client bundle at build time. Stays `local` (IndexedDB) until
-# the server storage client (#33) exists; `server` would make every storage
-# call throw today. Flip it later with
+# Inlined into the client bundle at build time. Defaults to `local` (IndexedDB);
+# `server` stores plans in PostgreSQL via the records API:
 #   PALETTE_STORAGE_MODE=server docker compose up -d --build
 ARG NEXT_PUBLIC_PALETTE_STORAGE_MODE=local
 ARG NEXT_PUBLIC_DISABLE_AI_FEATURES

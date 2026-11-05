@@ -122,9 +122,12 @@ Plans are stored in exactly one place, chosen at build time (ADR 0002):
 - `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local` (default) keeps everything in the
   browser's IndexedDB, as before.
 - `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server backed by the
-  PostgreSQL container at `DATABASE_URL` (ADR 0009). The server client is not
-  implemented yet, so storage operations fail with
-  `ServerStorageNotImplementedError`.
+  PostgreSQL container at `DATABASE_URL` (ADR 0009). The browser reads and
+  writes projects and the Werkskatalog through the records API
+  (`/api/records`, `ServerPlannerRecordStorage`); writes need a signed-in
+  session. A stale write is rejected as a version conflict (ADR 0006); a
+  missing session, a refused write or an unreachable server fails with a
+  typed `ServerStorageError`.
 
 An unreachable server or an expired session never switches to IndexedDB.
 `createPlannerRecordStorage()` in `src/lib/plannerStorageFactory.ts` is the only
@@ -146,8 +149,8 @@ All ports are bound to `127.0.0.1` (`PALETTE_APP_PORT`, `PALETTE_DB_PORT`);
 LAN exposure needs HTTPS first (ADR 0008). Set `PALETTE_DB_PASSWORD` for any
 shared installation; it goes verbatim into `DATABASE_URL`, so keep it URL-safe
 (`A-Z a-z 0-9 - . _ ~`). The storage mode is a build arg and
-stays `local` until the server storage client exists; rebuild with
-`PALETTE_STORAGE_MODE=server bun run stack:up` to switch later. `OLLAMA_URL`
+defaults to `local`; rebuild with
+`PALETTE_STORAGE_MODE=server bun run stack:up` to store plans on the server. `OLLAMA_URL`
 and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use
 `host.docker.internal` / `host.containers.internal` for an Ollama on the host).
 
