@@ -30,6 +30,7 @@ import {
   type PlannerRecordStorage,
 } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
+import { ServerPlannerRecordStorage } from "~/lib/serverPlannerRecordStorage";
 
 export {
   IndexedDbPlannerRecordStorage,
@@ -539,6 +540,17 @@ export class ProjectRepository {
       legacyLocalStorageJson?: string | null;
     } = {},
   ): Promise<LegacyMigrationResult> {
+    // The server keeps no local pallets, and publishing this browser's
+    // legacy plans needs the explicit, confirmed import (ADR 0007).
+    if (this.isServerStorage()) {
+      return {
+        projects: [],
+        migratedCount: 0,
+        skippedCount: 0,
+        diagnostics: [],
+        sourceDeleted: false,
+      };
+    }
     const rows = [...(await this.storage.list(PALLETS_STORE_NAME))];
     const legacyDiagnostics: RepositoryDiagnostic[] = [];
     if (options.legacyLocalStorageJson) {
@@ -625,6 +637,9 @@ export class ProjectRepository {
     row: unknown,
     diagnostics: RepositoryDiagnostic[],
   ): Promise<void> {
+    // The server keeps no quarantine store; the invalid record stays where it
+    // is and the caller still reports its diagnostics.
+    if (this.isServerStorage()) return;
     const sourceId = recordId(row);
     const id = `${sourceStore}:${sourceId ?? hashString(stableJson(row))}`;
     const record: QuarantineRecord = {
@@ -636,6 +651,10 @@ export class ProjectRepository {
       record: row,
     };
     await this.storage.put(PROJECT_QUARANTINE_STORE_NAME, record);
+  }
+
+  private isServerStorage(): boolean {
+    return this.storage instanceof ServerPlannerRecordStorage;
   }
 
   private async assertProjectIdAvailable(id: string): Promise<void> {

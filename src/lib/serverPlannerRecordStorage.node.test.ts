@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -21,6 +23,12 @@ import {
   ServerPlannerRecordStorage,
   ServerStorageError,
 } from "~/lib/serverPlannerRecordStorage";
+import { createProject } from "~/domain/project/projectFactory";
+import { getPalletTemplate } from "~/domain/project/palletTemplates";
+import { createProjectResource } from "~/domain/project/projectResource";
+import type { SavedPallet } from "~/lib/palletTypes";
+import { ProjectRepository } from "~/lib/projectRepository";
+import { parseRobText } from "~/lib/robParser";
 import { createSession } from "~/server/auth/accounts";
 import type { OpenDatabase } from "~/server/db/database";
 import { plannerRecords, users } from "~/server/db/schema";
@@ -330,5 +338,90 @@ describe("ServerPlannerRecordStorage", () => {
       });
     }
     expect(calls).toEqual([]);
+  });
+});
+
+describe("ProjectRepository on the server storage", () => {
+  async function adminRepository(calls: string[] = []) {
+    const server = servers[0]!;
+    await server.database.db.delete(plannerRecords);
+    const storage = client(handlerFetch(server, "admin", calls));
+    return { storage, repository: new ProjectRepository(storage) };
+  }
+
+  it("does not publish legacy browser pallets automatically (ADR 0007)", async () => {
+    const rawText = readFileSync(
+      resolve(
+        process.cwd(),
+        "src",
+        "lib",
+        "__fixtures__",
+        "anonymized-plan-lf.rob",
+      ),
+      "utf8",
+    );
+    const legacy: SavedPallet = {
+      schemaVersion: 1,
+      id: "saved-rob",
+      name: "legacy-product.rob",
+      createdAt: 55,
+      data: parseRobText(rawText),
+      rawText,
+      originalRawText: rawText,
+    };
+    const calls: string[] = [];
+    const { storage, repository } = await adminRepository(calls);
+
+    const result = await repository.migrateSavedPalletStore({
+      conflictPolicy: "skip",
+      legacyLocalStorageJson: JSON.stringify([legacy]),
+    });
+
+    expect(result).toEqual({
+      projects: [],
+      migratedCount: 0,
+      skippedCount: 0,
+      diagnostics: [],
+      sourceDeleted: false,
+    });
+    expect(calls).toEqual([]);
+    expect(await storage.list(PROJECTS_STORE_NAME)).toEqual([]);
+  });
+
+  it("skips domain-invalid server records with diagnostics and keeps them on the server", async () => {
+    const { storage, repository } = await adminRepository();
+    const valid = createProject({ id: "valid", projectNumber: "P-1" });
+    await repository.saveProject(valid);
+    const pallet = createProjectResource({
+      kind: "pallet",
+      value: getPalletTemplate("euro"),
+    });
+    await repository.saveResource(pallet);
+    await storage.put(PROJECTS_STORE_NAME, { id: "broken", schemaVersion: 99 });
+    await storage.put(PROJECT_RESOURCES_STORE_NAME, { id: "bad-resource" });
+
+    const projects = await repository.listProjects();
+    const resources = await repository.listResources();
+    const single = await repository.getProject("broken");
+
+    expect(projects.projects.map(({ id }) => id)).toEqual(["valid"]);
+    expect([
+      ...new Set(projects.diagnostics.map(({ recordId }) => recordId)),
+    ]).toEqual(["broken"]);
+    expect(resources.resources.map(({ id }) => id)).toEqual([pallet.id]);
+    expect([
+      ...new Set(resources.diagnostics.map(({ recordId }) => recordId)),
+    ]).toEqual(["bad-resource"]);
+    expect(single.project).toBeNull();
+    expect(single.diagnostics.length).toBeGreaterThan(0);
+    expect(await storage.get(PROJECTS_STORE_NAME, "broken")).toEqual({
+      id: "broken",
+      schemaVersion: 99,
+    });
+    expect(
+      await storage.get(PROJECT_RESOURCES_STORE_NAME, "bad-resource"),
+    ).toEqual({
+      id: "bad-resource",
+    });
   });
 });
