@@ -86,6 +86,69 @@ export async function authenticate(
   rawUsername: string,
   password: string,
 ): Promise<AuthUser | null> {
+  const verified = await verifyCredentials(db, rawUsername, password);
+  if (!verified) return null;
+  if (!(await passwordHashUnchanged(db, verified.row.id, verified.hash))) {
+    return null;
+  }
+  return toAuthUser(verified.row);
+}
+
+/**
+ * `authenticate` + `createSession` for the login route. The final "hash still
+ * the one we verified" check and the session insert run in one transaction
+ * holding the user row lock, so a concurrent `setUserPassword` either lands
+ * first (login fails) or after (its session delete also removes this one).
+ * `previousToken`, if given, is revoked in the same transaction.
+ */
+export async function loginWithPassword(
+  db: PlannerDatabase,
+  rawUsername: string,
+  password: string,
+  now: Date,
+  previousToken?: string | null,
+  ttlMs: number = SESSION_TTL_MS,
+): Promise<{ user: AuthUser; session: CreatedSession } | null> {
+  const verified = await verifyCredentials(db, rawUsername, password);
+  if (!verified) return null;
+  const token = generateSessionToken();
+  const expiresAt = new Date(sessionExpiresAt(now.getTime(), ttlMs));
+  return db.transaction(async (tx) => {
+    const [current] = await tx
+      .select({ passwordHash: users.passwordHash })
+      .from(users)
+      .where(eq(users.id, verified.row.id))
+      .for("update");
+    if (current?.passwordHash !== verified.hash) return null;
+    if (previousToken && isWellFormedSessionToken(previousToken)) {
+      await tx
+        .delete(sessions)
+        .where(eq(sessions.tokenHash, hashSessionToken(previousToken)));
+    }
+    await tx.insert(sessions).values({
+      tokenHash: hashSessionToken(token),
+      userId: verified.row.id,
+      expiresAt,
+      createdAt: now,
+    });
+    return {
+      user: toAuthUser(verified.row),
+      session: { token, expiresAt },
+    };
+  });
+}
+
+/**
+ * Checks username + password and transparently upgrades weak hashes.
+ * Returns the row plus the hash now stored for it (the verified or the
+ * upgraded one); callers must confirm that hash is still current before
+ * trusting the result, because awaits here let a concurrent reset land.
+ */
+async function verifyCredentials(
+  db: PlannerDatabase,
+  rawUsername: string,
+  password: string,
+): Promise<{ row: UserRow; hash: string } | null> {
   let username: string;
   try {
     username = normalizeUsername(rawUsername);
@@ -104,26 +167,18 @@ export async function authenticate(
   }
   if (!(await verifyPassword(row.passwordHash, password))) return null;
 
-  // The awaits above and below let a concurrent `setUserPassword` land. The
-  // rehash write and the final success are therefore conditional on the hash
-  // still being the one we verified against; otherwise the reset wins
-  // (ADR 0005).
+  // The rehash write is conditional on the hash still being the one we
+  // verified against; otherwise the reset wins (ADR 0005).
   const upgraded = passwordNeedsRehash(row.passwordHash)
     ? await hashPassword(password).catch(() => null)
     : null;
-  if (upgraded) {
-    const swapped = await db
-      .update(users)
-      .set({ passwordHash: upgraded })
-      .where(
-        and(eq(users.id, row.id), eq(users.passwordHash, row.passwordHash)),
-      )
-      .returning({ id: users.id });
-    if (swapped.length === 0) return null;
-  } else if (!(await passwordHashUnchanged(db, row.id, row.passwordHash))) {
-    return null;
-  }
-  return toAuthUser(row);
+  if (!upgraded) return { row, hash: row.passwordHash };
+  const swapped = await db
+    .update(users)
+    .set({ passwordHash: upgraded })
+    .where(and(eq(users.id, row.id), eq(users.passwordHash, row.passwordHash)))
+    .returning({ id: users.id });
+  return swapped.length === 0 ? null : { row, hash: upgraded };
 }
 
 async function passwordHashUnchanged(
