@@ -154,6 +154,53 @@ defaults to `local`; rebuild with
 and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use
 `host.docker.internal` / `host.containers.internal` for an Ollama on the host).
 
+### Backups and restore
+
+The stack includes a `backup` service (ADR 0009, issue #38): every hour it
+runs `pg_dump -Fc` against `db` and writes
+`palette-YYYYMMDDTHHMMSSZ.dump` (UTC) into `PALETTE_BACKUP_DIR` (default
+`./backups`, git-ignored). `pg_dump` takes one consistent snapshot while the
+app keeps running, so at most one hour of changes can be lost. **Point
+`PALETTE_BACKUP_DIR` at a separate disk** so a dead data disk does not take
+the backups with it. A dump is written to its own hidden temporary file, checked
+with `pg_restore --list` and only then renamed, so every `palette-*.dump` is
+complete, also when a manual `db:backup` overlaps the hourly run. Dumps older than 7 days are deleted, but only after a successful
+dump. Dumps contain password hashes; they are created owner-only (`0600`).
+
+```sh
+PALETTE_BACKUP_DIR=/mnt/backup/palette bun run stack:up   # creates the directory
+bun run db:backup                     # one extra dump now
+docker compose ps backup              # "healthy" = a dump from the last ~2 hours
+docker compose logs backup            # wrote / pruned / FAILED lines
+```
+
+Settings: `PALETTE_BACKUP_INTERVAL_SECONDS` (default `3600`),
+`PALETTE_BACKUP_RETENTION_DAYS` (default `7`), `PALETTE_BACKUP_USER`
+(`uid:gid` that owns the files; the default root is your own user under
+rootless Podman, with Docker on Linux use e.g. `1000:1000`). Podman needs the
+directory to exist before `up`; `bun run stack:up` creates it. The logic lives
+in `scripts/pg-backup.sh` (POSIX sh, tested by
+`src/server/db/pgBackupScript.node.test.ts`).
+
+**Restore** replaces the whole database with the dump, in one transaction (on
+any error nothing changes): every schema is dropped first, so tables from a
+migration newer than the dump disappear and `migrate` re-applies them on the
+next start. Stop the app first so no one keeps writing, then pass a file name
+from `PALETTE_BACKUP_DIR` and `--yes`:
+
+```sh
+docker compose stop app
+bun run db:restore palette-20261105T140000Z.dump --yes
+docker compose up -d                  # migrate re-runs (no-op), app starts
+```
+
+Without `--yes` the command only checks the file and prints the warning. On a
+new machine or after losing the volume: copy the dumps into
+`PALETTE_BACKUP_DIR`, run `bun run db:up` (empty database), the restore
+command above, then `bun run stack:up`. `bun run db:restore …` is
+`docker compose run --rm backup restore …`; with Podman set
+`CONTAINER_ENGINE=podman` or use `podman compose run --rm backup restore …`.
+
 ### Admin account
 
 There is no public sign-up (ADR 0005): the first admin is created with a local

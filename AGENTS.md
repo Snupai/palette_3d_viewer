@@ -50,6 +50,7 @@ UI, and docs.
 | External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)                | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
 | PostgreSQL container up / down (`CONTAINER_ENGINE=podman` for Podman)  | `bun run db:up` / `bun run db:down`                                        |
 | Full stack in containers: db + migrate + app (`Dockerfile`, issue #49) | `bun run stack:up` / `bun run stack:down`                                  |
+| PostgreSQL backup now / restore (hourly `backup` service, issue #38)   | `bun run db:backup` / `bun run db:restore <file> --yes`                    |
 | DB migrations (generate from schema / apply to `DATABASE_URL`)         | `bun run db:generate` / `bun run db:migrate`                               |
 | Admin account (ADR 0005, hidden prompt; containers: README)            | `bun run admin:init` / `bun run admin:reset-password`                      |
 
