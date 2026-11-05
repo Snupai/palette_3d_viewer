@@ -242,6 +242,30 @@ export function removeDraftBackup(
 }
 
 /**
+ * Moves the draft `token`'s backup onto a new base version — its own save
+ * stored an older revision of it meanwhile — without touching its content
+ * or revision. Another draft's backup is left alone.
+ */
+export function rebaseDraftBackup(
+  storage: DraftBackupStorage | null,
+  scope: DraftBackupScope,
+  projectId: string,
+  token: string,
+  baseVersion: RecordVersion,
+): boolean {
+  if (!storage) return false;
+  const key = backupKey(scope, projectId);
+  try {
+    const backup = parseBackup(storage.getItem(key));
+    if (!backup || backup.token !== token) return false;
+    storage.setItem(key, JSON.stringify({ ...backup, baseVersion }));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Removes the scope user's backups on that server whose token is in `tokens`
  * (the drafts a confirmed sign-out warning covered). Other users, other
  * servers and backups written after the warning keep theirs. Returns the

@@ -9,6 +9,7 @@ import {
   draftBackupStatus,
   draftBaseVersion,
   readDraftBackups,
+  rebaseDraftBackup,
   removeAllDraftBackups,
   removeDraftBackup,
   saveFailureReason,
@@ -140,6 +141,29 @@ describe("draft backup lifecycle", () => {
       true,
     );
     expect(readDraftBackups(storage, alice)).toEqual([]);
+  });
+
+  it("moves a draft's backup onto the version its own save stored, keeping its newer content", () => {
+    const storage = new MemoryStorage();
+    const newer = plan("a", "Newer edits");
+    writeDraftBackup(storage, alice, newer, 1, 1000, { token: "mine", rev: 3 });
+
+    expect(rebaseDraftBackup(storage, alice, "project-a", "other", 2)).toBe(
+      false,
+    );
+    expect(rebaseDraftBackup(storage, alice, "project-a", "mine", 2)).toBe(
+      true,
+    );
+    expect(readDraftBackups(storage, alice)).toEqual([
+      {
+        projectId: "project-a",
+        project: newer,
+        baseVersion: 2,
+        savedAt: 1000,
+        token: "mine",
+        rev: 3,
+      },
+    ]);
   });
 
   it("treats a backup without a token as foreign, and an unreadable one too", () => {

@@ -1347,6 +1347,66 @@ describe("PlannerProjectWorkspace editor integration", () => {
     );
   });
 
+  // Edits made while a save of the same draft is in flight (#35 review).
+  const labelSides = (storage: DraftBackupStorage) =>
+    readDraftBackups(storage, aliceScope()).map((backup) => [
+      backup.project.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+      backup.baseVersion,
+    ]);
+  async function editDuringSlowSave(outcome: "fail" | "succeed") {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    const persist = repository.saveProjectVersioned.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (input, options) => {
+        await pending;
+        if (outcome === "fail") {
+          throw new ServerStorageError("network", "put", "projects", null);
+        }
+        return persist(input, options);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    // A newer edit of the same draft while the request runs.
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
+      target: { value: "right" },
+    });
+    await waitFor(() => expect(labelSides(storage)).toEqual([["right", 1]]));
+    await act(async () => {
+      release();
+      await (save.mock.results[0]?.value as Promise<unknown>).catch(
+        () => undefined,
+      );
+    });
+    return storage;
+  }
+
+  it("keeps the newer edits' backup when an older save of the same draft fails", async () => {
+    const storage = await editDuringSlowSave("fail");
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    expect(labelSides(storage)).toEqual([["right", 1]]);
+  });
+
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {
     const { project, repository } = await repositoryWithProject();
 

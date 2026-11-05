@@ -108,6 +108,7 @@ import {
   draftBaseVersion,
   readDraftBackups,
   removeAllDraftBackups,
+  rebaseDraftBackup,
   removeDraftBackup,
   draftBackupStatus,
   saveFailureReason,
@@ -800,8 +801,10 @@ export function PlannerProjectWorkspace({
       if (!stillOpen()) throw cause;
       const server = await readConflictServerState(repository, project.id);
       if (!stillOpen()) throw cause;
+      // The rejected draft is backed up — unless the draft moved on while
+      // the request ran: its newer backup must not be replaced by this one.
       const current = draftLeaseRef.current;
-      if (lease && current?.token === lease.token)
+      if (lease && current?.token === lease.token && current.rev === lease.rev)
         backUpDraft(current, project);
       conflictLeaseRef.current = draftLeaseRef.current;
       setConflictError(null);
@@ -849,7 +852,20 @@ export function PlannerProjectWorkspace({
       if (!current) return;
       if (current.rev === leaseRev) endLease(current, leaseRev);
       else if (inPlace) {
+        // Newer edits continue from the saved version, in the lease and in
+        // their backup (its content stays the newer one).
         draftLeaseRef.current = { ...current, baseVersion: version };
+        const scope = backupScopeFor(current.owner);
+        if (scope) {
+          rebaseDraftBackup(
+            backupStorage(),
+            scope,
+            current.projectId,
+            current.token,
+            version,
+          );
+          setBackupRevision((revision) => revision + 1);
+        }
       }
       setSaveFailure(null);
     };
@@ -882,7 +898,11 @@ export function PlannerProjectWorkspace({
       const reason = saveFailureReason(cause);
       const current = currentLease();
       if (reason && current) {
-        setSaveFailure({ reason, backedUp: backUpDraft(current, project) });
+        // Edits made while the request ran are newer and already backed up:
+        // the request's older content must not replace them.
+        const backedUp =
+          current.rev === leaseRev ? backUpDraft(current, project) : true;
+        setSaveFailure({ reason, backedUp });
       }
       // A lease without a backup holds nothing a discard could lose.
       const after = currentLease();
