@@ -26,7 +26,9 @@ export const authDe = {
     "Nur der Ersteller oder ein Admin kann diesen Plan löschen.",
   "auth.status.savedAsCopy": "Als Kopie gespeichert: {name}",
   "auth.confirm.signOutUnsaved":
-    "Es gibt ungespeicherte Änderungen. Entwürfe verwerfen und abmelden?",
+    "Es gibt ungespeicherte Entwürfe. Beim Abmelden werden sie verworfen, auch ihre Sicherungen in diesem Browser.",
+  "auth.confirm.cancel": "Abbrechen",
+  "auth.confirm.discardAndSignOut": "Entwürfe verwerfen und abmelden",
   "auth.error.missingCredentials": "Bitte Benutzername und Kennwort eingeben.",
   "auth.error.invalidCredentials": "Benutzername oder Kennwort ist falsch.",
   "auth.error.generic": "Die Anmeldung ist fehlgeschlagen.",

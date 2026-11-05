@@ -25,7 +25,9 @@ export const authEn = {
   "auth.deleteNotAllowed": "Only the creator or an admin can delete this plan.",
   "auth.status.savedAsCopy": "Saved as copy: {name}",
   "auth.confirm.signOutUnsaved":
-    "There are unsaved changes. Discard drafts and sign out?",
+    "There are unsaved drafts. Signing out discards them, including their backups in this browser.",
+  "auth.confirm.cancel": "Cancel",
+  "auth.confirm.discardAndSignOut": "Discard drafts and sign out",
   "auth.error.missingCredentials": "Please enter username and password.",
   "auth.error.invalidCredentials": "Username or password is incorrect.",
   "auth.error.generic": "Signing in failed.",

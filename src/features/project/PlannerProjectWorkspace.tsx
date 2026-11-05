@@ -102,6 +102,21 @@ import {
 } from "~/lib/projectRepository";
 import { configuredStorageMode, type StorageMode } from "~/lib/storageMode";
 import { ProjectConflictView } from "~/features/project/ProjectConflictView";
+import { DraftRestoreOffer } from "~/features/project/DraftRestoreOffer";
+import {
+  draftBackupScope,
+  draftBaseVersion,
+  readDraftBackups,
+  removeAllDraftBackups,
+  rebaseDraftBackup,
+  removeDraftBackup,
+  draftBackupStatus,
+  saveFailureReason,
+  writeDraftBackup,
+  type DraftBackup,
+  type DraftBackupStorage,
+  type SaveFailure,
+} from "~/features/project/draftBackupModel";
 import {
   createProjectConflict,
   isProjectVersionConflict,
@@ -167,6 +182,35 @@ export type PlannerProjectWorkspaceProps = {
 
 type DialogMode = "closed" | "create" | "edit";
 
+/** Tools that change the plan and therefore hold a draft. */
+const EDITING_TOOLS: ReadonlySet<ProductionTool> = new Set([
+  "editor",
+  "stack",
+  "robotics",
+]);
+
+/**
+ * The draft a window holds in server mode (#35) and the only writer of its
+ * local backup. A restore adopts the backup's own lease.
+ */
+type DraftLease = {
+  projectId: string;
+  /** The author: the draft stays in their backups across a user switch. */
+  owner: string;
+  /** Identifies the draft's backup; other drafts' backups are foreign. */
+  token: string;
+  /**
+   * The stored version the draft is based on, fixed when it starts; `null`
+   * for a plan not stored yet (new plan, retry, `.rob` import): it must not
+   * exist when saved. Every server-mode save of the draft uses it.
+   */
+  baseVersion: RecordVersion | null;
+  /** Revision of the last backup write (0: none yet). */
+  rev: number;
+  /** The editor's lease ends when the editor is clean again. */
+  source: "editor" | "save";
+};
+
 function productionToolTitles(t: Translate): Record<ProductionTool, string> {
   return {
     "candidate-browser": t("project.tool.candidateBrowser"),
@@ -206,6 +250,15 @@ function diagnosticText(diagnostics: readonly RepositoryDiagnostic[]): string {
       return `${diagnostic.message}${path}`;
     })
     .join("\n");
+}
+
+/** `localStorage`, or `null` where the browser blocks it. */
+function browserDraftStorage(): DraftBackupStorage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
 }
 
 function downloadJson(filename: string, contents: string): void {
@@ -268,6 +321,46 @@ export function PlannerProjectWorkspace({
   const readOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
     : null;
+  /**
+   * Local draft backups (ADR 0002, #35), keyed by server, user and project.
+   * The user is the last signed-in one, so a draft lost to an expired session
+   * is still backed up for its author.
+   */
+  const backupStorageRef = useRef<DraftBackupStorage | null | undefined>(
+    undefined,
+  );
+  const backupStorage = (): DraftBackupStorage | null => {
+    if (backupStorageRef.current === undefined) {
+      backupStorageRef.current = browserDraftStorage();
+    }
+    return backupStorageRef.current;
+  };
+  const backupUserRef = useRef<string | null>(null);
+  if (session.status === "signed-in") backupUserRef.current = session.user.id;
+  const backupScopeFor = (userId: string | null) =>
+    draftBackupScope(storageMode, globalThis.location?.origin ?? "", userId);
+  /**
+   * The one draft this window holds (#35): the only writer of its backup.
+   * Everything about the draft is fixed when it starts — author, the stored
+   * version it is based on — instead of being re-read from live state when a
+   * backup is written or a save is sent.
+   */
+  const draftLeaseRef = useRef<DraftLease | null>(null);
+  /** Bumped by every explicit sign-out: late results of before are stale. */
+  const signOutEpochRef = useRef(0);
+  const [saveFailure, setSaveFailure] = useState<{
+    reason: SaveFailure;
+    backedUp: boolean;
+  } | null>(null);
+  /**
+   * Bumped by every backup write and removal: the restore offer, the pending
+   * badge and the sign-out warning are derived from the live store.
+   */
+  const [backupRevision, setBackupRevision] = useState(0);
+  /** A new plan keeps its id across failed saves, so retries never fork it. */
+  const failedCreateIdRef = useRef<string | null>(null);
+  const [restoringDraft, setRestoringDraft] = useState(false);
+
   /** A 401 from the server: the session is gone; the draft stays here. */
   const sessionLossMessage = (cause: unknown): string | null => {
     if (
@@ -349,6 +442,81 @@ export function PlannerProjectWorkspace({
   /** Stored version the open plan was read at (ADR 0006). */
   const loadedVersionRef = useRef<LoadedProjectVersion | null>(null);
   const [conflict, setConflict] = useState<ProjectConflict | null>(null);
+
+  /**
+   * The lease of the draft of `project`: the window's lease when it is for
+   * that plan, otherwise a new one (the previous lease is released, its
+   * backup kept). `null` outside server mode or without a known user.
+   */
+  const ensureLease = (
+    project: Project,
+    source: DraftLease["source"],
+  ): DraftLease | null => {
+    const current = draftLeaseRef.current;
+    if (current?.projectId === project.id) return current;
+    const owner = backupUserRef.current;
+    if (!backupScopeFor(owner) || !owner) return null;
+    const lease: DraftLease = {
+      projectId: project.id,
+      owner,
+      token: crypto.randomUUID(),
+      baseVersion: draftBaseVersion(loadedVersionRef.current, project.id),
+      rev: 0,
+      source,
+    };
+    draftLeaseRef.current = lease;
+    return lease;
+  };
+  /**
+   * Backs up `project` under `lease`, if that is still the window's draft.
+   * Never touches another draft's backup ("foreign").
+   */
+  const backUpDraft = (lease: DraftLease, project: Project): boolean => {
+    if (draftLeaseRef.current?.token !== lease.token) return false;
+    const scope = backupScopeFor(lease.owner);
+    if (!scope) return false;
+    const rev = lease.rev + 1;
+    const result = writeDraftBackup(
+      backupStorage(),
+      scope,
+      project,
+      lease.baseVersion,
+      Date.now(),
+      { token: lease.token, rev },
+    );
+    if (result !== "written") return false;
+    draftLeaseRef.current = { ...lease, rev };
+    setBackupRevision((revision) => revision + 1);
+    return true;
+  };
+  /**
+   * The lease's draft is saved, settled or confirmed discarded: its backup
+   * goes (only if it still holds revision `rev`, when given) and the window
+   * holds no draft any more.
+   */
+  const endLease = (lease: DraftLease, rev?: number) => {
+    const scope = backupScopeFor(lease.owner);
+    if (scope) {
+      removeDraftBackup(
+        backupStorage(),
+        scope,
+        lease.projectId,
+        lease.token,
+        rev,
+      );
+    }
+    if (draftLeaseRef.current?.token === lease.token) {
+      draftLeaseRef.current = null;
+    }
+    setBackupRevision((revision) => revision + 1);
+  };
+  /** The window lets go of its draft; its backup stays on offer. */
+  const releaseLease = () => {
+    draftLeaseRef.current = null;
+    setBackupRevision((revision) => revision + 1);
+  };
+  /** The draft the open conflict view decides on. */
+  const conflictLeaseRef = useRef<DraftLease | null>(null);
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
 
@@ -387,6 +555,48 @@ export function PlannerProjectWorkspace({
     }
     setRouteReady(true);
   }, []);
+
+  // The open editor draft is backed up as it changes (server mode only).
+  // Once the editor is clean again (saved, undone) the lease it started ends;
+  // a lease another save started (and its backup) is not the editor's to end.
+  const backupHandlersRef = useRef({ ensureLease, backUpDraft, endLease });
+  backupHandlersRef.current = { ensureLease, backUpDraft, endLease };
+  useEffect(() => {
+    const handlers = backupHandlersRef.current;
+    if (editorDirty && editorDraftProject) {
+      const lease = handlers.ensureLease(editorDraftProject, "editor");
+      if (lease) handlers.backUpDraft(lease, editorDraftProject);
+      return;
+    }
+    const lease = draftLeaseRef.current;
+    if (!editorDirty && lease?.source === "editor") {
+      handlers.endLease(lease);
+      setSaveFailure(null);
+    }
+  }, [editorDirty, editorDraftProject, session]);
+
+  // Backups written by another tab change the offer and the badge too.
+  useEffect(() => {
+    if (storageMode !== "server") return;
+    const reread = () => setBackupRevision((revision) => revision + 1);
+    window.addEventListener("storage", reread);
+    return () => window.removeEventListener("storage", reread);
+  }, [storageMode]);
+
+  // The backups of the signed-in user (after an expired session: of the last
+  // one), re-read on every write, removal and sign-in.
+  const signedInUserId =
+    session.status === "signed-in" ? session.user.id : null;
+  const backupOwnerId = signedInUserId ?? backupUserRef.current;
+  const liveBackups = useMemo(() => {
+    void backupRevision;
+    const scope = draftBackupScope(
+      storageMode,
+      globalThis.location?.origin ?? "",
+      backupOwnerId,
+    );
+    return scope ? readDraftBackups(browserDraftStorage(), scope) : [];
+  }, [backupOwnerId, backupRevision, storageMode]);
 
   useEffect(() => {
     onUnsavedChange?.(stackDirty || editorDirty || inputsDirty);
@@ -556,22 +766,27 @@ export function PlannerProjectWorkspace({
    * The one write path for the open plan. In server mode it saves against the
    * version the plan was loaded at; a concurrent save elsewhere rejects with a
    * version conflict, which opens the conflict view and rejects the caller so
-   * its draft stays unsaved and intact (ADR 0006).
+   * its draft stays unsaved and intact (ADR 0006). In server mode the
+   * draft's lease fixes that version (`null`: the plan must not exist yet);
+   * the conflict view's draft is backed up so "later" or a reload keeps it.
    */
   const persistProject = async (
     project: Project,
+    lease: DraftLease | null,
   ): Promise<VersionedProject> => {
-    const options = projectSaveOptions(
-      storageMode,
-      loadedVersionRef.current,
-      project.id,
-    );
+    const options =
+      lease && storageMode === "server"
+        ? { expectedVersion: lease.baseVersion }
+        : projectSaveOptions(storageMode, loadedVersionRef.current, project.id);
     const generation = navigationGeneration.current;
     // Like the success paths: a reply for a plan the user has left (switched,
     // closed, discarded) must not open a conflict view over the new context.
+    // A new plan (create retry, `.rob` import) is not selected yet: its own
+    // still-held lease counts as open too.
     const stillOpen = () =>
       generation === navigationGeneration.current &&
-      selectedProjectIdRef.current === project.id;
+      (selectedProjectIdRef.current === project.id ||
+        (lease !== null && draftLeaseRef.current?.token === lease.token));
     try {
       const saved = await repository.saveProjectVersioned(project, options);
       if (selectedProjectIdRef.current === saved.project.id) {
@@ -586,6 +801,12 @@ export function PlannerProjectWorkspace({
       if (!stillOpen()) throw cause;
       const server = await readConflictServerState(repository, project.id);
       if (!stillOpen()) throw cause;
+      // The rejected draft is backed up — unless the draft moved on while
+      // the request ran: its newer backup must not be replaced by this one.
+      const current = draftLeaseRef.current;
+      if (lease && current?.token === lease.token && current.rev === lease.rev)
+        backUpDraft(current, project);
+      conflictLeaseRef.current = draftLeaseRef.current;
       setConflictError(null);
       setConflict(createProjectConflict(project, server));
       throw new Error(t("conflict.saveRejected"), { cause });
@@ -605,6 +826,49 @@ export function PlannerProjectWorkspace({
     if (access.save === "none") {
       throw new Error(t(access.readOnlyHint ?? "auth.readOnly.signIn"));
     }
+    // The draft this save belongs to, as it was when the save started.
+    const lease = ensureLease(project, "save");
+    const leaseRev = lease?.rev;
+    const epoch = signOutEpochRef.current;
+    /** Still the window's draft: not discarded, signed out or replaced. */
+    const currentLease = (): DraftLease | null => {
+      const current = draftLeaseRef.current;
+      return lease &&
+        current?.token === lease.token &&
+        epoch === signOutEpochRef.current
+        ? current
+        : null;
+    };
+    /**
+     * Saved: the draft's backup goes — unless the draft changed meanwhile
+     * (a newer backup revision), which then continues from the saved version.
+     */
+    const settle = (version: RecordVersion, inPlace: boolean) => {
+      const current = currentLease();
+      if (!lease) {
+        setSaveFailure(null);
+        return;
+      }
+      if (!current) return;
+      if (current.rev === leaseRev) endLease(current, leaseRev);
+      else if (inPlace) {
+        // Newer edits continue from the saved version, in the lease and in
+        // their backup (its content stays the newer one).
+        draftLeaseRef.current = { ...current, baseVersion: version };
+        const scope = backupScopeFor(current.owner);
+        if (scope) {
+          rebaseDraftBackup(
+            backupStorage(),
+            scope,
+            current.projectId,
+            current.token,
+            version,
+          );
+          setBackupRevision((revision) => revision + 1);
+        }
+      }
+      setSaveFailure(null);
+    };
     try {
       if (access.save === "copy") {
         const copy = duplicateProjectModel(project, {
@@ -618,16 +882,39 @@ export function PlannerProjectWorkspace({
             await repository.saveProjectVersioned(copy, {
               expectedVersion: null,
             });
+          settle(version, false);
           return { saved, version, copied: true };
         } finally {
           setCopySaving(false);
         }
       }
-      const { project: saved, version } = await persistProject(project);
+      const { project: saved, version } = await persistProject(project, lease);
+      settle(version, true);
       return { saved, version, copied: false };
     } catch (cause) {
-      const message = sessionLossMessage(cause);
+      // Unreachable server or expired session: the draft stays pending in
+      // the browser and is backed up locally (ADR 0002) — unless it was
+      // discarded or signed out of while the request ran.
+      const reason = saveFailureReason(cause);
+      const current = currentLease();
+      if (reason && current) {
+        // Edits made while the request ran are newer and already backed up:
+        // the request's older content must not replace them.
+        const backedUp =
+          current.rev === leaseRev ? backUpDraft(current, project) : true;
+        setSaveFailure({ reason, backedUp });
+      }
+      // A lease without a backup holds nothing a discard could lose.
+      const after = currentLease();
+      if (after && after.rev === 0) releaseLease();
+      // A 401 from before an explicit sign-out says nothing about the
+      // session signed in now.
+      const message =
+        epoch === signOutEpochRef.current ? sessionLossMessage(cause) : null;
       if (message) throw new Error(message, { cause });
+      if (reason === "network") {
+        throw new Error(t("project.error.serverUnreachable"), { cause });
+      }
       throw cause;
     }
   };
@@ -662,11 +949,50 @@ export function PlannerProjectWorkspace({
     await refreshProjects();
     return saved;
   };
-
   const hasUnsavedChanges = stackDirty || editorDirty || inputsDirty;
-  const confirmDiscardUnsaved = (action: string): boolean =>
-    !(stackDirty || editorDirty || inputsDirtyRef.current) ||
-    window.confirm(t("project.confirm.discardUnsaved", { action }));
+  const backupStatus = draftBackupStatus({
+    backups: liveBackups,
+    openDraftToken: draftLeaseRef.current?.token ?? null,
+    draftOpen: hasUnsavedChanges,
+    signedIn: signedInUserId !== null,
+  });
+  /** The drafts the last sign-out warning covered (their backup tokens). */
+  const signOutTokensRef = useRef<ReadonlySet<string>>(new Set());
+  /**
+   * Whether "Abmelden" must warn, from the live store when clicked — another
+   * tab may have written a backup meanwhile. A confirmed sign-out removes
+   * exactly the backups counted here.
+   */
+  const pendingDraftsAtSignOut = (): boolean => {
+    const scope = backupScopeFor(signedInUserId);
+    const backups = scope ? readDraftBackups(backupStorage(), scope) : [];
+    signOutTokensRef.current = new Set(backups.map(({ token }) => token));
+    return hasUnsavedChanges || backups.length > 0;
+  };
+  /**
+   * The user confirmed discarding the window's draft: its lease ends, with
+   * its local backup and the pending-save state (#35). Only a confirmed
+   * discard ends a lease this way.
+   */
+  const discardDraftLease = (): void => {
+    const lease = draftLeaseRef.current;
+    if (lease) endLease(lease);
+    setSaveFailure(null);
+  };
+  /**
+   * Asks before discarding unsaved work: dirty inputs, stack or editor, or a
+   * draft only its backup still holds (a failed save, a failed `.rob`
+   * import). Confirming discards that draft's backup too.
+   */
+  const confirmDiscardUnsaved = (action: string): boolean => {
+    const dirty = stackDirty || editorDirty || inputsDirtyRef.current;
+    if (!dirty && !draftLeaseRef.current) return true;
+    if (!window.confirm(t("project.confirm.discardUnsaved", { action }))) {
+      return false;
+    }
+    discardDraftLease();
+    return true;
+  };
 
   const productionToolIsDirty = (tool: ProductionTool): boolean => {
     if (tool === "stack") return stackDirty;
@@ -682,6 +1008,7 @@ export function PlannerProjectWorkspace({
     }
   };
 
+  /** Resets the in-memory drafts; backups only go through a confirm. */
   const discardUnsavedPlannerChanges = (): void => {
     navigationGeneration.current += 1;
     setFormGeneration((generation) => generation + 1);
@@ -695,8 +1022,9 @@ export function PlannerProjectWorkspace({
 
   const confirmLeaveActiveTool = (action: string): boolean => {
     if (!activeTool) return true;
+    const dirty = productionToolIsDirty(activeTool);
     if (
-      productionToolIsDirty(activeTool) &&
+      dirty &&
       !window.confirm(
         t("project.confirm.discardInTool", {
           action,
@@ -706,6 +1034,7 @@ export function PlannerProjectWorkspace({
     ) {
       return false;
     }
+    if (dirty) discardDraftLease();
     discardProductionToolState(activeTool);
     return true;
   };
@@ -760,12 +1089,19 @@ export function PlannerProjectWorkspace({
 
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
+    const action = t("project.action.openTool", { tool: toolTitles[tool] });
+    if (!confirmLeaveActiveTool(action)) return;
+    // A window holds one draft: an editing tool starts only once another
+    // surface's unsaved draft (or a draft only its backup holds) is
+    // discarded, so the tool's draft never replaces that draft's backup.
     if (
-      !confirmLeaveActiveTool(
-        t("project.action.openTool", { tool: toolTitles[tool] }),
-      )
-    )
-      return;
+      !activeTool &&
+      EDITING_TOOLS.has(tool) &&
+      (stackDirty || inputsDirtyRef.current || draftLeaseRef.current)
+    ) {
+      if (!confirmDiscardUnsaved(action)) return;
+      discardUnsavedPlannerChanges();
+    }
     navigationGeneration.current += 1;
     setProjectDrawerOpen(false);
     setActiveTool(tool);
@@ -892,6 +1228,13 @@ export function PlannerProjectWorkspace({
     try {
       const deleted = await repository.deleteProject(target.id);
       if (!deleted) throw new Error(t("project.error.projectGone"));
+      const lease = draftLeaseRef.current;
+      if (lease?.projectId === target.id) {
+        // Its open draft was confirmed discarded with the plan; a draft only
+        // a backup holds stays on offer.
+        if (isOpen && hasUnsavedChanges) endLease(lease);
+        else releaseLease();
+      }
       if (isOpen) {
         discardUnsavedPlannerChanges();
         setGeneratorLaunchRequest(null);
@@ -1521,8 +1864,11 @@ export function PlannerProjectWorkspace({
         return;
       }
       // Every other outcome settles the draft: it is saved, replaced by the
-      // server state, or kept as a copy.
+      // server state, or kept as a copy. Only that draft's backup goes.
       setConflict(null);
+      const settled = conflictLeaseRef.current;
+      conflictLeaseRef.current = null;
+      if (settled) endLease(settled);
       discardUnsavedPlannerChanges();
       setGeneratorLaunchRequest(null);
       setDialogMode("closed");
@@ -1532,6 +1878,9 @@ export function PlannerProjectWorkspace({
           projectId: outcome.project.id,
           version: outcome.version,
         };
+        // A new plan's conflict (create retry) was not the selected plan.
+        selectedProjectIdRef.current = outcome.project.id;
+        setSelectedId(outcome.project.id);
         setSelectedProject(outcome.project);
         // Re-read so solver results, tools and robot settings start from the
         // chosen plan state instead of the discarded draft.
@@ -1564,6 +1913,14 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to resolve version conflict", cause);
+      // Like a failed save: an unreachable server or expired session keeps
+      // the draft backed up and pending (ADR 0002).
+      const reason = saveFailureReason(cause);
+      const lease = draftLeaseRef.current;
+      if (reason && lease && lease.token === conflictLeaseRef.current?.token) {
+        setSaveFailure({ reason, backedUp: backUpDraft(lease, conflict.mine) });
+      }
+      sessionLossMessage(cause);
       setConflictError(
         t("conflict.error", {
           message:
@@ -1575,9 +1932,84 @@ export function PlannerProjectWorkspace({
     }
   };
 
+  /**
+   * Restores a backed-up draft by saving it through the normal path, against
+   * the version it was based on: a plan changed meanwhile opens the conflict
+   * view instead of being overwritten (ADR 0006).
+   */
+  const restoreDraft = async (backup: DraftBackup) => {
+    if (restoringDraft || !signedInUserId) return;
+    if (
+      draftLeaseRef.current?.token !== backup.token &&
+      !confirmDiscardUnsaved(t("project.action.restoreDraft"))
+    ) {
+      return;
+    }
+    discardUnsavedPlannerChanges();
+    setGeneratorLaunchRequest(null);
+    setDialogMode("closed");
+    // The restore continues the backed-up draft: its token, author and base
+    // version. The backup stays until that draft is saved or settled.
+    const lease: DraftLease = {
+      projectId: backup.projectId,
+      owner: signedInUserId,
+      token: backup.token,
+      baseVersion: backup.baseVersion,
+      rev: backup.rev,
+      source: "save",
+    };
+    draftLeaseRef.current = lease;
+    selectedProjectIdRef.current = backup.projectId;
+    setSelectedId(backup.projectId);
+    setRestoringDraft(true);
+    try {
+      const saved = await saveProject(backup.project);
+      // Re-read so a load started before the save cannot win with the
+      // version the draft replaced.
+      setProjectReloadToken((token) => token + 1);
+      setStatusMessage(
+        t("project.draft.restored", { name: projectLabel(saved, t) }),
+      );
+    } catch (cause) {
+      console.error("Failed to restore draft", cause);
+      // Nothing of it is open in this window: the backup stays on offer (a
+      // conflict view decides on it through its own lease).
+      if (draftLeaseRef.current?.token === lease.token) releaseLease();
+      setSaveFailure(null);
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t("project.error.saveAsFailedGeneric"),
+      );
+    } finally {
+      setRestoringDraft(false);
+    }
+  };
+
+  const discardDraftBackup = (backup: DraftBackup) => {
+    if (
+      !window.confirm(
+        t("project.draft.confirmDiscard", {
+          name: projectLabel(backup.project, t),
+        }),
+      )
+    ) {
+      return;
+    }
+    const scope = backupScopeFor(signedInUserId);
+    if (scope) {
+      removeDraftBackup(backupStorage(), scope, backup.projectId, backup.token);
+    }
+    if (draftLeaseRef.current?.token === backup.token) {
+      draftLeaseRef.current = null;
+    }
+    setBackupRevision((revision) => revision + 1);
+  };
+
   const createNew = () => {
     if (!confirmDiscardUnsaved(t("project.action.createPlan"))) return;
     discardUnsavedPlannerChanges();
+    failedCreateIdRef.current = null;
     createOriginRef.current = {
       screen: showWelcome
         ? "welcome"
@@ -1704,22 +2136,61 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSignedOut}
             />
           ) : null}
+          {saveFailure && backupStatus.hasPendingDrafts ? (
+            <span
+              className="save-pending-badge"
+              role="status"
+              title={t(
+                saveFailure.backedUp
+                  ? "project.draft.pendingBackedUp"
+                  : "project.draft.pendingMemoryOnly",
+              )}
+            >
+              {t(
+                saveFailure.reason === "network"
+                  ? "project.draft.pendingNetwork"
+                  : "project.draft.pendingSession",
+              )}
+            </span>
+          ) : null}
           <SessionMenu
             controls={sessionControls}
-            beforeSignOut={() =>
-              !hasUnsavedChanges ||
-              window.confirm(t("auth.confirm.signOutUnsaved"))
-            }
+            hasUnsavedDrafts={pendingDraftsAtSignOut}
             beforeLeave={() =>
               confirmDiscardUnsaved(t("auth.action.openUserManagement"))
             }
-            onSignedOut={() => {
+            onSignedOut={(user) => {
               if (hasUnsavedChanges) discardUnsavedPlannerChanges();
+              // An explicit sign-out discards the drafts its warning covered
+              // (this user, this server); an expired session keeps them, and
+              // so do backups written after the warning (ADR 0002).
+              const scope = backupScopeFor(user.id);
+              if (scope) {
+                removeAllDraftBackups(
+                  backupStorage(),
+                  scope,
+                  signOutTokensRef.current,
+                );
+              }
+              signOutTokensRef.current = new Set();
+              // Late results of requests from before are stale now.
+              signOutEpochRef.current += 1;
+              backupUserRef.current = null;
+              conflictLeaseRef.current = null;
+              releaseLease();
+              setSaveFailure(null);
             }}
           />
           <LanguageSwitcher />
         </div>
       </header>
+      <DraftRestoreOffer
+        backups={backupStatus.restorable}
+        busy={restoringDraft}
+        label={(backup) => projectLabel(backup.project, t)}
+        onRestore={(backup) => void restoreDraft(backup)}
+        onDiscard={discardDraftBackup}
+      />
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
           createDisabledReason={readOnlyHint}
@@ -1750,11 +2221,11 @@ export function PlannerProjectWorkspace({
                 <StackWorkspace
                   guided
                   onBack={() => {
-                    if (
-                      stackDirty &&
-                      !window.confirm(t("project.confirm.changePattern"))
-                    ) {
-                      return;
+                    if (stackDirty) {
+                      if (!window.confirm(t("project.confirm.changePattern"))) {
+                        return;
+                      }
+                      discardDraftLease();
                     }
                     setActiveStage("generate");
                   }}
@@ -2021,10 +2492,12 @@ export function PlannerProjectWorkspace({
               : saveButtonFor(generalAccess)
           }
           onClose={() => {
+            const formDirty = inputsDirtyRef.current;
             if (
-              !inputsDirtyRef.current ||
+              !formDirty ||
               window.confirm(t("project.confirm.closeInputs"))
             ) {
+              if (formDirty) discardDraftLease();
               navigationGeneration.current += 1;
               setDialogMode("closed");
               // Cancelled (nothing saved): go back to where the form was
@@ -2041,9 +2514,17 @@ export function PlannerProjectWorkspace({
             }
           }}
           onSave={async ({
-            project,
+            project: submitted,
             generationIntent,
           }: ProjectDialogSubmission) => {
+            // A new plan whose save failed keeps that attempt's id: the retry
+            // replaces its backup (and a first save that did reach the
+            // server) instead of creating a second plan (#35).
+            const creating = dialogMode === "create";
+            const project =
+              creating && failedCreateIdRef.current
+                ? { ...submitted, id: failedCreateIdRef.current }
+                : submitted;
             const previous = selectedProject;
             const changesGeometry =
               previous?.id === project.id &&
@@ -2057,7 +2538,14 @@ export function PlannerProjectWorkspace({
               return "cancelled";
             }
             const generation = navigationGeneration.current;
-            const saved = await saveProject(project);
+            let saved: Project;
+            try {
+              saved = await saveProject(project);
+            } catch (cause) {
+              if (creating) failedCreateIdRef.current = project.id;
+              throw cause;
+            }
+            if (creating) failedCreateIdRef.current = null;
             if (generation !== navigationGeneration.current) return "cancelled";
             markInputsDirty(false);
             if (dialogMode === "edit" && saved.id !== project.id) {
@@ -2104,6 +2592,8 @@ export function PlannerProjectWorkspace({
           error={conflictError}
           onChoose={(choice) => void resolveConflict(choice)}
           onLater={() => {
+            // The draft stays — open, and backed up under its lease.
+            conflictLeaseRef.current = null;
             setConflict(null);
             setConflictError(null);
           }}
