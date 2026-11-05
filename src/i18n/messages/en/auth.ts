@@ -9,6 +9,7 @@ export const authEn = {
   "auth.role.admin": "Admin",
   "auth.role.user": "User",
   "auth.userManagement": "User management",
+  "auth.action.openUserManagement": "Open user management",
   "auth.field.username": "Username",
   "auth.field.password": "Password",
   "auth.readOnly.badge": "Read only",

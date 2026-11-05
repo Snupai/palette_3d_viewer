@@ -1696,6 +1696,9 @@ export function PlannerProjectWorkspace({
               !hasUnsavedChanges ||
               window.confirm(t("auth.confirm.signOutUnsaved"))
             }
+            beforeLeave={() =>
+              confirmDiscardUnsaved(t("auth.action.openUserManagement"))
+            }
             onSignedOut={() => {
               if (hasUnsavedChanges) discardUnsavedPlannerChanges();
             }}
@@ -1848,7 +1851,9 @@ export function PlannerProjectWorkspace({
         title={activeTool ? toolTitles[activeTool] : t("project.tool.fallback")}
         onClose={closeProductionTool}
       >
-        {activeTool === "editor" && readOnlyHint ? (
+        {/* A dirty editor stays mounted when the session ends, so the
+            draft survives until the user signs in again (ADR 0002). */}
+        {activeTool === "editor" && readOnlyHint && !editorDirty ? (
           <p className="text-ink p-4 text-[13px] leading-5">{readOnlyHint}</p>
         ) : activeToolGate && !activeToolGate.ready ? (
           <div className="grid justify-items-start gap-3 p-4">

@@ -8,6 +8,7 @@ export const authDe = {
   "auth.role.admin": "Admin",
   "auth.role.user": "Benutzer",
   "auth.userManagement": "Benutzerverwaltung",
+  "auth.action.openUserManagement": "Benutzerverwaltung öffnen",
   "auth.field.username": "Benutzername",
   "auth.field.password": "Kennwort",
   "auth.readOnly.badge": "Nur lesen",

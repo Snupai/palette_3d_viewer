@@ -73,16 +73,19 @@ export function usePlannerSession(
 /**
  * Header account menu (server mode only; renders nothing in local mode):
  * a sign-in form for anonymous visitors, the user and "Abmelden" otherwise.
- * `beforeSignOut` lets the caller confirm unsaved changes first and returns
- * whether to proceed; `onSignedOut` runs once the server ended the session.
+ * `beforeSignOut` and `beforeLeave` (opening the user management) let the
+ * caller confirm unsaved changes first and return whether to proceed;
+ * `onSignedOut` runs once the server ended the session.
  */
 export function SessionMenu({
   controls,
   beforeSignOut,
+  beforeLeave,
   onSignedOut,
 }: {
   controls: PlannerSessionControls;
   beforeSignOut?: () => boolean;
+  beforeLeave?: () => boolean;
   onSignedOut?: () => void;
 }) {
   const t = useT();
@@ -186,7 +189,14 @@ export function SessionMenu({
           </span>
         </p>
         {user.role === "admin" ? (
-          <Link href="/admin">{t("auth.userManagement")}</Link>
+          <Link
+            href="/admin"
+            onClick={(event) => {
+              if (beforeLeave && !beforeLeave()) event.preventDefault();
+            }}
+          >
+            {t("auth.userManagement")}
+          </Link>
         ) : null}
         {error ? (
           <p role="alert" className="session-error">

@@ -15,16 +15,22 @@ function Harness({
   mode,
   fetchImpl,
   onSignedOut,
+  beforeLeave,
 }: {
   mode: StorageMode;
   fetchImpl: typeof fetch;
   onSignedOut?: () => void;
+  beforeLeave?: () => boolean;
 }) {
   const controls = usePlannerSession(mode, fetchImpl);
   return (
     <>
       <output data-testid="status">{controls.session.status}</output>
-      <SessionMenu controls={controls} onSignedOut={onSignedOut} />
+      <SessionMenu
+        controls={controls}
+        onSignedOut={onSignedOut}
+        beforeLeave={beforeLeave}
+      />
     </>
   );
 }
@@ -117,5 +123,21 @@ describe("SessionMenu", () => {
       "Benutzername oder Kennwort ist falsch.",
     );
     expect(screen.getByTestId("status").textContent).toBe("anonymous");
+  });
+
+  it("asks before leaving for the user management and stays when declined", async () => {
+    const admin = { id: "u-admin", username: "admin", role: "admin" };
+    const fetchImpl = vi.fn<typeof fetch>(async () => json({ user: admin }));
+    const beforeLeave = vi.fn(() => false);
+    render(
+      <Harness mode="server" fetchImpl={fetchImpl} beforeLeave={beforeLeave} />,
+    );
+    const link = await screen.findByRole("link", {
+      name: "Benutzerverwaltung",
+    });
+
+    // `false`: the click's default (following the link) was prevented.
+    expect(fireEvent.click(link)).toBe(false);
+    expect(beforeLeave).toHaveBeenCalledOnce();
   });
 });
