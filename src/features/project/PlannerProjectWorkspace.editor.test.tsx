@@ -230,7 +230,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     });
     expect(
       dialog.querySelector('[data-row="projectNumber"]')?.textContent,
-    ).toBe("Liniennummer (abweichend)M5-EDITORTHEIRS");
+    ).toBe("Linie / Auftrag (abweichend)M5-EDITORTHEIRS");
     expect(
       [...dialog.querySelectorAll("[data-differs]")].map((row) =>
         row.getAttribute("data-row"),

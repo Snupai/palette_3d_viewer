@@ -36,6 +36,8 @@ function PlanThumb({ project, title }: { project: Project; title: string }) {
       emptyPackage={project.package.dimensionsMm}
       palletSize={project.pallet?.dimensionsMm}
       title={title}
+      // Small enough that the field comparison stays in view.
+      className="mx-auto block h-40 w-full max-w-xs sm:h-48"
     />
   );
 }
