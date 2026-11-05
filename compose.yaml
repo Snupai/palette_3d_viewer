@@ -21,9 +21,8 @@ x-app-build: &app-build
   context: .
   dockerfile: Dockerfile
   args:
-    # Build-time switch (inlined into the client bundle). Stays `local`
-    # (IndexedDB) until the server storage client (#33) exists — `server`
-    # would make every storage call fail today. Flip it later with
+    # Build-time switch (inlined into the client bundle). Defaults to `local`
+    # (IndexedDB); store plans in PostgreSQL via the records API with
     #   PALETTE_STORAGE_MODE=server docker compose up -d --build
     NEXT_PUBLIC_PALETTE_STORAGE_MODE: ${PALETTE_STORAGE_MODE:-local}
     NEXT_PUBLIC_DISABLE_AI_FEATURES: ${PALETTE_DISABLE_AI_FEATURES:-}

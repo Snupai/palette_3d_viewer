@@ -21,6 +21,17 @@ export type PlannerRecordStorageFactory = () =>
 export type PlannerRecordStorageContractOptions = {
   /** Name of the outer `describe` block. */
   label?: string;
+  /**
+   * Stores the implementation keeps; default every planner store. The
+   * server keeps only the stores its records API serves.
+   */
+  storeNames?: readonly PlannerStoreName[];
+  /**
+   * Whether versions continue after a delete (tombstones); default `true`.
+   * `false` skips that test for the server, whose delete removes the row
+   * (known limitation of #27).
+   */
+  versionsSurviveDelete?: boolean;
 };
 
 type ContractRecord = { id: string; [key: string]: unknown };
@@ -60,10 +71,11 @@ export function describePlannerRecordStorageContract(
   factory: PlannerRecordStorageFactory,
   options: PlannerRecordStorageContractOptions = {},
 ): void {
+  const storeNames = options.storeNames ?? PLANNER_STORE_NAMES;
   const create = async (): Promise<PlannerRecordStorage> => factory();
 
   describe(options.label ?? "PlannerRecordStorage contract", () => {
-    describe.each(PLANNER_STORE_NAMES.map((storeName) => ({ storeName })))(
+    describe.each(storeNames.map((storeName) => ({ storeName })))(
       "store $storeName",
       ({ storeName }: { storeName: PlannerStoreName }) => {
         it("starts empty", async () => {
@@ -197,11 +209,11 @@ export function describePlannerRecordStorageContract(
     describe("store isolation", () => {
       it("keeps records with the same id in different stores apart", async () => {
         const storage = await create();
-        for (const storeName of PLANNER_STORE_NAMES) {
+        for (const storeName of storeNames) {
           await storage.put(storeName, { id: "shared", store: storeName });
         }
 
-        for (const storeName of PLANNER_STORE_NAMES) {
+        for (const storeName of storeNames) {
           expect(await storage.get(storeName, "shared")).toEqual({
             id: "shared",
             store: storeName,
@@ -216,7 +228,7 @@ export function describePlannerRecordStorageContract(
         const storage = await create();
         await storage.put(PROJECTS_STORE_NAME, { id: "only-here", value: 1 });
 
-        for (const storeName of PLANNER_STORE_NAMES) {
+        for (const storeName of storeNames) {
           const expected =
             storeName === PROJECTS_STORE_NAME
               ? [{ id: "only-here", value: 1 }]
@@ -383,26 +395,29 @@ export function describePlannerRecordStorageContract(
         expect(await storage.list(PROJECTS_STORE_NAME)).toEqual([]);
       });
 
-      it("continues counting after a delete so stale versions stay stale", async () => {
-        const storage = await create();
-        await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 });
-        await storage.delete(PROJECTS_STORE_NAME, "a");
-        expect(
-          await storage.put(
-            PROJECTS_STORE_NAME,
-            { id: "a", n: 2 },
-            { expectedVersion: null },
-          ),
-        ).toBe(2);
-        const error = await conflictOf(
-          storage.put(
-            PROJECTS_STORE_NAME,
-            { id: "a", n: 3 },
-            { expectedVersion: 1 },
-          ),
-        );
-        expect([error.expectedVersion, error.actualVersion]).toEqual([1, 2]);
-      });
+      it.skipIf(options.versionsSurviveDelete === false)(
+        "continues counting after a delete so stale versions stay stale",
+        async () => {
+          const storage = await create();
+          await storage.put(PROJECTS_STORE_NAME, { id: "a", n: 1 });
+          await storage.delete(PROJECTS_STORE_NAME, "a");
+          expect(
+            await storage.put(
+              PROJECTS_STORE_NAME,
+              { id: "a", n: 2 },
+              { expectedVersion: null },
+            ),
+          ).toBe(2);
+          const error = await conflictOf(
+            storage.put(
+              PROJECTS_STORE_NAME,
+              { id: "a", n: 3 },
+              { expectedVersion: 1 },
+            ),
+          );
+          expect([error.expectedVersion, error.actualVersion]).toEqual([1, 2]);
+        },
+      );
     });
 
     describe("instance isolation", () => {

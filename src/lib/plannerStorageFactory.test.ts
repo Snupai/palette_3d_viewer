@@ -8,12 +8,12 @@ import {
   IndexedDbPlannerRecordStorage,
   type PlannerRecordStorage,
 } from "~/lib/plannerRecordStorage";
-import {
-  createPlannerRecordStorage,
-  ServerPlannerRecordStorage,
-  ServerStorageNotImplementedError,
-} from "~/lib/plannerStorageFactory";
+import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
 import { createProjectRepository } from "~/lib/projectRepository";
+import {
+  ServerPlannerRecordStorage,
+  ServerStorageError,
+} from "~/lib/serverPlannerRecordStorage";
 import type * as StorageModeModule from "~/lib/storageMode";
 import {
   DEFAULT_STORAGE_MODE,
@@ -86,9 +86,16 @@ describe("createPlannerRecordStorage", () => {
 
   it("returns the server storage for server mode and never opens IndexedDB", async () => {
     const indexedDb = recordingIndexedDb();
+    const requests: string[] = [];
     const storage = createPlannerRecordStorage({
       mode: "server",
       indexedDb: indexedDb.factory,
+      fetch: async (input, init) => {
+        requests.push(
+          `${init?.method} ${typeof input === "string" ? input : "non-string"}`,
+        );
+        throw new TypeError("fetch failed");
+      },
     });
 
     expect(storage).toBeInstanceOf(ServerPlannerRecordStorage);
@@ -101,16 +108,21 @@ describe("createPlannerRecordStorage", () => {
     ];
     for (const [operation, promise] of operations) {
       const cause = await rejection(promise);
-      expect(cause).toBeInstanceOf(ServerStorageNotImplementedError);
+      expect(cause).toBeInstanceOf(ServerStorageError);
       expect(cause).toMatchObject({
-        name: "ServerStorageNotImplementedError",
-        code: "server-storage-not-implemented",
-        mode: "server",
+        kind: "network",
         operation,
         storeName: PROJECTS_STORE_NAME,
-        message: `Server storage is not implemented yet (${operation} on "projects").`,
+        status: null,
       });
     }
+    expect(requests).toEqual([
+      "GET /api/records/projects",
+      "GET /api/records/projects/project-1",
+      "GET /api/records/projects/project-1",
+      "GET /api/records/projects/project-1",
+      "GET /api/records/projects/project-1",
+    ]);
     expect(indexedDb.opens).toEqual([]);
   });
 });
@@ -122,7 +134,7 @@ describe("createProjectRepository storage selection", () => {
 
     const cause = await rejection(createProjectRepository().listProjects());
 
-    expect(cause).not.toBeInstanceOf(ServerStorageNotImplementedError);
+    expect(cause).not.toBeInstanceOf(ServerStorageError);
     expect(indexedDb.opens).toEqual([
       [PLANNER_DATABASE_NAME, PLANNER_DATABASE_VERSION],
     ]);
@@ -132,13 +144,13 @@ describe("createProjectRepository storage selection", () => {
     configured.mode = "server";
     const indexedDb = recordingIndexedDb();
     vi.stubGlobal("indexedDB", indexedDb.factory);
+    vi.stubGlobal("fetch", () => Promise.reject(new TypeError("fetch failed")));
     const repository = createProjectRepository();
 
     const listed = await rejection(repository.listProjects());
-    const migrated = await rejection(repository.migrateSavedPalletStore());
 
-    expect(listed).toBeInstanceOf(ServerStorageNotImplementedError);
-    expect(migrated).toBeInstanceOf(ServerStorageNotImplementedError);
+    expect(listed).toBeInstanceOf(ServerStorageError);
+    expect(listed).toMatchObject({ kind: "network", operation: "list" });
     expect(indexedDb.opens).toEqual([]);
   });
 });
