@@ -1,10 +1,6 @@
 import { z } from "zod";
 
-import {
-  authenticate,
-  createSession,
-  revokeSession,
-} from "~/server/auth/accounts";
+import { loginWithPassword } from "~/server/auth/accounts";
 import {
   readSessionToken,
   sessionCookieOptionsFor,
@@ -42,18 +38,18 @@ export async function POST(request: Request): Promise<Response> {
   const parsed = loginSchema.safeParse(body);
   if (!parsed.success) return jsonNoStore({ error: "invalid_request" }, 400);
 
-  const user = await authenticate(
+  // A fresh token on every login; this browser's previous session ends.
+  // Password re-check and session insert are atomic against a reset.
+  const result = await loginWithPassword(
     db,
     parsed.data.username,
     parsed.data.password,
+    new Date(),
+    readSessionToken(request),
   );
   // Same answer for unknown user and wrong password.
-  if (!user) return jsonNoStore({ error: "invalid_credentials" }, 401);
-
-  // A fresh token on every login; this browser's previous session ends.
-  const previous = readSessionToken(request);
-  if (previous) await revokeSession(db, previous);
-  const session = await createSession(db, user.id, new Date());
+  if (!result) return jsonNoStore({ error: "invalid_credentials" }, 401);
+  const { user, session } = result;
 
   const response = jsonNoStore({ user: toSessionUser(user) });
   response.cookies.set({

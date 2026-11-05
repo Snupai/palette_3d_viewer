@@ -20,6 +20,7 @@ import {
   createSession,
   createUser,
   deleteExpiredSessions,
+  loginWithPassword,
   revokeAllSessionsForUser,
   revokeSession,
   setUserPassword,
@@ -305,6 +306,59 @@ describe("authenticate racing a password reset (ADR 0005)", () => {
     expect(await authenticate(database.db, "admin", NEW_PASSWORD)).toEqual(
       user,
     );
+  });
+});
+
+describe("loginWithPassword (ADR 0005)", () => {
+  it("creates a session and revokes the previous token in one step", async () => {
+    const user = await admin();
+    const previous = await createSession(database.db, user.id, NOW);
+
+    const result = await loginWithPassword(
+      database.db,
+      "admin",
+      PASSWORD,
+      NOW,
+      previous.token,
+    );
+
+    expect(result?.user).toEqual(user);
+    expect(await verifySession(database.db, previous.token, NOW)).toBeNull();
+    expect(
+      (await verifySession(database.db, result!.session.token, NOW))?.user,
+    ).toEqual(user);
+    expect(await countActiveSessions(database.db, user.id, NOW)).toBe(1);
+  });
+
+  it("creates no session when a reset lands between verify and session insert", async () => {
+    const user = await admin();
+    interleave.afterVerify = async () => {
+      expect(await setUserPassword(database.db, user.id, NEW_PASSWORD)).toBe(
+        true,
+      );
+    };
+
+    expect(
+      await loginWithPassword(database.db, "admin", PASSWORD, NOW),
+    ).toBeNull();
+    expect(await countActiveSessions(database.db, user.id, NOW)).toBe(0);
+  });
+
+  it("returns null for a wrong password without touching sessions", async () => {
+    const user = await admin();
+    const previous = await createSession(database.db, user.id, NOW);
+    expect(
+      await loginWithPassword(
+        database.db,
+        "admin",
+        "nope",
+        NOW,
+        previous.token,
+      ),
+    ).toBeNull();
+    expect(
+      await verifySession(database.db, previous.token, NOW),
+    ).not.toBeNull();
   });
 });
 
