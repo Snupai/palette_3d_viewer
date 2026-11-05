@@ -469,6 +469,55 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(screen.queryByText(/Ungespeicherte Entwürfe/)).toBeNull();
   });
 
+  it("keeps an open draft in its author's backups when someone else signs in after the session expired", async () => {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValue(
+      new ServerStorageError("unauthenticated", "put", "projects", 401),
+    );
+    const bob = { id: "u-bob", username: "bob", role: "user" };
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      input === "/api/auth/login"
+        ? new Response(JSON.stringify({ user: bob }), { status: 200 })
+        : signedInFetch(input),
+    );
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Speichern ausstehend · Sitzung abgelaufen");
+
+    fireEvent.change(screen.getByLabelText("Benutzername"), {
+      target: { value: "bob" },
+    });
+    fireEvent.change(screen.getByLabelText("Kennwort"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "bob",
+      ),
+    );
+
+    const bobScope = { ...aliceScope(), userId: "u-bob" };
+    expect(readDraftBackups(storage, bobScope)).toEqual([]);
+    expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+  });
+
   it("offers a backed-up draft after sign-in and restores it through the versioned save", async () => {
     const storage = stubLocalStorage();
     const { project, repository } = await repositoryWithProject();

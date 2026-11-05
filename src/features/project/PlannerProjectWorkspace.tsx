@@ -311,6 +311,15 @@ export function PlannerProjectWorkspace({
     draftBackupScope(storageMode, globalThis.location?.origin ?? "", userId);
   /** The plan whose backup mirrors the draft open in this window. */
   const openDraftBackupIdRef = useRef<string | null>(null);
+  /**
+   * Who that draft belongs to: a sign-in as someone else after an expired
+   * session must not move it into the other user's backups.
+   */
+  const openDraftOwnerRef = useRef<string | null>(null);
+  const draftOwner = (projectId: string) =>
+    openDraftBackupIdRef.current === projectId
+      ? openDraftOwnerRef.current
+      : backupUserRef.current;
   const [saveFailure, setSaveFailure] = useState<{
     reason: SaveFailure;
     backedUp: boolean;
@@ -402,7 +411,8 @@ export function PlannerProjectWorkspace({
 
   /** Backs up an unsaved draft of `project`; `false` if it could not. */
   const backUpDraft = (project: Project): boolean => {
-    const scope = backupScopeFor(backupUserRef.current);
+    const owner = draftOwner(project.id);
+    const scope = backupScopeFor(owner);
     if (!scope) return false;
     const written = writeDraftBackup(
       backupStorage(),
@@ -411,12 +421,15 @@ export function PlannerProjectWorkspace({
       draftBaseVersion(loadedVersionRef.current, project.id),
       Date.now(),
     );
-    if (written) openDraftBackupIdRef.current = project.id;
+    if (written) {
+      openDraftBackupIdRef.current = project.id;
+      openDraftOwnerRef.current = owner;
+    }
     return written;
   };
   /** The draft of `projectId` is saved, settled or discarded. */
   const dropDraftBackup = (projectId: string) => {
-    const scope = backupScopeFor(backupUserRef.current);
+    const scope = backupScopeFor(draftOwner(projectId));
     if (scope) removeDraftBackup(backupStorage(), scope, projectId);
     if (openDraftBackupIdRef.current === projectId) {
       openDraftBackupIdRef.current = null;
