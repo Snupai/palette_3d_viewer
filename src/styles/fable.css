@@ -1639,6 +1639,48 @@ details:has(> .report-sheet) {
 .session-menu a:hover {
   background: var(--surface-hover);
 }
+/* Sign-out with unsaved drafts asks inline first (#35, ADR 0002). */
+.session-confirm {
+  display: grid;
+  gap: 4px;
+}
+.session-confirm p {
+  padding: 4px 11px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.fable-tool-menu .session-confirm button.session-danger {
+  color: var(--danger);
+}
+/* A save the server did not take: the draft waits in the browser (#35). */
+.save-pending-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 1px solid var(--danger);
+  border-radius: 2px;
+  color: var(--danger);
+  font-size: 13px;
+  white-space: nowrap;
+}
+.draft-restore {
+  display: grid;
+  gap: 8px;
+}
+.draft-restore ul {
+  display: grid;
+  gap: 6px;
+}
+.draft-restore li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+.draft-restore li > span {
+  flex: 1 1 220px;
+}
 .welcome-door:disabled,
 .plan-actions button:disabled {
   opacity: 0.55;

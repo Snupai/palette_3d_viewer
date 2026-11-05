@@ -193,4 +193,22 @@ export const projectEn = {
   "project.library.policy.skip": "Skip incoming",
   "project.library.policy.overwrite": "Overwrite existing",
   "project.library.import": "Import project + resource package",
+  "project.action.restoreDraft": "Restore draft",
+  "project.error.serverUnreachable":
+    "The server is unreachable. The draft stays in this browser; please save again later.",
+  "project.draft.pendingNetwork": "Save pending · server unreachable",
+  "project.draft.pendingSession": "Save pending · session expired",
+  "project.draft.pendingBackedUp":
+    "The draft is not saved. It stays in this browser and is backed up locally.",
+  "project.draft.pendingMemoryOnly":
+    "The draft is not saved. It stays in this window but could not be backed up locally.",
+  "project.draft.restoreTitle": "Unsaved drafts from an earlier session",
+  "project.draft.restoreHint":
+    "Restoring saves the draft. If the plan changed meanwhile, the conflict view opens.",
+  "project.draft.backedUpAt": "backed up {time}",
+  "project.draft.restore": "Restore",
+  "project.draft.discard": "Discard",
+  "project.draft.confirmDiscard":
+    "Permanently discard the unsaved draft “{name}”?",
+  "project.draft.restored": "Draft restored and saved: {name}",
 } as const satisfies Record<keyof typeof projectDe, string>;

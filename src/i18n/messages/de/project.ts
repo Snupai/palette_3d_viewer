@@ -203,4 +203,24 @@ export const projectDe = {
   "project.library.policy.skip": "Neue überspringen",
   "project.library.policy.overwrite": "Bestehende überschreiben",
   "project.library.import": "Projekt- und Ressourcenpaket importieren",
+  "project.action.restoreDraft": "Entwurf wiederherstellen",
+  "project.error.serverUnreachable":
+    "Der Server ist nicht erreichbar. Der Entwurf bleibt in diesem Browser erhalten; bitte später erneut speichern.",
+  "project.draft.pendingNetwork":
+    "Speichern ausstehend · Server nicht erreichbar",
+  "project.draft.pendingSession": "Speichern ausstehend · Sitzung abgelaufen",
+  "project.draft.pendingBackedUp":
+    "Der Entwurf ist nicht gespeichert. Er bleibt in diesem Browser erhalten und ist lokal gesichert.",
+  "project.draft.pendingMemoryOnly":
+    "Der Entwurf ist nicht gespeichert. Er bleibt in diesem Fenster erhalten, konnte aber nicht lokal gesichert werden.",
+  "project.draft.restoreTitle":
+    "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+  "project.draft.restoreHint":
+    "Wiederherstellen speichert den Entwurf. Wurde der Plan inzwischen geändert, öffnet sich die Konfliktansicht.",
+  "project.draft.backedUpAt": "gesichert {time}",
+  "project.draft.restore": "Wiederherstellen",
+  "project.draft.discard": "Verwerfen",
+  "project.draft.confirmDiscard":
+    "Den ungespeicherten Entwurf „{name}“ endgültig verwerfen?",
+  "project.draft.restored": "Entwurf wiederhergestellt und gespeichert: {name}",
 } as const;

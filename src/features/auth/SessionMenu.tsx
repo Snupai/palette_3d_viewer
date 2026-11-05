@@ -18,6 +18,7 @@ import {
   signIn,
   signOut,
   type PlannerSession,
+  type SessionUser,
 } from "./plannerAccessModel";
 
 export type PlannerSessionControls = {
@@ -89,20 +90,22 @@ export function usePlannerSession(
 /**
  * Header account menu (server mode only; renders nothing in local mode):
  * a sign-in form for anonymous visitors, the user and "Abmelden" otherwise.
- * `beforeSignOut` and `beforeLeave` (opening the user management) let the
- * caller confirm unsaved changes first and return whether to proceed;
- * `onSignedOut` runs once the server ended the session.
+ * With `hasUnsavedDrafts`, "Abmelden" first asks inline: "Abbrechen" or
+ * "Entwürfe verwerfen und abmelden" (ADR 0002). `beforeLeave` (opening the
+ * user management) lets the caller confirm unsaved changes first and return
+ * whether to proceed; `onSignedOut` runs once the server ended the session,
+ * with the user who signed out.
  */
 export function SessionMenu({
   controls,
-  beforeSignOut,
+  hasUnsavedDrafts = false,
   beforeLeave,
   onSignedOut,
 }: {
   controls: PlannerSessionControls;
-  beforeSignOut?: () => boolean;
+  hasUnsavedDrafts?: boolean;
   beforeLeave?: () => boolean;
-  onSignedOut?: () => void;
+  onSignedOut?: (user: SessionUser) => void;
 }) {
   const t = useT();
   const { session } = controls;
@@ -110,6 +113,7 @@ export function SessionMenu({
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   if (session.status === "local") return null;
 
@@ -194,6 +198,18 @@ export function SessionMenu({
   }
 
   const { user } = session;
+  const signOutNow = (target: HTMLElement) => {
+    setError(null);
+    void controls.signOut().then((ok) => {
+      setConfirmSignOut(false);
+      if (!ok) {
+        setError(t("auth.error.signOutFailed"));
+        return;
+      }
+      close(target);
+      onSignedOut?.(user);
+    });
+  };
   return (
     <details className="fable-tool-menu session-menu">
       <summary aria-label={t("auth.menu")}>{user.username}</summary>
@@ -219,24 +235,39 @@ export function SessionMenu({
             {error}
           </p>
         ) : null}
-        <button
-          type="button"
-          onClick={(event) => {
-            const target = event.currentTarget;
-            if (beforeSignOut && !beforeSignOut()) return;
-            setError(null);
-            void controls.signOut().then((ok) => {
-              if (!ok) {
-                setError(t("auth.error.signOutFailed"));
+        {confirmSignOut && hasUnsavedDrafts ? (
+          <div
+            role="group"
+            className="session-confirm"
+            aria-label={t("auth.signOut")}
+          >
+            <p>{t("auth.confirm.signOutUnsaved")}</p>
+            <button type="button" onClick={() => setConfirmSignOut(false)}>
+              {t("auth.confirm.cancel")}
+            </button>
+            <button
+              type="button"
+              className="session-danger"
+              onClick={(event) => signOutNow(event.currentTarget)}
+            >
+              {t("auth.confirm.discardAndSignOut")}
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={(event) => {
+              if (hasUnsavedDrafts) {
+                setError(null);
+                setConfirmSignOut(true);
                 return;
               }
-              close(target);
-              onSignedOut?.();
-            });
-          }}
-        >
-          {t("auth.signOut")}
-        </button>
+              signOutNow(event.currentTarget);
+            }}
+          >
+            {t("auth.signOut")}
+          </button>
+        )}
       </div>
     </details>
   );

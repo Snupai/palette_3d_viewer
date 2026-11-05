@@ -102,6 +102,20 @@ import {
 } from "~/lib/projectRepository";
 import { configuredStorageMode, type StorageMode } from "~/lib/storageMode";
 import { ProjectConflictView } from "~/features/project/ProjectConflictView";
+import { DraftRestoreOffer } from "~/features/project/DraftRestoreOffer";
+import {
+  draftBackupScope,
+  draftBaseVersion,
+  readDraftBackups,
+  removeAllDraftBackups,
+  removeDraftBackup,
+  restorableDraftBackups,
+  saveFailureReason,
+  writeDraftBackup,
+  type DraftBackup,
+  type DraftBackupStorage,
+  type SaveFailure,
+} from "~/features/project/draftBackupModel";
 import {
   createProjectConflict,
   isProjectVersionConflict,
@@ -208,6 +222,15 @@ function diagnosticText(diagnostics: readonly RepositoryDiagnostic[]): string {
     .join("\n");
 }
 
+/** `localStorage`, or `null` where the browser blocks it. */
+function browserDraftStorage(): DraftBackupStorage | null {
+  try {
+    return globalThis.localStorage ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function downloadJson(filename: string, contents: string): void {
   const blob = new Blob([contents], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -268,6 +291,33 @@ export function PlannerProjectWorkspace({
   const readOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
     : null;
+  /**
+   * Local draft backups (ADR 0002, #35), keyed by server, user and project.
+   * The user is the last signed-in one, so a draft lost to an expired session
+   * is still backed up for its author.
+   */
+  const backupStorageRef = useRef<DraftBackupStorage | null | undefined>(
+    undefined,
+  );
+  const backupStorage = (): DraftBackupStorage | null => {
+    if (backupStorageRef.current === undefined) {
+      backupStorageRef.current = browserDraftStorage();
+    }
+    return backupStorageRef.current;
+  };
+  const backupUserRef = useRef<string | null>(null);
+  if (session.status === "signed-in") backupUserRef.current = session.user.id;
+  const backupScopeFor = (userId: string | null) =>
+    draftBackupScope(storageMode, globalThis.location?.origin ?? "", userId);
+  /** The plan whose backup mirrors the draft open in this window. */
+  const openDraftBackupIdRef = useRef<string | null>(null);
+  const [saveFailure, setSaveFailure] = useState<{
+    reason: SaveFailure;
+    backedUp: boolean;
+  } | null>(null);
+  const [restorableBackups, setRestorableBackups] = useState<DraftBackup[]>([]);
+  const [restoringDraft, setRestoringDraft] = useState(false);
+
   /** A 401 from the server: the session is gone; the draft stays here. */
   const sessionLossMessage = (cause: unknown): string | null => {
     if (
@@ -349,6 +399,34 @@ export function PlannerProjectWorkspace({
   /** Stored version the open plan was read at (ADR 0006). */
   const loadedVersionRef = useRef<LoadedProjectVersion | null>(null);
   const [conflict, setConflict] = useState<ProjectConflict | null>(null);
+
+  /** Backs up an unsaved draft of `project`; `false` if it could not. */
+  const backUpDraft = (project: Project): boolean => {
+    const scope = backupScopeFor(backupUserRef.current);
+    if (!scope) return false;
+    const written = writeDraftBackup(
+      backupStorage(),
+      scope,
+      project,
+      draftBaseVersion(loadedVersionRef.current, project.id),
+      Date.now(),
+    );
+    if (written) openDraftBackupIdRef.current = project.id;
+    return written;
+  };
+  /** The draft of `projectId` is saved, settled or discarded. */
+  const dropDraftBackup = (projectId: string) => {
+    const scope = backupScopeFor(backupUserRef.current);
+    if (scope) removeDraftBackup(backupStorage(), scope, projectId);
+    if (openDraftBackupIdRef.current === projectId) {
+      openDraftBackupIdRef.current = null;
+    }
+    setRestorableBackups((current) =>
+      current.some((backup) => backup.projectId === projectId)
+        ? current.filter((backup) => backup.projectId !== projectId)
+        : current,
+    );
+  };
   const [conflictBusy, setConflictBusy] = useState(false);
   const [conflictError, setConflictError] = useState<string | null>(null);
 
@@ -387,6 +465,35 @@ export function PlannerProjectWorkspace({
     }
     setRouteReady(true);
   }, []);
+
+  // The open editor draft is backed up as it changes (server mode only).
+  const backUpDraftRef = useRef(backUpDraft);
+  backUpDraftRef.current = backUpDraft;
+  useEffect(() => {
+    if (editorDirty && editorDraftProject) {
+      backUpDraftRef.current(editorDraftProject);
+    }
+  }, [editorDirty, editorDraftProject, session]);
+
+  // After sign-in (or a reload with a live session) offer the user's backups
+  // except the draft still open here, which is simply saved again.
+  const signedInUserId =
+    session.status === "signed-in" ? session.user.id : null;
+  useEffect(() => {
+    const scope = draftBackupScope(
+      storageMode,
+      globalThis.location?.origin ?? "",
+      signedInUserId,
+    );
+    setRestorableBackups(
+      scope
+        ? restorableDraftBackups(
+            readDraftBackups(browserDraftStorage(), scope),
+            openDraftBackupIdRef.current,
+          )
+        : [],
+    );
+  }, [signedInUserId, storageMode]);
 
   useEffect(() => {
     onUnsavedChange?.(stackDirty || editorDirty || inputsDirty);
@@ -618,16 +725,27 @@ export function PlannerProjectWorkspace({
             await repository.saveProjectVersioned(copy, {
               expectedVersion: null,
             });
+          dropDraftBackup(project.id);
+          setSaveFailure(null);
           return { saved, version, copied: true };
         } finally {
           setCopySaving(false);
         }
       }
       const { project: saved, version } = await persistProject(project);
+      dropDraftBackup(project.id);
+      setSaveFailure(null);
       return { saved, version, copied: false };
     } catch (cause) {
+      // Unreachable server or expired session: the draft stays pending in
+      // the browser and is backed up locally (ADR 0002).
+      const reason = saveFailureReason(cause);
+      if (reason) setSaveFailure({ reason, backedUp: backUpDraft(project) });
       const message = sessionLossMessage(cause);
       if (message) throw new Error(message, { cause });
+      if (reason === "network") {
+        throw new Error(t("project.error.serverUnreachable"), { cause });
+      }
       throw cause;
     }
   };
@@ -683,6 +801,10 @@ export function PlannerProjectWorkspace({
   };
 
   const discardUnsavedPlannerChanges = (): void => {
+    if (openDraftBackupIdRef.current) {
+      dropDraftBackup(openDraftBackupIdRef.current);
+    }
+    setSaveFailure(null);
     navigationGeneration.current += 1;
     setFormGeneration((generation) => generation + 1);
     markInputsDirty(false);
@@ -1523,6 +1645,7 @@ export function PlannerProjectWorkspace({
       // Every other outcome settles the draft: it is saved, replaced by the
       // server state, or kept as a copy.
       setConflict(null);
+      dropDraftBackup(conflict.mine.id);
       discardUnsavedPlannerChanges();
       setGeneratorLaunchRequest(null);
       setDialogMode("closed");
@@ -1573,6 +1696,62 @@ export function PlannerProjectWorkspace({
     } finally {
       setConflictBusy(false);
     }
+  };
+
+  /**
+   * Restores a backed-up draft by saving it through the normal path, against
+   * the version it was based on: a plan changed meanwhile opens the conflict
+   * view instead of being overwritten (ADR 0006).
+   */
+  const restoreDraft = async (backup: DraftBackup) => {
+    if (restoringDraft) return;
+    if (!confirmDiscardUnsaved(t("project.action.restoreDraft"))) return;
+    discardUnsavedPlannerChanges();
+    setGeneratorLaunchRequest(null);
+    setDialogMode("closed");
+    selectedProjectIdRef.current = backup.projectId;
+    loadedVersionRef.current =
+      backup.baseVersion === null
+        ? null
+        : { projectId: backup.projectId, version: backup.baseVersion };
+    setSelectedId(backup.projectId);
+    setRestoringDraft(true);
+    try {
+      const saved = await saveProject(backup.project);
+      // Re-read so a load started before the save cannot win with the
+      // version the draft replaced.
+      setProjectReloadToken((token) => token + 1);
+      setStatusMessage(
+        t("project.draft.restored", { name: projectLabel(saved, t) }),
+      );
+    } catch (cause) {
+      console.error("Failed to restore draft", cause);
+      // Nothing of it is open in this window: keep offering the backup.
+      if (openDraftBackupIdRef.current === backup.projectId) {
+        openDraftBackupIdRef.current = null;
+      }
+      setSaveFailure(null);
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : t("project.error.saveAsFailedGeneric"),
+      );
+    } finally {
+      setRestoringDraft(false);
+    }
+  };
+
+  const discardDraftBackup = (backup: DraftBackup) => {
+    if (
+      !window.confirm(
+        t("project.draft.confirmDiscard", {
+          name: projectLabel(backup.project, t),
+        }),
+      )
+    ) {
+      return;
+    }
+    dropDraftBackup(backup.projectId);
   };
 
   const createNew = () => {
@@ -1704,22 +1883,51 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSignedOut}
             />
           ) : null}
+          {saveFailure ? (
+            <span
+              className="save-pending-badge"
+              role="status"
+              title={t(
+                saveFailure.backedUp
+                  ? "project.draft.pendingBackedUp"
+                  : "project.draft.pendingMemoryOnly",
+              )}
+            >
+              {t(
+                saveFailure.reason === "network"
+                  ? "project.draft.pendingNetwork"
+                  : "project.draft.pendingSession",
+              )}
+            </span>
+          ) : null}
           <SessionMenu
             controls={sessionControls}
-            beforeSignOut={() =>
-              !hasUnsavedChanges ||
-              window.confirm(t("auth.confirm.signOutUnsaved"))
-            }
+            hasUnsavedDrafts={hasUnsavedChanges || restorableBackups.length > 0}
             beforeLeave={() =>
               confirmDiscardUnsaved(t("auth.action.openUserManagement"))
             }
-            onSignedOut={() => {
+            onSignedOut={(user) => {
               if (hasUnsavedChanges) discardUnsavedPlannerChanges();
+              // An explicit sign-out discards this user's draft backups on
+              // this server; an expired session keeps them (ADR 0002).
+              const scope = backupScopeFor(user.id);
+              if (scope) removeAllDraftBackups(backupStorage(), scope);
+              backupUserRef.current = null;
+              openDraftBackupIdRef.current = null;
+              setRestorableBackups([]);
+              setSaveFailure(null);
             }}
           />
           <LanguageSwitcher />
         </div>
       </header>
+      <DraftRestoreOffer
+        backups={restorableBackups}
+        busy={restoringDraft}
+        label={(backup) => projectLabel(backup.project, t)}
+        onRestore={(backup) => void restoreDraft(backup)}
+        onDiscard={discardDraftBackup}
+      />
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
           createDisabledReason={readOnlyHint}
