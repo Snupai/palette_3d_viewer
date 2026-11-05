@@ -68,7 +68,7 @@ export const conflictEn = {
     "The draft stays open; the comparison appears again on the next save.",
   "conflict.errorUnknown": "unknown error",
   "conflict.busy": "Saving …",
-  "conflict.error": "That did not work: {message}",
+  "conflict.error": "Saving failed: {message}",
   "conflict.saveRejected":
     "The plan was changed on the server in the meantime. Please decide in the comparison; your draft is kept.",
   "conflict.status.savedMine": "Your draft of {name} was saved.",

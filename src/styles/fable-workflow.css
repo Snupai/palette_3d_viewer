@@ -221,6 +221,21 @@
   border-color: var(--ink);
   color: var(--surface);
 }
+/* Disabled (locked fieldset or saving): no pointer, no hover highlight. */
+.fw-check:has(input:disabled),
+.fw-check input:disabled,
+.fw-chip:disabled,
+.fw-seg input:disabled,
+.fw-link:disabled {
+  cursor: not-allowed;
+}
+.fw-link:disabled {
+  color: var(--muted);
+}
+.fw-chip:disabled:hover:not([aria-pressed="true"]) {
+  border-color: var(--line);
+  color: var(--muted);
+}
 .fw .fw-quiet {
   border-color: transparent;
   background: transparent;

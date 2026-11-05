@@ -24,16 +24,17 @@ export const adminDe = {
   "admin.create.submit": "Benutzer anlegen",
   "admin.create.success": "Benutzer {username} wurde angelegt.",
   "admin.field.username": "Benutzername",
-  "admin.field.usernameHint": "3–64 Zeichen: a–z, 0–9, Punkt, _ oder -",
+  "admin.field.usernameHint": "3–64 Zeichen: a–z, 0–9, Punkt, _ oder -.",
   "admin.field.password": "Kennwort",
   "admin.field.passwordHint":
-    "mindestens 12 Zeichen, 5 verschiedene, ohne Benutzername",
+    "Mindestens 12 Zeichen, davon 5 verschiedene, ohne den Benutzernamen.",
   "admin.field.confirmation": "Kennwort wiederholen",
   "admin.field.role": "Rolle",
   "admin.reset.open": "Kennwort zurücksetzen",
   "admin.reset.heading": "Neues Kennwort für {username}",
   "admin.reset.submit": "Kennwort setzen",
   "admin.reset.cancel": "Abbrechen",
+  "admin.saving": "Wird gespeichert …",
   "admin.reset.success":
     "Kennwort für {username} wurde gesetzt; bestehende Sitzungen sind beendet.",
   "admin.reset.ownSessionEnded":
@@ -55,5 +56,5 @@ export const adminDe = {
     "Das Kennwort muss mindestens 5 verschiedene Zeichen enthalten.",
   "admin.error.sessionLost":
     "Ihre Anmeldung ist abgelaufen oder hat keine Admin-Rechte mehr.",
-  "admin.error.generic": "Das hat nicht funktioniert. Bitte erneut versuchen.",
+  "admin.error.generic": "Speichern fehlgeschlagen.",
 } as const;

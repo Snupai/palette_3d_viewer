@@ -134,7 +134,17 @@ export function ProjectConflictView({
   );
 
   useEffect(() => {
+    // Focus the labelled dialog root (not the first action, which would be the
+    // overwriting "keep mine" button) and hand focus back to the opener on
+    // close, like Drawer and the project dialog do.
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     dialogRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, [conflict]);
 
   const busyRef = useRef(busy);
@@ -183,13 +193,13 @@ export function ProjectConflictView({
     <div className="flex flex-col gap-1">
       <button
         type="button"
-        className="ui-btn min-h-11 cursor-pointer"
+        className="ui-btn"
         disabled={busy || disabled}
         onClick={() => (choice === "later" ? onLater() : onChoose(choice))}
       >
         {label}
       </button>
-      <span className="text-muted text-xs">{hint}</span>
+      <span className="text-muted text-micro">{hint}</span>
     </div>
   );
 
@@ -197,6 +207,9 @@ export function ProjectConflictView({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !busy) onLater();
+      }}
     >
       <section
         ref={dialogRef}
@@ -207,34 +220,45 @@ export function ProjectConflictView({
         aria-busy={busy}
         className="border-line bg-surface flex max-h-[calc(100dvh-2rem)] w-full max-w-5xl flex-col overflow-hidden border shadow-[0_2px_8px_rgba(0,0,0,0.1)] outline-none"
       >
-        <header className="border-line shrink-0 border-b px-5 py-4">
+        <header className="border-line flex shrink-0 items-center justify-between border-b px-5 py-4">
           <h2 id={titleId} className="text-ink text-base font-semibold">
             {t(texts.title)}
           </h2>
-          <p className="text-muted mt-1 text-sm">{t(texts.intro)}</p>
-          {conflict.refreshed ? (
-            <p
-              role="status"
-              className="border-caution text-ink mt-2 border-l-4 pl-3 text-sm"
-            >
-              {t("conflict.refreshed")}
-            </p>
-          ) : null}
-          {server === null ? (
-            <p className="border-danger text-ink mt-2 border-l-4 pl-3 text-sm">
-              {t(texts.serverDeleted)}
-            </p>
-          ) : null}
+          <button
+            type="button"
+            onClick={onLater}
+            disabled={busy}
+            className="ui-btn text-body px-2.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t("components.drawer.close")}
+          </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          <div className="grid grid-cols-2 gap-4">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <div className="mb-4">
+            <p className="text-muted text-body">{t(texts.intro)}</p>
+            {conflict.refreshed ? (
+              <p
+                role="status"
+                className="border-caution text-ink text-body mt-2 border-l-2 pl-3"
+              >
+                {t("conflict.refreshed")}
+              </p>
+            ) : null}
+            {server === null ? (
+              <p className="border-danger text-ink text-body mt-2 border-l-2 pl-3">
+                {t(texts.serverDeleted)}
+              </p>
+            ) : null}
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2">
             <figure className="border-line m-0 border p-3">
               <figcaption className="mb-2">
-                <span className="text-ink block text-sm font-semibold">
+                <span className="text-ink text-body block font-semibold">
                   {t(texts.mineHeading)}
                 </span>
-                <span className="text-muted text-xs">
+                <span className="text-muted text-micro">
                   {t(texts.mineCaption)}
                 </span>
               </figcaption>
@@ -248,10 +272,10 @@ export function ProjectConflictView({
             </figure>
             <figure className="border-line m-0 border p-3">
               <figcaption className="mb-2">
-                <span className="text-ink block text-sm font-semibold">
+                <span className="text-ink text-body block font-semibold">
                   {t("conflict.server.heading")}
                 </span>
-                <span className="text-muted text-xs">
+                <span className="text-muted text-micro">
                   {server
                     ? t("conflict.server.caption", {
                         version: server.version,
@@ -274,33 +298,23 @@ export function ProjectConflictView({
             </figure>
           </div>
 
-          <p className="text-ink mt-4 text-sm font-semibold" role="status">
+          <p className="text-ink text-body mt-4 font-semibold" role="status">
             {summary}
           </p>
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full min-w-[32rem] border-collapse text-sm">
+          <div className="border-line mt-2 overflow-auto border">
+            <table className="ui-table min-w-[32rem]">
               <thead>
-                <tr className="border-line text-muted border-b text-left text-xs">
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    {t("conflict.column.field")}
-                  </th>
-                  <th scope="col" className="py-2 pr-3 font-medium">
-                    {t(texts.mineHeading)}
-                  </th>
-                  <th scope="col" className="py-2 font-medium">
-                    {t("conflict.server.heading")}
-                  </th>
+                <tr>
+                  <th scope="col">{t("conflict.column.field")}</th>
+                  <th scope="col">{t(texts.mineHeading)}</th>
+                  <th scope="col">{t("conflict.server.heading")}</th>
                 </tr>
               </thead>
               <tbody>
                 {GROUPS.map((group) => (
                   <Fragment key={group}>
                     <tr>
-                      <th
-                        scope="colgroup"
-                        colSpan={3}
-                        className="text-muted pt-3 pb-1 text-left text-xs font-semibold tracking-wide uppercase"
-                      >
+                      <th scope="colgroup" colSpan={3} className="pt-3 pb-1">
                         {groupLabels[group]}
                       </th>
                     </tr>
@@ -321,8 +335,8 @@ export function ProjectConflictView({
                             scope="row"
                             className={
                               row.differs
-                                ? "border-caution text-ink border-l-4 py-1.5 pr-3 pl-2 text-left font-medium"
-                                : "text-muted py-1.5 pr-3 pl-3 text-left font-normal"
+                                ? "border-l-caution text-ink border-l-2 bg-transparent pl-2.5 font-medium"
+                                : "text-muted bg-transparent pl-3 font-normal"
                             }
                           >
                             {row.label}
@@ -336,8 +350,8 @@ export function ProjectConflictView({
                           <td
                             className={
                               row.differs
-                                ? "text-ink py-1.5 pr-3 font-semibold"
-                                : "text-ink py-1.5 pr-3"
+                                ? "text-ink font-semibold"
+                                : "text-ink"
                             }
                           >
                             {row.mine}
@@ -345,8 +359,8 @@ export function ProjectConflictView({
                           <td
                             className={
                               row.differs
-                                ? "text-ink py-1.5 font-semibold"
-                                : "text-ink py-1.5"
+                                ? "text-ink font-semibold"
+                                : "text-ink"
                             }
                           >
                             {row.server}
@@ -362,12 +376,12 @@ export function ProjectConflictView({
 
         <footer className="border-line shrink-0 border-t px-5 py-4">
           {error ? (
-            <p role="alert" className="text-danger mb-3 text-sm">
+            <p role="alert" className="text-danger text-body mb-3">
               {error}
             </p>
           ) : null}
           {busy ? (
-            <p role="status" className="text-muted mb-3 text-sm">
+            <p role="status" className="text-muted text-body mb-3">
               {t("conflict.busy")}
             </p>
           ) : null}

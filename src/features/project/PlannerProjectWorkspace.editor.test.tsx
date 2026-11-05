@@ -328,7 +328,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
       expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
     );
     expect(
-      await screen.findByText("Dein Entwurf von M5-EDITOR wurde gespeichert."),
+      await screen.findByText("Ihr Entwurf von M5-EDITOR wurde gespeichert."),
     ).toBeTruthy();
   });
 

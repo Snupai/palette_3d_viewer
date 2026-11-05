@@ -4,7 +4,7 @@ export const localImportDe = {
   "localImport.openCount": "Lokale Pläne übernehmen ({count})",
   "localImport.title": "Lokale Pläne auf den Server übernehmen",
   "localImport.intro":
-    "Dieser Browser enthält Pläne aus der lokalen Speicherung. Wähle aus, welche du auf den Server übernehmen willst. Die lokalen Originale bleiben in diesem Browser erhalten.",
+    "Dieser Browser enthält Pläne aus der lokalen Speicherung. Wählen Sie aus, welche Sie auf den Server übernehmen möchten. Die lokalen Originale bleiben in diesem Browser erhalten.",
   "localImport.loading": "Lokale Pläne werden mit dem Server verglichen …",
   "localImport.section.projects": "Pläne",
   "localImport.section.catalog": "Werkskatalog",
@@ -12,15 +12,19 @@ export const localImportDe = {
   "localImport.catalogKind.pallet": "Palette",
   "localImport.catalogKind.gripper": "Greifer",
   "localImport.catalogKind.pallet-station": "Palettenplatz",
-  "localImport.status.new": "Neu – wird mit dir als Ersteller angelegt",
+  "localImport.status.new": "Neu",
   "localImport.status.unchanged": "Bereits übernommen",
-  "localImport.status.copied": "Bereits als Kopie übernommen",
-  "localImport.status.differs":
-    "Auf dem Server abweichend – Vergleich nach dem Import",
-  "localImport.status.server-unreadable":
-    "Der Servereintrag ist nicht lesbar; wird nicht übernommen",
-  "localImport.status.admin-only":
-    "Nur Admins dürfen den Werkskatalog befüllen",
+  "localImport.status.copied": "Als Kopie übernommen",
+  "localImport.status.differs": "Abweichend",
+  "localImport.status.server-unreadable": "Nicht lesbar",
+  "localImport.status.admin-only": "Nur Admins",
+  "localImport.statusHint.new": "Wird mit Ihnen als Ersteller angelegt.",
+  "localImport.statusHint.differs":
+    "Auf dem Server abweichend – Vergleich nach dem Import.",
+  "localImport.statusHint.server-unreadable":
+    "Der Servereintrag ist nicht lesbar und wird nicht übernommen.",
+  "localImport.statusHint.admin-only":
+    "Nur Admins dürfen den Werkskatalog befüllen.",
   "localImport.select": "{name} übernehmen",
   "localImport.unreadable_one":
     "1 lokaler Eintrag ist nicht lesbar und wird nicht angeboten.",
@@ -40,17 +44,16 @@ export const localImportDe = {
   "localImport.result.already_other":
     "{count} Einträge waren bereits auf dem Server.",
   "localImport.result.conflicts_one":
-    "1 Plan weicht vom Serverstand ab und wartet auf deine Entscheidung.",
+    "1 Plan weicht vom Serverstand ab und wartet auf Ihre Entscheidung.",
   "localImport.result.conflicts_other":
-    "{count} Pläne weichen vom Serverstand ab und warten auf deine Entscheidung.",
+    "{count} Pläne weichen vom Serverstand ab und warten auf Ihre Entscheidung.",
   "localImport.result.failed": "{name} wurde nicht übernommen: {message}",
   "localImport.result.decide": "Abweichungen vergleichen",
   "localImport.result.aborted":
     "Der Import wurde abgebrochen. Bereits übernommene Einträge bleiben auf dem Server; ein erneuter Versuch überspringt sie.",
-  "localImport.error.load":
-    "Lokale Pläne konnten nicht gelesen werden: {message}",
+  "localImport.error.load": "Lesen der lokalen Pläne fehlgeschlagen: {message}",
   "localImport.error.plan":
-    "Der Vergleich mit dem Server ist fehlgeschlagen: {message}",
+    "Vergleich mit dem Server fehlgeschlagen: {message}",
   "localImport.error.unknown": "unbekannter Fehler",
   "localImport.outcome.kept": "{name}: Serverstand behalten.",
   "localImport.outcome.replaced":
@@ -69,12 +72,12 @@ export const localImportDe = {
   "localImport.catalogConflict.serverDeleted": "Auf dem Server gelöscht",
   "localImport.catalogConflict.refreshed":
     "Der Servereintrag hat sich erneut geändert – bitte erneut entscheiden.",
-  "localImport.catalogCopyName": "{name} (Kopie)",
+  "localImport.catalogCopyName": "{name} Kopie",
   "localImport.conflict.title": "Plan existiert bereits auf dem Server",
   "localImport.conflict.intro":
-    "Unter dieser ID liegt auf dem Server ein anderer Planstand. Wähle einen vollständigen Planstand oder übernimm den lokalen Plan als Kopie mit neuer ID. Ersteller und Berechtigungen des Serverplans ändern sich nicht.",
+    "Unter dieser ID liegt auf dem Server ein anderer Planstand. Wählen Sie einen vollständigen Planstand oder übernehmen Sie den lokalen Plan als Kopie mit neuer ID. Ersteller und Berechtigungen des Serverplans ändern sich nicht.",
   "localImport.conflict.serverDeleted":
-    "Der Plan wurde inzwischen auf dem Server gelöscht. Du kannst den lokalen Plan neu anlegen oder als Kopie übernehmen.",
+    "Der Plan wurde inzwischen auf dem Server gelöscht. Sie können den lokalen Plan neu anlegen oder als Kopie übernehmen.",
   "localImport.conflict.mineHeading": "Lokaler Plan",
   "localImport.conflict.mineCaption": "Aus diesem Browser",
   "localImport.conflict.keepMine": "Lokalen Stand übernehmen",
@@ -90,7 +93,7 @@ export const localImportDe = {
     "Der lokale Plan bleibt nur im Browser.",
   "localImport.conflict.saveCopy": "Als Kopie übernehmen",
   "localImport.conflict.saveCopyHint":
-    "Neuer Plan mit neuer ID und dir als Ersteller; der Serverplan bleibt unverändert.",
+    "Neuer Plan mit neuer ID und Ihnen als Ersteller; der Serverplan bleibt unverändert.",
   "localImport.conflict.later": "Später entscheiden",
   "localImport.conflict.laterHint":
     "Schließt den Vergleich; beim nächsten Import erscheint er erneut.",

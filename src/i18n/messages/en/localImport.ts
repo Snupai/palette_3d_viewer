@@ -13,14 +13,18 @@ export const localImportEn = {
   "localImport.catalogKind.pallet": "Pallet",
   "localImport.catalogKind.gripper": "Gripper",
   "localImport.catalogKind.pallet-station": "Pallet station",
-  "localImport.status.new": "New – will be created with you as creator",
+  "localImport.status.new": "New",
   "localImport.status.unchanged": "Already imported",
-  "localImport.status.copied": "Already imported as a copy",
-  "localImport.status.differs":
-    "Differs on the server – compare after the import",
-  "localImport.status.server-unreadable":
-    "The server entry is unreadable; not imported",
-  "localImport.status.admin-only": "Only admins may fill the Werkskatalog",
+  "localImport.status.copied": "Imported as a copy",
+  "localImport.status.differs": "Differs",
+  "localImport.status.server-unreadable": "Unreadable",
+  "localImport.status.admin-only": "Admins only",
+  "localImport.statusHint.new": "Will be created with you as creator.",
+  "localImport.statusHint.differs":
+    "Differs on the server – compare after the import.",
+  "localImport.statusHint.server-unreadable":
+    "The server entry is unreadable and will not be imported.",
+  "localImport.statusHint.admin-only": "Only admins may fill the Werkskatalog.",
   "localImport.select": "Import {name}",
   "localImport.unreadable_one":
     "1 local entry is unreadable and is not offered.",
@@ -47,7 +51,7 @@ export const localImportEn = {
   "localImport.result.decide": "Compare differences",
   "localImport.result.aborted":
     "The import was aborted. Entries already imported stay on the server; a retry skips them.",
-  "localImport.error.load": "Local plans could not be read: {message}",
+  "localImport.error.load": "Reading local plans failed: {message}",
   "localImport.error.plan": "Comparing with the server failed: {message}",
   "localImport.error.unknown": "unknown error",
   "localImport.outcome.kept": "{name}: kept the server state.",
@@ -67,10 +71,10 @@ export const localImportEn = {
   "localImport.catalogConflict.serverDeleted": "Deleted on the server",
   "localImport.catalogConflict.refreshed":
     "The server entry changed again – please decide again.",
-  "localImport.catalogCopyName": "{name} (copy)",
+  "localImport.catalogCopyName": "{name} copy",
   "localImport.conflict.title": "This plan already exists on the server",
   "localImport.conflict.intro":
-    "The server holds a different plan state under this id. Choose one complete plan state or import the local plan as a copy with a new id. Creator and permissions of the server plan do not change.",
+    "The server holds a different plan state under this ID. Choose one complete plan state or import the local plan as a copy with a new ID. Creator and permissions of the server plan do not change.",
   "localImport.conflict.serverDeleted":
     "The plan was deleted on the server meanwhile. You can create the local plan anew or import it as a copy.",
   "localImport.conflict.mineHeading": "Local plan",
@@ -88,7 +92,7 @@ export const localImportEn = {
     "The local plan stays in the browser only.",
   "localImport.conflict.saveCopy": "Import as a copy",
   "localImport.conflict.saveCopyHint":
-    "A new plan with a new id and you as creator; the server plan stays unchanged.",
+    "A new plan with a new ID and you as creator; the server plan stays unchanged.",
   "localImport.conflict.later": "Decide later",
   "localImport.conflict.laterHint":
     "Closes the comparison; it appears again on the next import.",

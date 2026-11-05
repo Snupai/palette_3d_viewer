@@ -13,10 +13,11 @@ import type {
   PlannerSession,
   SessionUser,
 } from "~/features/auth/plannerAccessModel";
+import { StatusBadge, type StatusTone } from "~/components/ui";
 import { claimModalKeys } from "~/components/ui/focusTrap";
 import { ProjectConflictView } from "~/features/project/ProjectConflictView";
 import { createProjectConflict } from "~/features/project/projectConflictModel";
-import { useT, type Translate } from "~/i18n";
+import { useT, type MessageKey, type Translate } from "~/i18n";
 import { PLANNER_DATABASE_NAME } from "~/lib/plannerDatabase";
 import { IndexedDbPlannerRecordStorage } from "~/lib/plannerRecordStorage";
 import type { ProjectRepository } from "~/lib/projectRepository";
@@ -470,7 +471,7 @@ export function LocalImportController({
     <>
       <button
         type="button"
-        className="local-import-button"
+        className="ui-btn"
         onClick={() => {
           setError(null);
           setOpen(true);
@@ -544,13 +545,21 @@ export function LocalImportController({
   );
 }
 
-const STATUS_CLASS: Record<ImportStatus, string> = {
-  new: "text-ink",
-  unchanged: "text-muted",
-  copied: "text-muted",
-  differs: "text-ink",
-  "server-unreadable": "text-danger",
-  "admin-only": "text-muted",
+const STATUS_TONE: Record<ImportStatus, StatusTone> = {
+  new: "info",
+  unchanged: "unknown",
+  copied: "unknown",
+  differs: "caution",
+  "server-unreadable": "blocked",
+  "admin-only": "unknown",
+};
+
+/** Statuses whose badge gets a one-sentence explanation below the detail. */
+const STATUS_HINT: Partial<Record<ImportStatus, MessageKey>> = {
+  new: "localImport.statusHint.new",
+  differs: "localImport.statusHint.differs",
+  "server-unreadable": "localImport.statusHint.server-unreadable",
+  "admin-only": "localImport.statusHint.admin-only",
 };
 
 type OverviewProps = {
@@ -603,7 +612,14 @@ function LocalImportOverview({
   const running = phase === "running";
 
   useEffect(() => {
+    const opener =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
     dialogRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
   }, []);
 
   const stateRef = useRef({ conflictOpen, running, onClose });
@@ -630,6 +646,7 @@ function LocalImportOverview({
     plan !== null &&
     phase === "overview" &&
     canStartImport(plan, selection, confirmed);
+  const hasActions = phase === "done" || importable.length > 0;
 
   const row = (
     key: string,
@@ -638,6 +655,7 @@ function LocalImportOverview({
     detail: string | null,
   ) => {
     const selectable = phase === "overview" && isImportable(status);
+    const hintKey = STATUS_HINT[status];
     return (
       <li
         key={key}
@@ -645,25 +663,28 @@ function LocalImportOverview({
       >
         <input
           type="checkbox"
-          className="mt-1 h-4 w-4 cursor-pointer"
+          className="mt-1 h-4 w-4"
           aria-label={t("localImport.select", { name: title })}
           checked={isImportable(status) && selection.has(key)}
           disabled={!selectable}
           onChange={() => onToggle(key)}
         />
         <div className="min-w-0 flex-1">
-          <span className="text-ink block truncate text-sm font-medium">
+          <span className="text-ink text-body block truncate font-medium">
             {title}
           </span>
           {detail ? (
-            <span className="text-muted block text-xs">{detail}</span>
+            <span className="text-muted text-micro block">{detail}</span>
+          ) : null}
+          {hintKey ? (
+            <span className="text-muted text-micro block">{t(hintKey)}</span>
           ) : null}
         </div>
-        <span
-          className={`shrink-0 text-right text-xs ${STATUS_CLASS[status]}`}
-          data-status={status}
-        >
-          {t(`localImport.status.${status}`)}
+        <span className="shrink-0" data-status={status}>
+          <StatusBadge
+            tone={STATUS_TONE[status]}
+            label={t(`localImport.status.${status}`)}
+          />
         </span>
       </li>
     );
@@ -673,6 +694,11 @@ function LocalImportOverview({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !running && !busy) {
+          onClose();
+        }
+      }}
     >
       <section
         ref={dialogRef}
@@ -683,22 +709,30 @@ function LocalImportOverview({
         aria-busy={running || planning || busy}
         className="border-line bg-surface flex max-h-[calc(100dvh-2rem)] w-full max-w-3xl flex-col overflow-hidden border shadow-[0_2px_8px_rgba(0,0,0,0.1)] outline-none"
       >
-        <header className="border-line shrink-0 border-b px-5 py-4">
+        <header className="border-line flex shrink-0 items-center justify-between border-b px-5 py-4">
           <h2 id={titleId} className="text-ink text-base font-semibold">
             {t("localImport.title")}
           </h2>
-          <p className="text-muted mt-1 text-sm">{t("localImport.intro")}</p>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={running || busy}
+            className="ui-btn text-body px-2.5 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {t("localImport.close")}
+          </button>
         </header>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+        <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-4">
+          <p className="text-muted text-body mb-4">{t("localImport.intro")}</p>
           {planning && !plan ? (
-            <p role="status" className="text-muted text-sm">
+            <p role="status" className="text-muted text-body">
               {t("localImport.loading")}
             </p>
           ) : null}
           {plan && plan.projects.length > 0 ? (
             <>
-              <h3 className="text-muted text-xs font-semibold tracking-wide uppercase">
+              <h3 className="text-ink text-body font-semibold">
                 {t("localImport.section.projects")}
               </h3>
               <ul className="mb-4">
@@ -726,7 +760,7 @@ function LocalImportOverview({
           ) : null}
           {plan && plan.catalog.length > 0 ? (
             <>
-              <h3 className="text-muted text-xs font-semibold tracking-wide uppercase">
+              <h3 className="text-ink text-body font-semibold">
                 {t("localImport.section.catalog")}
               </h3>
               <ul className="mb-4">
@@ -742,26 +776,26 @@ function LocalImportOverview({
             </>
           ) : null}
           {plan && plan.unreadable.length > 0 ? (
-            <p className="text-muted text-xs">
+            <p className="text-muted text-micro">
               {plural(t, "localImport.unreadable", plan.unreadable.length)}
             </p>
           ) : null}
           {plan && phase === "overview" && importable.length === 0 ? (
-            <p role="status" className="text-ink mt-2 text-sm">
+            <p role="status" className="text-ink text-body mt-2">
               {t("localImport.nothingToImport")}
             </p>
           ) : null}
 
           {catalogConflicts.length > 0 ? (
             <section className="mt-4">
-              <h3 className="text-ink text-sm font-semibold">
+              <h3 className="text-ink text-body font-semibold">
                 {t("localImport.catalogConflict.heading")}
               </h3>
               <ul>
                 {catalogConflicts.map((conflict) => (
                   <li
                     key={conflict.key}
-                    className="border-line border-b py-2 text-sm"
+                    className="border-line text-body border-b py-2"
                     data-catalog-conflict={conflict.local.id}
                   >
                     <p className="text-ink">
@@ -778,14 +812,17 @@ function LocalImportOverview({
                         : t("localImport.catalogConflict.serverDeleted")}
                     </p>
                     {conflict.refreshed ? (
-                      <p className="border-caution text-ink border-l-4 pl-2 text-xs">
+                      <p
+                        role="status"
+                        className="border-caution text-ink text-body mt-2 border-l-2 pl-3"
+                      >
                         {t("localImport.catalogConflict.refreshed")}
                       </p>
                     ) : null}
                     <div className="mt-2 flex flex-wrap gap-2">
                       <button
                         type="button"
-                        className="ui-btn cursor-pointer"
+                        className="ui-btn"
                         disabled={busy}
                         onClick={() => onChooseCatalog(conflict, "keep-mine")}
                       >
@@ -793,7 +830,7 @@ function LocalImportOverview({
                       </button>
                       <button
                         type="button"
-                        className="ui-btn cursor-pointer"
+                        className="ui-btn"
                         disabled={busy}
                         onClick={() => onChooseCatalog(conflict, "keep-server")}
                       >
@@ -801,7 +838,7 @@ function LocalImportOverview({
                       </button>
                       <button
                         type="button"
-                        className="ui-btn cursor-pointer"
+                        className="ui-btn"
                         disabled={busy}
                         onClick={() => onChooseCatalog(conflict, "save-copy")}
                       >
@@ -815,7 +852,7 @@ function LocalImportOverview({
           ) : null}
 
           {log.length > 0 ? (
-            <ul role="status" className="mt-4 flex flex-col gap-1 text-sm">
+            <ul role="status" className="text-body mt-4 flex flex-col gap-1">
               {log.map((line, index) => (
                 <li key={index} className="text-ink">
                   {line}
@@ -825,65 +862,61 @@ function LocalImportOverview({
           ) : null}
         </div>
 
-        <footer className="border-line shrink-0 border-t px-5 py-4">
-          {error ? (
-            <p role="alert" className="text-danger mb-3 text-sm">
-              {error}
-            </p>
-          ) : null}
-          {phase === "overview" && importable.length > 0 ? (
-            <label className="text-ink mb-3 flex cursor-pointer items-start gap-2 text-sm">
-              <input
-                type="checkbox"
-                className="mt-1 h-4 w-4 cursor-pointer"
-                checked={confirmed}
-                onChange={(event) => onConfirm(event.target.checked)}
-              />
-              <span>{t("localImport.confirmPublic")}</span>
-            </label>
-          ) : null}
-          <div className="flex flex-wrap justify-end gap-2">
-            {phase === "done" && pendingConflicts > 0 ? (
-              <button
-                type="button"
-                className="ui-btn-primary min-h-11 cursor-pointer"
-                onClick={onDecide}
-              >
-                {t("localImport.result.decide")}
-              </button>
+        {/* The header carries "Schließen", like the conflict view and the
+            project dialog; the footer holds only the import actions. */}
+        {error !== null || hasActions ? (
+          <footer className="border-line shrink-0 border-t px-5 py-4">
+            {error ? (
+              <p role="alert" className="text-danger text-body mb-3">
+                {error}
+              </p>
             ) : null}
-            {phase === "done" ? (
-              <button
-                type="button"
-                className="ui-btn min-h-11 cursor-pointer"
-                disabled={busy || planning}
-                onClick={onRecheck}
-              >
-                {t("localImport.recheck")}
-              </button>
+            {phase === "overview" && importable.length > 0 ? (
+              <label className="text-ink text-body mb-3 flex cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  className="mt-1 h-4 w-4"
+                  checked={confirmed}
+                  onChange={(event) => onConfirm(event.target.checked)}
+                />
+                <span>{t("localImport.confirmPublic")}</span>
+              </label>
             ) : null}
-            {phase !== "done" && importable.length > 0 ? (
-              <button
-                type="button"
-                className="ui-btn-primary min-h-11 cursor-pointer"
-                disabled={!canStart}
-                onClick={onStart}
-              >
-                {running
-                  ? t("localImport.running")
-                  : t("localImport.start", { count: selectedCount })}
-              </button>
-            ) : null}
-            <button
-              type="button"
-              className="ui-btn min-h-11 cursor-pointer"
-              disabled={running || busy}
-              onClick={onClose}
-            >
-              {t("localImport.close")}
-            </button>
-          </div>
-        </footer>
+            <div className="flex flex-wrap justify-end gap-2">
+              {phase === "done" ? (
+                <button
+                  type="button"
+                  className="ui-btn"
+                  disabled={busy || planning}
+                  onClick={onRecheck}
+                >
+                  {t("localImport.recheck")}
+                </button>
+              ) : null}
+              {phase !== "done" && importable.length > 0 ? (
+                <button
+                  type="button"
+                  className="ui-btn-primary"
+                  disabled={!canStart}
+                  onClick={onStart}
+                >
+                  {running
+                    ? t("localImport.running")
+                    : t("localImport.start", { count: selectedCount })}
+                </button>
+              ) : null}
+              {phase === "done" && pendingConflicts > 0 ? (
+                <button
+                  type="button"
+                  className="ui-btn-primary"
+                  onClick={onDecide}
+                >
+                  {t("localImport.result.decide")}
+                </button>
+              ) : null}
+            </div>
+          </footer>
+        ) : null}
       </section>
     </div>
   );

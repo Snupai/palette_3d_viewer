@@ -2,7 +2,7 @@
 export const authDe = {
   "auth.menu": "Konto",
   "auth.signIn": "Anmelden",
-  "auth.signingIn": "Anmeldung …",
+  "auth.signingIn": "Wird angemeldet …",
   "auth.signOut": "Abmelden",
   "auth.signedInAs": "Angemeldet als {username}",
   "auth.role.admin": "Admin",
@@ -26,13 +26,13 @@ export const authDe = {
     "Nur der Ersteller oder ein Admin kann diesen Plan löschen.",
   "auth.status.savedAsCopy": "Als Kopie gespeichert: {name}",
   "auth.confirm.signOutUnsaved":
-    "Es gibt ungespeicherte Entwürfe. Beim Abmelden werden sie verworfen, auch ihre Sicherungen in diesem Browser.",
+    "Ungespeicherte Entwürfe und ihre Sicherungen in diesem Browser verwerfen?",
   "auth.confirm.cancel": "Abbrechen",
   "auth.confirm.discardAndSignOut": "Entwürfe verwerfen und abmelden",
   "auth.error.missingCredentials": "Bitte Benutzername und Kennwort eingeben.",
   "auth.error.invalidCredentials": "Benutzername oder Kennwort ist falsch.",
-  "auth.error.generic": "Die Anmeldung ist fehlgeschlagen.",
-  "auth.error.signOutFailed": "Die Abmeldung ist fehlgeschlagen.",
+  "auth.error.generic": "Anmelden fehlgeschlagen.",
+  "auth.error.signOutFailed": "Abmelden fehlgeschlagen.",
   "auth.error.sessionExpired":
     "Die Sitzung ist abgelaufen. Bitte erneut anmelden; die Änderungen bleiben in diesem Fenster erhalten.",
 } as const;

@@ -207,6 +207,7 @@ export const projectEn = {
     "Restoring saves the draft. If the plan changed meanwhile, the conflict view opens.",
   "project.draft.backedUpAt": "backed up {time}",
   "project.draft.restore": "Restore",
+  "project.draft.restoring": "Restoring …",
   "project.draft.discard": "Discard",
   "project.draft.confirmDiscard":
     "Permanently discard the unsaved draft “{name}”?",

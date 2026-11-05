@@ -582,196 +582,203 @@ export function ProjectEditorWorkspace({
       {!ready || !solution || !pattern || !orderModel ? (
         <div className="ed-empty">{t("editor.emptyState")}</div>
       ) : (
-        <div className="ed-layout">
-          <div className="ed-stage">
-            {view === "pattern" ? (
-              <div
-                className="ed-toolbar"
-                role="toolbar"
-                aria-label={t("editor.view.pattern")}
-              >
-                <button
-                  type="button"
-                  className="ui-btn"
-                  onClick={() => insert("longitudinal")}
+        /* Read-only session or copy save in flight: the editing controls lock
+           like the form and the stack composer; the Save button above carries
+           the reason. `execute` stays the behavioural backstop. */
+        <fieldset className="fw-locked-fields" disabled={editsLocked}>
+          <div className="ed-layout">
+            <div className="ed-stage">
+              {view === "pattern" ? (
+                <div
+                  className="ed-toolbar"
+                  role="toolbar"
+                  aria-label={t("editor.view.pattern")}
                 >
-                  {t("editor.insertLongitudinal")}
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn"
-                  onClick={() => insert("transverse")}
-                >
-                  {t("editor.insertTransverse")}
-                </button>
-                <span className="ed-toolbar-gap" aria-hidden="true" />
-                <button
-                  type="button"
-                  className="ui-btn"
-                  disabled={selectedCount === 0}
-                  onClick={rotate}
-                >
-                  {t("editor.rotate")}
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn"
-                  disabled={selectedCount === 0}
-                  onClick={center}
-                >
-                  {t("editor.center")}
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn ui-btn-danger"
-                  disabled={selectedCount === 0}
-                  onClick={remove}
-                >
-                  {t("editor.delete")}
-                </button>
-                <span className="ed-toolbar-count">
-                  {t("editor.selectedCount", { count: selectedCount })}
-                </span>
-              </div>
-            ) : (
-              <div
-                className="ed-toolbar"
-                role="toolbar"
-                aria-label={t("editor.view.order")}
-              >
-                <button
-                  type="button"
-                  className="ui-btn"
-                  disabled={selectedCount === 0 || selectionProblem !== null}
-                  onClick={createGroup}
-                >
-                  {t("editor.createGrip", { count: selectedCount })}
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn"
-                  disabled={!canMergeGrips}
-                  onClick={mergeGroups}
-                >
-                  {t("editor.mergeGrips", { count: selectedGripIds.size })}
-                </button>
-                <span className="ed-toolbar-gap" aria-hidden="true" />
-                <button
-                  type="button"
-                  className="ui-btn"
-                  disabled={!pattern || pattern.placements.length === 0}
-                  onClick={recalculateGroups}
-                >
-                  {t("editor.recalculateGrips")}
-                </button>
-                <button
-                  type="button"
-                  className="ui-btn-primary"
-                  disabled={orderModel.groups.length === 0}
-                  onClick={applySuggestedOrder}
-                >
-                  {t("editor.autoOrder")}
-                </button>
-                <span className="ed-toolbar-count">
-                  {t("editor.selectedCount", { count: selectedCount })}
-                </span>
-              </div>
-            )}
-            <PatternCanvas
-              interactionMode={view === "order" ? "select" : "edit"}
-              project={history.present}
-              pattern={pattern}
-              groups={orderModel.groups}
-              selectedPlacementIds={effectiveSelection}
-              invalidPlacementIds={selectionProblem?.placementIds}
-              fineStepMm={positiveStep(fineStepDraft, 1)}
-              coarseStepMm={positiveStep(coarseStepDraft, 10)}
-              onSelectionChange={(ids) => setSelectedPlacementIds(new Set(ids))}
-              onMoveSelection={(deltaMm, ids) => move(deltaMm, ids)}
-              onNudgeSelection={(deltaMm) => move(deltaMm)}
-              onDeleteSelection={remove}
-              onRotateSelection={rotate}
-            />
-          </div>
-
-          <aside className="ed-side">
-            {view === "pattern" ? (
-              <ArrangePanel
-                solution={solution}
-                pattern={pattern}
-                selectedPlacementIds={effectiveSelection}
-                fineStepDraft={fineStepDraft}
-                coarseStepDraft={coarseStepDraft}
-                onFineStepChange={setFineStepDraft}
-                onCoarseStepChange={setCoarseStepDraft}
-                execute={execute}
-              />
-            ) : (
-              <OrderPanel
-                solution={solution}
-                pattern={pattern}
-                orderModel={orderModel}
-                selectedPlacementIds={effectiveSelection}
-                selectionProblem={selectionProblem}
-                onSelectionChange={setSelectedPlacementIds}
-                execute={execute}
-              />
-            )}
-
-            <section className="ed-panel" aria-labelledby="ed-check-title">
-              <div className="ed-panel-head">
-                <h3 id="ed-check-title">{t("editor.check")}</h3>
-                <small>
-                  {diagnostics.length === 0
-                    ? t("editor.noHints")
-                    : t("editor.hintCount", { count: diagnostics.length })}
-                </small>
-              </div>
-              {diagnostics.length === 0 ? (
-                <p className="ed-ok">{t("editor.allValid")}</p>
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    onClick={() => insert("longitudinal")}
+                  >
+                    {t("editor.insertLongitudinal")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    onClick={() => insert("transverse")}
+                  >
+                    {t("editor.insertTransverse")}
+                  </button>
+                  <span className="ed-toolbar-gap" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    disabled={selectedCount === 0}
+                    onClick={rotate}
+                  >
+                    {t("editor.rotate")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    disabled={selectedCount === 0}
+                    onClick={center}
+                  >
+                    {t("editor.center")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn ui-btn-danger"
+                    disabled={selectedCount === 0}
+                    onClick={remove}
+                  >
+                    {t("editor.delete")}
+                  </button>
+                  <span className="ed-toolbar-count">
+                    {t("editor.selectedCount", { count: selectedCount })}
+                  </span>
+                </div>
               ) : (
-                <ul className="ed-diag">
-                  {diagnostics.map((diagnostic, index) => (
-                    <li
-                      key={`${diagnostic.code}-${index}`}
-                      data-severity={diagnostic.severity}
-                    >
-                      {describeDiagnostic(
-                        diagnostic,
-                        pattern,
-                        orderModel.groups,
-                        t,
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div
+                  className="ed-toolbar"
+                  role="toolbar"
+                  aria-label={t("editor.view.order")}
+                >
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    disabled={selectedCount === 0 || selectionProblem !== null}
+                    onClick={createGroup}
+                  >
+                    {t("editor.createGrip", { count: selectedCount })}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    disabled={!canMergeGrips}
+                    onClick={mergeGroups}
+                  >
+                    {t("editor.mergeGrips", { count: selectedGripIds.size })}
+                  </button>
+                  <span className="ed-toolbar-gap" aria-hidden="true" />
+                  <button
+                    type="button"
+                    className="ui-btn"
+                    disabled={!pattern || pattern.placements.length === 0}
+                    onClick={recalculateGroups}
+                  >
+                    {t("editor.recalculateGrips")}
+                  </button>
+                  <button
+                    type="button"
+                    className="ui-btn-primary"
+                    disabled={orderModel.groups.length === 0}
+                    onClick={applySuggestedOrder}
+                  >
+                    {t("editor.autoOrder")}
+                  </button>
+                  <span className="ed-toolbar-count">
+                    {t("editor.selectedCount", { count: selectedCount })}
+                  </span>
+                </div>
               )}
-            </section>
+              <PatternCanvas
+                interactionMode={view === "order" ? "select" : "edit"}
+                project={history.present}
+                pattern={pattern}
+                groups={orderModel.groups}
+                selectedPlacementIds={effectiveSelection}
+                invalidPlacementIds={selectionProblem?.placementIds}
+                fineStepMm={positiveStep(fineStepDraft, 1)}
+                coarseStepMm={positiveStep(coarseStepDraft, 10)}
+                onSelectionChange={(ids) =>
+                  setSelectedPlacementIds(new Set(ids))
+                }
+                onMoveSelection={(deltaMm, ids) => move(deltaMm, ids)}
+                onNudgeSelection={(deltaMm) => move(deltaMm)}
+                onDeleteSelection={remove}
+                onRotateSelection={rotate}
+              />
+            </div>
 
-            <InterlayerPanel solution={solution} execute={execute} />
+            <aside className="ed-side">
+              {view === "pattern" ? (
+                <ArrangePanel
+                  solution={solution}
+                  pattern={pattern}
+                  selectedPlacementIds={effectiveSelection}
+                  fineStepDraft={fineStepDraft}
+                  coarseStepDraft={coarseStepDraft}
+                  onFineStepChange={setFineStepDraft}
+                  onCoarseStepChange={setCoarseStepDraft}
+                  execute={execute}
+                />
+              ) : (
+                <OrderPanel
+                  solution={solution}
+                  pattern={pattern}
+                  orderModel={orderModel}
+                  selectedPlacementIds={effectiveSelection}
+                  selectionProblem={selectionProblem}
+                  onSelectionChange={setSelectedPlacementIds}
+                  execute={execute}
+                />
+              )}
 
-            {robotDiagnostics.length > 0 ? (
-              <details className="ed-panel-details">
-                <summary>
-                  {t("editor.robotCheck")}{" "}
-                  <small>{robotDiagnostics.length}</small>
-                </summary>
-                <div>
+              <section className="ed-panel" aria-labelledby="ed-check-title">
+                <div className="ed-panel-head">
+                  <h3 id="ed-check-title">{t("editor.check")}</h3>
+                  <small>
+                    {diagnostics.length === 0
+                      ? t("editor.noHints")
+                      : t("editor.hintCount", { count: diagnostics.length })}
+                  </small>
+                </div>
+                {diagnostics.length === 0 ? (
+                  <p className="ed-ok">{t("editor.allValid")}</p>
+                ) : (
                   <ul className="ed-diag">
-                    {robotDiagnostics.map((diagnostic, index) => (
+                    {diagnostics.map((diagnostic, index) => (
                       <li
                         key={`${diagnostic.code}-${index}`}
                         data-severity={diagnostic.severity}
                       >
-                        {diagnostic.message}
+                        {describeDiagnostic(
+                          diagnostic,
+                          pattern,
+                          orderModel.groups,
+                          t,
+                        )}
                       </li>
                     ))}
                   </ul>
-                </div>
-              </details>
-            ) : null}
-          </aside>
-        </div>
+                )}
+              </section>
+
+              <InterlayerPanel solution={solution} execute={execute} />
+
+              {robotDiagnostics.length > 0 ? (
+                <details className="ed-panel-details">
+                  <summary>
+                    {t("editor.robotCheck")}{" "}
+                    <small>{robotDiagnostics.length}</small>
+                  </summary>
+                  <div>
+                    <ul className="ed-diag">
+                      {robotDiagnostics.map((diagnostic, index) => (
+                        <li
+                          key={`${diagnostic.code}-${index}`}
+                          data-severity={diagnostic.severity}
+                        >
+                          {diagnostic.message}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </details>
+              ) : null}
+            </aside>
+          </div>
+        </fieldset>
       )}
     </section>
   );

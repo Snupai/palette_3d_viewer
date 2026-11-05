@@ -1,4 +1,10 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Drawer } from "~/components/ui/Drawer";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
@@ -57,9 +63,10 @@ describe("ProjectConflictView over an open Drawer", () => {
 
   it("keeps Tab focus inside the conflict view", () => {
     renderOverDrawer();
-    const first = screen.getByRole("button", {
-      name: "Meinen Entwurf speichern",
+    const dialog = screen.getByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
     });
+    const first = within(dialog).getByRole("button", { name: "Schließen" });
     const last = screen.getByRole("button", { name: "Später entscheiden" });
 
     last.focus();
