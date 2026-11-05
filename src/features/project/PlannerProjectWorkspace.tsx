@@ -181,6 +181,9 @@ export type PlannerProjectWorkspaceProps = {
 
 type DialogMode = "closed" | "create" | "edit";
 
+/** The stored version a restored draft backup is based on (#35). */
+type RestoreBase = { version: RecordVersion | null };
+
 function productionToolTitles(t: Translate): Record<ProductionTool, string> {
   return {
     "candidate-browser": t("project.tool.candidateBrowser"),
@@ -410,7 +413,10 @@ export function PlannerProjectWorkspace({
   const [conflict, setConflict] = useState<ProjectConflict | null>(null);
 
   /** Backs up an unsaved draft of `project`; `false` if it could not. */
-  const backUpDraft = (project: Project): boolean => {
+  const backUpDraft = (
+    project: Project,
+    baseVersion = draftBaseVersion(loadedVersionRef.current, project.id),
+  ): boolean => {
     const owner = draftOwner(project.id);
     const scope = backupScopeFor(owner);
     if (!scope) return false;
@@ -418,7 +424,7 @@ export function PlannerProjectWorkspace({
       backupStorage(),
       scope,
       project,
-      draftBaseVersion(loadedVersionRef.current, project.id),
+      baseVersion,
       Date.now(),
     );
     if (written) {
@@ -685,16 +691,17 @@ export function PlannerProjectWorkspace({
    * The one write path for the open plan. In server mode it saves against the
    * version the plan was loaded at; a concurrent save elsewhere rejects with a
    * version conflict, which opens the conflict view and rejects the caller so
-   * its draft stays unsaved and intact (ADR 0006).
+   * its draft stays unsaved and intact (ADR 0006). A restored backup
+   * passes the version it was based on (`null`: the plan must not exist yet).
    */
   const persistProject = async (
     project: Project,
+    restoreBase?: RestoreBase,
   ): Promise<VersionedProject> => {
-    const options = projectSaveOptions(
-      storageMode,
-      loadedVersionRef.current,
-      project.id,
-    );
+    const options =
+      restoreBase && storageMode === "server"
+        ? { expectedVersion: restoreBase.version }
+        : projectSaveOptions(storageMode, loadedVersionRef.current, project.id);
     const generation = navigationGeneration.current;
     // Like the success paths: a reply for a plan the user has left (switched,
     // closed, discarded) must not open a conflict view over the new context.
@@ -729,6 +736,7 @@ export function PlannerProjectWorkspace({
    */
   const saveForSession = async (
     project: Project,
+    restoreBase?: RestoreBase,
   ): Promise<{ saved: Project; version: RecordVersion; copied: boolean }> => {
     const access = accessFor(project.id);
     if (access.save === "none") {
@@ -754,7 +762,10 @@ export function PlannerProjectWorkspace({
           setCopySaving(false);
         }
       }
-      const { project: saved, version } = await persistProject(project);
+      const { project: saved, version } = await persistProject(
+        project,
+        restoreBase,
+      );
       dropDraftBackup(project.id);
       setSaveFailure(null);
       return { saved, version, copied: false };
@@ -762,7 +773,14 @@ export function PlannerProjectWorkspace({
       // Unreachable server or expired session: the draft stays pending in
       // the browser and is backed up locally (ADR 0002).
       const reason = saveFailureReason(cause);
-      if (reason) setSaveFailure({ reason, backedUp: backUpDraft(project) });
+      if (reason) {
+        // A restore keeps the backup's own base version, not the version the
+        // plan was reloaded at meanwhile.
+        const backedUp = restoreBase
+          ? backUpDraft(project, restoreBase.version)
+          : backUpDraft(project);
+        setSaveFailure({ reason, backedUp });
+      }
       const message = sessionLossMessage(cause);
       if (message) throw new Error(message, { cause });
       if (reason === "network") {
@@ -772,14 +790,20 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const saveProject = async (project: Project): Promise<Project> => {
+  const saveProjectAt = async (
+    project: Project,
+    restoreBase?: RestoreBase,
+  ): Promise<Project> => {
     setShowWelcome(false);
     setProjectDrawerOpen(false);
     setError(null);
     setStatusMessage(null);
     const switchedProject = selectedId !== project.id;
     const generation = navigationGeneration.current;
-    const { saved, version, copied } = await saveForSession(project);
+    const { saved, version, copied } = await saveForSession(
+      project,
+      restoreBase,
+    );
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = saved.id;
     loadedVersionRef.current = { projectId: saved.id, version };
@@ -802,6 +826,7 @@ export function PlannerProjectWorkspace({
     await refreshProjects();
     return saved;
   };
+  const saveProject = (project: Project) => saveProjectAt(project);
 
   const hasUnsavedChanges = stackDirty || editorDirty || inputsDirty;
   const confirmDiscardUnsaved = (action: string): boolean =>
@@ -1732,14 +1757,12 @@ export function PlannerProjectWorkspace({
     setGeneratorLaunchRequest(null);
     setDialogMode("closed");
     selectedProjectIdRef.current = backup.projectId;
-    loadedVersionRef.current =
-      backup.baseVersion === null
-        ? null
-        : { projectId: backup.projectId, version: backup.baseVersion };
     setSelectedId(backup.projectId);
     setRestoringDraft(true);
     try {
-      const saved = await saveProject(backup.project);
+      const saved = await saveProjectAt(backup.project, {
+        version: backup.baseVersion,
+      });
       // Re-read so a load started before the save cannot win with the
       // version the draft replaced.
       setProjectReloadToken((token) => token + 1);

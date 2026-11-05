@@ -28,6 +28,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  window.history.replaceState(null, "", "/");
 });
 
 /** Browser storage for the draft backups (#35); the test runtime has none. */
@@ -597,6 +598,95 @@ describe("PlannerProjectWorkspace editor integration", () => {
     ).toBe("SERVER");
     // Not settled yet: the backup stays until the conflict is decided.
     expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+  });
+
+  it("restores a draft of a never-stored plan only if the plan still does not exist", async () => {
+    const storage = stubLocalStorage();
+    // The first save reached the server, but its answer was lost: the backup
+    // has no base version although the plan exists now.
+    const { project, repository } = await repositoryWithProject();
+    writeDraftBackup(
+      storage,
+      aliceScope(),
+      updateProject(project, { productNumber: "MINE" }),
+      null,
+      5,
+    );
+    const save = vi.spyOn(repository, "saveProjectVersioned");
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Wiederherstellen" }),
+    );
+
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    expect(save.mock.calls[0]?.[1]).toEqual({ expectedVersion: null });
+    const stored = await repository.getProject(project.id);
+    expect([stored.version, stored.project?.productNumber]).toEqual([
+      1,
+      project.productNumber,
+    ]);
+    expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+  });
+
+  it("re-backs up a failed restore with the draft's own base version", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    // Saved elsewhere after the draft was backed up at version 1.
+    await repository.saveProjectVersioned(
+      updateProject(project, { productNumber: "SERVER" }),
+      { expectedVersion: 1 },
+    );
+    // Another plan is open, so restoring has to load this one first.
+    await repository.saveProject(
+      createProject(
+        { id: "other-plan", projectNumber: "OTHER" },
+        { now: () => 1, createId: (kind) => `${kind}-other` },
+      ),
+    );
+    writeDraftBackup(
+      storage,
+      aliceScope(),
+      updateProject(project, { productNumber: "MINE" }),
+      1,
+      5,
+    );
+    window.history.replaceState(null, "", "/plan/other-plan");
+    // The restore save fails only after the plan's load has finished.
+    vi.spyOn(repository, "saveProjectVersioned").mockImplementation(
+      async () => {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        throw new ServerStorageError("network", "put", "projects", null);
+      },
+    );
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Wiederherstellen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Der Server ist nicht erreichbar. Der Entwurf bleibt in diesem Browser erhalten; bitte später erneut speichern.",
+      ),
+    ).toBeTruthy();
+    const [backup] = readDraftBackups(storage, aliceScope());
+    expect([backup?.baseVersion, backup?.project.productNumber]).toEqual([
+      1,
+      "MINE",
+    ]);
   });
 
   it("asks before signing out with unsaved drafts and then removes this user's backups", async () => {
