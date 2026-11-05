@@ -64,6 +64,7 @@ prune() {
   done
   # Leftovers of a dump that was killed mid-write.
   find "$BACKUP_DIR" -maxdepth 1 -type f -name '.palette-partial.*' -mmin +1440 -exec rm -f -- {} +
+  find "$BACKUP_DIR" -maxdepth 1 -type d -name '.palette-lock.*' -mmin +1440 -exec rmdir -- {} + 2>/dev/null || true
 }
 
 backup_once() {
@@ -77,23 +78,32 @@ backup_once() {
   # Dumps contain password hashes: readable by the owner only.
   if (umask 077 && "$PG_DUMP" --format=custom --file="$partial") &&
     "$PG_RESTORE" --list "$partial" >/dev/null; then
-    # Reserve the final name with an exclusive create (noclobber), so two
-    # runs in the same second never replace each other's dump; then move the
-    # checked dump over the empty placeholder.
+    # Claim the final name with an atomic `mkdir` lock (a hidden directory),
+    # so two runs in the same second never replace each other's dump and no
+    # empty `palette-*.dump` placeholder can be left behind if we are killed.
     name="palette-$stamp.dump"
     n=1
-    until (set -C && : >"$BACKUP_DIR/$name") 2>/dev/null; do
+    while :; do
+      lock="$BACKUP_DIR/.palette-lock.$name"
+      if mkdir -- "$lock" 2>/dev/null; then
+        [ -e "$BACKUP_DIR/$name" ] || break
+        rmdir -- "$lock"
+      fi
       n=$((n + 1))
-      [ "$n" -le 100 ] || break
+      if [ "$n" -gt 100 ]; then
+        lock=
+        break
+      fi
       name="palette-$stamp-$n.dump"
     done
-    if [ "$n" -le 100 ]; then
+    if [ -n "$lock" ]; then
       if mv -f -- "$partial" "$BACKUP_DIR/$name"; then
+        rmdir -- "$lock"
         log "wrote $name ($(wc -c <"$BACKUP_DIR/$name" | tr -d ' ') bytes)"
         prune
         return 0
       fi
-      rm -f -- "$BACKUP_DIR/$name"
+      rmdir -- "$lock"
     fi
   fi
   rm -f -- "$partial"

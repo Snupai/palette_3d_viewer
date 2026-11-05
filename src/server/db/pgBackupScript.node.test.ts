@@ -152,6 +152,12 @@ printf 'PGDMP ' >"$f"; sleep 1; printf '%s' "$$" >>"$f"`,
       readFileSync(path.join(backups, file), "utf8"),
     );
     expect(new Set(contents).size).toBe(2);
+    // No temp file, lock or empty placeholder is left behind.
+    expect(
+      readdirSync(backups, { withFileTypes: true })
+        .map((e) => e.name)
+        .sort(),
+    ).toEqual(files);
   });
 
   it("honours PALETTE_BACKUP_RETENTION_DAYS", () => {
