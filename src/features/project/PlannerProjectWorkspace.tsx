@@ -504,6 +504,12 @@ export function PlannerProjectWorkspace({
       loadedVersionRef.current,
       project.id,
     );
+    const generation = navigationGeneration.current;
+    // Like the success paths: a reply for a plan the user has left (switched,
+    // closed, discarded) must not open a conflict view over the new context.
+    const stillOpen = () =>
+      generation === navigationGeneration.current &&
+      selectedProjectIdRef.current === project.id;
     try {
       const saved = await repository.saveProjectVersioned(project, options);
       if (selectedProjectIdRef.current === saved.project.id) {
@@ -515,7 +521,9 @@ export function PlannerProjectWorkspace({
       return saved;
     } catch (cause) {
       if (!options || !isProjectVersionConflict(cause, project.id)) throw cause;
+      if (!stillOpen()) throw cause;
       const server = await readConflictServerState(repository, project.id);
+      if (!stillOpen()) throw cause;
       setConflictError(null);
       setConflict(createProjectConflict(project, server));
       throw new Error(t("conflict.saveRejected"), { cause });

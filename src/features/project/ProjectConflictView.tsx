@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef } from "react";
 import type { Project } from "~/domain/project/projectSchema";
 import { useLocale } from "~/i18n";
+import { focusableWithin, wrapFocusIndex } from "~/components/ui/focusTrap";
 import { PlanRender } from "~/features/planner/PlanRender";
 import { planLibraryEntry } from "~/features/planner/planLibraryModel";
 import {
@@ -66,6 +67,36 @@ export function ProjectConflictView({
     dialogRef.current?.focus();
   }, [conflict]);
 
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  const onLaterRef = useRef(onLater);
+  onLaterRef.current = onLater;
+  useEffect(() => {
+    // The view can open over a production-tool Drawer, whose document-level
+    // keydown listener would close the tool (discarding the draft) on Escape
+    // and pull Tab focus back into it. Claim both keys first, like the
+    // document camera does over the project dialog.
+    const onKeyDown = (event: KeyboardEvent) => {
+      const dialog = dialogRef.current;
+      if (!dialog || (event.key !== "Escape" && event.key !== "Tab")) return;
+      event.stopImmediatePropagation();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!busyRef.current) onLaterRef.current();
+        return;
+      }
+      const items = focusableWithin(dialog);
+      const index = items.findIndex((item) => item === document.activeElement);
+      const next = wrapFocusIndex(index, items.length, event.shiftKey);
+      if (next !== null) {
+        event.preventDefault();
+        items[next]?.focus();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
   const planTitle = (project: Project) =>
     project.productNumber || project.projectNumber || t("project.untitledPlan");
   const summary =
@@ -105,11 +136,6 @@ export function ProjectConflictView({
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
       role="presentation"
-      onKeyDown={(event) => {
-        if (event.key !== "Escape" || busy) return;
-        event.preventDefault();
-        onLater();
-      }}
     >
       <section
         ref={dialogRef}
