@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -7,6 +8,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
+import type { Project } from "~/domain/project/projectSchema";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
@@ -17,6 +19,7 @@ import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
   readDraftBackups,
   writeDraftBackup,
+  type DraftBackupScope,
   type DraftBackupStorage,
 } from "~/features/project/draftBackupModel";
 
@@ -51,6 +54,20 @@ const aliceScope = () => ({
   server: window.location.origin,
   userId: "u-alice",
 });
+
+/** A backup an earlier session's draft left behind. */
+function seedBackup(
+  storage: DraftBackupStorage,
+  scope: DraftBackupScope,
+  project: Project,
+  baseVersion: number | null,
+  savedAt: number,
+) {
+  writeDraftBackup(storage, scope, project, baseVersion, savedAt, {
+    token: `earlier-${scope.userId}-${project.id}`,
+    rev: 1,
+  });
+}
 
 function plannerProject() {
   return createProject(
@@ -523,15 +540,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     const storage = stubLocalStorage();
     const { project, repository } = await repositoryWithProject();
     const draft = updateProject(project, { productNumber: "RESTORED" });
-    writeDraftBackup(storage, aliceScope(), draft, 1, 5);
+    seedBackup(storage, aliceScope(), draft, 1, 5);
     // Another user's draft on this server is not offered.
-    writeDraftBackup(
-      storage,
-      { ...aliceScope(), userId: "u-bob" },
-      draft,
-      1,
-      5,
-    );
+    seedBackup(storage, { ...aliceScope(), userId: "u-bob" }, draft, 1, 5);
     const save = vi.spyOn(repository, "saveProjectVersioned");
 
     render(
@@ -573,7 +584,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
       updateProject(project, { productNumber: "SERVER" }),
       { expectedVersion: 1 },
     );
-    writeDraftBackup(
+    seedBackup(
       storage,
       aliceScope(),
       updateProject(project, { productNumber: "MINE" }),
@@ -605,7 +616,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     // The first save reached the server, but its answer was lost: the backup
     // has no base version although the plan exists now.
     const { project, repository } = await repositoryWithProject();
-    writeDraftBackup(
+    seedBackup(
       storage,
       aliceScope(),
       updateProject(project, { productNumber: "MINE" }),
@@ -650,7 +661,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
         { now: () => 1, createId: (kind) => `${kind}-other` },
       ),
     );
-    writeDraftBackup(
+    seedBackup(
       storage,
       aliceScope(),
       updateProject(project, { productNumber: "MINE" }),
@@ -692,9 +703,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
   it("asks before signing out with unsaved drafts and then removes this user's backups", async () => {
     const storage = stubLocalStorage();
     const { project, repository } = await repositoryWithProject();
-    writeDraftBackup(storage, aliceScope(), project, 1, 5);
+    seedBackup(storage, aliceScope(), project, 1, 5);
     const elsewhere = { server: "https://other.example", userId: "u-alice" };
-    writeDraftBackup(storage, elsewhere, project, 1, 5);
+    seedBackup(storage, elsewhere, project, 1, 5);
     const fetchImpl = vi.fn<typeof fetch>(async (input) =>
       input === "/api/auth/logout"
         ? new Response(null, { status: 204 })
@@ -783,6 +794,557 @@ describe("PlannerProjectWorkspace editor integration", () => {
       method: "POST",
     });
     expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
+  });
+
+  // Backup lifecycle hole A (#35 audit).
+  it("keeps an earlier session's backup of a plan when a new draft of it is edited and saved (server mode)", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    seedBackup(
+      storage,
+      aliceScope(),
+      updateProject(project, { productNumber: "EARLIER" }),
+      1,
+      5,
+    );
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await screen.findByRole("region", {
+      name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+    });
+    // Instead of restoring, alice opens the plan, edits it and saves.
+    await editLabelSideInEditor(onUnsavedChange);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(async () => {
+      const saved = await repository.getProject(project.id);
+      expect([
+        saved.version,
+        saved.project?.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+      ]).toEqual([2, "left"]);
+    });
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
+    );
+
+    // The earlier draft was neither saved nor discarded: it stays on offer.
+    const backups = readDraftBackups(storage, aliceScope());
+    expect(
+      backups.map(({ token, baseVersion, project: draft }) => [
+        token,
+        baseVersion,
+        draft.productNumber,
+      ]),
+    ).toEqual([[`earlier-u-alice-${project.id}`, 1, "EARLIER"]]);
+    const offer = screen.getByRole("region", {
+      name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+    });
+    expect(offer.querySelectorAll("li")).toHaveLength(1);
+  });
+
+  // Backup lifecycle hole B (#35 audit).
+  it("backs up the conflict view's draft at its own base version when saving it fails (server mode)", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    // Another session saves the plan at version 1 -> 2.
+    await repository.saveProjectVersioned(
+      updateProject(project, { projectNumber: "THEIRS" }, { now: () => 20 }),
+      { expectedVersion: 1 },
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
+    });
+
+    // Saving "mine" from the conflict view meets an unreachable server.
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValueOnce(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Meinen Entwurf speichern" }),
+    );
+
+    expect(
+      await screen.findByText("Speichern ausstehend · Server nicht erreichbar"),
+    ).toBeTruthy();
+    const [backup] = readDraftBackups(storage, aliceScope());
+    expect([
+      backup?.projectId,
+      backup?.baseVersion,
+      backup?.project.projectNumber,
+      backup?.project.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+    ]).toEqual([project.id, 1, "M5-EDITOR", "left"]);
+    expect(
+      (await repository.getProject(project.id)).project?.projectNumber,
+    ).toBe("THEIRS");
+  });
+
+  // Backup lifecycle hole C (#35 audit).
+  it("keeps a failed .rob import's backup when a conflict on another plan is settled (server mode)", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await openSavedPlan();
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+
+    // The import's save fails: its new plan lives only in its backup, and
+    // the saved plan stays open.
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValueOnce(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    await screen.findByRole("region", { name: "Planbibliothek" });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="file"][accept=".rob,text/plain"]',
+    )!;
+    const file = new File([referenceRob], "reference.rob", {
+      type: "text/plain",
+    });
+    Object.defineProperty(file, "text", {
+      value: () => Promise.resolve(referenceRob),
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    const [robBackup] = readDraftBackups(storage, aliceScope());
+    expect(robBackup?.projectId.startsWith("rob-")).toBe(true);
+
+    // Someone else saves the open plan; the user's own edit of it conflicts.
+    await repository.saveProjectVersioned(
+      updateProject(project, { projectNumber: "THEIRS" }, { now: () => 20 }),
+      { expectedVersion: 1 },
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Planangaben bearbeiten" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: /Artikel und Linie/ }));
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "MINE" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await screen.findByRole("dialog", {
+      name: "Plan wurde inzwischen geändert",
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Serverstand übernehmen" }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {
+          name: "Plan wurde inzwischen geändert",
+        }),
+      ).toBeNull(),
+    );
+
+    // Settling the open plan's conflict discards nothing of the import.
+    expect(confirm).not.toHaveBeenCalled();
+    expect(
+      readDraftBackups(storage, aliceScope()).map((backup) => backup.projectId),
+    ).toEqual([robBackup?.projectId]);
+  });
+
+  // Backup lifecycle hole E (#35 audit).
+  it("keeps a restored draft's backup on offer when its conflict is decided later, also after a reload", async () => {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    // The .rob import's save reaches the server, but its answer is lost: the
+    // draft is backed up as never stored although the plan exists now.
+    const persist = repository.saveProjectVersioned.bind(repository);
+    vi.spyOn(repository, "saveProjectVersioned").mockImplementationOnce(
+      async (input, options) => {
+        await persist(input, options);
+        throw new ServerStorageError("network", "put", "projects", null);
+      },
+    );
+    const view = (
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />
+    );
+    const { unmount } = render(view);
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    await screen.findByRole("region", { name: "Planbibliothek" });
+    const input = document.querySelector<HTMLInputElement>(
+      'input[type="file"][accept=".rob,text/plain"]',
+    )!;
+    const file = new File([referenceRob], "reference.rob", {
+      type: "text/plain",
+    });
+    Object.defineProperty(file, "text", {
+      value: () => Promise.resolve(referenceRob),
+    });
+    fireEvent.change(input, { target: { files: [file] } });
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    const [backup] = readDraftBackups(storage, aliceScope());
+    expect(backup?.baseVersion).toBe(null);
+    expect((await repository.getProject(backup!.projectId)).version).toBe(1);
+
+    // Restoring it meets the stored plan: the conflict view opens.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
+    expect(await screen.findByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Später entscheiden" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    // Undecided: the backup stays, and is offered again.
+    expect(
+      readDraftBackups(storage, aliceScope()).map(
+        ({ projectId, baseVersion }) => [projectId, baseVersion],
+      ),
+    ).toEqual([[backup!.projectId, null]]);
+    expect(
+      screen
+        .getByRole("region", {
+          name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+        })
+        .querySelectorAll("li"),
+    ).toHaveLength(1);
+
+    // Still offered after a reload.
+    unmount();
+    render(view);
+    const offer = await screen.findByRole("region", {
+      name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
+    });
+    expect(offer.querySelectorAll("li")).toHaveLength(1);
+  });
+
+  // Backup lifecycle hole G (#35 audit).
+  it("keeps a discarded draft discarded when its save fails afterwards (server mode)", async () => {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    let fail!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      fail = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async () => {
+        await pending;
+        throw new ServerStorageError("network", "put", "projects", null);
+      });
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    // The user discards the draft while its save is still in flight.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(
+      await screen.findByRole("region", { name: "Planbibliothek" }),
+    ).toBeTruthy();
+    expect(readDraftBackups(storage, aliceScope())).toEqual([]);
+
+    // Only then does the save fail: the discarded draft stays discarded.
+    await act(async () => {
+      fail();
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    });
+    expect(readDraftBackups(storage, aliceScope())).toEqual([]);
+    expect(screen.queryByText(/Speichern ausstehend/)).toBeNull();
+    expect(screen.queryByRole("region", { name: /Ungespeicherte/ })).toBeNull();
+  });
+
+  // Backup lifecycle hole I (#35 audit).
+  it("keeps an earlier session's backup of a plan when an editor change to it is undone", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    const draft = updateProject(project, { productNumber: "EARLIER" });
+    seedBackup(storage, aliceScope(), draft, 1, 5);
+    const [earlier] = readDraftBackups(storage, aliceScope());
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await screen.findByRole("button", { name: "Wiederherstellen" });
+    await editLabelSideInEditor(onUnsavedChange);
+    fireEvent.click(screen.getByRole("button", { name: "Rückgängig" }));
+    await waitFor(() =>
+      expect(onUnsavedChange).toHaveBeenLastCalledWith(false),
+    );
+
+    expect(readDraftBackups(storage, aliceScope())).toEqual([earlier]);
+    expect(earlier?.project.productNumber).toBe("EARLIER");
+    expect(earlier?.baseVersion).toBe(1);
+  });
+
+  // Backup lifecycle hole J (#35 audit).
+  it("keeps a save that fails after a sign-out and someone else's sign-in out of the new user's backups and session", async () => {
+    const storage = stubLocalStorage();
+    const { repository } = await repositoryWithProject();
+    let failSave!: (cause: unknown) => void;
+    vi.spyOn(repository, "saveProjectVersioned").mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          failSave = reject;
+        }),
+    );
+    const bob = { id: "u-bob", username: "bob", role: "user" };
+    const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+      if (input === "/api/auth/logout") {
+        return new Response(null, { status: 204 });
+      }
+      if (input === "/api/auth/login") {
+        return new Response(JSON.stringify({ user: bob }), { status: 200 });
+      }
+      return signedInFetch(input);
+    });
+    const onUnsavedChange = vi.fn();
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(failSave).toBeTypeOf("function"));
+
+    // Alice signs out while the save is still in flight; bob signs in.
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entwürfe verwerfen und abmelden" }),
+    );
+    await waitFor(() => expect(screen.getByText("Nur lesen")).toBeTruthy());
+    fireEvent.change(screen.getByLabelText("Benutzername"), {
+      target: { value: "bob" },
+    });
+    fireEvent.change(screen.getByLabelText("Kennwort"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "bob",
+      ),
+    );
+
+    // Alice's old save now fails with a 401 from before the sign-out.
+    await act(async () => {
+      failSave(
+        new ServerStorageError("unauthenticated", "put", "projects", 401),
+      );
+    });
+
+    const bobScope = { ...aliceScope(), userId: "u-bob" };
+    expect(readDraftBackups(storage, bobScope)).toEqual([]);
+    expect(screen.queryByText(/Speichern ausstehend/)).toBeNull();
+    expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+      "bob",
+    );
+    expect(screen.queryByText("Nur lesen")).toBeNull();
+  });
+
+  // Backup lifecycle hole K (#35 audit).
+  it("warns before signing out when another tab backed up a draft after this window rendered", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      input === "/api/auth/logout"
+        ? new Response(null, { status: 204 })
+        : signedInFetch(input),
+    );
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    expect(readDraftBackups(storage, aliceScope())).toEqual([]);
+    // Another tab of alice's backs up its draft; no storage event reaches us.
+    writeDraftBackup(storage, aliceScope(), project, 1, 20, {
+      token: "other-tab-draft",
+      rev: 1,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
+
+    expect(
+      screen.getByRole("button", { name: "Entwürfe verwerfen und abmelden" }),
+    ).toBeTruthy();
+    expect(fetchImpl).not.toHaveBeenCalledWith("/api/auth/logout", {
+      method: "POST",
+    });
+    expect(
+      readDraftBackups(storage, aliceScope()).map(({ token }) => token),
+    ).toEqual(["other-tab-draft"]);
+  });
+
+  // Backup lifecycle hole L (#35 audit).
+  it("keeps a newer editor draft's backup when a discarded draft's slow save succeeds (server mode)", async () => {
+    const storage = stubLocalStorage();
+    const { project, repository } = await repositoryWithProject();
+    const onUnsavedChange = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        onUnsavedChange={onUnsavedChange}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    await editLabelSideInEditor(onUnsavedChange);
+    const persist = repository.saveProjectVersioned.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (input, options) => {
+        await pending;
+        return persist(input, options);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    // The user discards that draft while its save is in flight, reopens the
+    // plan and starts a new editor draft.
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "M5-EDITOR öffnen" }),
+    );
+    expect(
+      await screen.findByRole(
+        "heading",
+        { name: "M5-EDITOR" },
+        { timeout: 5_000 },
+      ),
+    ).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
+    expect(await screen.findByTestId("project-editor-workspace")).toBeTruthy();
+    const packageRect = document.querySelector<SVGRectElement>(
+      '[data-placement-id="placement-1"] rect',
+    )!;
+    fireEvent.pointerDown(packageRect, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 200,
+    });
+    fireEvent.pointerUp(packageRect, {
+      pointerId: 1,
+      clientX: 100,
+      clientY: 200,
+    });
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
+      target: { value: "right" },
+    });
+    await waitFor(() =>
+      expect(
+        readDraftBackups(storage, aliceScope()).map(
+          (backup) =>
+            backup.project.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+        ),
+      ).toEqual(["right"]),
+    );
+
+    // The discarded draft's save succeeds only now.
+    await act(async () => {
+      release();
+      await save.mock.results[0]?.value;
+    });
+    await waitFor(async () =>
+      expect((await repository.getProject(project.id)).version).toBe(2),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const backups = readDraftBackups(storage, aliceScope());
+    expect(
+      backups.map(
+        (backup) =>
+          backup.project.solutions[0]?.patterns[0]?.placements[0]?.labelSide,
+      ),
+    ).toEqual(["right"]);
+    expect(screen.getByLabelText<HTMLSelectElement>("Etikettseite").value).toBe(
+      "right",
+    );
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {

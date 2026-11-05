@@ -642,6 +642,157 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     ).toBeNull();
   });
 
+  // Backup lifecycle hole D (#35 audit).
+  it("asks before discarding the backup a failed generator apply left, and drops it only once confirmed", async () => {
+    const backupKeys = stubDraftBackupStorage();
+    const { repository } = await repositoryWithProject();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={aliceFetch}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    fireEvent.click(
+      (await screen.findAllByRole("button", { name: "Öffnen" }))[0]!,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weiter zu den Mustern" }),
+    );
+    fireEvent.change(screen.getByLabelText("Pakete je Lage"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByText("Suchparameter anpassen"));
+    fireEvent.change(screen.getByLabelText("Paketlänge (mm)"), {
+      target: { value: "100" },
+    });
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValueOnce(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Muster erzeugen" }));
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    expect(backupKeys()).toHaveLength(1);
+    expect(primaryRuns()).toHaveLength(0);
+
+    // Nothing is flagged dirty, yet the backup holds the applied package.
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    expect(confirm).toHaveBeenCalledWith(
+      "Planliste öffnen: Ungespeicherte Änderungen verwerfen?",
+    );
+    expect(backupKeys()).toHaveLength(1);
+    expect(screen.queryByRole("region", { name: "Planbibliothek" })).toBeNull();
+
+    confirm.mockReturnValue(true);
+    fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+    await screen.findByRole("region", { name: "Planbibliothek" });
+    expect(confirm).toHaveBeenCalledTimes(2);
+    expect(backupKeys()).toEqual([]);
+    expect(
+      screen.queryByText("Speichern ausstehend · Server nicht erreichbar"),
+    ).toBeNull();
+  });
+
+  // Backup lifecycle hole F (#35 audit).
+  it("retries a new plan's lost first save only while the plan does not exist on the server", async () => {
+    stubDraftBackupStorage();
+    const repository = emptyRepository();
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={aliceFetch}
+      />,
+    );
+    const create = screen.getByRole<HTMLButtonElement>("button", {
+      name: /^Neuen Plan erstellen/,
+    });
+    await waitFor(() => expect(create.disabled).toBe(false));
+    fireEvent.click(create);
+    fillNewProjectPackageDimensions();
+    const storeOnServer = repository.saveProjectVersioned.bind(repository);
+    // The first PUT reaches the server, but its reply is lost.
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (project, options) => {
+        await storeOnServer(project, options);
+        throw new ServerStorageError("network", "put", "projects", null);
+      });
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    const [[{ id }]] = save.mock.calls as [[{ id: string }]];
+
+    fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+      target: { value: "A-2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Nur speichern" }));
+
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    expect(save.mock.calls[1]![1]).toEqual({ expectedVersion: null });
+    // The plan exists now: the conflict view decides, nothing is overwritten.
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Plan wurde inzwischen geändert",
+      }),
+    ).toBeTruthy();
+    const stored = await repository.getProject(id);
+    expect([stored.version, stored.project?.productNumber]).toEqual([1, "A-1"]);
+  });
+
+  // Backup lifecycle hole H (#35 audit).
+  it("asks before the pattern editor replaces a failed stack save's draft and keeps its backup when cancelled", async () => {
+    const backupKeys = stubDraftBackupStorage();
+    const repository = emptyRepository();
+    await createAndGenerate(repository, "4", {
+      storageMode: "server",
+      fetchImpl: aliceFetch,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    // A saved stack makes the pattern editor available.
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await waitFor(async () =>
+      expect(
+        (await repository.listProjects()).projects[0]!.solutions[0]!.stack
+          .layers,
+      ).toHaveLength(10),
+    );
+    await screen.findByRole("heading", { name: "Plan im Überblick" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weitere Muster erzeugen" }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Muster 1 mit 4 Paketen wählen" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dirty stack draft" }));
+    // Saving over the stored stack asks to replace it.
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(true);
+    vi.spyOn(repository, "saveProjectVersioned").mockRejectedValueOnce(
+      new ServerStorageError("network", "put", "projects", null),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await screen.findByText("Speichern ausstehend · Server nicht erreichbar");
+    const backups = backupKeys();
+    expect(backups).toHaveLength(1);
+
+    confirm.mockClear().mockReturnValue(false);
+    fireEvent.click(screen.getByText("Bearbeiten & prüfen"));
+    fireEvent.click(screen.getByRole("button", { name: "Muster-Editor" }));
+
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(confirm).toHaveBeenCalledWith(
+      "Muster-Editor öffnen: Ungespeicherte Änderungen verwerfen?",
+    );
+    expect(screen.queryByRole("dialog", { name: "Muster-Editor" })).toBeNull();
+    expect(backupKeys()).toEqual(backups);
+    expect(
+      screen.getByText("Speichern ausstehend · Server nicht erreichbar"),
+    ).toBeTruthy();
+  });
+
   it("keeps unsaved inputs when leaving is dismissed and discards them only after confirmation", async () => {
     render(<PlannerProjectWorkspace repository={emptyRepository()} />);
     fireEvent.click(

@@ -90,7 +90,7 @@ export function usePlannerSession(
 /**
  * Header account menu (server mode only; renders nothing in local mode):
  * a sign-in form for anonymous visitors, the user and "Abmelden" otherwise.
- * With `hasUnsavedDrafts`, "Abmelden" first asks inline: "Abbrechen" or
+ * When `hasUnsavedDrafts()` (asked on each click) is true, "Abmelden" first asks inline: "Abbrechen" or
  * "Entwürfe verwerfen und abmelden" (ADR 0002). `beforeLeave` (opening the
  * user management) lets the caller confirm unsaved changes first and return
  * whether to proceed; `onSignedOut` runs once the server ended the session,
@@ -98,12 +98,12 @@ export function usePlannerSession(
  */
 export function SessionMenu({
   controls,
-  hasUnsavedDrafts = false,
+  hasUnsavedDrafts,
   beforeLeave,
   onSignedOut,
 }: {
   controls: PlannerSessionControls;
-  hasUnsavedDrafts?: boolean;
+  hasUnsavedDrafts?: () => boolean;
   beforeLeave?: () => boolean;
   onSignedOut?: (user: SessionUser) => void;
 }) {
@@ -235,7 +235,7 @@ export function SessionMenu({
             {error}
           </p>
         ) : null}
-        {confirmSignOut && hasUnsavedDrafts ? (
+        {confirmSignOut ? (
           <div
             role="group"
             className="session-confirm"
@@ -257,7 +257,7 @@ export function SessionMenu({
           <button
             type="button"
             onClick={(event) => {
-              if (hasUnsavedDrafts) {
+              if (hasUnsavedDrafts?.()) {
                 setError(null);
                 setConfirmSignOut(true);
                 return;
