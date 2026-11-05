@@ -86,16 +86,9 @@ import {
   type PlannerAccess,
   type SaveButtonState,
 } from "~/features/auth/plannerAccessModel";
-import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
-import type {
-  PlannerRecordStorage,
-  RecordVersion,
-} from "~/lib/plannerRecordStorage";
+import type { RecordVersion } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
-import {
-  ServerPlannerRecordStorage,
-  ServerStorageError,
-} from "~/lib/serverPlannerRecordStorage";
+import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
   createProjectRepository,
   type ProjectConflictPolicy,
@@ -237,28 +230,25 @@ export function PlannerProjectWorkspace({
   const tRef = useRef(t);
   tRef.current = t;
   const toolTitles = productionToolTitles(t);
-  const storageRef = useRef<PlannerRecordStorage | null>(null);
   const repositoryRef = useRef<ProjectRepository | null>(null);
-  if (!repositoryRef.current) {
-    if (providedRepository) {
-      repositoryRef.current = providedRepository;
-    } else {
-      storageRef.current = createPlannerRecordStorage({ mode: storageMode });
-      repositoryRef.current = createProjectRepository(storageRef.current);
-    }
-  }
+  repositoryRef.current ??=
+    providedRepository ??
+    createProjectRepository(createPlannerRecordStorage({ mode: storageMode }));
   const repository = repositoryRef.current;
   const sessionControls = usePlannerSession(storageMode, fetchImpl);
   const { session } = sessionControls;
   /** What the session may do with a stored project (or a new one). */
-  const accessFor = (projectId: string | null | undefined): PlannerAccess => {
-    const storage = storageRef.current;
-    const createdBy =
-      projectId && storage instanceof ServerPlannerRecordStorage
-        ? storage.createdBy(PROJECTS_STORE_NAME, projectId)
-        : undefined;
-    return plannerAccess(session, createdBy);
-  };
+  const accessFor = (projectId: string | null | undefined): PlannerAccess =>
+    plannerAccess(
+      session,
+      projectId ? repository.projectCreatedBy(projectId) : undefined,
+    );
+  /**
+   * A copy save is in flight. Its success reopens the plan under the copy's
+   * id, which resets every editing surface, so all of them are locked until
+   * it settles; edits made meanwhile could not be carried over.
+   */
+  const [copySaving, setCopySaving] = useState(false);
   const saveButtonFor = (access: PlannerAccess): SaveButtonState => {
     const control = saveControl(access);
     return {
@@ -614,11 +604,16 @@ export function PlannerProjectWorkspace({
             ? t("project.copySuffix", { number: project.projectNumber })
             : t("project.copy"),
         });
-        const { project: saved, version } =
-          await repository.saveProjectVersioned(copy, {
-            expectedVersion: null,
-          });
-        return { saved, version, copied: true };
+        setCopySaving(true);
+        try {
+          const { project: saved, version } =
+            await repository.saveProjectVersioned(copy, {
+              expectedVersion: null,
+            });
+          return { saved, version, copied: true };
+        } finally {
+          setCopySaving(false);
+        }
       }
       const { project: saved, version } = await persistProject(project);
       return { saved, version, copied: false };
@@ -1164,7 +1159,9 @@ export function PlannerProjectWorkspace({
       : all;
   }, [selectedCandidateId, solverResult]);
   const workspaceProject = editorDraftProject ?? selectedProject;
-  const workspaceSaveButton = saveButtonFor(accessFor(workspaceProject?.id));
+  const workspaceSaveButton: SaveButtonState = copySaving
+    ? { label: null, disabledReason: t("auth.savingCopy") }
+    : saveButtonFor(accessFor(workspaceProject?.id));
   const physicalPalletBoundsMm = useMemo(
     () =>
       workspaceProject?.pallet
@@ -1930,9 +1927,6 @@ export function PlannerProjectWorkspace({
                 onDirtyChange={setEditorDirty}
                 onSaveProject={saveProject}
                 saveButton={workspaceSaveButton}
-                lockEditsWhileSaving={
-                  accessFor(selectedProject.id).save === "copy"
-                }
               />
             ) : null}
 
@@ -1940,15 +1934,17 @@ export function PlannerProjectWorkspace({
             workspaceProject &&
             robotMaterialization &&
             resolvedRobotSettings ? (
-              <RoboticsWorkspace
-                project={workspaceProject}
-                repository={repository}
-                materialization={robotMaterialization}
-                settings={resolvedRobotSettings}
-                onSettingsChange={setRobotSettings}
-                onSaveProject={saveProject}
-                onPreviewMotion={() => setActiveTool("simulation")}
-              />
+              <fieldset className="fw-locked-fields" disabled={copySaving}>
+                <RoboticsWorkspace
+                  project={workspaceProject}
+                  repository={repository}
+                  materialization={robotMaterialization}
+                  settings={resolvedRobotSettings}
+                  onSettingsChange={setRobotSettings}
+                  onSaveProject={saveProject}
+                  onPreviewMotion={() => setActiveTool("simulation")}
+                />
+              </fieldset>
             ) : null}
 
             {activeTool === "simulation" &&

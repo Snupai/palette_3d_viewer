@@ -18,6 +18,8 @@ export const authDe = {
   "auth.readOnly.sessionUnknown":
     "Der Anmeldestatus ist unbekannt; Bearbeiten ist gesperrt.",
   "auth.saveAsCopy": "Als Kopie speichern",
+  "auth.savingCopy":
+    "Die Kopie wird gespeichert; Bearbeiten ist so lange gesperrt.",
   "auth.copyHint":
     "Dieser Plan gehört einem anderen Benutzer. Änderungen werden als eigene Kopie gespeichert.",
   "auth.deleteNotAllowed":

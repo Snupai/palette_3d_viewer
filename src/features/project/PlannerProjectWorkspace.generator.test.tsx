@@ -13,7 +13,10 @@ import type {
   StackWorkspaceState,
   materializeStackWorkspace,
 } from "~/features/stack/stackWorkspaceModel";
-import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
+import {
+  PlannerProjectWorkspace,
+  type PlannerProjectWorkspaceProps,
+} from "~/features/project/PlannerProjectWorkspace";
 import { exportProjectPackageJson } from "~/lib/projectPackage";
 import {
   MemoryPlannerRecordStorage,
@@ -55,7 +58,9 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       solverInput,
       onDirtyChange,
       onEditProject,
+      saveButton,
     }: {
+      saveButton?: { disabledReason: string | null };
       onDirtyChange: (dirty: boolean) => void;
       onEditProject: () => void;
       candidates: readonly SolverCandidate[];
@@ -69,6 +74,9 @@ vi.mock("~/features/stack/StackWorkspace", async () => {
       <>
         <button onClick={() => onDirtyChange(true)}>Dirty stack draft</button>
         <button onClick={() => onEditProject()}>Edit stack inputs</button>
+        <output data-testid="stack-save-lock">
+          {saveButton?.disabledReason ?? ""}
+        </output>
         <output data-testid="stack-candidate-ids">
           {candidates.map(({ id }) => id).join("|")}
         </output>
@@ -330,11 +338,18 @@ function fillNewProjectPackageDimensions() {
   ])
     fireEvent.change(screen.getByLabelText(label!), { target: { value } });
 }
-async function createAndGenerate(repository: ProjectRepository, count = "4") {
-  render(<PlannerProjectWorkspace repository={repository} />);
-  fireEvent.click(
-    screen.getByRole("button", { name: /^Neuen Plan erstellen/ }),
-  );
+async function createAndGenerate(
+  repository: ProjectRepository,
+  count = "4",
+  props: Partial<PlannerProjectWorkspaceProps> = {},
+) {
+  render(<PlannerProjectWorkspace repository={repository} {...props} />);
+  const create = screen.getByRole<HTMLButtonElement>("button", {
+    name: /^Neuen Plan erstellen/,
+  });
+  // Server mode: creating needs the session check to finish first.
+  await waitFor(() => expect(create.disabled).toBe(false));
+  fireEvent.click(create);
   fillNewProjectPackageDimensions();
   fireEvent.change(screen.getByLabelText("Genaue Anzahl"), {
     target: { value: count },
@@ -517,6 +532,52 @@ describe("PlannerProjectWorkspace guided generation integration", () => {
     vi.spyOn(window, "confirm").mockReturnValue(false);
     fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
     expect(screen.getByLabelText<HTMLInputElement>("Länge").value).toBe("410");
+  });
+
+  it("locks the stack composer while a non-creator's copy save is in flight", async () => {
+    const repository = emptyRepository();
+    const signedInFetch: typeof fetch = async () =>
+      new Response(
+        JSON.stringify({
+          user: { id: "u-alice", username: "alice", role: "user" },
+        }),
+        { status: 200 },
+      );
+    await createAndGenerate(repository, "4", {
+      storageMode: "server",
+      fetchImpl: signedInFetch,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Stapel aufbauen" }));
+    expect(screen.getByTestId("stack-save-lock").textContent).toBe("");
+    // The plan now counts as someone else's: saving stores alice's copy.
+    vi.spyOn(repository, "projectCreatedBy").mockReturnValue("u-bob");
+    const persist = repository.saveProjectVersioned.bind(repository);
+    let release!: () => void;
+    const pending = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const save = vi
+      .spyOn(repository, "saveProjectVersioned")
+      .mockImplementationOnce(async (project, options) => {
+        await pending;
+        return persist(project, options);
+      });
+
+    fireEvent.click(screen.getByRole("button", { name: "Save stack draft" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+
+    // The copy reopens under a new id: composing meanwhile would be lost.
+    expect(save.mock.calls[0]![1]).toEqual({ expectedVersion: null });
+    expect(screen.getByTestId("stack-save-lock").textContent).toBe(
+      "Die Kopie wird gespeichert; Bearbeiten ist so lange gesperrt.",
+    );
+    await act(async () => {
+      release();
+      await pending;
+    });
+    await waitFor(async () =>
+      expect((await repository.listProjects()).projects).toHaveLength(2),
+    );
   });
 
   it("keeps unsaved inputs when leaving is dismissed and discards them only after confirmation", async () => {

@@ -15,6 +15,7 @@ import {
   type Project,
 } from "~/domain/project/projectSchema";
 import { materializeRobotCycles } from "~/domain/robotics";
+import type { SaveButtonState } from "~/features/auth/plannerAccessModel";
 import { ProjectEditorWorkspace } from "~/features/editor/ProjectEditorWorkspace";
 
 afterEach(cleanup);
@@ -245,7 +246,7 @@ function renderEditor(
     onDraftChange?: (project: Project | null) => void;
     onDirtyChange?: (dirty: boolean) => void;
     onSaveProject?: (project: Project) => Promise<Project>;
-    lockEditsWhileSaving?: boolean;
+    saveButton?: SaveButtonState;
   } = {},
 ) {
   const project = overrides.project ?? projectFixture();
@@ -265,7 +266,7 @@ function renderEditor(
       onDraftChange={overrides.onDraftChange}
       onDirtyChange={overrides.onDirtyChange}
       onSaveProject={onSaveProject}
-      lockEditsWhileSaving={overrides.lockEditsWhileSaving}
+      saveButton={overrides.saveButton}
     />,
   );
   return { project, materialization, onSaveProject, ...view };
@@ -616,34 +617,31 @@ describe("ProjectEditorWorkspace order and persistence", () => {
     confirm.mockRestore();
   });
 
-  it("ignores edits while a save that stores a copy is pending", async () => {
-    let resolveSave: ((project: Project) => void) | undefined;
-    const onSaveProject = vi.fn(
-      (_project: Project) =>
-        new Promise<Project>((resolve) => {
-          resolveSave = resolve;
-        }),
-    );
-    renderEditor({ onSaveProject, lockEditsWhileSaving: true });
+  it("ignores edits while saving is locked, e.g. during a copy save", () => {
+    const onSaveProject = vi.fn(async (value: Project) => value);
+    const view = renderEditor({ onSaveProject });
     const first = placementRect("p1");
     fireEvent.pointerDown(first, { pointerId: 1, clientX: 50, clientY: 250 });
     fireEvent.pointerUp(first, { pointerId: 1, clientX: 50, clientY: 250 });
     const labelSide = screen.getByLabelText<HTMLSelectElement>("Etikettseite");
     fireEvent.change(labelSide, { target: { value: "top" } });
-    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-    expect(onSaveProject).toHaveBeenCalledTimes(1);
+    const rerender = (saveButton?: SaveButtonState) =>
+      view.rerender(
+        <ProjectEditorWorkspace
+          project={view.project}
+          materialization={view.materialization}
+          onSaveProject={onSaveProject}
+          saveButton={saveButton}
+        />,
+      );
 
-    // The copy will reopen under a new id: a later edit could not be kept.
+    // The workspace locks saving while a copy is stored: the copy reopens
+    // under a new id, so a later edit could not be kept.
+    rerender({ label: null, disabledReason: "Kopie wird gespeichert" });
     fireEvent.change(labelSide, { target: { value: "right" } });
     expect(labelSide.value).toBe("top");
 
-    resolveSave?.(onSaveProject.mock.calls[0]![0]);
-    await waitFor(() =>
-      expect(
-        screen.getByRole<HTMLButtonElement>("button", { name: "Speichern" })
-          .disabled,
-      ).toBe(true),
-    );
+    rerender(undefined);
     fireEvent.change(labelSide, { target: { value: "right" } });
     expect(labelSide.value).toBe("right");
   });

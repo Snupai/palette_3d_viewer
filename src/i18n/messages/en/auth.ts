@@ -19,6 +19,7 @@ export const authEn = {
   "auth.readOnly.sessionUnknown":
     "The sign-in status is unknown; editing is locked.",
   "auth.saveAsCopy": "Save as copy",
+  "auth.savingCopy": "Saving the copy; editing is locked until it is done.",
   "auth.copyHint":
     "This plan belongs to another user. Changes are saved as your own copy.",
   "auth.deleteNotAllowed": "Only the creator or an admin can delete this plan.",

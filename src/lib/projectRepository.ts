@@ -704,6 +704,17 @@ export class ProjectRepository {
     await this.storage.put(PROJECT_QUARANTINE_STORE_NAME, record);
   }
 
+  /**
+   * The creator the server reported for a project, as last seen by this
+   * repository's storage: a user id, `null` when it records none, or
+   * `undefined` when unknown or not stored on a server (#34).
+   */
+  projectCreatedBy(id: string): string | null | undefined {
+    return this.storage instanceof ServerPlannerRecordStorage
+      ? this.storage.createdBy(PROJECTS_STORE_NAME, id)
+      : undefined;
+  }
+
   private isServerStorage(): boolean {
     return this.storage instanceof ServerPlannerRecordStorage;
   }
