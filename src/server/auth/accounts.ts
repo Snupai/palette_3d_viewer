@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { and, count, eq, gt, lte } from "drizzle-orm";
+import { and, asc, count, eq, gt, lte } from "drizzle-orm";
 
 import type { PlannerDatabase } from "../db/database";
 import { sessions, users, type UserRow } from "../db/schema";
@@ -73,6 +73,37 @@ export async function createUser(
     .returning({ id: users.id });
   if (inserted.length === 0) throw new UsernameTakenError(username);
   return toAuthUser(row);
+}
+
+/** Every account without hashes, ordered by username (admin overview). */
+export async function listUsers(db: PlannerDatabase): Promise<AuthUser[]> {
+  return db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .orderBy(asc(users.username));
+}
+
+/** One account without its hash, or `undefined` for an unknown id. */
+export async function findUserById(
+  db: PlannerDatabase,
+  userId: string,
+): Promise<AuthUser | undefined> {
+  const [row] = await db
+    .select({
+      id: users.id,
+      username: users.username,
+      role: users.role,
+      createdAt: users.createdAt,
+    })
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
+  return row;
 }
 
 /**

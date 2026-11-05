@@ -8,7 +8,7 @@ import {
 } from "~/server/auth/sessionUser";
 import { getServerDatabase } from "~/server/db/serverDatabase";
 
-import { jsonNoStore, serverStorageDisabled } from "../responses";
+import { jsonNoStore, readJsonBody, serverStorageDisabled } from "../responses";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,18 +24,9 @@ export async function POST(request: Request): Promise<Response> {
   const db = getServerDatabase();
   if (!db) return serverStorageDisabled();
 
-  // JSON only: a cross-site HTML form cannot send it without a CORS preflight.
-  const contentType = request.headers.get("content-type") ?? "";
-  if (!/^application\/json\b/i.test(contentType)) {
-    return jsonNoStore({ error: "unsupported_media_type" }, 415);
-  }
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return jsonNoStore({ error: "invalid_request" }, 400);
-  }
-  const parsed = loginSchema.safeParse(body);
+  const json = await readJsonBody(request);
+  if ("response" in json) return json.response;
+  const parsed = loginSchema.safeParse(json.body);
   if (!parsed.success) return jsonNoStore({ error: "invalid_request" }, 400);
 
   // A fresh token on every login; this browser's previous session ends.
