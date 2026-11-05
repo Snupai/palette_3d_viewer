@@ -5,6 +5,7 @@ import type * as Extractor from "~/lib/sheetExtraction/ollamaSheetExtractor";
 vi.mock("~/env", () => ({
   env: {
     SHEET_EXTRACTION_MAX_CONCURRENT: 1,
+    SHEET_EXTRACTION_API: "ollama",
     OLLAMA_URL: "http://localhost:11434",
     SHEET_EXTRACTION_MODEL: "test",
   },

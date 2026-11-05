@@ -5,6 +5,9 @@
  *
  *   SHEET_CORPUS_DIR=/abs/path SHEET_EXTRACTION_MODEL=qwen2.5vl:32b bun run sheet:eval
  *
+ * Reads the same SHEET_EXTRACTION_API / _URL / _MODEL / _API_KEY settings as
+ * the app (see `sheetExtractionConfig.ts`).
+ *
  * The corpus folder holds the photos plus `labels.json`
  * (`{ "<file>": { carton: [l, w, h], block: [l, w, h|null], perLayer, layers, perPallet } }`).
  * Photos contain customer data and stay outside the repository; the report is
@@ -15,6 +18,7 @@ import { basename, isAbsolute, join } from "node:path";
 import { countSheetErrors, type PalletSheet } from "~/domain/sheetExtraction";
 import { pathIsWithinRoot } from "~/lib/parity/discovery.node";
 import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
+import { resolveSheetExtractionEndpoint } from "~/lib/sheetExtraction/sheetExtractionConfig";
 
 type Label = {
   carton: [number, number, number];
@@ -44,6 +48,13 @@ const FIELDS: readonly FieldName[] = [
 
 /** Same bound as the upload route; anything larger is not a sheet photo. */
 const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
+
+function photoMimeType(file: string): string {
+  const extension = file.toLowerCase().split(".").pop();
+  if (extension === "png") return "image/png";
+  if (extension === "webp") return "image/webp";
+  return "image/jpeg";
+}
 
 /**
  * Reads one labelled photo. `labels.json` keys are untrusted: only plain
@@ -104,8 +115,16 @@ async function main(): Promise<void> {
   if (!corpusDir || !isAbsolute(corpusDir)) {
     throw new Error("Set SHEET_CORPUS_DIR to an absolute folder path.");
   }
-  const model = process.env.SHEET_EXTRACTION_MODEL ?? "qwen2.5vl:32b";
-  const ollamaUrl = process.env.OLLAMA_URL ?? "http://127.0.0.1:11434";
+  const endpoint = resolveSheetExtractionEndpoint({
+    SHEET_EXTRACTION_API: process.env.SHEET_EXTRACTION_API,
+    SHEET_EXTRACTION_URL: process.env.SHEET_EXTRACTION_URL,
+    OLLAMA_URL: process.env.OLLAMA_URL,
+    SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
+    SHEET_EXTRACTION_API_KEY: process.env.SHEET_EXTRACTION_API_KEY,
+  });
+  // Without a configured name (`openai`), label the report with the model the
+  // server reports, so runs against different loaded models do not collide.
+  let reportedModel: string | undefined;
   const only = process.env.SHEET_EVAL_ONLY?.split(",");
   const root = await realpath(corpusDir);
   const labels = JSON.parse(
@@ -125,7 +144,11 @@ async function main(): Promise<void> {
   for (const file of files) {
     try {
       const image = (await readCorpusPhoto(root, file)).toString("base64");
-      const result = await extractPalletSheet(image, { ollamaUrl, model });
+      const result = await extractPalletSheet(image, {
+        ...endpoint,
+        imageMimeType: photoMimeType(file),
+      });
+      reportedModel ??= result.model;
       const fields = score(result.sheet, labels[file]!);
       const correct = FIELDS.every((f) => fields[f]);
       const errors = countSheetErrors(result.issues);
@@ -156,6 +179,7 @@ async function main(): Promise<void> {
     }
   }
 
+  const model = endpoint.model ?? reportedModel ?? `${endpoint.api}-unknown`;
   const n = files.length;
   console.log(`\nModel ${model}: ${allCorrect}/${n} sheets fully correct`);
   console.log(

@@ -8,10 +8,23 @@ export const env = createEnv({
    */
   server: {
     NODE_ENV: z.enum(["development", "test", "production"]),
-    /** Local Ollama server used to read photographed pallet sheets. */
-    OLLAMA_URL: z.string().url().default("http://127.0.0.1:11434"),
-    /** Local vision model for sheet extraction (`ollama pull <name>`). */
-    SHEET_EXTRACTION_MODEL: z.string().default("qwen2.5vl:32b"),
+    /**
+     * Wire protocol of the local model server that reads photographed pallet
+     * sheets: `ollama` (default) or `openai` (OpenAI-compatible, e.g. llama.cpp
+     * `llama-server`). Resolved in `src/lib/sheetExtraction/sheetExtractionConfig.ts`.
+     */
+    SHEET_EXTRACTION_API: z.enum(["ollama", "openai"]).default("ollama"),
+    /** Base URL of that server (default: Ollama :11434, `openai` :8080). */
+    SHEET_EXTRACTION_URL: z.string().url().optional(),
+    /** Older name for `SHEET_EXTRACTION_URL`, used when that is unset. */
+    OLLAMA_URL: z.string().url().optional(),
+    /**
+     * Vision model; Ollama defaults to `qwen2.5vl:32b`. `openai` may omit it for
+     * a single-model `llama-server -m …` (router mode requires it).
+     */
+    SHEET_EXTRACTION_MODEL: z.string().optional(),
+    /** Optional key, sent as `Authorization: Bearer` (e.g. `llama-server --api-key`). */
+    SHEET_EXTRACTION_API_KEY: z.string().optional(),
     /** Concurrent sheet-extraction inferences per process; others get 429. */
     SHEET_EXTRACTION_MAX_CONCURRENT: z.coerce.number().int().min(1).default(1),
     /**
@@ -57,8 +70,11 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    SHEET_EXTRACTION_API: process.env.SHEET_EXTRACTION_API,
+    SHEET_EXTRACTION_URL: process.env.SHEET_EXTRACTION_URL,
     OLLAMA_URL: process.env.OLLAMA_URL,
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
+    SHEET_EXTRACTION_API_KEY: process.env.SHEET_EXTRACTION_API_KEY,
     SHEET_EXTRACTION_MAX_CONCURRENT:
       process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
     DATABASE_URL: process.env.DATABASE_URL,

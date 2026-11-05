@@ -68,11 +68,19 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
-      # Sheet-photo import (optional). Inside the container 127.0.0.1 is the
-      # container itself; point at the host, e.g.
-      # OLLAMA_URL=http://host.docker.internal:11434 (Podman: host.containers.internal).
-      OLLAMA_URL: ${OLLAMA_URL:-http://127.0.0.1:11434}
-      SHEET_EXTRACTION_MODEL: ${SHEET_EXTRACTION_MODEL:-qwen2.5vl:32b}
+      # Sheet-photo import (optional). SHEET_EXTRACTION_API: `ollama` (default)
+      # or `openai` (OpenAI-compatible, e.g. llama.cpp `llama-server`). Inside
+      # the container 127.0.0.1 is the container itself; point at the host, e.g.
+      # SHEET_EXTRACTION_URL=http://host.docker.internal:8080 (Podman:
+      # host.containers.internal). Empty values fall back to the app defaults
+      # (Ollama :11434 + qwen2.5vl:32b; `openai` :8080 + the server's model —
+      # set SHEET_EXTRACTION_MODEL for llama-server in router/multi-model mode).
+      # The API key is optional and sent as `Authorization: Bearer`.
+      SHEET_EXTRACTION_API: ${SHEET_EXTRACTION_API:-ollama}
+      SHEET_EXTRACTION_URL: ${SHEET_EXTRACTION_URL:-}
+      OLLAMA_URL: ${OLLAMA_URL:-}
+      SHEET_EXTRACTION_MODEL: ${SHEET_EXTRACTION_MODEL:-}
+      SHEET_EXTRACTION_API_KEY: ${SHEET_EXTRACTION_API_KEY:-}
     ports:
       - "127.0.0.1:${PALETTE_APP_PORT:-3000}:3000"
     healthcheck:

@@ -10,6 +10,7 @@ import {
   limitRequestBody,
   RequestBodyTooLargeError,
 } from "~/lib/sheetExtraction/requestGuards";
+import { resolveSheetExtractionEndpoint } from "~/lib/sheetExtraction/sheetExtractionConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -20,7 +21,7 @@ const MAX_BODY_BYTES = MAX_IMAGE_BYTES + 256 * 1024;
 
 /**
  * One vision inference at a time per process by default. Each call can hold
- * the local Ollama server for minutes, so a saturated gate answers 429 at
+ * the local model server for minutes, so a saturated gate answers 429 at
  * once instead of queueing requests behind it. Authentication and per-caller
  * rate limiting are deliberately left to the deployment: the route is meant
  * for the local line network only, or behind an authenticating proxy (see
@@ -73,7 +74,7 @@ function isAbortError(cause: unknown): boolean {
 
 /**
  * POST multipart `image` → structured pallet sheet. Runs entirely against the
- * local Ollama server; the photo is not stored.
+ * local model server (Ollama or OpenAI-compatible); the photo is not stored.
  */
 export async function POST(request: Request): Promise<Response> {
   if (!aiFeaturesEnabled) {
@@ -143,8 +144,8 @@ export async function POST(request: Request): Promise<Response> {
       "base64",
     );
     const result = await extractPalletSheet(imageBase64, {
-      ollamaUrl: env.OLLAMA_URL,
-      model: env.SHEET_EXTRACTION_MODEL,
+      ...resolveSheetExtractionEndpoint(env),
+      imageMimeType: image.type,
       signal: request.signal,
     });
     return Response.json(result);

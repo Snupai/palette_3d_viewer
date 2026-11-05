@@ -89,26 +89,37 @@ until group planning is available.
 
 ## Sheet-photo extraction deployment
 
-`POST /api/sheet-extraction` sends an uploaded pallet-sheet photo to the Ollama
-server at `OLLAMA_URL`. The route has **no authentication and no per-caller rate
+`POST /api/sheet-extraction` sends an uploaded pallet-sheet photo to a local
+vision-model server. The route has **no authentication and no per-caller rate
 limit** by design: it is meant for the local line network only. In-process
 guards bound each request (20 MB upload, upload timeout, 4 concurrent uploads,
 `SHEET_EXTRACTION_MAX_CONCURRENT` inferences, 5-minute model timeout, at most
 two model calls), but any caller that can reach the route can keep the
 inference slot busy.
 
+Model server settings (all optional; empty counts as unset):
+
+| Variable                   | Meaning                                                                                                                                                          |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHEET_EXTRACTION_API`     | `ollama` (default, `/api/chat`) or `openai` (OpenAI-compatible `/v1/chat/completions`, e.g. llama.cpp `llama-server` started with `--mmproj`)                    |
+| `SHEET_EXTRACTION_URL`     | Base URL; default `http://127.0.0.1:11434` (`ollama`) or `:8080` (`openai`). The older `OLLAMA_URL` is used when this is unset.                                  |
+| `SHEET_EXTRACTION_MODEL`   | Model name; Ollama defaults to `qwen2.5vl:32b`, `openai` omits it so a single-model `llama-server -m …` uses its loaded model (router/multi-model mode needs it) |
+| `SHEET_EXTRACTION_API_KEY` | Sent as `Authorization: Bearer <key>` (`llama-server --api-key`); never logged                                                                                   |
+
+The choice is explicit: there is no probing or fallback between servers.
+
 Deployment requirements:
 
 - Expose the app only on the trusted plant network, or behind a reverse proxy
   that authenticates users and rate-limits `/api/sheet-extraction` per user.
-- Keep `OLLAMA_URL` on loopback or the same trusted network; photos contain
-  customer data and are sent to that endpoint.
+- Keep `SHEET_EXTRACTION_URL` on loopback or the same trusted network; photos
+  contain customer data and are sent to that endpoint.
 - Clients receive fixed error messages only; model URL and backend details are
   written to the server log.
 
 To deploy without AI, build with `NEXT_PUBLIC_DISABLE_AI_FEATURES=true`: the
 photo import disappears from the project forms and the route answers 404
-without contacting Ollama. The value is inlined at build time, so set it for
+without contacting the model server. The value is inlined at build time, so set it for
 `next build`, not only at runtime.
 
 `bun run sheet:eval` scores the extractor against a labelled photo folder
@@ -150,9 +161,12 @@ LAN exposure needs HTTPS first (ADR 0008). Set `PALETTE_DB_PASSWORD` for any
 shared installation; it goes verbatim into `DATABASE_URL`, so keep it URL-safe
 (`A-Z a-z 0-9 - . _ ~`). The storage mode is a build arg and
 defaults to `local`; rebuild with
-`PALETTE_STORAGE_MODE=server bun run stack:up` to store plans on the server. `OLLAMA_URL`
-and `SHEET_EXTRACTION_MODEL` are passed through to the app container (use
-`host.docker.internal` / `host.containers.internal` for an Ollama on the host).
+`PALETTE_STORAGE_MODE=server bun run stack:up` to store plans on the server. The
+`SHEET_EXTRACTION_*` settings (and `OLLAMA_URL`) are passed through to the app
+container; use `host.docker.internal` / `host.containers.internal` for a model
+server on the host, e.g. `SHEET_EXTRACTION_API=openai`,
+`SHEET_EXTRACTION_URL=http://host.docker.internal:8080` and
+`SHEET_EXTRACTION_API_KEY=…` for llama.cpp.
 
 ### Backups and restore
 

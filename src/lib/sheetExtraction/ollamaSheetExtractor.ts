@@ -7,11 +7,28 @@ import {
   validatePalletSheet,
   type ValidatedSheet,
 } from "~/domain/sheetExtraction";
+import {
+  chatEndpointUrl,
+  type SheetExtractionApi,
+} from "./sheetExtractionConfig";
 
 export type OllamaSheetExtractorOptions = {
-  /** Base URL of the local Ollama server, e.g. `http://127.0.0.1:11434`. */
-  ollamaUrl: string;
-  model: string;
+  /** Wire protocol of the model server; defaults to `ollama`. */
+  api?: SheetExtractionApi;
+  /**
+   * Base URL of the local model server, e.g. `http://127.0.0.1:11434` (Ollama)
+   * or `http://127.0.0.1:8080` (llama.cpp `llama-server`).
+   */
+  baseUrl: string;
+  /**
+   * Model name. Required by Ollama; for `openai` it is omitted from the request
+   * when unset, so the server answers with its loaded model.
+   */
+  model?: string;
+  /** Sent as `Authorization: Bearer <key>` when set. Never logged. */
+  apiKey?: string;
+  /** MIME type for the OpenAI data URL; Ollama ignores it. */
+  imageMimeType?: string;
   /** Extra attempts when the answer fails the consistency checks. */
   maxRetries?: number;
   timeoutMs?: number;
@@ -24,6 +41,7 @@ export type OllamaSheetExtractorOptions = {
 };
 
 export type SheetExtractionResult = ValidatedSheet & {
+  /** Configured model, else the one the server reported, else `"unknown"`. */
   model: string;
   attempts: number;
   durationMs: number;
@@ -88,16 +106,20 @@ function chatSignal(timeoutMs: number, external?: AbortSignal): AbortSignal {
 }
 
 /**
- * Reads a photographed pallet sheet with a local vision model. The image never
- * leaves this machine: the only network call goes to the local Ollama server.
+ * Reads a photographed pallet sheet with a local vision model. The only network
+ * call goes to the configured local model server (Ollama, or an
+ * OpenAI-compatible one such as llama.cpp's `llama-server`).
  * If the answer fails the arithmetic checks, the model is shown its own errors
  * once and asked again; the attempt with fewer errors wins.
  */
 export async function extractPalletSheet(
   imageBase64: string,
   {
-    ollamaUrl,
+    api = "ollama",
+    baseUrl,
     model,
+    apiKey,
+    imageMimeType = "image/jpeg",
     maxRetries = 1,
     timeoutMs = 300_000,
     signal,
@@ -110,19 +132,24 @@ export async function extractPalletSheet(
   ];
 
   let best: ValidatedSheet | null = null;
+  let reportedModel: string | undefined;
   let attempts = 0;
   for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
     if (signal?.aborted) {
       throw abortError(signal.reason);
     }
     attempts += 1;
-    const answer = await chat(messages, {
-      ollamaUrl,
+    const { content: answer, model: answeredBy } = await chat(messages, {
+      api,
+      baseUrl,
       model,
+      apiKey,
+      imageMimeType,
       timeoutMs,
       signal,
       fetchImpl,
     });
+    reportedModel ??= answeredBy;
     const validated = validatePalletSheet(parseAnswer(answer));
     if (
       best === null ||
@@ -139,7 +166,7 @@ export async function extractPalletSheet(
 
   return {
     ...best!,
-    model,
+    model: model ?? reportedModel ?? "unknown",
     attempts,
     durationMs: Date.now() - startedAt,
   };
@@ -165,49 +192,118 @@ function parseAnswer(answer: string) {
   return parsed.data;
 }
 
+type ChatOptions = {
+  api: SheetExtractionApi;
+  baseUrl: string;
+  model?: string;
+  apiKey?: string;
+  imageMimeType: string;
+  timeoutMs: number;
+  signal?: AbortSignal;
+  fetchImpl: typeof fetch;
+};
+
+type ChatAnswer = { content: string; model?: string };
+
+const SERVER_LABEL: Record<SheetExtractionApi, string> = {
+  ollama: "Ollama",
+  openai: "Model server",
+};
+
+function requestBody(
+  messages: readonly ChatMessage[],
+  { api, model, imageMimeType }: ChatOptions,
+): unknown {
+  if (api === "ollama") {
+    return {
+      ...(model ? { model } : {}),
+      stream: false,
+      format: palletSheetJsonSchema,
+      options: { temperature: 0 },
+      messages,
+    };
+  }
+  return {
+    ...(model ? { model } : {}),
+    stream: false,
+    temperature: 0,
+    response_format: {
+      type: "json_schema",
+      json_schema: { name: "pallet_sheet", schema: palletSheetJsonSchema },
+    },
+    messages: messages.map(({ role, content, images }) =>
+      images?.length
+        ? {
+            role,
+            content: [
+              { type: "text", text: content },
+              ...images.map((image) => ({
+                type: "image_url",
+                image_url: { url: `data:${imageMimeType};base64,${image}` },
+              })),
+            ],
+          }
+        : { role, content },
+    ),
+  };
+}
+
+function answerFrom(api: SheetExtractionApi, body: unknown): ChatAnswer | null {
+  if (typeof body !== "object" || body === null) return null;
+  if (api === "ollama") {
+    const content = (body as { message?: { content?: unknown } }).message
+      ?.content;
+    const model = (body as { model?: unknown }).model;
+    return typeof content === "string"
+      ? { content, ...(typeof model === "string" ? { model } : {}) }
+      : null;
+  }
+  const { choices, model } = body as {
+    choices?: { message?: { content?: unknown } }[];
+    model?: unknown;
+  };
+  const content = Array.isArray(choices)
+    ? choices[0]?.message?.content
+    : undefined;
+  return typeof content === "string"
+    ? { content, ...(typeof model === "string" ? { model } : {}) }
+    : null;
+}
+
 async function chat(
   messages: readonly ChatMessage[],
-  {
-    ollamaUrl,
-    model,
-    timeoutMs,
-    signal,
-    fetchImpl,
-  }: Required<Omit<OllamaSheetExtractorOptions, "maxRetries" | "signal">> & {
-    signal?: AbortSignal;
-  },
-): Promise<string> {
+  options: ChatOptions,
+): Promise<ChatAnswer> {
+  const { api, baseUrl, apiKey, timeoutMs, signal, fetchImpl } = options;
+  const server = SERVER_LABEL[api];
   let response: Response | undefined;
   const requestSignal = chatSignal(timeoutMs, signal);
   try {
-    response = await fetchImpl(new URL("/api/chat", ollamaUrl), {
+    response = await fetchImpl(chatEndpointUrl(api, baseUrl), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        stream: false,
-        format: palletSheetJsonSchema,
-        options: { temperature: 0 },
-        messages,
-      }),
+      headers: {
+        "Content-Type": "application/json",
+        ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+      },
+      body: JSON.stringify(requestBody(messages, options)),
       signal: requestSignal,
     });
 
     if (!response.ok) {
       const detail = await response.text();
       throw new SheetExtractionError(
-        `Ollama returned ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
+        `${server} returned ${response.status}${detail ? `: ${detail.slice(0, 300)}` : ""}`,
         "model",
       );
     }
-    const body = (await response.json()) as { message?: { content?: unknown } };
-    if (typeof body.message?.content !== "string") {
+    const answer = answerFrom(api, await response.json());
+    if (!answer) {
       throw new SheetExtractionError(
-        "Ollama response has no message content.",
+        `${server} response has no message content.`,
         "invalid-response",
       );
     }
-    return body.message.content;
+    return answer;
   } catch (cause) {
     if (cause instanceof SheetExtractionError) throw cause;
     if (
@@ -215,7 +311,7 @@ async function chat(
       (requestSignal.aborted && isTimeoutError(requestSignal.reason))
     ) {
       throw new SheetExtractionError(
-        `Local model at ${ollamaUrl} timed out after ${timeoutMs} ms.`,
+        `Local model at ${baseUrl} timed out after ${timeoutMs} ms.`,
         "timeout",
       );
     }
@@ -224,12 +320,12 @@ async function chat(
     }
     if (response) {
       throw new SheetExtractionError(
-        "Ollama response body could not be read.",
+        `${server} response body could not be read.`,
         "invalid-response",
       );
     }
     throw new SheetExtractionError(
-      `Local model server at ${ollamaUrl} is not reachable (${cause instanceof Error ? cause.message : String(cause)}). Is Ollama running?`,
+      `Local model server at ${baseUrl} is not reachable (${cause instanceof Error ? cause.message : String(cause)}). Is ${api === "ollama" ? "Ollama" : "the model server"} running?`,
       "unreachable",
     );
   }
