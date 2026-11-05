@@ -1660,10 +1660,17 @@ export function PlannerProjectWorkspace({
                       robotCycleCount,
                       t,
                     );
+                    // The pattern editor only changes the plan: locked
+                    // while the session may not save (server mode, #34).
+                    const lockedHint = !gate.ready
+                      ? gate.missing
+                      : tool === "editor"
+                        ? readOnlyHint
+                        : null;
                     return (
                       <button
                         key={tool}
-                        title={gate.ready ? undefined : gate.missing}
+                        title={lockedHint ?? undefined}
                         onClick={(event) => {
                           const menu = event.currentTarget.closest("details");
                           if (menu) menu.open = false;
@@ -1671,10 +1678,10 @@ export function PlannerProjectWorkspace({
                         }}
                       >
                         {label}
-                        {gate.ready ? null : (
+                        {lockedHint === null ? null : (
                           <span>
                             <span aria-hidden="true">{t("shell.locked")}</span>
-                            <span className="sr-only">{gate.missing}</span>
+                            <span className="sr-only">{lockedHint}</span>
                           </span>
                         )}
                       </button>
@@ -1841,7 +1848,9 @@ export function PlannerProjectWorkspace({
         title={activeTool ? toolTitles[activeTool] : t("project.tool.fallback")}
         onClose={closeProductionTool}
       >
-        {activeToolGate && !activeToolGate.ready ? (
+        {activeTool === "editor" && readOnlyHint ? (
+          <p className="text-ink p-4 text-[13px] leading-5">{readOnlyHint}</p>
+        ) : activeToolGate && !activeToolGate.ready ? (
           <div className="grid justify-items-start gap-3 p-4">
             <p className="text-ink text-[13px] leading-5">
               {activeToolGate.missing}
