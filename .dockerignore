@@ -21,3 +21,5 @@ compose.yaml
 npm-debug.log*
 *.pem
 dist
+# PostgreSQL dumps (default PALETTE_BACKUP_DIR): never bake data into an image
+backups

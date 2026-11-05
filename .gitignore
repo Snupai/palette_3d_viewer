@@ -65,3 +65,6 @@ yarn-error.log*
 
 # bundled migration script (Dockerfile build stage)
 /dist/
+
+# PostgreSQL dumps (compose `backup` service, default PALETTE_BACKUP_DIR)
+/backups/

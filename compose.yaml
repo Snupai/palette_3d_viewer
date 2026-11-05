@@ -1,12 +1,14 @@
 # Full planner stack (ADR 0009, issue #49): PostgreSQL, a one-shot migration
-# run and the Next.js app. Works with `docker compose` and `podman compose`
-# (rootless too): images are fully qualified and major-pinned, data lives in a
+# run, the Next.js app and hourly pg_dump backups (issue #38). Works with
+# `docker compose` and `podman compose` (rootless too): images are fully qualified and major-pinned, data lives in a
 # named volume, and every port is bound to localhost only — never exposed to
 # the plant network (LAN access needs HTTPS first, ADR 0008).
 #
 #   bun run stack:up    # docker compose up -d --build → http://127.0.0.1:3000
 #   bun run stack:down  # stops everything; data stays in the volume
 #   bun run db:up       # only PostgreSQL, for `bun run dev` + `bun run db:migrate`
+#   bun run db:backup   # one extra dump into PALETTE_BACKUP_DIR (default ./backups)
+#   bun run db:restore palette-<UTC>.dump --yes   # replaces all data; stop app first
 #   docker compose run --rm migrate node admin.mjs init            # first admin
 #   docker compose run --rm migrate node admin.mjs reset-password  # recovery
 #
@@ -86,6 +88,40 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+
+  # Hourly `pg_dump -Fc` into PALETTE_BACKUP_DIR (issue #38, ADR 0009) — put
+  # that directory on a separate disk. Keeps PALETTE_BACKUP_RETENTION_DAYS (7)
+  # days. Same image as db, so pg_dump matches the server version. Logic and
+  # the restore command: scripts/pg-backup.sh, README "Backups and restore".
+  backup:
+    image: docker.io/library/postgres:17
+    restart: unless-stopped
+    entrypoint: ["sh", "/opt/palette/pg-backup.sh"]
+    command: ["loop"]
+    # Owner of the dump files. Default root is your own user under rootless
+    # Podman; with Docker on Linux set e.g. PALETTE_BACKUP_USER=1000:1000.
+    user: "${PALETTE_BACKUP_USER:-0:0}"
+    environment:
+      PGHOST: db
+      PGUSER: palette
+      PGPASSWORD: ${PALETTE_DB_PASSWORD:-palette}
+      PGDATABASE: palette
+      PALETTE_BACKUP_DIR: /backups
+      PALETTE_BACKUP_INTERVAL_SECONDS: ${PALETTE_BACKUP_INTERVAL_SECONDS:-3600}
+      PALETTE_BACKUP_RETENTION_DAYS: ${PALETTE_BACKUP_RETENTION_DAYS:-7}
+    volumes:
+      # :z relabels for SELinux hosts (Podman on Fedora/RHEL); ignored elsewhere.
+      - ${PALETTE_BACKUP_DIR:-./backups}:/backups:z
+      - ./scripts/pg-backup.sh:/opt/palette/pg-backup.sh:ro,z
+    healthcheck:
+      test: ["CMD", "sh", "/opt/palette/pg-backup.sh", "health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+    depends_on:
+      db:
+        condition: service_healthy
 
 volumes:
   palette-db:
