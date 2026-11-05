@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { OpenDatabase } from "../db/database";
@@ -399,4 +400,98 @@ it("keeps records when their creator is deleted", async () => {
   await database.db.delete(users);
   const stored = await getRecord(database.db, "projects", "project-1");
   expect(stored.ok && stored.record?.createdBy).toBeNull();
+});
+
+describe("onlyCreatedBy", () => {
+  it("updates and deletes only the creator's records", async () => {
+    await insert("project-1", { name: "A" });
+
+    const update = (userId: string) =>
+      putRecord(
+        database.db,
+        {
+          store: "projects",
+          record: { id: "project-1", name: userId },
+          expectedVersion: 1,
+          userId,
+          onlyCreatedBy: userId,
+        },
+        T1,
+      );
+    expect(await update(bob)).toEqual({
+      ok: false,
+      kind: "forbidden",
+      store: "projects",
+      id: "project-1",
+    });
+    expect(await update(alice)).toMatchObject({
+      ok: true,
+      record: { version: 2, record: { name: alice }, createdBy: alice },
+    });
+
+    const remove = (userId: string, expectedVersion: number) =>
+      deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion,
+        onlyCreatedBy: userId,
+      });
+    expect(await remove(bob, 2)).toMatchObject({ kind: "forbidden" });
+    expect(await remove(alice, 1)).toMatchObject({
+      kind: "conflict",
+      actualVersion: 2,
+    });
+    expect(await remove(alice, 2)).toEqual({ ok: true });
+    expect(await remove(alice, 2)).toMatchObject({
+      kind: "conflict",
+      actualVersion: null,
+    });
+  });
+
+  it("reports forbidden before a version conflict for someone else's record", async () => {
+    await insert("project-1");
+    expect(
+      await putRecord(
+        database.db,
+        {
+          store: "projects",
+          record: { id: "project-1" },
+          expectedVersion: 7,
+          userId: bob,
+          onlyCreatedBy: bob,
+        },
+        T1,
+      ),
+    ).toMatchObject({ kind: "forbidden" });
+  });
+
+  it("treats a record whose creator was deleted as nobody's", async () => {
+    await insert("project-1");
+    await database.db.delete(users).where(eq(users.id, alice));
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 1,
+        onlyCreatedBy: alice,
+      }),
+    ).toMatchObject({ kind: "forbidden" });
+  });
+
+  it("lets an insert of an existing id conflict, not be forbidden", async () => {
+    await insert("project-1");
+    expect(
+      await putRecord(
+        database.db,
+        {
+          store: "projects",
+          record: { id: "project-1" },
+          expectedVersion: null,
+          userId: bob,
+          onlyCreatedBy: bob,
+        },
+        T1,
+      ),
+    ).toMatchObject({ kind: "conflict", actualVersion: 1 });
+  });
 });
