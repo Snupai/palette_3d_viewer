@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useId, useMemo, useRef } from "react";
 import type { Project } from "~/domain/project/projectSchema";
 import { useLocale, type MessageKey } from "~/i18n";
-import { focusableWithin, wrapFocusIndex } from "~/components/ui/focusTrap";
+import { claimModalKeys } from "~/components/ui/focusTrap";
 import { PlanRender } from "~/features/planner/PlanRender";
 import { planLibraryEntry } from "~/features/planner/planLibraryModel";
 import {
@@ -148,26 +148,10 @@ export function ProjectConflictView({
     // document camera does over the project dialog.
     const onKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
-      if (!dialog || (event.key !== "Escape" && event.key !== "Tab")) return;
-      event.stopImmediatePropagation();
-      if (event.key === "Escape") {
-        event.preventDefault();
+      if (!dialog) return;
+      claimModalKeys(event, dialog, () => {
         if (!busyRef.current) onLaterRef.current();
-        return;
-      }
-      const items = focusableWithin(dialog);
-      if (items.length === 0) {
-        // While saving every action is disabled; keep focus on the dialog.
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const index = items.findIndex((item) => item === document.activeElement);
-      const next = wrapFocusIndex(index, items.length, event.shiftKey);
-      if (next !== null) {
-        event.preventDefault();
-        items[next]?.focus();
-      }
+      });
     };
     window.addEventListener("keydown", onKeyDown, true);
     return () => window.removeEventListener("keydown", onKeyDown, true);

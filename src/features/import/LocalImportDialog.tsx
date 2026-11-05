@@ -13,7 +13,7 @@ import type {
   PlannerSession,
   SessionUser,
 } from "~/features/auth/plannerAccessModel";
-import { focusableWithin, wrapFocusIndex } from "~/components/ui/focusTrap";
+import { claimModalKeys } from "~/components/ui/focusTrap";
 import { ProjectConflictView } from "~/features/project/ProjectConflictView";
 import { createProjectConflict } from "~/features/project/projectConflictModel";
 import { useT, type Translate } from "~/i18n";
@@ -609,31 +609,19 @@ function LocalImportOverview({
   const stateRef = useRef({ conflictOpen, running, onClose });
   stateRef.current = { conflictOpen, running, onClose };
   useEffect(() => {
+    // Capture phase, like the conflict view: the overview can open on its
+    // own over a production-tool Drawer, whose document-level listener
+    // would otherwise close the tool on Escape and pull Tab focus back.
     const onKeyDown = (event: KeyboardEvent) => {
       const dialog = dialogRef.current;
-      // The conflict view on top handles its own keys.
+      // The conflict view on top claims its own keys.
       if (!dialog || stateRef.current.conflictOpen) return;
-      if (event.key === "Escape") {
-        event.preventDefault();
+      claimModalKeys(event, dialog, () => {
         if (!stateRef.current.running) stateRef.current.onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const items = focusableWithin(dialog);
-      if (items.length === 0) {
-        event.preventDefault();
-        dialog.focus();
-        return;
-      }
-      const index = items.findIndex((item) => item === document.activeElement);
-      const next = wrapFocusIndex(index, items.length, event.shiftKey);
-      if (next !== null) {
-        event.preventDefault();
-        items[next]?.focus();
-      }
+      });
     };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
   }, []);
 
   const importable = plan ? importableKeys(plan) : [];

@@ -1,5 +1,11 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
 import { createProject } from "~/domain/project/projectFactory";
 import { createProjectResource } from "~/domain/project/projectResource";
@@ -15,6 +21,8 @@ import {
 } from "~/lib/projectRepository";
 import { LocalImportController } from "./LocalImportDialog";
 import type { LocalImportSource } from "./localImportModel";
+
+afterEach(cleanup);
 
 const ALICE: PlannerSession = {
   status: "signed-in",
@@ -102,5 +110,28 @@ describe("LocalImportController", () => {
         "Alle lokalen Pläne sind bereits auf dem Server. Es gibt nichts zu übernehmen.",
       ),
     ).toBeTruthy();
+  });
+
+  it("claims Escape and Tab before a Drawer's document listener when it opens over a tool", async () => {
+    setup();
+    const drawerKeys = vi.fn();
+    document.addEventListener("keydown", drawerKeys);
+    try {
+      const dialog = await screen.findByRole("dialog", {
+        name: "Lokale Pläne auf den Server übernehmen",
+      });
+      const close = screen.getByRole("button", { name: "Schließen" });
+      close.focus();
+      fireEvent.keyDown(close, { key: "Tab" });
+      // Focus wraps to the first control inside the overview.
+      expect(dialog.contains(document.activeElement)).toBe(true);
+      expect(document.activeElement).not.toBe(close);
+
+      fireEvent.keyDown(document.activeElement ?? dialog, { key: "Escape" });
+      expect(drawerKeys).not.toHaveBeenCalled();
+      expect(screen.queryByRole("dialog")).toBeNull();
+    } finally {
+      document.removeEventListener("keydown", drawerKeys);
+    }
   });
 });
