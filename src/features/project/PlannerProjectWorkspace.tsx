@@ -2258,6 +2258,7 @@ export function PlannerProjectWorkspace({
             onOpenProjects={browsePlans}
             onCreateProject={createNew}
             onEditProject={() => openInputs()}
+            editDisabledReason={readOnlyHint}
             onOpenTool={openProductionTool}
             onImportRob={(file) => void importRobAsProject(file)}
             solverResult={solverResult}

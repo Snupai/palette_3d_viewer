@@ -173,8 +173,12 @@ h3 {
   padding: 10px 0;
   font-size: 15px;
 }
-.text-action:hover {
+.text-action:hover:not(:disabled) {
   color: var(--brand);
+}
+.text-action:disabled {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .welcome-doors {
   display: grid;

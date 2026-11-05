@@ -87,6 +87,11 @@ export type PlanningCaseWorkbenchProps = {
   onCurrentLayerChange: (index: number) => void;
   hasUnsavedChanges: boolean;
   robotCycleCount?: number;
+  /**
+   * Disables the finished plan's editing actions with this explanation
+   * (read-only server session, #34); `null` keeps them enabled.
+   */
+  editDisabledReason?: string | null;
 };
 
 export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
@@ -348,6 +353,8 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               <div className="viewer-buttons">
                 <button
                   className="ui-btn"
+                  disabled={Boolean(p.editDisabledReason)}
+                  title={p.editDisabledReason ?? undefined}
                   onClick={() => p.onOpenTool("editor")}
                 >
                   {t("planningCase.editPattern")}
@@ -361,12 +368,19 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 {!imported && (
                   <button
                     className="ui-btn"
+                    disabled={Boolean(p.editDisabledReason)}
+                    title={p.editDisabledReason ?? undefined}
                     onClick={() => p.onStageChange("generate")}
                   >
                     {t("planningCase.morePatterns")}
                   </button>
                 )}
-                <button className="text-action" onClick={p.onEditProject}>
+                <button
+                  className="text-action"
+                  disabled={Boolean(p.editDisabledReason)}
+                  title={p.editDisabledReason ?? undefined}
+                  onClick={p.onEditProject}
+                >
                   {t("planningCase.editPlanData")}
                 </button>
               </div>
