@@ -1,5 +1,11 @@
 /** Namespace `project` — German source strings. */
 export const projectDe = {
+  "project.error.browserQuota":
+    "Der Browserspeicher ist voll. Der Plan wurde nicht gespeichert. Exportieren Sie Ihre Pläne oder geben Sie Speicher frei und versuchen Sie es erneut.",
+  "project.error.browserConflict":
+    "Dieser Browserplan wurde in einem anderen Tab geändert. Ihre Änderungen bleiben offen. Exportieren Sie sie als Sicherung und öffnen Sie den Plan erneut, bevor Sie weiter speichern.",
+  "project.error.saveBrowserBeforeSignIn":
+    "Speichern oder verwerfen Sie zuerst die ungespeicherten Änderungen am Browserplan. Melden Sie sich danach erneut an.",
   // Tool titles
   "project.tool.candidateBrowser": "Kandidaten-Browser",
   "project.tool.candidate3d": "3D-Prüfung der Kandidaten",

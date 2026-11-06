@@ -290,7 +290,15 @@ function renamedResource(
 }
 
 export async function importProjectPackageJson(
-  repository: ProjectRepository,
+  repository: Pick<
+    ProjectRepository,
+    | "hasProject"
+    | "getProject"
+    | "saveProject"
+    | "hasResource"
+    | "getResource"
+    | "saveResource"
+  >,
   raw: string,
   options: ProjectPackageImportOptions = {},
 ): Promise<ProjectPackageImportResult> {

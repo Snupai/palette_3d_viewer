@@ -365,10 +365,13 @@ export class ProjectRepository {
     return (await this.storage.get(PROJECTS_STORE_NAME, id)) !== undefined;
   }
 
-  async deleteProject(id: string): Promise<boolean> {
+  async deleteProject(
+    id: string,
+    options?: RecordWriteOptions,
+  ): Promise<boolean> {
     const existing = await this.storage.get(PROJECTS_STORE_NAME, id);
     if (existing === undefined) return false;
-    await this.storage.delete(PROJECTS_STORE_NAME, id);
+    await this.storage.delete(PROJECTS_STORE_NAME, id, options);
     return true;
   }
 

@@ -307,16 +307,17 @@ export function PlanLibrary(
           <div role="list" aria-label={t("planner.library.savedPlans")}>
             {shown.map(
               ({ project: pr, data, layerCount, total, perLayerLabel }) => {
+                const key = p.projectKey?.(pr) ?? pr.id;
                 const d = pr.package.dimensionsMm;
                 const title =
                   pr.productNumber ||
                   pr.projectNumber ||
                   t("planner.library.untitled");
                 return (
-                  <article key={pr.id} role="listitem" className="plan-row">
+                  <article key={key} role="listitem" className="plan-row">
                     <button
                       className="plan-thumb"
-                      onClick={() => p.onSelect(pr.id)}
+                      onClick={() => p.onSelect(key)}
                       aria-label={t("planner.library.openTitle", { title })}
                     >
                       <PlanRender
@@ -331,7 +332,7 @@ export function PlanLibrary(
                     </button>
                     <div className="plan-row-content">
                       <div className="plan-row-title">
-                        <button onClick={() => p.onSelect(pr.id)}>
+                        <button onClick={() => p.onSelect(key)}>
                           <h2>{title}</h2>
                         </button>
                         <span className="plan-origin">
@@ -397,32 +398,32 @@ export function PlanLibrary(
                             <button
                               disabled={editLocked !== null}
                               title={editLocked ?? undefined}
-                              onClick={() => p.onEdit(pr.id)}
+                              onClick={() => p.onEdit(key)}
                             >
                               {t("planner.library.editDetails")}
                             </button>
                             <button
                               disabled={editLocked !== null}
                               title={editLocked ?? undefined}
-                              onClick={() => p.onDuplicate(pr.id)}
+                              onClick={() => p.onDuplicate(key)}
                             >
                               {t("planner.library.duplicate")}
                             </button>
                             <button
                               disabled={editLocked !== null}
                               title={editLocked ?? undefined}
-                              onClick={() => p.onSaveAs(pr.id)}
+                              onClick={() => p.onSaveAs(key)}
                             >
                               {t("planner.library.saveCopy")}
                             </button>
-                            <button onClick={() => p.onExportSelected(pr.id)}>
+                            <button onClick={() => p.onExportSelected(key)}>
                               {t("planner.library.exportProject")}
                             </button>
                             <button
                               className="text-danger"
-                              disabled={deleteLocked(pr.id) !== null}
-                              title={deleteLocked(pr.id) ?? undefined}
-                              onClick={() => setPendingDelete(pr.id)}
+                              disabled={deleteLocked(key) !== null}
+                              title={deleteLocked(key) ?? undefined}
+                              onClick={() => setPendingDelete(key)}
                             >
                               {t("planner.library.delete")}
                             </button>
@@ -431,19 +432,19 @@ export function PlanLibrary(
                         {hasRobPlan(pr) && (
                           <button
                             className="ui-btn"
-                            onClick={() => p.onDownloadRob(pr.id)}
+                            onClick={() => p.onDownloadRob(key)}
                           >
                             {t("planner.library.downloadRob")}
                           </button>
                         )}
                         <button
                           className="ui-btn-primary"
-                          onClick={() => p.onSelect(pr.id)}
+                          onClick={() => p.onSelect(key)}
                         >
                           {t("planner.open")}
                         </button>
                       </div>
-                      {pendingDelete === pr.id && (
+                      {pendingDelete === key && (
                         <div className="inline-confirm" role="alert">
                           <span>
                             {t("planner.library.confirmDelete", { title })}
@@ -452,7 +453,7 @@ export function PlanLibrary(
                             className="ui-btn ui-btn-danger"
                             onClick={() => {
                               setPendingDelete(null);
-                              p.onDelete(pr.id);
+                              p.onDelete(key);
                             }}
                           >
                             {t("planner.library.delete")}

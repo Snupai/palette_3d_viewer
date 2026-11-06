@@ -12,6 +12,8 @@ import type {
 
 export type ProjectLibraryProps = {
   projects: readonly Project[];
+  /** Opaque selection identity; keeps equal ids from different stores distinct. */
+  projectKey?: (project: Project) => string;
   selectedId: string | null;
   loading: boolean;
   search: string;

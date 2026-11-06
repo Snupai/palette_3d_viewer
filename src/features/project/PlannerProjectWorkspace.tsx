@@ -61,10 +61,7 @@ import {
   projectWithPersistedStack,
   type StackWorkspaceState,
 } from "~/features/stack/stackWorkspaceModel";
-import {
-  exportRepositoryPackageJson,
-  importProjectPackageJson,
-} from "~/lib/projectPackage";
+import { exportRepositoryPackageJson } from "~/lib/projectPackage";
 import {
   materializedStackToPalletData,
   projectSolutionToPalletData,
@@ -89,7 +86,10 @@ import {
 } from "~/features/auth/plannerAccessModel";
 import type { PlannerStoreName } from "~/lib/plannerDatabase";
 import type { RecordVersion } from "~/lib/plannerRecordStorage";
-import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
+import {
+  createBrowserLocalPlannerStorage,
+  createPlannerRecordStorage,
+} from "~/lib/plannerStorageFactory";
 import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
   createProjectRepository,
@@ -101,6 +101,12 @@ import {
   type VersionedProject,
 } from "~/lib/projectRepository";
 import { configuredStorageMode, type StorageMode } from "~/lib/storageMode";
+import {
+  WorkspaceRepositoryModel,
+  newWorkspacePlanOrigin,
+  isBrowserQuotaError,
+  type WorkspacePlanOrigin,
+} from "~/features/project/workspaceRepositoryModel";
 import { ProjectConflictView } from "~/features/project/ProjectConflictView";
 import { DraftRestoreOffer } from "~/features/project/DraftRestoreOffer";
 import {
@@ -170,6 +176,7 @@ const StackWorkspace = dynamic(
 
 export type PlannerProjectWorkspaceProps = {
   repository?: ProjectRepository;
+  browserRepository?: ProjectRepository;
   onUnsavedChange?: (hasUnsavedChanges: boolean) => void;
   /**
    * Defaults to the build's configured mode. In `server` mode saves carry the
@@ -275,6 +282,7 @@ function downloadJson(filename: string, contents: string): void {
 
 export function PlannerProjectWorkspace({
   repository: providedRepository,
+  browserRepository: providedBrowserRepository,
   onUnsavedChange,
   storageMode = configuredStorageMode,
   fetchImpl,
@@ -288,16 +296,47 @@ export function PlannerProjectWorkspace({
   const repositoryRef = useRef<ProjectRepository | null>(null);
   repositoryRef.current ??=
     providedRepository ??
-    createProjectRepository(createPlannerRecordStorage({ mode: storageMode }));
+    createProjectRepository(
+      createPlannerRecordStorage({ mode: storageMode, fetch: fetchImpl }),
+    );
   const repository = repositoryRef.current;
+  const browserStorageRef = useRef<ReturnType<
+    typeof createBrowserLocalPlannerStorage
+  > | null>(null);
+  const routingRef = useRef<WorkspaceRepositoryModel | null>(null);
+  if (!routingRef.current) {
+    if (storageMode === "server")
+      browserStorageRef.current = createBrowserLocalPlannerStorage();
+    routingRef.current = new WorkspaceRepositoryModel(
+      storageMode,
+      repository,
+      storageMode === "server"
+        ? (providedBrowserRepository ??
+          createProjectRepository(browserStorageRef.current!))
+        : null,
+    );
+  }
+  const routing = routingRef.current;
   const sessionControls = usePlannerSession(storageMode, fetchImpl);
   const { session } = sessionControls;
   /** What the session may do with a stored project (or a new one). */
-  const accessFor = (projectId: string | null | undefined): PlannerAccess =>
-    plannerAccess(session, {
-      origin: "server",
-      createdBy: projectId ? repository.projectCreatedBy(projectId) : undefined,
-    });
+  const newPlanOrigin = newWorkspacePlanOrigin(storageMode, session);
+  const accessFor = (key: string | null | undefined): PlannerAccess => {
+    const reference = key
+      ? routing.reference(key)
+      : { origin: newPlanOrigin, id: "" };
+    return plannerAccess(
+      session,
+      reference.origin === "browser-local"
+        ? { origin: "browser-local" }
+        : {
+            origin: "server",
+            createdBy: key
+              ? repository.projectCreatedBy(reference.id)
+              : undefined,
+          },
+    );
+  };
   /**
    * A copy save is in flight. Its success reopens the plan under the copy's
    * id, which resets every editing surface, so all of them are locked until
@@ -309,6 +348,7 @@ export function PlannerProjectWorkspace({
     return {
       label: control.label ? t(control.label) : null,
       disabledReason: control.disabledReason ? t(control.disabledReason) : null,
+      hint: control.hint ? t(control.hint) : undefined,
     };
   };
   /** Creator the server reported for a record (local import, #37). */
@@ -317,11 +357,8 @@ export function PlannerProjectWorkspace({
       repository.recordCreatedBy(store, id),
     [repository],
   );
-  const generalAccess = plannerAccess(session, {
-    origin: "server",
-    createdBy: undefined,
-  });
-  const readOnlyHint = generalAccess.readOnlyHint
+  const generalAccess = accessFor(null);
+  const generalReadOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
     : null;
   /**
@@ -455,6 +492,13 @@ export function PlannerProjectWorkspace({
     project: Project,
     source: DraftLease["source"],
   ): DraftLease | null => {
+    if (
+      selectedProjectIdRef.current &&
+      routing.reference(selectedProjectIdRef.current).origin ===
+        "browser-local" &&
+      routing.reference(selectedProjectIdRef.current).id === project.id
+    )
+      return null;
     const current = draftLeaseRef.current;
     if (current?.projectId === project.id) return current;
     const owner = backupUserRef.current;
@@ -543,21 +587,21 @@ export function PlannerProjectWorkspace({
       setDialogMode("create");
     } else if (route.kind === "plan") {
       setShowWelcome(false);
-      selectedProjectIdRef.current = route.id;
-      setSelectedId(route.id);
+      selectedProjectIdRef.current = routing.key(routing.reference(route.id));
+      setSelectedId(routing.key(routing.reference(route.id)));
       if (route.stage) {
         routeStageRef.current = route.stage;
         setActiveStage(route.stage);
       }
       if (route.view === "edit") {
         setInputSection("meta");
-        pendingEditIdRef.current = route.id;
+        pendingEditIdRef.current = routing.key(routing.reference(route.id));
       } else if (route.view) {
         routeToolRef.current = route.view;
       }
     }
     setRouteReady(true);
-  }, []);
+  }, [routing]);
 
   // The open editor draft is backed up as it changes (server mode only).
   // Once the editor is clean again (saved, undone) the lease it started ends;
@@ -610,7 +654,7 @@ export function PlannerProjectWorkspace({
     const request = ++listRequest.current;
     setLoadingLibrary(true);
     try {
-      const result = await repository.listProjects({
+      const result = await routing.list({
         search,
         projectNumber: projectNumberFilter,
         productNumber: productNumberFilter,
@@ -619,9 +663,23 @@ export function PlannerProjectWorkspace({
       });
       if (request !== listRequest.current) return;
       setProjects(result.projects);
+      if (result.errors.length > 0)
+        setError(
+          tRef.current("project.error.libraryFailed", {
+            message: result.errors
+              .map((cause) =>
+                cause instanceof Error ? cause.message : String(cause),
+              )
+              .join("; "),
+          }),
+        );
       const diagnostic = diagnosticText(result.diagnostics);
       if (diagnostic) setError(diagnostic);
-      setSelectedId((current) => current ?? result.projects[0]?.id ?? null);
+      setSelectedId(
+        (current) =>
+          current ??
+          (result.projects[0] ? routing.keyFor(result.projects[0]) : null),
+      );
     } catch (cause) {
       if (request !== listRequest.current) return;
       console.error("Failed to load project library", cause);
@@ -638,7 +696,7 @@ export function PlannerProjectWorkspace({
   }, [
     productNumberFilter,
     projectNumberFilter,
-    repository,
+    routing,
     search,
     sortBy,
     sortDirection,
@@ -717,12 +775,14 @@ export function PlannerProjectWorkspace({
       return;
     }
     setLoadingProject(true);
-    void repository
-      .getProject(selectedId)
+    void routing
+      .load(selectedId)
       .then((result) => {
         if (request !== projectRequest.current) return;
         loadedVersionRef.current =
-          result.project && typeof result.version === "number"
+          routing.reference(selectedId).origin === "server" &&
+          result.project &&
+          typeof result.version === "number"
             ? { projectId: result.project.id, version: result.version }
             : null;
         if (!result.project) {
@@ -763,7 +823,7 @@ export function PlannerProjectWorkspace({
       .finally(() => {
         if (request === projectRequest.current) setLoadingProject(false);
       });
-  }, [repository, selectedId, projectReloadToken]);
+  }, [routing, selectedId, projectReloadToken]);
 
   /**
    * The one write path for the open plan. In server mode it saves against the
@@ -776,11 +836,18 @@ export function PlannerProjectWorkspace({
   const persistProject = async (
     project: Project,
     lease: DraftLease | null,
+    origin: WorkspacePlanOrigin,
   ): Promise<VersionedProject> => {
     const options =
-      lease && storageMode === "server"
-        ? { expectedVersion: lease.baseVersion }
-        : projectSaveOptions(storageMode, loadedVersionRef.current, project.id);
+      origin === "browser-local"
+        ? undefined
+        : lease && storageMode === "server"
+          ? { expectedVersion: lease.baseVersion }
+          : projectSaveOptions(
+              storageMode,
+              loadedVersionRef.current,
+              project.id,
+            );
     const generation = navigationGeneration.current;
     // Like the success paths: a reply for a plan the user has left (switched,
     // closed, discarded) must not open a conflict view over the new context.
@@ -788,11 +855,15 @@ export function PlannerProjectWorkspace({
     // still-held lease counts as open too.
     const stillOpen = () =>
       generation === navigationGeneration.current &&
-      (selectedProjectIdRef.current === project.id ||
+      (selectedProjectIdRef.current ===
+        routing.key({ id: project.id, origin }) ||
         (lease !== null && draftLeaseRef.current?.token === lease.token));
     try {
-      const saved = await repository.saveProjectVersioned(project, options);
-      if (selectedProjectIdRef.current === saved.project.id) {
+      const saved = await routing.save(project, origin, options);
+      if (
+        origin === "server" &&
+        selectedProjectIdRef.current === routing.keyFor(saved.project)
+      ) {
         loadedVersionRef.current = {
           projectId: saved.project.id,
           version: saved.version,
@@ -800,6 +871,13 @@ export function PlannerProjectWorkspace({
       }
       return saved;
     } catch (cause) {
+      if (isBrowserQuotaError(cause))
+        throw new Error(t("project.error.browserQuota"), { cause });
+      if (
+        origin === "browser-local" &&
+        isProjectVersionConflict(cause, project.id)
+      )
+        throw new Error(t("project.error.browserConflict"), { cause });
       if (!options || !isProjectVersionConflict(cause, project.id)) throw cause;
       if (!stillOpen()) throw cause;
       const server = await readConflictServerState(repository, project.id);
@@ -824,13 +902,14 @@ export function PlannerProjectWorkspace({
    */
   const saveForSession = async (
     project: Project,
+    origin: WorkspacePlanOrigin,
   ): Promise<{ saved: Project; version: RecordVersion; copied: boolean }> => {
-    const access = accessFor(project.id);
+    const access = accessFor(routing.key({ id: project.id, origin }));
     if (access.save === "none") {
       throw new Error(t(access.readOnlyHint ?? "auth.readOnly.signIn"));
     }
     // The draft this save belongs to, as it was when the save started.
-    const lease = ensureLease(project, "save");
+    const lease = origin === "server" ? ensureLease(project, "save") : null;
     const leaseRev = lease?.rev;
     const epoch = signOutEpochRef.current;
     /** Still the window's draft: not discarded, signed out or replaced. */
@@ -891,7 +970,11 @@ export function PlannerProjectWorkspace({
           setCopySaving(false);
         }
       }
-      const { project: saved, version } = await persistProject(project, lease);
+      const { project: saved, version } = await persistProject(
+        project,
+        lease,
+        origin,
+      );
       settle(version, true);
       return { saved, version, copied: false };
     } catch (cause) {
@@ -922,18 +1005,27 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const saveProject = async (project: Project): Promise<Project> => {
+  const draftOrigin = (project: Project): WorkspacePlanOrigin =>
+    selectedId && selectedProject?.id === project.id
+      ? routing.reference(selectedId).origin
+      : newPlanOrigin;
+  const saveProject = async (
+    project: Project,
+    origin = draftOrigin(project),
+  ): Promise<Project> => {
     setShowWelcome(false);
     setProjectDrawerOpen(false);
     setError(null);
     setStatusMessage(null);
-    const switchedProject = selectedId !== project.id;
+    const switchedProject =
+      selectedId !== routing.key({ id: project.id, origin });
     const generation = navigationGeneration.current;
-    const { saved, version, copied } = await saveForSession(project);
+    const { saved, version, copied } = await saveForSession(project, origin);
     if (generation !== navigationGeneration.current) return saved;
-    selectedProjectIdRef.current = saved.id;
-    loadedVersionRef.current = { projectId: saved.id, version };
-    setSelectedId(saved.id);
+    selectedProjectIdRef.current = routing.keyFor(saved);
+    loadedVersionRef.current =
+      origin === "server" ? { projectId: saved.id, version } : null;
+    setSelectedId(routing.keyFor(saved));
     setSelectedProject(saved);
     setEditorDraftProject(null);
     setEditorDirty(false);
@@ -1054,7 +1146,7 @@ export function PlannerProjectWorkspace({
     selectedProjectIdRef.current = id;
     setActiveStage(
       planningStageForProject(
-        projects.find((entry) => entry.id === id) ?? null,
+        projects.find((entry) => routing.keyFor(entry) === id) ?? null,
       ),
     );
     setProjectDrawerOpen(false);
@@ -1064,9 +1156,9 @@ export function PlannerProjectWorkspace({
 
   /** The persisted project behind a library row; the open one wins. */
   const libraryProject = (id: string): Project | null =>
-    selectedProject?.id === id
+    selectedId === id
       ? selectedProject
-      : (projects.find((entry) => entry.id === id) ?? null);
+      : (projects.find((entry) => routing.keyFor(entry) === id) ?? null);
 
   const editProject = (id: string) => {
     navigationGeneration.current += 1;
@@ -1083,12 +1175,15 @@ export function PlannerProjectWorkspace({
   };
 
   useEffect(() => {
-    if (pendingEditIdRef.current !== selectedProject?.id) {
+    if (
+      !selectedProject ||
+      pendingEditIdRef.current !== routing.keyFor(selectedProject)
+    ) {
       return;
     }
     pendingEditIdRef.current = null;
     setDialogMode("edit");
-  }, [selectedProject]);
+  }, [routing, selectedProject]);
 
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
@@ -1124,21 +1219,21 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const result = await repository.duplicateProject(source.id, {
+      const origin =
+        session.status === "anonymous"
+          ? "browser-local"
+          : routing.reference(id).origin;
+      if (!generalAccess.canCreate) return;
+      const { project: copied } = await routing.copy(source, origin, {
         projectNumber: source.projectNumber
           ? t("project.copySuffix", { number: source.projectNumber })
           : t("project.copy"),
       });
-      if (!result.project) {
-        throw new Error(
-          diagnosticText(result.diagnostics) ||
-            t("project.error.sourceMissing"),
-        );
-      }
+      const result = { project: copied };
       discardUnsavedPlannerChanges();
       setGeneratorLaunchRequest(null);
-      selectedProjectIdRef.current = result.project.id;
-      setSelectedId(result.project.id);
+      selectedProjectIdRef.current = routing.keyFor(result.project);
+      setSelectedId(routing.keyFor(result.project));
       setSelectedProject(result.project);
       setActiveStage(planningStageForProject(result.project));
       setStatusMessage(
@@ -1149,6 +1244,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to duplicate project", cause);
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1182,14 +1281,19 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const saved = await repository.saveProjectAs(source, {
+      const origin =
+        session.status === "anonymous"
+          ? "browser-local"
+          : routing.reference(id).origin;
+      if (!generalAccess.canCreate) return;
+      const { project: saved } = await routing.copy(source, origin, {
         projectNumber,
         productNumber,
       });
       discardUnsavedPlannerChanges();
       setGeneratorLaunchRequest(null);
-      selectedProjectIdRef.current = saved.id;
-      setSelectedId(saved.id);
+      selectedProjectIdRef.current = routing.keyFor(saved);
+      setSelectedId(routing.keyFor(saved));
       setSelectedProject(saved);
       setActiveStage(planningStageForProject(saved));
       setStatusMessage(
@@ -1198,6 +1302,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to save project as", cause);
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1215,7 +1323,8 @@ export function PlannerProjectWorkspace({
   const remove = async (id: string) => {
     const target = libraryProject(id);
     if (!target) return;
-    const isOpen = target.id === selectedProject?.id;
+    if (!accessFor(id).canDelete) return;
+    const isOpen = id === selectedId;
     // Losing unsaved work in the open project still asks separately.
     if (
       isOpen &&
@@ -1229,7 +1338,7 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const deleted = await repository.deleteProject(target.id);
+      const deleted = await routing.remove(id);
       if (!deleted) throw new Error(t("project.error.projectGone"));
       const lease = draftLeaseRef.current;
       if (lease?.projectId === target.id) {
@@ -1251,6 +1360,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to delete project", cause);
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1289,10 +1402,34 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
+      if (selection === "all" && routing.browser) {
+        const [server, browser] = await Promise.all([
+          exportRepositoryPackageJson(repository),
+          exportRepositoryPackageJson(routing.browser, { resourceIds: [] }),
+        ]);
+        const diagnostics = [
+          ...server.diagnostics,
+          ...browser.diagnostics,
+        ].filter(({ severity }) => severity === "error");
+        if (diagnostics.length) {
+          setError(diagnostics.map(({ message }) => message).join("\n"));
+          return;
+        }
+        downloadJson("planner-projects.json", server.json);
+        downloadJson("browser-plans.json", browser.json);
+        setStatusMessage(t("project.status.exportedAll"));
+        return;
+      }
+      const reference = projectId ? routing.reference(projectId) : null;
       const result = await exportRepositoryPackageJson(
-        repository,
-        selection === "selected" && projectId
-          ? { projectIds: [projectId] }
+        reference ? routing.repository(reference.origin) : repository,
+        selection === "selected" && reference
+          ? {
+              projectIds: [reference.id],
+              ...(reference.origin === "browser-local"
+                ? { resourceIds: [] }
+                : {}),
+            }
           : {},
       );
       const errors = result.diagnostics.filter(
@@ -1327,13 +1464,16 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const result = await importProjectPackageJson(
-        repository,
+      if (!generalAccess.canCreate) return;
+      const origin = newPlanOrigin;
+      const result = await routing.importPackage(
         await file.text(),
+        origin,
         {
           projectConflictPolicy,
           resourceConflictPolicy,
         },
+        session.status === "signed-in" && session.user.role === "admin",
       );
       const errors = result.diagnostics.filter(
         ({ severity }) => severity === "error",
@@ -1355,21 +1495,27 @@ export function PlannerProjectWorkspace({
       }
       if (result.projects[0] && !hasUnsavedChanges) {
         setGeneratorLaunchRequest(null);
-        selectedProjectIdRef.current = result.projects[0].id;
+        selectedProjectIdRef.current = routing.keyFor(result.projects[0]);
         setActiveStage(planningStageForProject(result.projects[0]));
-        setSelectedId(result.projects[0].id);
+        setSelectedId(routing.keyFor(result.projects[0]));
       }
       // An overwrite of the open plan keeps the same id, so the load effect
       // would not re-run; force it so stale inputs cannot be saved back.
       if (
         selectedProjectIdRef.current &&
-        result.projects.some(({ id }) => id === selectedProjectIdRef.current)
+        result.projects.some(
+          (project) => routing.keyFor(project) === selectedProjectIdRef.current,
+        )
       ) {
         setProjectReloadToken((token) => token + 1);
       }
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to import project package", cause);
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1384,7 +1530,12 @@ export function PlannerProjectWorkspace({
   };
 
   const importRobAsProject = async (file: File) => {
-    if (!confirmDiscardUnsaved(t("project.action.openRob"))) return;
+    if (
+      !generalAccess.canCreate ||
+      !confirmDiscardUnsaved(t("project.action.openRob"))
+    )
+      return;
+    const origin = newPlanOrigin;
     discardUnsavedPlannerChanges();
     setError(null);
     setStatusMessage(null);
@@ -1400,7 +1551,7 @@ export function PlannerProjectWorkspace({
         rawText,
         originalRawText: rawText,
       });
-      const saved = await saveProject(project);
+      const saved = await saveProject(project, origin);
       setActiveStage(planningStageForProject(saved));
       setStatusMessage(
         t("project.status.robOpened", {
@@ -1471,7 +1622,11 @@ export function PlannerProjectWorkspace({
       input: LayerSolverInput,
       appended = false,
     ) => {
-      if (selectedProjectIdRef.current !== projectId) return;
+      if (
+        !selectedProjectIdRef.current ||
+        routing.reference(selectedProjectIdRef.current).id !== projectId
+      )
+        return;
       setSolverResult(result);
       setSolverInput(input);
       // Background patterns only extend the list; keep the user's selection.
@@ -1479,7 +1634,7 @@ export function PlannerProjectWorkspace({
       setSelectedCandidateId(result.candidates[0]?.id ?? null);
       setCurrentLayerIndex(0);
     },
-    [],
+    [routing],
   );
   const resetSolver = useCallback(() => {
     setSolverResult(null);
@@ -1515,7 +1670,10 @@ export function PlannerProjectWorkspace({
   const workspaceProject = editorDraftProject ?? selectedProject;
   const workspaceSaveButton: SaveButtonState = copySaving
     ? { label: null, disabledReason: t("auth.savingCopy") }
-    : saveButtonFor(accessFor(workspaceProject?.id));
+    : saveButtonFor(accessFor(selectedId));
+  const readOnlyHint = accessFor(selectedId).readOnlyHint
+    ? t(accessFor(selectedId).readOnlyHint!)
+    : null;
   const physicalPalletBoundsMm = useMemo(
     () =>
       workspaceProject?.pallet
@@ -1797,7 +1955,7 @@ export function PlannerProjectWorkspace({
     // A copy leaves the original's stack untouched: nothing to confirm.
     if (
       existingLayerCount > 0 &&
-      accessFor(workspaceProject.id).save !== "copy" &&
+      accessFor(selectedId).save !== "copy" &&
       !window.confirm(
         t("project.confirm.replaceStack", {
           existing: existingLayerCount,
@@ -1814,13 +1972,19 @@ export function PlannerProjectWorkspace({
       solverInput,
       state,
     );
-    const { saved, version, copied } = await saveForSession(updated);
+    const { saved, version, copied } = await saveForSession(
+      updated,
+      draftOrigin(updated),
+    );
     if (generation !== navigationGeneration.current)
       return "cancelled" as const;
     if (copied) {
-      selectedProjectIdRef.current = saved.id;
-      loadedVersionRef.current = { projectId: saved.id, version };
-      setSelectedId(saved.id);
+      selectedProjectIdRef.current = routing.keyFor(saved);
+      loadedVersionRef.current =
+        routing.reference(routing.keyFor(saved)).origin === "server"
+          ? { projectId: saved.id, version }
+          : null;
+      setSelectedId(routing.keyFor(saved));
     }
     setSelectedProject(saved);
     setEditorDraftProject(null);
@@ -1882,8 +2046,9 @@ export function PlannerProjectWorkspace({
           version: outcome.version,
         };
         // A new plan's conflict (create retry) was not the selected plan.
-        selectedProjectIdRef.current = outcome.project.id;
-        setSelectedId(outcome.project.id);
+        routing.register(outcome.project, "server");
+        selectedProjectIdRef.current = routing.keyFor(outcome.project);
+        setSelectedId(routing.keyFor(outcome.project));
         setSelectedProject(outcome.project);
         // Re-read so solver results, tools and robot settings start from the
         // chosen plan state instead of the discarded draft.
@@ -1903,8 +2068,9 @@ export function PlannerProjectWorkspace({
         setSelectedId(null);
         setStatusMessage(t("conflict.status.serverDeleted"));
       } else {
-        selectedProjectIdRef.current = outcome.project.id;
-        setSelectedId(outcome.project.id);
+        routing.register(outcome.project, "server");
+        selectedProjectIdRef.current = routing.keyFor(outcome.project);
+        setSelectedId(routing.keyFor(outcome.project));
         setSelectedProject(outcome.project);
         setActiveStage(planningStageForProject(outcome.project));
         setStatusMessage(
@@ -1962,11 +2128,14 @@ export function PlannerProjectWorkspace({
       source: "save",
     };
     draftLeaseRef.current = lease;
-    selectedProjectIdRef.current = backup.projectId;
-    setSelectedId(backup.projectId);
+    selectedProjectIdRef.current = routing.key({
+      id: backup.projectId,
+      origin: "server",
+    });
+    setSelectedId(routing.key({ id: backup.projectId, origin: "server" }));
     setRestoringDraft(true);
     try {
-      const saved = await saveProject(backup.project);
+      const saved = await saveProject(backup.project, "server");
       // Re-read so a load started before the save cannot win with the
       // version the draft replaced.
       setProjectReloadToken((token) => token + 1);
@@ -2010,6 +2179,7 @@ export function PlannerProjectWorkspace({
   };
 
   const createNew = () => {
+    if (!generalAccess.canCreate) return;
     if (!confirmDiscardUnsaved(t("project.action.createPlan"))) return;
     discardUnsavedPlannerChanges();
     failedCreateIdRef.current = null;
@@ -2139,6 +2309,7 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSessionLost}
             />
           ) : null}
+          {/* #71 BrowserSyncController belongs here; reuse browserStorageRef, routing.browser, repository, serverCreatorOf and refreshProjects. */}
           {saveFailure && backupStatus.hasPendingDrafts
             ? (() => {
                 const hint = t(
@@ -2163,7 +2334,20 @@ export function PlannerProjectWorkspace({
               })()
             : null}
           <SessionMenu
-            controls={sessionControls}
+            controls={{
+              ...sessionControls,
+              signIn: async (username, password) => {
+                if (
+                  hasUnsavedChanges &&
+                  ((dialogMode === "create" &&
+                    newPlanOrigin === "browser-local") ||
+                    (selectedId &&
+                      routing.reference(selectedId).origin === "browser-local"))
+                )
+                  return "project.error.saveBrowserBeforeSignIn";
+                return sessionControls.signIn(username, password);
+              },
+            }}
             hasUnsavedDrafts={pendingDraftsAtSignOut}
             beforeLeave={() =>
               confirmDiscardUnsaved(t("auth.action.openUserManagement"))
@@ -2202,7 +2386,7 @@ export function PlannerProjectWorkspace({
       />
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
-          createDisabledReason={readOnlyHint}
+          createDisabledReason={generalReadOnlyHint}
           onCreate={createNew}
           onBrowse={browsePlans}
           onResume={
@@ -2250,7 +2434,7 @@ export function PlannerProjectWorkspace({
             }
             onDownloadRob={
               selectedProject
-                ? () => downloadRob(selectedProject.id)
+                ? () => downloadRob(routing.keyFor(selectedProject))
                 : undefined
             }
             loadingProject={loadingProject}
@@ -2305,6 +2489,7 @@ export function PlannerProjectWorkspace({
           <PlanLibrary
             projects={projects}
             selectedId={selectedId}
+            projectKey={routing.keyFor}
             loading={loadingLibrary}
             search={search}
             projectNumberFilter={projectNumberFilter}
@@ -2333,7 +2518,7 @@ export function PlannerProjectWorkspace({
             onDownloadRob={downloadRob}
             onExportAll={() => void exportProjects("all")}
             onImport={(file) => void importProjects(file)}
-            editDisabledReason={readOnlyHint}
+            editDisabledReason={generalReadOnlyHint}
             deleteDisabledReason={(id) =>
               accessFor(id).canDelete ? null : t("auth.deleteNotAllowed")
             }
