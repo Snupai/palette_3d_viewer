@@ -177,6 +177,14 @@ export async function planBrowserSync(
         ({ server, userId }) =>
           server === context.server && userId === context.user.id,
       ) ?? null;
+    // Metadata may advance when another tab publishes a newer local version.
+    // A second version read ensures the payload existed unchanged when its link
+    // was read. Otherwise defer the entry instead of uploading a stale snapshot.
+    const verified = await source.getVersioned(
+      PROJECTS_STORE_NAME,
+      fresh.project.id,
+    );
+    if (!verified || verified.version !== current.version) continue;
     projects.push(
       await classify(
         target,

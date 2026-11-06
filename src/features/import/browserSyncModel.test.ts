@@ -266,6 +266,37 @@ describe("browser sync consent, retention and retries", () => {
     expect((await f.entry()).status).toBe("local-changed");
   });
 
+  it("does not pair an old payload with a newer sync link published by another tab", async () => {
+    const f = await setup(changed);
+    await f.target.createProject(base);
+    await f.source.setSyncLink("p", f.link);
+    const readMetadata = f.source.getMetadata.bind(f.source);
+    let published = false;
+    f.source.getMetadata = async (id) => {
+      if (!published) {
+        published = true;
+        await f.source.put(PROJECTS_STORE_NAME, serverChanged);
+        const version = await f.target.replaceProject(serverChanged, 1);
+        await f.source.confirmSync(
+          id,
+          {
+            ...f.link,
+            syncedVersion: version,
+            syncedContentHash: browserSyncContentHash(serverChanged),
+          },
+          2,
+        );
+      }
+      return readMetadata(id);
+    };
+    await f.run();
+    expect(await f.target.readProject("p")).toMatchObject({
+      state: { project: serverChanged, version: 2 },
+    });
+    expect(await f.source.get(PROJECTS_STORE_NAME, "p")).toBeUndefined();
+    expect((await f.source.getMetadata("p"))?.links[0]?.syncedVersion).toBe(2);
+  });
+
   it("recovers a lost create response without duplicates or cleanup on failure", async () => {
     const f = await setup();
     const create = f.target.createProject.bind(f.target);
