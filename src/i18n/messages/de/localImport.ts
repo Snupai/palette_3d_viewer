@@ -54,6 +54,7 @@ export const localImportDe = {
   "localImport.error.load": "Lesen der lokalen Pläne fehlgeschlagen: {message}",
   "localImport.error.plan":
     "Vergleich mit dem Server fehlgeschlagen: {message}",
+  "localImport.error.recordTooLarge": "Der Plan ist zu groß. Der Server erlaubt höchstens 4 MiB pro Plan.",
   "localImport.error.unknown": "unbekannter Fehler",
   "localImport.outcome.kept": "{name}: Serverstand behalten.",
   "localImport.outcome.replaced":
