@@ -396,9 +396,6 @@ is implemented through PRs #73–#79.
 
 Remaining work:
 
-- wire `deleteExpiredSessions` into runtime maintenance; expired sessions are
-  rejected and deleted when presented for verification, but the bulk cleanup
-  helper currently has no production caller;
 - add user deletion; the admin UI/API currently supports listing, creation and
   password resets, but no account deletion;
 - add login rate limiting; `/api/auth/login` currently has no attempt throttle;

@@ -276,9 +276,29 @@ export type VerifiedSession = {
   expiresAt: Date;
 };
 
+const SESSION_CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
+const nextSessionCleanup = new WeakMap<PlannerDatabase, number>();
+
+/** Opportunistic hourly maintenance per process/database; no scheduler needed. */
+async function maintainSessions(db: PlannerDatabase, now: Date): Promise<void> {
+  const timestamp = now.getTime();
+  if (timestamp < (nextSessionCleanup.get(db) ?? -Infinity)) return;
+  // Claim before awaiting, including on failure: concurrent requests and an
+  // unavailable cleanup must not cause a delete attempt on every request.
+  nextSessionCleanup.set(db, timestamp + SESSION_CLEANUP_INTERVAL_MS);
+  try {
+    await deleteExpiredSessions(db, now);
+  } catch {
+    console.warn(
+      "Expired-session cleanup failed; retrying on a later request.",
+    );
+  }
+}
+
 /**
  * Resolves a cookie token to its user. Returns `null` for malformed, unknown,
  * revoked or expired tokens; an expired session row is deleted on sight.
+ * Well-formed tokens also trigger throttled, best-effort bulk cleanup.
  */
 export async function verifySession(
   db: PlannerDatabase,
@@ -286,6 +306,7 @@ export async function verifySession(
   now: Date,
 ): Promise<VerifiedSession | null> {
   if (!isWellFormedSessionToken(token)) return null;
+  await maintainSessions(db, now);
   const tokenHash = hashSessionToken(token);
   const [row] = await db
     .select({ session: sessions, user: users })

@@ -71,6 +71,9 @@ build time. Compose uses `PALETTE_STORAGE_MODE`, `PALETTE_DISABLE_AI_FEATURES`,
 `PALETTE_BACKUP_{DIR,USER,INTERVAL_SECONDS,RETENTION_DAYS}`; keep published ports
 on localhost until HTTPS is configured (ADR 0008).
 
+Session verification opportunistically purges expired sessions at most hourly per
+process/database; cleanup failures do not reject valid sessions.
+
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,
 jsdom by default; add `// @vitest-environment node` for Node-only files.
