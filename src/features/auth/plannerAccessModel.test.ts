@@ -90,14 +90,14 @@ describe("plannerAccess", () => {
     },
   );
 
-  it("keeps lost sessions locked with a sign-in and draft-retention hint", () => {
+  it("keeps lost sessions locked with a sign-in hint", () => {
     expect(
       plannerAccess({ status: "session-lost" }, server("u-alice")),
     ).toEqual({
       canCreate: false,
       save: "none",
       canDelete: false,
-      readOnlyHint: "auth.error.sessionExpired",
+      readOnlyHint: "auth.readOnly.signIn",
     });
   });
 

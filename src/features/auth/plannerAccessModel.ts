@@ -92,7 +92,7 @@ export function plannerAccess(
     case "loading":
       return readOnly("auth.readOnly.checking");
     case "session-lost":
-      return readOnly("auth.error.sessionExpired");
+      return readOnly("auth.readOnly.signIn");
     case "error":
       return readOnly("auth.readOnly.sessionUnknown");
     case "anonymous":
