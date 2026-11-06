@@ -1,6 +1,8 @@
 // @vitest-environment node
 import { IDBFactory } from "fake-indexeddb";
 import { describe, expect, it, vi } from "vitest";
+import { getPalletTemplate } from "~/domain/project/palletTemplates";
+import { createProjectResource } from "~/domain/project/projectResource";
 import { createProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import { translateDe } from "~/i18n";
@@ -57,6 +59,12 @@ async function setup(local: Project = base) {
   const storage = new MemoryPlannerRecordStorage();
   const actor = { id: alice.user.id };
   const creators = new Map<string, string>();
+  const catalogCreate = vi.fn(async () => {
+    throw new Error("Must never publish the catalog");
+  });
+  const catalogReplace = vi.fn(async () => {
+    throw new Error("Must never publish the catalog");
+  });
   const target: LocalImportTarget = {
     async readProject(id) {
       const row = await storage.getVersioned(PROJECTS_STORE_NAME, id);
@@ -81,12 +89,8 @@ async function setup(local: Project = base) {
     replaceProject: (project, version) =>
       storage.put(PROJECTS_STORE_NAME, project, { expectedVersion: version }),
     readCatalog: vi.fn(async () => ({ kind: "missing" as const })),
-    createCatalog: vi.fn(async () => {
-      throw new Error("Must never publish the catalog");
-    }),
-    replaceCatalog: vi.fn(async () => {
-      throw new Error("Must never publish the catalog");
-    }),
+    createCatalog: catalogCreate,
+    replaceCatalog: catalogReplace,
   };
   const link = {
     server: alice.server,
@@ -103,7 +107,19 @@ async function setup(local: Project = base) {
       ...options,
       ...opts,
     });
-  return { source, storage, target, actor, creators, link, plan, entry, run };
+  return {
+    source,
+    storage,
+    target,
+    actor,
+    creators,
+    link,
+    plan,
+    entry,
+    run,
+    catalogCreate,
+    catalogReplace,
+  };
 }
 
 describe("browser sync three-way classification", () => {
@@ -236,7 +252,7 @@ describe("browser sync consent, retention and retries", () => {
 
   it("retains a newer local edit against the confirmed publication base", async () => {
     const f = await setup();
-    const create = f.target.createProject;
+    const create = f.target.createProject.bind(f.target);
     f.target.createProject = async (project) => {
       const version = await create(project);
       await f.source.put(PROJECTS_STORE_NAME, changed);
@@ -252,7 +268,7 @@ describe("browser sync consent, retention and retries", () => {
 
   it("recovers a lost create response without duplicates or cleanup on failure", async () => {
     const f = await setup();
-    const create = f.target.createProject;
+    const create = f.target.createProject.bind(f.target);
     f.target.createProject = async (project) => {
       await create(project);
       throw network();
@@ -474,7 +490,7 @@ describe("browser sync conflict decisions", () => {
   it("recovers ambiguous copy success and scopes copies to the publisher and server", async () => {
     const f = await conflictFixture();
     const entry = await f.entry();
-    const create = f.target.createProject;
+    const create = f.target.createProject.bind(f.target);
     f.target.createProject = async (project) => {
       await create(project);
       throw network();
@@ -582,7 +598,7 @@ describe("browser sync failures", () => {
       const f = await setup();
       await f.source.put(PROJECTS_STORE_NAME, { ...base, id: "q" });
       await f.source.put(PROJECTS_STORE_NAME, { ...base, id: "r" });
-      const create = f.target.createProject;
+      const create = f.target.createProject.bind(f.target);
       const calls: string[] = [];
       f.target.createProject = async (project) => {
         calls.push(project.id);
@@ -632,7 +648,7 @@ describe("browser sync failures", () => {
   it("keeps oversized plans, reports 4 MiB specifically, and continues other entries", async () => {
     const f = await setup();
     await f.source.put(PROJECTS_STORE_NAME, { ...base, id: "q" });
-    const create = f.target.createProject;
+    const create = f.target.createProject.bind(f.target);
     const error = new ServerStorageError(
       "server",
       "put",
@@ -663,25 +679,25 @@ describe("browser sync failures", () => {
 
   it("never syncs catalog entries for non-admins", async () => {
     const f = await setup();
-    // Even a forged plan cannot route catalog writes through the browser run.
+    const resource = createProjectResource(
+      { kind: "pallet", value: getPalletTemplate("euro") },
+      { now: () => 5 },
+    );
+    await f.source.put(PROJECT_RESOURCES_STORE_NAME, resource);
     const plan = await f.plan();
-    plan.catalog.push({
-      key: "catalog:x",
-      status: "new",
-      server: null,
-      canReplace: true,
-      local: { key: "catalog:x", resource: {} as never },
-    });
+    expect(plan.catalog.map(({ status }) => status)).toEqual(["admin-only"]);
     await runBrowserSync(
       f.source,
       f.target,
       plan,
-      new Set(["catalog:x"]),
+      new Set(plan.catalog.map(({ key }) => key)),
       alice,
       options,
     );
-    expect(f.target.createCatalog).not.toHaveBeenCalled();
-    expect(f.target.replaceCatalog).not.toHaveBeenCalled();
-    expect(await f.source.list(PROJECT_RESOURCES_STORE_NAME)).toEqual([]);
+    expect(f.catalogCreate).not.toHaveBeenCalled();
+    expect(f.catalogReplace).not.toHaveBeenCalled();
+    expect(await f.source.list(PROJECT_RESOURCES_STORE_NAME)).toEqual([
+      resource,
+    ]);
   });
 });
