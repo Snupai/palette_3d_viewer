@@ -1,10 +1,9 @@
 # Browser-local plans in server mode with explicit synchronization
 
-Status: accepted. Partially supersedes [ADR 0002](0002-explicit-storage-mode.md)
+Status: accepted and implemented (PRs #74–#79). Partially supersedes [ADR 0002](0002-explicit-storage-mode.md)
 and amends [ADR 0007](0007-explicit-local-import.md). Publication and permissions
 remain governed by [ADR 0003](0003-public-project-reading.md), conflicts by
-[ADR 0006](0006-optimistic-concurrency.md). Foundation for #66–#71, tracked in #72.
-This ADR records the target behaviour; #65 changes documentation and comments only.
+[ADR 0006](0006-optimistic-concurrency.md). Implementation of #66–#71 is merged, tracked in #72.
 
 Anonymous users need to prepare plans before they have an account or sign in.
 We allow explicitly browser-local work in server mode, with publication only by
@@ -36,6 +35,11 @@ server failures must never turn server plans into local plans.
   later synchronization. Plans retain their embedded gripper/station definitions;
   synchronizing a plan does not publish those as catalog entries. Non-admins
   cannot synchronize catalog changes.
+  Browserplan synchronization therefore ignores any stray `project-resources`
+  rows in the browser-plan namespace, for admins as well as other users: they
+  are neither listed as importable nor published or deleted. The legacy local
+  import reads only `pallets-db`, not `pallets-db:browser`, and is not a recovery
+  path for such rows.
 
 ## Publication and conflict choices
 

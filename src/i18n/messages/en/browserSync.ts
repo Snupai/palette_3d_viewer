@@ -28,8 +28,6 @@ export const browserSyncEn = {
     "Your session has expired. Results are kept. Sign in again to continue.",
   "browserSync.networkLost":
     "The connection was interrupted. Results are kept. Compare again to continue.",
-  "browserSync.catalog":
-    "Catalog entries are not published here. Use the existing local import afterwards.",
   "browserSync.unreadable":
     "{count} local entries could not be read and remain in this browser.",
   "browserSync.result.synced": "Synced",
