@@ -25,15 +25,18 @@ kraft/wood pallet material, one Szaidel-navy `--brand` accent `#173159`, Barlow,
 system light/dark); the former navy/steel corporate chrome is superseded. Tokens,
 workflow rules, and banned patterns live in `docs/DESIGN.md`. Do not restore
 skippable planning tabs, a Tools catalog, or a `.rob` “reference” overlay when the file is already the plan. Open a finished
-project on its last completed step, not on Inputs. Editor, Robotics, and
-Simulation are gated by `productionToolGate` in `planningCaseModel.ts` — the
-single prerequisite map; do not duplicate gating inside tool overlays.
+project on its last completed step, not on Inputs. Editor, Robotics, Simulation,
+and Report are gated by `productionToolGate` in `planningCaseModel.ts` — the
+single prerequisite map; geometry review blocks Robotics, Simulation, and Report.
+Do not duplicate gating inside tool overlays.
 
 ## Decisions and Glossary
 
-Architecture decisions for the planned local LAN backend (roadmap M9) live in
-`docs/adr/` (0001 SQLite single host, superseded by 0009 PostgreSQL in
-Docker/Podman … 0008 HTTPS). Follow them; changing one
+Architecture decisions for the implemented LAN backend (M9: records, auth, admin API,
+PostgreSQL) and browser-local plans with explicit sync live in `docs/adr/`.
+Read the relevant ADR before changing storage, access, or sync: 0001–0008 cover
+storage/access/concurrency/import/HTTPS; 0009 supersedes 0001 with PostgreSQL in
+Docker/Podman; 0010 amends 0002/0007 with browser-local plans. Changing a decision
 means writing a new ADR, not silently diverging. Domain terms (e.g.
 "Werkskatalog") are defined in `GLOSSARY.md` — use them consistently in code,
 UI, and docs.
@@ -45,14 +48,28 @@ UI, and docs.
 | Typecheck (run after **every** change, report the result)              | `bun run typecheck`                                                        |
 | Lint + typecheck                                                       | `bun run check`                                                            |
 | Tests (watch / once)                                                   | `bun run test` / `bun run test:run`                                        |
-| Format                                                                 | `bun run format:write`                                                     |
-| Dev server                                                             | `bun run dev`                                                              |
+| Lint (check / fix)                                                     | `bun run lint` / `bun run lint:fix`                                        |
+| Format (check / write)                                                 | `bun run format:check` / `bun run format:write`                            |
+| Dev / build / build + serve / serve build                              | `bun run dev` / `bun run build` / `bun run preview` / `bun run start`      |
+| Sheet-photo evaluation (needs absolute `SHEET_CORPUS_DIR`)             | `bun run sheet:eval`                                                       |
 | External `.rob` corpus (opt-in, needs `ROB_CORPUS_DIR`)                | `bun run test:corpus`, `bun run corpus:rob`, `bun run corpus:rob:sentinel` |
 | PostgreSQL container up / down (`CONTAINER_ENGINE=podman` for Podman)  | `bun run db:up` / `bun run db:down`                                        |
 | Full stack in containers: db + migrate + app (`Dockerfile`, issue #49) | `bun run stack:up` / `bun run stack:down`                                  |
 | PostgreSQL backup now / restore (hourly `backup` service, issue #38)   | `bun run db:backup` / `bun run db:restore <file> --yes`                    |
 | DB migrations (generate from schema / apply to `DATABASE_URL`)         | `bun run db:generate` / `bun run db:migrate`                               |
 | Admin account (ADR 0005, hidden prompt; containers: README)            | `bun run admin:init` / `bun run admin:reset-password`                      |
+
+For deployment settings, consult `src/env.js`, `src/lib/sheetExtraction/sheetExtractionConfig.ts`
+and `compose.yaml`: `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local|server` is build-time;
+server mode requires `DATABASE_URL`. Sheet extraction uses `SHEET_EXTRACTION_API`
+(`ollama|openai`), `SHEET_EXTRACTION_URL` (`OLLAMA_URL` alias),
+`SHEET_EXTRACTION_MODEL`, optional `SHEET_EXTRACTION_API_KEY`, and
+`SHEET_EXTRACTION_MAX_CONCURRENT` (default 1 per process; saturation → 429).
+`NEXT_PUBLIC_DISABLE_AI_FEATURES=true|1` hides photo import and disables its API at
+build time. Compose uses `PALETTE_STORAGE_MODE`, `PALETTE_DISABLE_AI_FEATURES`,
+`PALETTE_DB_PASSWORD` (URL-safe), `PALETTE_DB_PORT`, `PALETTE_APP_PORT`, and
+`PALETTE_BACKUP_{DIR,USER,INTERVAL_SECONDS,RETENTION_DAYS}`; keep published ports
+on localhost until HTTPS is configured (ADR 0008).
 
 Stack: Next.js 15 App Router, React 19, Three.js, Tailwind v4, TypeScript, Zod;
 T3 scaffold with Bun (`packageManager` pinned to `bun@1.3.14`). Vitest + Testing Library,
@@ -68,14 +85,16 @@ domain logic into workspaces, `components` render.
   - `stack/` — layer composition, interlayers, capacity, `materialize.ts`.
   - `robotics/` — grip grouping, cycle materialization, frames/poses, reach & collision `checks`, `timeline`, `robExport`.
   - `project/` — project schema v2, migration, factory, pallet templates, equipment profiles.
+  - `sheetExtraction/` — sheet schema, prompt, validation; `lib/sheetExtraction/` handles model transport/config/evaluation, `/api/sheet-extraction` guards uploads and inference. Photos are not stored.
   - `geometry/`, `formats/` — canonical rectangle math; MPB v1.
   - `palletTypes.ts`, `robParser`-adjacent helpers, `gripDependencies`, `layerPatternPreview`.
-- **`src/features/`** — one folder per workspace: `project` (`PlannerProjectWorkspace` is the shell), `candidates`, `editor`, `stack`, `robotics`, `simulation`, `reporting`, `planning-case`, `legacy-plan`. Non-trivial state lives in a sibling `*Model.ts` that is unit-tested without rendering.
+- **`src/features/`** — workspaces and supporting flows: `project` (`PlannerProjectWorkspace` is the shell), `candidates`, `editor`, `stack`, `robotics`, `simulation`, `reporting`, `planning-case`, `planner`, `admin`, `auth`, `import`. Non-trivial state lives in a sibling `*Model.ts` that is unit-tested without rendering.
+- **`src/features/import/`** — keep legacy local import (originals retained) separate from browser-plan sync. `BrowserSyncController`/`BrowserSyncOverview` coordinate explicit selection/consent; `browserSyncModel.ts` owns comparison, `keep-server` / `keep-mine` / `save-copy`, retries and retention. Confirmed sync removes the local payload, retains server/user-scoped version/hash links, and preserves newer concurrent local edits. Session/network loss stops uploads; catalog entries are not published by sync (ADR 0010).
 - **`src/components/`** — `RobViewer.tsx` + `rob-viewer/` (scene builder/controller, picking, highlight, resources, camera presets, gripper & robot-cell loaders), `LayerEditor2D.tsx` + `layer-editor/`, `LayerSlider`, `LayerPattern`.
-- **`src/lib/`** — `robParser.ts` (`.rob` parse/serialize + Z math), `projectAdapters.ts` (SavedPallet ⇄ project v2), `projectRepository.ts`, `plannerStorageFactory.ts` (the single mode → `PlannerRecordStorage` switch; `storageMode.ts` reads `NEXT_PUBLIC_PALETTE_STORAGE_MODE` / `DATABASE_URL`, no fallback between modes), `plannerRecordStorage.ts`, `storage.ts` / `plannerDatabase.ts` (IndexedDB), `parity/` (corpus harness), `parityGoldenCase.ts`.
+- **`src/lib/`** — `robParser.ts` (`.rob` parse/serialize + Z math), `projectAdapters.ts` (SavedPallet ⇄ project v2), `projectRepository.ts`, `plannerStorageFactory.ts` (`createPlannerRecordStorage` selects local/server primary storage; `createBrowserLocalPlannerStorage` explicitly selects browser plans), `storageMode.ts` (build mode + server URL validation), `plannerRecordStorage.ts`, `serverPlannerRecordStorage.ts` (records API), `storage.ts` / `plannerDatabase.ts` (legacy IndexedDB `pallets-db`), `browserPlanStorage.ts` (`BrowserLocalPlannerStorage`, separate `pallets-db:browser` with sync-link metadata). Server errors/session loss never reroute server saves to browser storage (ADR 0002/0010). `parity/` and `parityGoldenCase.ts` cover the corpus harness.
 - **`src/i18n/`** — UI languages (`de` source, `en`; add more in `locales.ts` + `messages/<locale>/`). `LocaleProvider` sits in the root layout, resolves stored choice → system language → `de`, persists to localStorage and exposes `useT()` / `useLocale()`. Messages are flat, namespace-prefixed keys in one file per feature under `messages/de|en/`; English files use `satisfies` against the German key set, so missing keys fail `tsc`. Non-React model code takes a `t: Translate` parameter (tests use `translateDe`); `src/domain` diagnostics stay English and untranslated. Without a provider `useT()` returns German, which is what unit tests rely on.
-- **`src/server/`** — server-only code (never import from client components). `db/database.ts` exposes `openDatabase(url)` → `{ db, migrate(), close() }` (postgres.js) and `openMigratedDatabase`; repositories take the driver-neutral `PlannerDatabase` type. Tables live one per file in `db/schema/` (re-exported from `db/schema/index.ts`), generated migrations in `drizzle/`. Tests use `db/testing.ts` (`openMigratedTestDatabase()`, PGlite, same migrations) — never a running container (ADR 0009). `auth/` holds local accounts (ADR 0005/0008): `password.ts` (argon2id via `@node-rs/argon2`), `sessionToken.ts` (random token, only its SHA-256 is stored; `Secure` cookie except dev on localhost), `accounts.ts` (users, session create/verify/revoke/revoke-all; password reset revokes sessions; login re-checks the verified hash so a concurrent reset wins), `adminCli.ts` (`admin:init` / `admin:reset-password` logic with an injected prompt; `scripts/admin.ts` is the thin entry), `passwordStrength.ts` (admin-chosen password rules as codes, shared by the CLI and `/api/admin/users`). Admin API (#32): `src/app/api/admin/` behind `requireAdmin` (401/403/404); screen at `/admin` with state in `features/admin/adminUsersModel.ts`.
-- **`src/workers/`** — solver runs off the main thread; `solverClient.ts` + `solverProtocol.ts` are the only supported entry points.
+- **`src/server/`** — server-only code (never import from client components). `db/database.ts` exposes `openDatabase(url)` → `{ db, migrate(), close() }` (postgres.js) and `openMigratedDatabase`; repositories take the driver-neutral `PlannerDatabase` type. `db/serverDatabase.ts` lazily caches the route database; local mode returns `null` and records/auth/admin routes answer 404. `records/recordRepository.ts` enforces record structure, ownership and optimistic versions; client code validates domain payloads. Routes: `/api/records/[store]` and `/api/records/[store]/[id]`, `/api/auth/{login,logout,me}`. Tables live one per file in `db/schema/` (re-exported from `db/schema/index.ts`), generated migrations in `drizzle/`. Tests use `db/testing.ts` (`openMigratedTestDatabase()`, PGlite, same migrations) — never a running container (ADR 0009). `auth/sessionUser.ts` handles request sessions and public user projection; `auth/userModel.ts` defines roles and username normalization. `auth/` holds local accounts (ADR 0005/0008): `password.ts` (argon2id via `@node-rs/argon2`), `sessionToken.ts` (random token, only its SHA-256 is stored; `Secure` cookie except dev on localhost), `accounts.ts` (users, session create/verify/revoke/revoke-all; password reset revokes sessions; login re-checks the verified hash so a concurrent reset wins), `adminCli.ts` (`admin:init` / `admin:reset-password` logic with an injected prompt; `scripts/admin.ts` is the thin entry), `passwordStrength.ts` (admin-chosen password rules as codes, shared by the CLI and `/api/admin/users`). Admin API (#32): `src/app/api/admin/` behind `requireAdmin` (401/403/404); screen at `/admin` with state in `features/admin/adminUsersModel.ts`.
+- **`src/workers/`** — use `solverClient.ts` + `solverProtocol.ts` for the solver; use `docAlignerClient.ts` + `docAlignerProtocol.ts` for document alignment in `docAligner.worker.ts`. Keep worker details behind these clients.
 
 `RobViewer` and `LayerEditor2D` are loaded via `next/dynamic` with `ssr: false`; anything
 that must survive server rendering (report/preview markup) has to stay free of
@@ -93,13 +112,13 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite is 1273 tests in 159 files (1271 passed, 2 skipped; 1 file skipped) and is
+The suite contains 1833 tests in 183 files (3 tests and 1 file skipped) and is
 deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for
   Testing Library only for flows that are genuinely UI-level (drawer guards, unsaved-change
   confirms, cross-workspace session state). Full `PlannerProjectWorkspace` renders cost
-  ~1.3 s per test — four such files already exist; extend them rather than adding a fifth.
+  ~1.3 s per test — three such files exist (`.editor`, `.generator`, `.robotics`); extend them before adding another.
 - **Assert exact numbers.** Existing tests pin literal geometry (`boundingBlockAreaMm2 === 120`,
   camera target `[600, 400, 378]`, "55 placements → 36 cycles"). Follow that; avoid
   `toBeGreaterThan`-style assertions that pass on regressions.

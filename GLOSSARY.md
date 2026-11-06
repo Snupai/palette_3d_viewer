@@ -13,7 +13,7 @@ A plan kept only in the current browser while using the server variant, availabl
 for later explicit publication after sign-in.
 _Avoid_: offline server plan, local-mode plan
 
-**Synchronization (Synchronisierung)**:
+**Synchronization (Synchronisation)**:
 Explicitly publishing a Browserplan to the server or reconciling it with a
 previously linked server plan, with a user decision on conflicting whole plans.
 _Avoid_: automatic upload, field merge
