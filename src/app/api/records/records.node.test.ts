@@ -602,7 +602,13 @@ describe("local storage mode", () => {
 it("keeps client storage semantics across deletion and recreation", async () => {
   const storage = new ServerPlannerRecordStorage({
     fetch: async (input, init) => {
-      const req = new Request(new URL(String(input), ORIGIN), init);
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const req = new Request(new URL(url, ORIGIN), init);
       req.headers.set("cookie", cookies.alice);
       const parts = new URL(req.url).pathname.split("/");
       const store = parts[3]!;
