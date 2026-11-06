@@ -82,7 +82,9 @@ export class BrowserLocalPlannerStorage extends IndexedDbPlannerRecordStorage {
       "readonly",
       (transaction) =>
         requestToPromise<BrowserPlanMetadata[]>(
-          transaction.objectStore(BROWSER_PLAN_METADATA_STORE_NAME).getAll(),
+          transaction
+            .objectStore(BROWSER_PLAN_METADATA_STORE_NAME)
+            .getAll() as IDBRequest<BrowserPlanMetadata[]>,
         ),
       this.indexedDb,
       this.databaseName,
@@ -95,7 +97,9 @@ export class BrowserLocalPlannerStorage extends IndexedDbPlannerRecordStorage {
       "readonly",
       (transaction) =>
         requestToPromise<BrowserPlanMetadata | undefined>(
-          transaction.objectStore(BROWSER_PLAN_METADATA_STORE_NAME).get(id),
+          transaction
+            .objectStore(BROWSER_PLAN_METADATA_STORE_NAME)
+            .get(id) as IDBRequest<BrowserPlanMetadata | undefined>,
         ),
       this.indexedDb,
       this.databaseName,
@@ -111,7 +115,7 @@ export class BrowserLocalPlannerStorage extends IndexedDbPlannerRecordStorage {
         const store = transaction.objectStore(BROWSER_PLAN_METADATA_STORE_NAME);
         const metadata = await requestToPromise<
           BrowserPlanMetadata | undefined
-        >(store.get(id));
+        >(store.get(id) as IDBRequest<BrowserPlanMetadata | undefined>);
         if (!metadata) throw new Error(`Browser plan "${id}" does not exist.`);
         store.put(withSyncLink(metadata, link));
       },
@@ -146,11 +150,15 @@ export class BrowserLocalPlannerStorage extends IndexedDbPlannerRecordStorage {
         const key = recordVersionKey(PROJECTS_STORE_NAME, id);
         const [metadata, count, version] = await Promise.all([
           requestToPromise<BrowserPlanMetadata | undefined>(
-            metadataStore.get(id),
+            metadataStore.get(id) as IDBRequest<
+              BrowserPlanMetadata | undefined
+            >,
           ),
           requestToPromise(projects.count(id)),
           requestToPromise<{ id: string; version: RecordVersion } | undefined>(
-            versions.get(key),
+            versions.get(key) as IDBRequest<
+              { id: string; version: RecordVersion } | undefined
+            >,
           ),
         ]);
         if (!metadata) return "retained";

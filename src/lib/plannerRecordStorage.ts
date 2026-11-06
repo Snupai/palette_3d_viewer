@@ -150,7 +150,9 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
     _storeName: PlannerStoreName,
     _id: string,
     _deleted: boolean,
-  ): Promise<void> {}
+  ): Promise<void> {
+    // Subclasses can maintain additional metadata in the same transaction.
+  }
 
   list(storeName: PlannerStoreName): Promise<unknown[]> {
     return runPlannerTransaction(
