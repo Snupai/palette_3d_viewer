@@ -105,6 +105,7 @@ type Request = {
  * record starts again at version 1.
  */
 export class ServerPlannerRecordStorage implements PlannerRecordStorage {
+  readonly supportsLocalMaintenance = false;
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch | undefined;
   /** Last creator seen per store and record id (`null`: none recorded). */

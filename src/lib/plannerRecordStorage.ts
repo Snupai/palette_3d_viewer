@@ -1,5 +1,7 @@
 import {
+  PLANNER_DATABASE_NAME,
   PLANNER_STORE_NAMES,
+  type PlannerDatabaseStoreName,
   RECORD_VERSIONS_STORE_NAME,
   recordVersionKey,
   requestToPromise,
@@ -35,6 +37,13 @@ export type VersionedRecord = {
  * `plannerStorageFactory.ts`; tests inject `MemoryPlannerRecordStorage`.
  */
 export interface PlannerRecordStorage {
+  /** Reads may persist schema upgrades, quarantine rows and migrate legacy data. */
+  readonly supportsLocalMaintenance: boolean;
+  /** Last known server creator; absent on browser-only stores. */
+  createdBy?(
+    storeName: PlannerStoreName,
+    id: string,
+  ): string | null | undefined;
   list(storeName: PlannerStoreName): Promise<unknown[]>;
   get(storeName: PlannerStoreName, id: string): Promise<unknown>;
   /** Record and its current version, read together; `undefined` when missing. */
@@ -123,7 +132,25 @@ function storedVersionOf(row: unknown): RecordVersion | undefined {
 }
 
 export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
-  constructor(private readonly indexedDb: IDBFactory = globalThis.indexedDB) {}
+  readonly supportsLocalMaintenance = true;
+
+  constructor(
+    protected readonly indexedDb: IDBFactory = globalThis.indexedDB,
+    protected readonly databaseName: string = PLANNER_DATABASE_NAME,
+  ) {}
+
+  protected writeStores(
+    storeName: PlannerStoreName,
+  ): PlannerDatabaseStoreName[] {
+    return [storeName, RECORD_VERSIONS_STORE_NAME];
+  }
+
+  protected async afterWrite(
+    _transaction: IDBTransaction,
+    _storeName: PlannerStoreName,
+    _id: string,
+    _deleted: boolean,
+  ): Promise<void> {}
 
   list(storeName: PlannerStoreName): Promise<unknown[]> {
     return runPlannerTransaction(
@@ -132,6 +159,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
       (transaction) =>
         requestToPromise(transaction.objectStore(storeName).getAll()),
       this.indexedDb,
+      this.databaseName,
     );
   }
 
@@ -142,6 +170,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
       (transaction) =>
         requestToPromise(transaction.objectStore(storeName).get(id)),
       this.indexedDb,
+      this.databaseName,
     );
   }
 
@@ -165,6 +194,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
         return { record, version: storedVersionOf(versionRow) ?? 1 };
       },
       this.indexedDb,
+      this.databaseName,
     );
   }
 
@@ -175,7 +205,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
   ): Promise<RecordVersion> {
     const id = requireRecordId(storeName, record);
     return runPlannerTransaction(
-      [storeName, RECORD_VERSIONS_STORE_NAME],
+      this.writeStores(storeName),
       "readwrite",
       async (transaction) => {
         const records = transaction.objectStore(storeName);
@@ -193,9 +223,11 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
         const version = nextRecordVersion(current, stored);
         records.put(record);
         versions.put({ id: key, version } satisfies RecordVersionRow);
+        await this.afterWrite(transaction, storeName, id, false);
         return version;
       },
       this.indexedDb,
+      this.databaseName,
     );
   }
 
@@ -205,7 +237,7 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
     options?: RecordWriteOptions,
   ): Promise<void> {
     await runPlannerTransaction(
-      [storeName, RECORD_VERSIONS_STORE_NAME],
+      this.writeStores(storeName),
       "readwrite",
       async (transaction) => {
         const records = transaction.objectStore(storeName);
@@ -222,11 +254,13 @@ export class IndexedDbPlannerRecordStorage implements PlannerRecordStorage {
         assertExpectedVersion(storeName, id, options, current);
         if (current === null) return;
         records.delete(id);
+        await this.afterWrite(transaction, storeName, id, true);
         // Keep the last version as a tombstone so a recreated record continues
         // counting instead of reusing versions.
         versions.put({ id: key, version: current } satisfies RecordVersionRow);
       },
       this.indexedDb,
+      this.databaseName,
     );
   }
 }
@@ -239,6 +273,7 @@ function cloneValue<T>(value: T): T {
 }
 
 export class MemoryPlannerRecordStorage implements PlannerRecordStorage {
+  readonly supportsLocalMaintenance = true;
   private readonly stores = new Map<PlannerStoreName, Map<string, unknown>>();
   /** Explicit versions and tombstones; records without an entry are version 1. */
   private readonly versions = new Map<string, RecordVersion>();

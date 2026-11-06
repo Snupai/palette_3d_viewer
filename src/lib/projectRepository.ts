@@ -32,7 +32,6 @@ import {
   type RecordWriteOptions,
 } from "~/lib/plannerRecordStorage";
 import { createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
-import { ServerPlannerRecordStorage } from "~/lib/serverPlannerRecordStorage";
 
 export {
   IndexedDbPlannerRecordStorage,
@@ -350,7 +349,7 @@ export class ProjectRepository {
     let version = stored.version;
     // Not on the server: a read must not need write access (see
     // persistUpgrade); the next save of the plan stores the upgrade.
-    if (normalized.migrated && !this.isServerStorage()) {
+    if (normalized.migrated && this.storage.supportsLocalMaintenance) {
       // Write the migration back against the version just read, so it cannot
       // silently replace a concurrent save of the same record.
       version = await this.storage.put(
@@ -620,7 +619,7 @@ export class ProjectRepository {
   ): Promise<LegacyMigrationResult> {
     // The server keeps no local pallets, and publishing this browser's
     // legacy plans needs the explicit, confirmed import (ADR 0007).
-    if (this.isServerStorage()) {
+    if (!this.storage.supportsLocalMaintenance) {
       return {
         projects: [],
         migratedCount: 0,
@@ -717,7 +716,7 @@ export class ProjectRepository {
    * until someone allowed to save the project saves it.
    */
   private async persistUpgrade(project: Project): Promise<void> {
-    if (this.isServerStorage()) return;
+    if (!this.storage.supportsLocalMaintenance) return;
     await this.storage.put(PROJECTS_STORE_NAME, project);
   }
 
@@ -728,7 +727,7 @@ export class ProjectRepository {
   ): Promise<void> {
     // The server keeps no quarantine store; the invalid record stays where it
     // is and the caller still reports its diagnostics.
-    if (this.isServerStorage()) return;
+    if (!this.storage.supportsLocalMaintenance) return;
     const sourceId = recordId(row);
     const id = `${sourceStore}:${sourceId ?? hashString(stableJson(row))}`;
     const record: QuarantineRecord = {
@@ -756,13 +755,7 @@ export class ProjectRepository {
     store: PlannerStoreName,
     id: string,
   ): string | null | undefined {
-    return this.storage instanceof ServerPlannerRecordStorage
-      ? this.storage.createdBy(store, id)
-      : undefined;
-  }
-
-  private isServerStorage(): boolean {
-    return this.storage instanceof ServerPlannerRecordStorage;
+    return this.storage.createdBy?.(store, id);
   }
 
   private async assertProjectIdAvailable(id: string): Promise<void> {

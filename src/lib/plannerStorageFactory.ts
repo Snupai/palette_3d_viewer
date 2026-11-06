@@ -1,3 +1,4 @@
+import { BrowserLocalPlannerStorage } from "~/lib/browserPlanStorage";
 import {
   IndexedDbPlannerRecordStorage,
   type PlannerRecordStorage,
@@ -30,4 +31,13 @@ export function createPlannerRecordStorage(
     case "server":
       return new ServerPlannerRecordStorage({ fetch: config.fetch });
   }
+}
+
+/** Explicit browser-plan storage for anonymous editing in server mode (ADR 0010).
+ * Callers select this origin deliberately; never use it as a server fallback.
+ */
+export function createBrowserLocalPlannerStorage(
+  options: { indexedDb?: IDBFactory; now?: () => number } = {},
+): BrowserLocalPlannerStorage {
+  return new BrowserLocalPlannerStorage(options.indexedDb, options.now);
 }
