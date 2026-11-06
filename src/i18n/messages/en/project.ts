@@ -1,6 +1,9 @@
 import type { projectDe } from "../de/project";
 
 export const projectEn = {
+  "project.error.browserQuota": "Browser storage is full. The plan was not saved. Export your plans or free up storage and try again.",
+  "project.error.browserConflict": "This browser plan changed in another tab. Your edits remain open. Export a backup and reopen the plan before saving again.",
+  "project.error.saveBrowserBeforeSignIn": "Save or discard the unsaved browser plan changes first, then sign in again.",
   // Tool titles
   "project.tool.candidateBrowser": "Candidate browser",
   "project.tool.candidate3d": "Candidate 3D inspection",
