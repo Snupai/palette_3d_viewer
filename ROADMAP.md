@@ -1,16 +1,18 @@
 # Palletizing Planner Roadmap
 
-Status as of: 02.11.2026
+Status as of: 06.11.2026
 
-Implementation status: **M0–M8 are implemented as an end-to-end internal product
-workflow.** Projects can be created without a `.rob`, validated, saved locally,
+Implementation status: **M0–M9 are implemented as an end-to-end internal product
+workflow, including the LAN backend and ADR 0010 browser-plan synchronization.**
+Projects can be created without a `.rob`, validated, saved locally,
 solved, compared, combined into stacks, edited in pattern/sequence/flow modes,
 checked against robot constraints, simulated, reported and exported in a
 controlled way. The existing `.rob` viewer/editor remains fully usable alongside
-it. The automated baseline comprises 153 test files (1 of them skipped) with
-1216 passing and 2 skipped tests, TypeScript, ESLint, Prettier and production
-build gates, as well as a browser-verified create-solve-stack-reload and legacy
-import flow.
+it. Server mode adds shared PostgreSQL records, local accounts, administration,
+version-conflict handling, Browserpläne with explicit synchronization and scheduled
+backups. The automated baseline comprises 183 test files with 1834 tests,
+TypeScript, ESLint, Prettier and production build gates, as well as a
+browser-verified create-solve-stack-reload and legacy import flow.
 
 For third-party parity, only evidence-bound questions remain open: the complete
 AP5006 reference package, the semantics of "Blöcke" (blocks), the external
@@ -67,8 +69,19 @@ planning, solver and robotics layer underneath.
   simplified robot/gripper visualization
 - print/PDF view, metrics/warnings/cycle report and an explicitly unverified,
   strictly read-only `.mpb` diagnostic boundary
-- automated baseline: 153 test files (1 of them skipped) with 1216 passing and
-  2 skipped tests
+- AI sheet-photo extraction through `DocumentCamera` / `SheetPhotoImport` and
+  `/api/sheet-extraction`, configured with `SHEET_EXTRACTION_*` for a local
+  Ollama or OpenAI-compatible endpoint; `NEXT_PUBLIC_DISABLE_AI_FEATURES`
+  disables AI features
+- explicit server mode with PostgreSQL/Drizzle, record API and
+  `ServerPlannerRecordStorage`, local accounts, `/admin` user management and
+  optimistic concurrency with a visible conflict comparison
+- explicit legacy local-data import, separate Browserpläne and consent-based
+  synchronization with account-scoped links and whole-plan conflict choices
+  (ADR 0010, implemented through PRs #73–#79)
+- scheduled consistent `pg_dump` backups, retention, health checks and restore
+  tooling in the Compose backup service
+- automated baseline: 183 test files with 1834 tests, counted by `bun run test`
 
 ### Still open, evidence-bound
 
@@ -100,7 +113,7 @@ planning, solver and robotics layer underneath.
 
 Effort sizes are relative T-shirt sizes, not calendar commitments.
 
-### R0 – Viewer/editor baseline (current state)
+### R0 – Viewer/editor baseline
 
 Status: available
 
@@ -312,9 +325,9 @@ Outcome of M7–M8: **Parity Candidate** for the observed core workflow.
 
 ### M9 – Local backend with users on the LAN
 
-Status: planned · Effort: L · Dependency: M8
+Status: implemented, including ADR 0010; remaining work listed below · Effort: L · Dependency: M8
 
-The goal is a server operated exclusively locally on the plant network (LAN),
+The implemented backend is a server operated locally on the plant network (LAN),
 through which several signed-in users work on shared projects. No cloud hosting,
 no reachability from the internet. The binding decisions are in
 [`docs/adr/`](docs/adr/), domain terms such as "Werkskatalog" in
@@ -343,8 +356,9 @@ Scope:
 - local user accounts with argon2-hashed passwords and an httpOnly session
   cookie that is always `Secure` outside of `localhost` and requires HTTPS
   ([ADR 0008](docs/adr/0008-https-authentication.md));
-- the admin is created or reset via a local administration command, with no
-  public initial registration; the admin creates further users
+- the admin is created with `bun run admin:init` or its password reset with
+  `bun run admin:reset-password`, with no public initial registration; further
+  users are managed via `/admin` and `/api/admin/users`
   ([ADR 0005](docs/adr/0005-admin-initialization.md));
 - writes and deletes atomically check the expected version; conflicts result in
   409 and a comparison view instead of a silent overwrite
@@ -358,21 +372,39 @@ Scope:
   backups per server, user and project
   ([ADR 0002](docs/adr/0002-explicit-storage-mode.md));
 - in server mode, never-signed-in or deliberately signed-out users may edit
-  Browserpläne in a separate browser inventory; sign-in offers synchronization
-  with explicit publication consent (including original `.rob` text), whole-plan
+  Browserpläne in the dedicated IndexedDB `pallets-db:browser`, separate from
+  the legacy `pallets-db`, together with account-scoped sync links; sign-in
+  offers synchronization with explicit publication consent (including original `.rob` text), whole-plan
   conflict choices and account-scoped links replacing confirmed local copies;
   the Werkskatalog stays admin-only and local deletions never delete server plans
   ([ADR 0010](docs/adr/0010-browser-local-plans.md));
 - an explicit, repeatable import of the existing browser data after signing in,
   with an overview and confirmation of publication
   ([ADR 0007](docs/adr/0007-explicit-local-import.md));
-- as the final step, hourly consistent `pg_dump` backups with seven days of
-  retention and a restore test
+- implemented consistent `pg_dump` backups in the Compose `backup` service:
+  `scripts/pg-backup.sh` supports `loop`, `once`, `health` and `restore`, with
+  script tests covering backup, retention and restore behavior; defaults are
+  hourly (`PALETTE_BACKUP_INTERVAL_SECONDS=3600`) and seven days of retention
+  (`PALETTE_BACKUP_RETENTION_DAYS=7`), with storage set by `PALETTE_BACKUP_DIR`;
+  `bun run db:backup` takes an extra dump and
+  `bun run db:restore <file> --yes` restores one
   ([ADR 0009](docs/adr/0009-postgres-container.md)).
 
-The implementation is split into small issues with the label `area:backend`
-(#23–#38); Browserplan synchronization is tracked in #72, with ADR #65 as the
-foundation for implementation issues #66–#71.
+The backend was implemented through the `area:backend` issues (#23–#38).
+ADR 0010's Browserplan workflow (#72, foundation #65, implementation #66–#71)
+is implemented through PRs #73–#79.
+
+Remaining work:
+
+- wire `deleteExpiredSessions` into runtime maintenance; expired sessions are
+  rejected and deleted when presented for verification, but the bulk cleanup
+  helper currently has no production caller;
+- add user deletion; the admin UI/API currently supports listing, creation and
+  password resets, but no account deletion;
+- add login rate limiting; `/api/auth/login` currently has no attempt throttle;
+- retain server-side deletion tombstones or equivalent version continuity;
+  deleting a record currently removes its row, so recreating the same ID starts
+  at version 1, unlike IndexedDB's retained versions.
 
 Later steps:
 
@@ -407,10 +439,14 @@ src/domain/
 ├─ solver/         generators, deduplication, ranking
 ├─ stack/          layer sequence, interlocking, interlayers/special layers
 ├─ robotics/       gripper, station, cycles, limits
-└─ formats/        internal schema and .rob adapters
+├─ formats/        internal schema and .rob adapters
+└─ sheetExtraction/ sheet schema, prompts and validation
 
 src/workers/       solver execution and progress
-src/features/      project, candidates, editor, simulation, report
+src/features/      project, candidates, editor, stack, robotics, simulation,
+                   reporting, planning-case, planner, admin, auth, import
+src/server/        auth, db, records (server-only)
+src/app/api/       records, auth, admin, sheet-extraction
 src/components/    reusable UI and existing viewer
 ```
 
@@ -459,7 +495,8 @@ large-scale redesign of the existing UI.
 The first visible product increment ended at package 4: a project was created
 without a `.rob` and displayed as a still-manual single-layer pattern in the
 existing viewer. After that, the solver was added step by step without working
-for long without a demonstrable end-to-end state. The next planned step is M9.
+for long without a demonstrable end-to-end state. M9 and ADR 0010 are now
+implemented; the remaining backend work is listed under M9.
 
 ## Open research questions
 
@@ -483,7 +520,7 @@ compatibility is actually required.
 - automatic image similarity search
 - complete collision kinematics
 - cloud hosting, multi-tenant accounts reachable publicly over the internet, or
-  SaaS operation (a local backend on the LAN, by contrast, is planned as M9)
+  SaaS operation (the local backend on the LAN is implemented as M9)
 
 This keeps the focus on the unique selling point: generating many sensible
 patterns, comparing them visually and quickly, and continuing to edit them with
