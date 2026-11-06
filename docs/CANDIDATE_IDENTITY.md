@@ -2,7 +2,7 @@
 
 As of: 14.08.2026
 
-This definition applies to the reference corpus and the future solver. It separates
+This definition applies to the reference corpus and the current solver. It separates
 two questions that must not be confused with each other:
 
 1. Are the same packages in the same positions? That is **geometric
