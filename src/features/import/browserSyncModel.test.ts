@@ -450,6 +450,52 @@ describe("browser sync conflict decisions", () => {
     expect(await f.target.readProject("p")).toEqual({ kind: "missing" });
   });
 
+  it("gives a deleted published copy a new identity and recovers its lost response", async () => {
+    const f = await conflictFixture();
+    await resolveBrowserSyncConflict(
+      f.source,
+      f.target,
+      await f.entry(),
+      "save-copy",
+      alice,
+      options,
+    );
+    const deletedId = required(
+      (await f.source.getMetadata("p"))?.links[0],
+    ).serverId;
+    await f.source.put(PROJECTS_STORE_NAME, changed);
+    await f.storage.delete(PROJECTS_STORE_NAME, deletedId);
+    const entry = await f.entry();
+    expect(entry.status).toBe("server-deleted");
+    const create = f.target.createProject.bind(f.target);
+    f.target.createProject = async (project) => {
+      await create(project);
+      throw network();
+    };
+    expect(
+      (
+        await resolveBrowserSyncConflict(
+          f.source,
+          f.target,
+          entry,
+          "save-copy",
+          alice,
+          options,
+        )
+      ).kind,
+    ).toBe("failed");
+    expect(await f.source.get(PROJECTS_STORE_NAME, "p")).toEqual(changed);
+    f.target.createProject = create;
+    expect((await f.entry()).status).toBe("unchanged");
+    expect((await f.run()).outcomes[0]?.kind).toBe("synced");
+    const newId = required(
+      (await f.source.getMetadata("p"))?.links[0],
+    ).serverId;
+    expect(newId).not.toBe(deletedId);
+    expect(await f.target.readProject(deletedId)).toEqual({ kind: "missing" });
+    expect((await f.storage.list(PROJECTS_STORE_NAME)).length).toBe(2);
+  });
+
   it("accepts a confirmed deletion without recreating it", async () => {
     const f = await setup();
     await f.source.setSyncLink("p", f.link);

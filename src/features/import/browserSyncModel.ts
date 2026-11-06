@@ -68,8 +68,15 @@ export type BrowserSyncPlan = {
 export function browserSyncContentHash(project: Project): string {
   return contentHash(planContent({ ...project, id: "", createdAt: 0 }));
 }
-function copyScope(context: BrowserSyncContext): string {
-  return stableJson([context.server, context.user.id]);
+function copyScope(
+  context: BrowserSyncContext,
+  deletedServerId?: string,
+): string {
+  return stableJson(
+    deletedServerId === undefined
+      ? [context.server, context.user.id]
+      : [context.server, context.user.id, deletedServerId],
+  );
 }
 function isPending(status: BrowserSyncStatus): boolean {
   return (
@@ -87,10 +94,13 @@ async function classify(
 ): Promise<BrowserSyncEntry> {
   let read = await target.readProject(entry.link?.serverId ?? entry.project.id);
   // Recover an acknowledged or ambiguous copy whose local cleanup failed.
-  // A linked server deletion must remain explicit, even if some older copy exists.
-  if (!entry.link) {
+  // Deleted links use a new copy identity; only a prior explicit publication can exist there.
+  if (!entry.link || read.kind === "missing") {
     const copy = await target.readProject(
-      projectImportCopyId(entry.project, copyScope(context)),
+      projectImportCopyId(
+        entry.project,
+        copyScope(context, entry.link?.serverId),
+      ),
     );
     if (
       copy.kind === "found" &&
@@ -399,6 +409,10 @@ export async function resolveBrowserSyncConflict(
   context: BrowserSyncContext,
   options: BrowserSyncOptions,
 ): Promise<BrowserSyncOutcome> {
+  const scope = copyScope(
+    context,
+    entry.status === "server-deleted" ? entry.link?.serverId : undefined,
+  );
   let outcome: BrowserSyncOutcome;
   try {
     if (!options.publicConfirmed) return { key: entry.key, kind: "kept-local" };
@@ -464,7 +478,7 @@ export async function resolveBrowserSyncConflict(
         {
           user: context.user,
           now: options.now,
-          copyUserId: copyScope(context),
+          copyUserId: scope,
         },
       );
       if (resolved.kind === "refreshed")
@@ -486,7 +500,7 @@ export async function resolveBrowserSyncConflict(
       } else {
         const id =
           choice === "save-copy"
-            ? projectImportCopyId(entry.project, copyScope(context))
+            ? projectImportCopyId(entry.project, scope)
             : local.id;
         const read: ServerRead<ServerProjectState> =
           await target.readProject(id);
