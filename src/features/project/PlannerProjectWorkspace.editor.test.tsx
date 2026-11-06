@@ -1594,11 +1594,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     );
     await screen.findByText("Nicht angemeldet");
     expect(
-      (
-        screen.getByRole("button", {
-          name: /^Neuen Plan erstellen/,
-        }) as HTMLButtonElement
-      ).disabled,
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: /^Neuen Plan erstellen/,
+      }).disabled,
     ).toBe(false);
     fireEvent.click(
       screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
@@ -1629,11 +1627,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
       document.querySelector(".fable-header .browser-plan-badge")?.textContent,
     ).toBe("Nur in diesem Browser");
     expect(
-      (
-        screen.getByRole("button", {
-          name: "Muster bearbeiten",
-        }) as HTMLButtonElement
-      ).disabled,
+      screen.getByRole<HTMLButtonElement>("button", {
+        name: "Muster bearbeiten",
+      }).disabled,
     ).toBe(false);
     fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
     expect(
