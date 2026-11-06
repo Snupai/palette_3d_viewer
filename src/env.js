@@ -7,6 +7,7 @@ export const env = createEnv({
    * isn't built with invalid env vars.
    */
   server: {
+    PALETTE_LOGIN_TRUST_PROXY: z.enum(["true", "false"]).optional(),
     NODE_ENV: z.enum(["development", "test", "production"]),
     /**
      * Wire protocol of the local model server that reads photographed pallet
@@ -70,6 +71,7 @@ export const env = createEnv({
    */
   runtimeEnv: {
     NODE_ENV: process.env.NODE_ENV,
+    PALETTE_LOGIN_TRUST_PROXY: process.env.PALETTE_LOGIN_TRUST_PROXY,
     SHEET_EXTRACTION_API: process.env.SHEET_EXTRACTION_API,
     SHEET_EXTRACTION_URL: process.env.SHEET_EXTRACTION_URL,
     OLLAMA_URL: process.env.OLLAMA_URL,

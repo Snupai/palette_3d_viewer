@@ -39,6 +39,8 @@ export const authDe = {
   "auth.confirm.discardAndSignOut": "Entwürfe verwerfen und abmelden",
   "auth.error.missingCredentials": "Bitte Benutzername und Kennwort eingeben.",
   "auth.error.invalidCredentials": "Benutzername oder Kennwort ist falsch.",
+  "auth.error.tooManyAttempts":
+    "Zu viele Anmeldeversuche. Bitte später erneut versuchen.",
   "auth.error.generic": "Anmelden fehlgeschlagen.",
   "auth.error.signOutFailed": "Abmelden fehlgeschlagen.",
   "auth.error.sessionExpired":

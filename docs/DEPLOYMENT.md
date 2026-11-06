@@ -178,3 +178,30 @@ Then run `compose up -d` with the chosen engine.
   `podman compose version` successfully.
 - If backups are missing, check the directory, write permissions, and
   `compose logs backup`. The first backup can take some time.
+
+## Login throttling
+
+Failed logins have fixed 15-minute windows: 5 attempts per normalized username
+and 30 per client IP, including pending password checks. Further attempts return
+`429` with `Retry-After` in seconds and the same response for unknown accounts.
+Rejected requests do not extend the window. A successful login clears only the
+username's failures, preserving the address's protection against password sprays.
+
+Next.js Request does not expose the socket peer. By default the app ignores all
+forwarding headers and uses one shared address bucket, alongside individual
+username buckets. This also applies to missing or invalid trusted headers and
+means users can temporarily share an address throttle.
+
+Set runtime `PALETTE_LOGIN_TRUST_PROXY=true` (also passed through Compose) only
+when direct client access to the app is blocked and your trusted HTTPS proxy
+**overwrites** `X-Forwarded-For` with exactly one client IP. For nginx use
+`proxy_set_header X-Forwarded-For $remote_addr;` rather than appending the incoming
+header. Lists are rejected; `X-Real-IP` is ignored. Recreate the app container
+with `compose up -d` after changing the setting.
+
+The limiter keeps at most 10,000 username/address entries per process, reclaims
+expired entries on requests, and rejects new entries temporarily at capacity
+rather than evicting active protection. State resets on restart and is not shared
+between processes. Run one app process as intended by ADR 0009; multiple replicas
+need a shared limiter or additional proxy protection. No database migration is
+required. See the [ADR 0008 addendum](adr/0008-https-authentication.md).

@@ -394,9 +394,7 @@ The backend was implemented through the `area:backend` issues (#23–#38).
 ADR 0010's Browserplan workflow (#72, foundation #65, implementation #66–#71)
 is implemented through PRs #73–#79.
 
-Remaining work:
-
-- add login rate limiting; `/api/auth/login` currently has no attempt throttle;
+Remaining work: none.
 
 Later steps:
 

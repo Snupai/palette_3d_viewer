@@ -302,6 +302,16 @@ describe("session API", () => {
     ]);
   });
 
+  it("shows the localized retry-later message for a throttled login", async () => {
+    expect(
+      await signIn(
+        async () => jsonResponse({ error: "too_many_attempts" }, 429),
+        "alice",
+        "secret",
+      ),
+    ).toEqual({ ok: false, message: "auth.error.tooManyAttempts" });
+  });
+
   it("signs out only when the server confirms with 204", async () => {
     const fetchImpl = vi.fn(async () => new Response(null, { status: 204 }));
     expect(await signOut(fetchImpl)).toBe(true);

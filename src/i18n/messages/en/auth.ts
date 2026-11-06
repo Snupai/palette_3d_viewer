@@ -38,6 +38,8 @@ export const authEn = {
   "auth.confirm.discardAndSignOut": "Discard drafts and sign out",
   "auth.error.missingCredentials": "Please enter username and password.",
   "auth.error.invalidCredentials": "Username or password is incorrect.",
+  "auth.error.tooManyAttempts":
+    "Too many sign-in attempts. Please try again later.",
   "auth.error.generic": "Signing in failed.",
   "auth.error.signOutFailed": "Signing out failed.",
   "auth.error.sessionExpired":
