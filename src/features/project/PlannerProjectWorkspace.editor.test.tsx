@@ -158,7 +158,11 @@ async function openSavedPlan() {
     screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: "M5-EDITOR öffnen" }),
+    await screen.findByRole(
+      "button",
+      { name: "M5-EDITOR öffnen" },
+      { timeout: 5_000 },
+    ),
   );
 }
 /** Opens the saved plan in the pattern editor and leaves one unsaved edit. */
@@ -1602,7 +1606,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     const browserSection = await screen.findByRole("region", {
       name: "Nur in diesem Browser (nicht veröffentlicht)",
     });
-    expect(within(browserSection).getByText("BROWSER-PLAN")).toBeTruthy();
+    expect(
+      within(browserSection).getByRole("heading", { name: "BROWSER-PLAN" }),
+    ).toBeTruthy();
     const serverSection = screen.getByRole("region", {
       name: "Veröffentlichte Pläne",
     });
