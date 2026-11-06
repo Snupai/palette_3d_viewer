@@ -397,9 +397,6 @@ is implemented through PRs #73–#79.
 Remaining work:
 
 - add login rate limiting; `/api/auth/login` currently has no attempt throttle;
-- retain server-side deletion tombstones or equivalent version continuity;
-  deleting a record currently removes its row, so recreating the same ID starts
-  at version 1, unlike IndexedDB's retained versions.
 
 Later steps:
 

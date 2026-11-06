@@ -1,0 +1,1 @@
+ALTER TABLE "planner_records" ADD COLUMN "deleted" boolean DEFAULT false NOT NULL;

@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 
 import {
   PLANNER_STORE_NAMES,
@@ -22,8 +22,8 @@ import { plannerRecords, type PlannerRecordRow } from "../db/schema";
  * and `conflict` → 409.
  * Database failures still throw.
  *
- * Known limitation: a delete removes the row, so a record recreated after a
- * delete starts again at version 1 (the IndexedDB storage keeps tombstones).
+ * Deletes retain a tombstone with an empty payload. Recreating the same key
+ * atomically advances its version; reads and conflicts hide deleted rows.
  */
 
 /** Largest accepted record, measured as UTF-8 bytes of its JSON text. */
@@ -109,7 +109,7 @@ export type PutRecordInput = {
    * exist with exactly that version (update). There is no unconditional write.
    */
   expectedVersion: RecordVersion | null;
-  /** Stored as `created_by` on insert only; never changed by an update. */
+  /** Creator on creation (including recreation); unchanged by updates. */
   userId: string | null;
   /**
    * Update only: apply only if the record's `created_by` is this user id,
@@ -286,7 +286,7 @@ async function rejectedWrite(
       createdBy: plannerRecords.createdBy,
     })
     .from(plannerRecords)
-    .where(recordKey(store, id))
+    .where(and(recordKey(store, id), eq(plannerRecords.deleted, false)))
     .limit(1);
   if (row && onlyCreatedBy !== undefined && row.createdBy !== onlyCreatedBy) {
     return { ok: false, kind: "forbidden", store, id };
@@ -310,7 +310,9 @@ export async function listRecords(
   const rows = await db
     .select()
     .from(plannerRecords)
-    .where(eq(plannerRecords.store, store))
+    .where(
+      and(eq(plannerRecords.store, store), eq(plannerRecords.deleted, false)),
+    )
     .orderBy(asc(plannerRecords.id));
   return { ok: true, records: rows.map(toStoredRecord) };
 }
@@ -327,7 +329,7 @@ export async function getRecord(
   const [row] = await db
     .select()
     .from(plannerRecords)
-    .where(recordKey(store, id))
+    .where(and(recordKey(store, id), eq(plannerRecords.deleted, false)))
     .limit(1);
   return { ok: true, record: row ? toStoredRecord(row) : null };
 }
@@ -367,8 +369,17 @@ export async function putRecord(
             createdAt: now,
             updatedAt: now,
           })
-          .onConflictDoNothing({
+          .onConflictDoUpdate({
             target: [plannerRecords.store, plannerRecords.id],
+            set: {
+              json,
+              deleted: false,
+              version: sql`${plannerRecords.version} + 1`,
+              createdBy: input.userId,
+              createdAt: now,
+              updatedAt: now,
+            },
+            setWhere: eq(plannerRecords.deleted, true),
           })
           .returning()
       : await db
@@ -382,6 +393,7 @@ export async function putRecord(
           .where(
             and(
               recordKey(store, id),
+              eq(plannerRecords.deleted, false),
               eq(plannerRecords.version, expectedVersion),
               creatorGuard(input.onlyCreatedBy),
             ),
@@ -395,7 +407,7 @@ export async function putRecord(
     store,
     id,
     expectedVersion,
-    // An insert never touches an existing row, so it only ever conflicts.
+    // Creation only replaces tombstones; a live record always conflicts.
     expectedVersion === null ? undefined : input.onlyCreatedBy,
   );
 }
@@ -416,10 +428,17 @@ export async function deleteRecord(
     );
   }
   const removed = await db
-    .delete(plannerRecords)
+    .update(plannerRecords)
+    .set({
+      deleted: true,
+      json: {},
+      createdBy: null,
+      updatedAt: new Date(),
+    })
     .where(
       and(
         recordKey(store, id),
+        eq(plannerRecords.deleted, false),
         eq(plannerRecords.version, expectedVersion),
         creatorGuard(input.onlyCreatedBy),
       ),

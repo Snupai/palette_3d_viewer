@@ -1,8 +1,15 @@
 // @vitest-environment node
+import { readMigrationFiles } from "drizzle-orm/migrator";
+
 import { asc, eq, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { assertDatabaseUrl, type OpenDatabase, openDatabase } from "./database";
+import {
+  assertDatabaseUrl,
+  DEFAULT_MIGRATIONS_FOLDER,
+  type OpenDatabase,
+  openDatabase,
+} from "./database";
 import { plannerRecords, users } from "./schema";
 import { openMigratedTestDatabase, openTestDatabase } from "./testing";
 
@@ -77,6 +84,7 @@ describe("migrations", () => {
         nullable: "NO",
         default: "now()",
       },
+      { name: "deleted", type: "boolean", nullable: "NO", default: "false" },
     ]);
 
     const primaryKey = await rows(
@@ -91,6 +99,46 @@ describe("migrations", () => {
     expect(primaryKey).toEqual([{ column: "store" }, { column: "id" }]);
   });
 
+  it("preserves existing records when adding tombstones", async () => {
+    const database = await track(openTestDatabase());
+    const migrations = readMigrationFiles({
+      migrationsFolder: DEFAULT_MIGRATIONS_FOLDER,
+    });
+    const tombstoneIndex = migrations.findIndex((migration) =>
+      migration.sql.some((statement) =>
+        statement.includes('ADD COLUMN "deleted"'),
+      ),
+    );
+    expect(tombstoneIndex).toBe(2);
+    for (const migration of migrations.slice(0, tombstoneIndex)) {
+      for (const statement of migration.sql)
+        await database.db.execute(sql.raw(statement));
+    }
+    await database.db
+      .execute(sql`INSERT INTO users (id, username, password_hash, role)
+      VALUES ('owner', 'owner', 'unused', 'user')`);
+    await database.db.execute(sql`INSERT INTO planner_records
+      (store, id, json, version, created_by, created_at, updated_at)
+      VALUES ('projects', 'existing', '{"id":"existing","name":"A"}', 7, 'owner',
+        '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z')`);
+    for (const migration of migrations.slice(tombstoneIndex)) {
+      for (const statement of migration.sql)
+        await database.db.execute(sql.raw(statement));
+    }
+    expect(await database.db.select().from(plannerRecords)).toEqual([
+      {
+        store: "projects",
+        id: "existing",
+        json: { id: "existing", name: "A" },
+        version: 7,
+        createdBy: "owner",
+        deleted: false,
+        createdAt: new Date("2026-01-01T00:00:00Z"),
+        updatedAt: new Date("2026-01-02T00:00:00Z"),
+      },
+    ]);
+  });
+
   it("are idempotent and recorded once", async () => {
     const database = await track(openTestDatabase());
     await database.migrate();
@@ -100,7 +148,7 @@ describe("migrations", () => {
       database,
       sql`SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations`,
     );
-    expect(applied).toEqual([{ count: 2 }]);
+    expect(applied).toEqual([{ count: 3 }]);
   });
 });
 
@@ -150,6 +198,7 @@ describe("planner_records", () => {
         store: "projects",
         id: "p-1",
         json,
+        deleted: false,
         version: 1,
         createdBy: "user-7",
         createdAt: new Date("2026-11-04T08:00:00.000Z"),

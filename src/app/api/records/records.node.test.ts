@@ -2,6 +2,9 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { ServerPlannerRecordStorage } from "~/lib/serverPlannerRecordStorage";
+import { RecordVersionConflictError } from "~/lib/plannerRecordStorage";
+
 import { createSession, revokeSession } from "~/server/auth/accounts";
 import type { OpenDatabase } from "~/server/db/database";
 import { plannerRecords, sessions, users } from "~/server/db/schema";
@@ -295,7 +298,7 @@ describe("projects: creator or admin", () => {
     const deleted = await remove("projects", "p-1", "alice", 2);
     expect(deleted.status).toBe(204);
     expect(deleted.headers.get("cache-control")).toBe("no-store");
-    expect(await storedVersion("projects", "p-1")).toBeUndefined();
+    expect((await get("projects", "p-1")).status).toBe(404);
   });
 
   it("forbids another user to update or delete, even with a stale version", async () => {
@@ -338,7 +341,7 @@ describe("projects: creator or admin", () => {
     });
 
     expect((await remove("projects", "p-1", "admin", 2)).status).toBe(204);
-    expect(await storedVersion("projects", "p-1")).toBeUndefined();
+    expect((await get("projects", "p-1")).status).toBe(404);
   });
 
   it("leaves a project whose creator was deleted to admins", async () => {
@@ -593,5 +596,52 @@ describe("local storage mode", () => {
         error: "server_storage_disabled",
       });
     }
+  });
+});
+
+it("keeps client storage semantics across deletion and recreation", async () => {
+  const storage = new ServerPlannerRecordStorage({
+    fetch: async (input, init) => {
+      const req = new Request(new URL(String(input), ORIGIN), init);
+      req.headers.set("cookie", cookies.alice);
+      const parts = new URL(req.url).pathname.split("/");
+      const store = parts[3]!;
+      const id = parts[4];
+      if (!id) return list(req, params({ store }));
+      const context = params({ store, id });
+      if (req.method === "PUT") return putOne(req, context);
+      if (req.method === "DELETE") return deleteOne(req, context);
+      return getOne(req, context);
+    },
+  });
+  expect(await storage.put("projects", { id: "p-1", name: "A" })).toBe(1);
+  await storage.delete("projects", "p-1", { expectedVersion: 1 });
+  expect(await storage.getVersioned("projects", "p-1")).toBeUndefined();
+  expect(await storage.list("projects")).toEqual([]);
+  expect((await get("projects", "p-1")).status).toBe(404);
+  await expect(
+    storage.put("projects", { id: "p-1" }, { expectedVersion: 1 }),
+  ).rejects.toMatchObject({ actualVersion: null });
+  await storage.delete("projects", "p-1");
+  expect(await storage.put("projects", { id: "p-1", name: "B" })).toBe(2);
+  await expect(
+    storage.put(
+      "projects",
+      { id: "p-1", name: "stale" },
+      { expectedVersion: 1 },
+    ),
+  ).rejects.toBeInstanceOf(RecordVersionConflictError);
+  const conflict = await put("projects", "p-1", "alice", {
+    record: { id: "p-1" },
+    expectedVersion: 1,
+  });
+  expect(conflict.status).toBe(409);
+  expect(await conflict.json()).toEqual({
+    error: "version_conflict",
+    currentVersion: 2,
+  });
+  expect(await storage.getVersioned("projects", "p-1")).toEqual({
+    record: { id: "p-1", name: "B" },
+    version: 2,
   });
 });
