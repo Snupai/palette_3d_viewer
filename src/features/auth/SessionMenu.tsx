@@ -29,7 +29,7 @@ export type PlannerSessionControls = {
   /** `true` once the server ended the session. */
   signOut: () => Promise<boolean>;
   /** A request answered 401: the session is gone. */
-  markSignedOut: () => void;
+  markSessionLost: () => void;
 };
 
 /**
@@ -78,14 +78,14 @@ export function usePlannerSession(
     }
     return ok;
   }, [fetchImpl]);
-  const markSignedOut = useCallback(() => {
+  const markSessionLost = useCallback(() => {
     sessionGeneration.current += 1;
     setSession((current) =>
-      current.status === "local" ? current : { status: "anonymous" },
+      current.status === "local" ? current : { status: "session-lost" },
     );
   }, []);
 
-  return { session, signIn: doSignIn, signOut: doSignOut, markSignedOut };
+  return { session, signIn: doSignIn, signOut: doSignOut, markSessionLost };
 }
 
 /**

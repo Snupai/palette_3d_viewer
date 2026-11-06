@@ -1,7 +1,9 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
+  renderHook,
   screen,
   waitFor,
 } from "@testing-library/react";
@@ -50,6 +52,56 @@ function pathOf(input: RequestInfo | URL): string {
 afterEach(cleanup);
 
 describe("SessionMenu", () => {
+  it("distinguishes a lost session from explicit sign-out and recovers on sign-in", async () => {
+    const alice = { id: "u-alice", username: "alice", role: "user" };
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      pathOf(input) === "/api/auth/logout"
+        ? new Response(null, { status: 204 })
+        : json({ user: alice }),
+    );
+    const { result } = renderHook(() => usePlannerSession("server", fetchImpl));
+    await waitFor(() =>
+      expect(result.current.session.status).toBe("signed-in"),
+    );
+    act(() => result.current.markSessionLost());
+    expect(result.current.session).toEqual({ status: "session-lost" });
+    await act(async () => {
+      await result.current.signIn("alice", "secret");
+    });
+    expect(result.current.session).toEqual({
+      status: "signed-in",
+      user: alice,
+    });
+    await act(async () => {
+      await result.current.signOut();
+    });
+    expect(result.current.session).toEqual({ status: "anonymous" });
+  });
+
+  it("keeps session loss when an older initial check answers anonymous later", async () => {
+    let answerMe!: (response: Response) => void;
+    const fetchImpl = vi.fn<typeof fetch>(
+      () =>
+        new Promise<Response>((resolve) => {
+          answerMe = resolve;
+        }),
+    );
+    const { result } = renderHook(() => usePlannerSession("server", fetchImpl));
+    act(() => result.current.markSessionLost());
+    await act(async () => {
+      answerMe(json({ error: "unauthenticated" }, 401));
+    });
+    expect(result.current.session).toEqual({ status: "session-lost" });
+  });
+
+  it("does not change local mode when a request reports session loss", () => {
+    const fetchImpl = vi.fn<typeof fetch>();
+    const { result } = renderHook(() => usePlannerSession("local", fetchImpl));
+    act(() => result.current.markSessionLost());
+    expect(result.current.session).toEqual({ status: "local" });
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it("renders nothing and never asks the server in local mode", () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const { container } = render(

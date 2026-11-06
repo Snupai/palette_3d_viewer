@@ -26,6 +26,8 @@ export type PlannerSession =
   | { status: "local" }
   | { status: "loading" }
   | { status: "anonymous" }
+  /** A request lost its session: retain the draft and require sign-in. */
+  | { status: "session-lost" }
   | { status: "signed-in"; user: SessionUser }
   /** `/api/auth/me` gave no usable answer (server unreachable, …). */
   | { status: "error" };
@@ -36,6 +38,8 @@ export type ProjectSaveMode =
   | "overwrite"
   /** Store the changes as a new project the user owns. */
   | "copy"
+  /** Save only in this browser; never publish implicitly on sign-in. */
+  | "browser-local"
   /** No saving at all; see `readOnlyHint`. */
   | "none";
 
@@ -68,33 +72,43 @@ function readOnly(hint: MessageKey): PlannerAccess {
   };
 }
 
-/**
- * What the session may do with a project.
- *
- * `createdBy` is the creator the server reported for the project: a user id,
- * `null` when it records none (deleted account), or `undefined` when the
- * project is not stored on the server yet — saving it then creates it, so
- * the user becomes its creator. Without a project, pass `undefined`.
- */
+/** Storage origin is explicit; a missing creator never identifies a Browserplan. */
+export type PlannerPlanOrigin =
+  | { origin: "browser-local" }
+  | {
+      origin: "server";
+      /** undefined: new server plan; null: stored plan whose creator was deleted. */
+      createdBy: string | null | undefined;
+    };
+
+/** What the session may do with a plan at the specified storage origin. */
 export function plannerAccess(
   session: PlannerSession,
-  createdBy: string | null | undefined,
+  plan: PlannerPlanOrigin,
 ): PlannerAccess {
   switch (session.status) {
     case "local":
       return FULL_ACCESS;
     case "loading":
       return readOnly("auth.readOnly.checking");
-    case "anonymous":
+    case "session-lost":
       return readOnly("auth.readOnly.signIn");
     case "error":
       return readOnly("auth.readOnly.sessionUnknown");
+    case "anonymous":
+      return plan.origin === "browser-local"
+        ? { ...FULL_ACCESS, save: "browser-local" }
+        : readOnly("auth.readOnly.signIn");
     case "signed-in": {
+      // Browserplans stay local until explicit synchronization with consent.
+      if (plan.origin === "browser-local") {
+        return { ...FULL_ACCESS, save: "browser-local" };
+      }
       const { user } = session;
       if (
         user.role === "admin" ||
-        createdBy === undefined ||
-        createdBy === user.id
+        plan.createdBy === undefined ||
+        plan.createdBy === user.id
       ) {
         return FULL_ACCESS;
       }
@@ -114,16 +128,25 @@ export type SaveControl = {
   label: MessageKey | null;
   /** Disables the button and explains why; `null` keeps it enabled. */
   disabledReason: MessageKey | null;
+  /** Informational save-target hint; does not disable saving. */
+  hint?: MessageKey;
 };
 
 /** A {@link SaveControl} with translated texts, as save buttons take it. */
 export type SaveButtonState = {
   label: string | null;
   disabledReason: string | null;
+  hint?: string;
 };
 
 export function saveControl(access: PlannerAccess): SaveControl {
   switch (access.save) {
+    case "browser-local":
+      return {
+        label: "auth.saveInBrowser",
+        disabledReason: null,
+        hint: "auth.browserLocalHint",
+      };
     case "overwrite":
       return { label: null, disabledReason: null };
     case "copy":
