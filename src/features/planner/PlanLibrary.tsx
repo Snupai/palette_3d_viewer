@@ -17,7 +17,6 @@ export type PlanLibraryAccess = {
   createDisabledReason?: string | null;
   createHint?: string | null;
   editDisabledReason?: (id: string) => string | null;
-  projectKey?: (project: ProjectLibraryProps["projects"][number]) => string;
   originFor?: (id: string) => "server" | "browser-local";
   onCopyToBrowser?: (id: string) => void;
   /** Why the project may not be deleted, or `null` when it may. */

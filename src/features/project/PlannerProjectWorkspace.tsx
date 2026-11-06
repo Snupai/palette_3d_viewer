@@ -357,6 +357,8 @@ export function PlannerProjectWorkspace({
       repository.recordCreatedBy(store, id),
     [repository],
   );
+  const browserCreateHint =
+    newPlanOrigin === "browser-local" ? t("auth.browserLocalHint") : null;
   const generalAccess = accessFor(null);
   const generalReadOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
@@ -2243,6 +2245,19 @@ export function PlannerProjectWorkspace({
                   ? projectLabel(workspaceProject, t)
                   : t("shell.newPlan")}
         </span>
+        {!showWelcome &&
+          !projectDrawerOpen &&
+          dialogMode !== "create" &&
+          workspaceProject &&
+          selectedId &&
+          routing.reference(selectedId).origin === "browser-local" && (
+            <span
+              className="browser-plan-badge"
+              title={t("auth.browserLocalHint")}
+            >
+              {t("planner.library.browserBadge")}
+            </span>
+          )}
         <div className="header-actions">
           {!showWelcome && (
             <button className="text-action" onClick={browsePlans}>
@@ -2387,6 +2402,7 @@ export function PlannerProjectWorkspace({
       {routeReady && showWelcome && dialogMode === "closed" ? (
         <PlannerWelcome
           createDisabledReason={generalReadOnlyHint}
+          createHint={browserCreateHint}
           onCreate={createNew}
           onBrowse={browsePlans}
           onResume={
@@ -2452,6 +2468,7 @@ export function PlannerProjectWorkspace({
             onCreateProject={createNew}
             onEditProject={() => openInputs()}
             editDisabledReason={readOnlyHint}
+            createDisabledReason={generalReadOnlyHint}
             onOpenTool={openProductionTool}
             onImportRob={(file) => void importRobAsProject(file)}
             solverResult={solverResult}
@@ -2490,6 +2507,16 @@ export function PlannerProjectWorkspace({
             projects={projects}
             selectedId={selectedId}
             projectKey={routing.keyFor}
+            originFor={
+              storageMode === "server"
+                ? (key) => routing.reference(key).origin
+                : undefined
+            }
+            onCopyToBrowser={
+              session.status === "anonymous"
+                ? (key) => void duplicate(key)
+                : undefined
+            }
             loading={loadingLibrary}
             search={search}
             projectNumberFilter={projectNumberFilter}
@@ -2519,6 +2546,7 @@ export function PlannerProjectWorkspace({
             onExportAll={() => void exportProjects("all")}
             onImport={(file) => void importProjects(file)}
             createDisabledReason={generalReadOnlyHint}
+            createHint={browserCreateHint}
             editDisabledReason={(id) => {
               const hint = accessFor(id).readOnlyHint;
               return hint ? t(hint) : null;

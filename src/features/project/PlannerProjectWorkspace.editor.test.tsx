@@ -5,6 +5,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
@@ -847,7 +848,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Entwürfe verwerfen und abmelden" }),
     );
-    await waitFor(() => expect(screen.getByText("Nur lesen")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Nicht angemeldet")).toBeTruthy(),
+    );
     expect(readDraftBackups(storage, aliceScope())).toEqual([]);
     expect(readDraftBackups(storage, elsewhere)).toHaveLength(1);
     expect(screen.queryByRole("region", { name: /Ungespeicherte/ })).toBeNull();
@@ -1294,7 +1297,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Entwürfe verwerfen und abmelden" }),
     );
-    await waitFor(() => expect(screen.getByText("Nur lesen")).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText("Nicht angemeldet")).toBeTruthy(),
+    );
     fireEvent.change(screen.getByLabelText("Benutzername"), {
       target: { value: "bob" },
     });
@@ -1561,6 +1566,73 @@ describe("PlannerProjectWorkspace editor integration", () => {
         .getByRole("button", { name: "Palettierblatt ansehen" })
         .hasAttribute("disabled"),
     ).toBe(false);
+  });
+
+  it("marks browser plans, keeps their editor unlocked, and offers copying a server plan", async () => {
+    const { repository } = await repositoryWithProject();
+    const browserRepository = new ProjectRepository(
+      new MemoryPlannerRecordStorage(),
+    );
+    await browserRepository.saveProject({
+      ...plannerProject(),
+      projectNumber: "BROWSER-PLAN",
+    });
+    const fetchImpl = vi.fn<typeof fetch>(
+      async () => new Response(null, { status: 401 }),
+    );
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        browserRepository={browserRepository}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    await screen.findByText("Nicht angemeldet");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: /^Neuen Plan erstellen/,
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    fireEvent.click(
+      screen.getByRole("button", { name: /^Vorhandene Pläne ansehen/ }),
+    );
+    const browserSection = await screen.findByRole("region", {
+      name: "Nur in diesem Browser (nicht veröffentlicht)",
+    });
+    expect(within(browserSection).getByText("BROWSER-PLAN")).toBeTruthy();
+    const serverSection = screen.getByRole("region", {
+      name: "Veröffentlichte Pläne",
+    });
+    fireEvent.click(
+      within(serverSection).getByRole("button", {
+        name: "In diesem Browser kopieren",
+      }),
+    );
+    await waitFor(async () =>
+      expect((await browserRepository.listProjects()).projects).toHaveLength(2),
+    );
+    expect((await repository.listProjects()).projects).toHaveLength(1);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "BROWSER-PLAN öffnen" }),
+    );
+    await screen.findByRole("heading", { name: "BROWSER-PLAN" });
+    expect(
+      document.querySelector(".fable-header .browser-plan-badge")?.textContent,
+    ).toBe("Nur in diesem Browser");
+    expect(
+      (
+        screen.getByRole("button", {
+          name: "Muster bearbeiten",
+        }) as HTMLButtonElement
+      ).disabled,
+    ).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Muster bearbeiten" }));
+    expect(
+      await screen.findByRole("button", { name: "Im Browser speichern" }),
+    ).toBeTruthy();
   });
 
   it("opens a .rob file as the current plan instead of attaching a reference", async () => {
