@@ -72,11 +72,9 @@ describe("plan library origins", () => {
       screen.getByRole("region", { name: "Veröffentlichte Pläne" }),
     );
     expect(
-      (
-        published.getByRole("button", {
-          name: "Angaben bearbeiten",
-        }) as HTMLButtonElement
-      ).disabled,
+      published.getByRole<HTMLButtonElement>("button", {
+        name: "Angaben bearbeiten",
+      }).disabled,
     ).toBe(true);
     fireEvent.click(
       published.getByRole("button", { name: "In diesem Browser kopieren" }),
@@ -97,7 +95,7 @@ describe("plan library origins", () => {
       "Projektpaket importieren",
     ]) {
       expect(
-        (screen.getByRole("button", { name }) as HTMLButtonElement).disabled,
+        screen.getByRole<HTMLButtonElement>("button", { name }).disabled,
       ).toBe(false);
     }
     fireEvent.click(screen.getByRole("button", { name: "＋ Neuer Plan" }));
