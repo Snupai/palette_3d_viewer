@@ -65,6 +65,31 @@ describe("guided planning navigation", () => {
     );
     expect(p.onCreateProject).toHaveBeenCalledOnce();
   });
+  it("blocks creation while access is unresolved", () => {
+    const p = {
+      ...props(null),
+      createDisabledReason: "Anmeldung wird geprüft",
+    };
+    render(<PlanningCaseWorkbench {...p} />);
+    const button = screen.getByRole("button", { name: "Neuen Plan erstellen" });
+    expect((button as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.click(button);
+    expect(p.onCreateProject).not.toHaveBeenCalled();
+  });
+  it("blocks editing and generation for a read-only input plan", () => {
+    const p = {
+      ...props(createProject({ id: "locked" })),
+      editDisabledReason: "Bitte anmelden",
+    };
+    render(<PlanningCaseWorkbench {...p} />);
+    for (const name of ["Angaben bearbeiten", "Weiter zu den Mustern"]) {
+      const button = screen.getByRole("button", { name });
+      expect((button as HTMLButtonElement).disabled).toBe(true);
+      fireEvent.click(button);
+    }
+    expect(p.onEditProject).not.toHaveBeenCalled();
+    expect(p.onStageChange).not.toHaveBeenCalled();
+  });
   it("keeps production tools outside the sequential planning steps", () => {
     const p = props(
       createProject(

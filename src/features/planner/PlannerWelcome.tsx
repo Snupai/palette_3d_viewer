@@ -39,8 +39,10 @@ export function PlannerWelcome({
   onBrowse,
   onResume,
   createDisabledReason = null,
+  createHint = null,
 }: {
-  /** Disables "create" with this explanation (read-only server mode). */
+  createHint?: string | null;
+  /** Disables creation while the target is unavailable. */
   createDisabledReason?: string | null;
   onCreate: () => void;
   onBrowse: () => void;
@@ -52,8 +54,8 @@ export function PlannerWelcome({
       <header className="page-intro">
         <h1>{t("planner.welcome.title")}</h1>
       </header>
-      {createDisabledReason ? (
-        <p className="fable-notice">{createDisabledReason}</p>
+      {createDisabledReason || createHint ? (
+        <p className="fable-notice">{createDisabledReason ?? createHint}</p>
       ) : null}
       <div className="welcome-doors">
         <button

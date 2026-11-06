@@ -58,6 +58,11 @@ export const plannerDe = {
   "planner.results.showMore_one": "Weitere {count} Muster anzeigen",
   "planner.results.showMore_other": "Weitere {count} Muster anzeigen",
   // Plan library
+  "planner.library.browserSection":
+    "Nur in diesem Browser (nicht veröffentlicht)",
+  "planner.library.serverSection": "Veröffentlichte Pläne",
+  "planner.library.browserBadge": "Nur in diesem Browser",
+  "planner.library.copyToBrowser": "In diesem Browser kopieren",
   "planner.library.label": "Planbibliothek",
   "planner.library.title": "Vorhandene Pläne",
   "planner.library.openRob": ".rob öffnen",

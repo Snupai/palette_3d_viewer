@@ -132,7 +132,12 @@ describe("SessionMenu", () => {
     await waitFor(() =>
       expect(screen.getByTestId("status").textContent).toBe("anonymous"),
     );
-    expect(screen.getByText("Nur lesen")).toBeTruthy();
+    expect(screen.getByText("Nicht angemeldet")).toBeTruthy();
+    expect(
+      screen.getByText("Nicht angemeldet – Pläne bleiben in diesem Browser.", {
+        selector: "p",
+      }),
+    ).toBeTruthy();
 
     fireEvent.change(screen.getByLabelText("Benutzername"), {
       target: { value: "alice" },
@@ -145,7 +150,10 @@ describe("SessionMenu", () => {
       expect(screen.getByTestId("status").textContent).toBe("signed-in"),
     );
     expect(screen.getByText("Angemeldet als alice")).toBeTruthy();
-    expect(screen.queryByText("Nur lesen")).toBeNull();
+    expect(screen.queryByText("Nicht angemeldet")).toBeNull();
+    expect(
+      screen.getByText(/Die nächste Person, die sich anmeldet/),
+    ).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Abmelden" }));
     await waitFor(() =>

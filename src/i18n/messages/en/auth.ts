@@ -1,6 +1,11 @@
 import type { authDe } from "../de/auth";
 
 export const authEn = {
+  "auth.browserLocal.signedOut": "Not signed in",
+  "auth.browserLocal.sessionHint":
+    "Not signed in – plans stay in this browser.",
+  "auth.browserLocal.signOutNote":
+    "Plans created after signing out stay in this browser. The next person who signs in can synchronize and publish them.",
   "auth.menu": "Account",
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in …",
