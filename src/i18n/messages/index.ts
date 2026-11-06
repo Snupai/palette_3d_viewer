@@ -14,6 +14,8 @@ import { componentsDe } from "./de/components";
 import { adminDe } from "./de/admin";
 import { conflictDe } from "./de/conflict";
 import { authDe } from "./de/auth";
+import { browserSyncDe } from "./de/browserSync";
+import { browserSyncEn } from "./en/browserSync";
 import { localImportDe } from "./de/localImport";
 import { shellEn } from "./en/shell";
 import { projectEn } from "./en/project";
@@ -57,6 +59,7 @@ export const de = {
   ...conflictDe,
   ...authDe,
   ...localImportDe,
+  ...browserSyncDe,
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -79,6 +82,7 @@ export const en: Messages = {
   ...conflictEn,
   ...authEn,
   ...localImportEn,
+  ...browserSyncEn,
 };
 
 export const MESSAGES: Record<Locale, Messages> = { de, en };

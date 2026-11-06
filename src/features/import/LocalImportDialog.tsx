@@ -140,6 +140,9 @@ export type LocalImportControllerProps = {
   openLocalSource?: () => Promise<LocalImportSource>;
   readLegacyJson?: () => string | null;
   now?: () => number;
+  /** A sibling sync dialog owns the modal until its overview is dismissed. */
+  enabled?: boolean;
+  onOpenChange?: (open: boolean) => void;
 };
 
 type Phase = "overview" | "running" | "done";
@@ -158,6 +161,8 @@ export function LocalImportController({
   openLocalSource = openBrowserLocalSource,
   readLegacyJson = readLegacyLocalStorage,
   now = Date.now,
+  enabled = true,
+  onOpenChange,
 }: LocalImportControllerProps) {
   const t = useT();
   const user: SessionUser | null =
@@ -172,6 +177,11 @@ export function LocalImportController({
   const [plan, setPlan] = useState<LocalImportPlan | null>(null);
   const [planning, setPlanning] = useState(false);
   const [open, setOpen] = useState(false);
+  useEffect(() => {
+    onOpenChange?.(open);
+    return () => onOpenChange?.(false);
+  }, [open, onOpenChange]);
+
   const [phase, setPhase] = useState<Phase>("overview");
   const [selection, setSelection] = useState<Set<string>>(new Set());
   const [confirmed, setConfirmed] = useState(false);
@@ -243,7 +253,7 @@ export function LocalImportController({
     setLog([]);
     setError(null);
     setConfirmed(false);
-    if (!userId) return;
+    if (!userId || !enabled) return;
     let active = true;
     void (async () => {
       try {
@@ -261,7 +271,7 @@ export function LocalImportController({
     };
     // Re-read only when another user signs in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
+  }, [userId, enabled]);
 
   const close = useCallback(() => {
     if (busy) return;
@@ -465,7 +475,8 @@ export function LocalImportController({
     }
   };
 
-  if (!user || !inventory || localInventorySize(inventory) === 0) return null;
+  if (!enabled || !user || !inventory || localInventorySize(inventory) === 0)
+    return null;
   const importableCount = plan ? importableKeys(plan).length : 0;
 
   return (
