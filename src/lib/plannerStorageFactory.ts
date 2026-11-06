@@ -14,11 +14,12 @@ export type PlannerStorageConfig = {
 };
 
 /**
- * The single place that maps the storage mode to a record storage.
- * `local` is the IndexedDB storage exactly as before; `server` talks to the
- * records API of the same origin and never touches IndexedDB — an
- * unreachable server or an expired session is an error, not a reason to
- * switch storage (ADR 0002).
+ * Maps the build mode to its primary record storage. `local` keeps the
+ * existing IndexedDB inventory; `server` talks to the same-origin records API.
+ * An unreachable server or expired session is an error, never a reason to
+ * reroute server-plan saves (ADR 0002). ADR 0010 specifies a separate
+ * browser-plan inventory and explicit synchronization in server mode; that
+ * inventory is not a fallback and is not constructed by this entry point.
  */
 export function createPlannerRecordStorage(
   config: PlannerStorageConfig = { mode: configuredStorageMode },

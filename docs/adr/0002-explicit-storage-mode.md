@@ -1,5 +1,9 @@
 # Explicit storage mode without automatic offline synchronization
 
+Status: partially superseded by [ADR 0010](0010-browser-local-plans.md) for
+explicit anonymous browser-local plans and consented synchronization in server
+mode. The no-fallback rule and server draft backup behaviour below still apply.
+
 The application uses either the local IndexedDB or the configured server storage. An unreachable server or an expired session does not trigger an automatic switch to local storage, because that would create diverging data sets. In the server variant, the current draft is kept in the browser when such errors occur and pending saves are shown visibly; offline synchronization is excluded for the first version.
 
 Unsaved server drafts are additionally backed up locally, separated by server, user and project. After signing in again, restoring them is offered; after a successful save, the corresponding backup is removed. These backups are not automatic synchronization and are not part of importing the existing local plan inventory.

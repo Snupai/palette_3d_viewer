@@ -353,10 +353,16 @@ Scope:
   `PlannerRecordStorage` interface from `src/lib/projectRepository.ts` on top
   of these route handlers, so that `ProjectRepository` and the workspaces
   remain unchanged;
-- explicit storage mode: either IndexedDB (default) or server, with no
-  automatic switching and no offline synchronization; unsaved server drafts
-  are backed up locally per server, user and project
+- explicit build mode: IndexedDB (default) or server, with no automatic
+  fallback; server outages and session loss keep server drafts read-only with
+  backups per server, user and project
   ([ADR 0002](docs/adr/0002-explicit-storage-mode.md));
+- in server mode, never-signed-in or deliberately signed-out users may edit
+  Browserpläne in a separate browser inventory; sign-in offers synchronization
+  with explicit publication consent (including original `.rob` text), whole-plan
+  conflict choices and account-scoped links replacing confirmed local copies;
+  the Werkskatalog stays admin-only and local deletions never delete server plans
+  ([ADR 0010](docs/adr/0010-browser-local-plans.md));
 - an explicit, repeatable import of the existing browser data after signing in,
   with an overview and confirmation of publication
   ([ADR 0007](docs/adr/0007-explicit-local-import.md));
@@ -365,7 +371,8 @@ Scope:
   ([ADR 0009](docs/adr/0009-postgres-container.md)).
 
 The implementation is split into small issues with the label `area:backend`
-(#23–#38).
+(#23–#38); Browserplan synchronization is tracked in #72, with ADR #65 as the
+foundation for implementation issues #66–#71.
 
 Later steps:
 
@@ -378,9 +385,14 @@ Later steps:
 
 Exit criteria:
 
-- Two users on different machines on the LAN see the same projects; without
-  signing in, projects and the Werkskatalog are read-only, and account data and
-  internal administration data are not readable at all.
+- Two users on different machines on the LAN see the same server projects;
+  without signing in, server projects and the Werkskatalog are read-only, and
+  account data and internal administration data are not readable at all.
+- Anonymous users can create, import, edit, duplicate and delete Browserpläne
+  that survive reloads without server writes. Session loss never turns a server
+  draft into a Browserplan. After sign-in, synchronization requires publication
+  consent and explicit conflict choices; retries create no duplicates and
+  confirmed plans leave the anonymous inventory. Local mode stays unchanged.
 - Concurrent editing of the same project leads to a visible conflict, never to
   a silent overwrite.
 - Without a configured backend, the app behaves unchanged, as with IndexedDB.

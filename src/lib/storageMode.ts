@@ -2,9 +2,11 @@ import { z } from "zod";
 import { env } from "~/env";
 
 /**
- * Explicit storage mode (ADR 0002): the app uses either the browser's
- * IndexedDB (`local`) or the configured LAN server (`server`) — never both and
- * never a silent switch between them.
+ * Explicit build mode (ADR 0002, amended by ADR 0010): `local` keeps the
+ * existing IndexedDB inventory; `server` uses the configured LAN server.
+ * ADR 0010 additionally permits a separate anonymous browser-plan inventory
+ * in server mode, with explicit synchronization after sign-in. Server errors
+ * or session loss must never switch a server plan to browser-local storage.
  */
 export const STORAGE_MODES = ["local", "server"] as const;
 export type StorageMode = (typeof STORAGE_MODES)[number];

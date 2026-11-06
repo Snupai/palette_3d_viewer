@@ -48,9 +48,10 @@ const LEGACY_LOCAL_STORAGE_KEY = "saved_pallets_v1";
 const DISMISSED_PREFIX = "palette.localImport.dismissed:";
 
 /**
- * This browser's local planner data, opened only for reading (ADR 0002: the
- * server mode never switches its storage). A browser that never used local
- * mode has no planner database; it is not created just to find that out.
+ * Legacy local-mode data, opened as a read-only import source (ADR 0007).
+ * This excludes ADR 0010's separate Browserplan synchronization inventory;
+ * reading it never reroutes server-plan saves. A browser that never used
+ * local mode has no planner database; none is created just to find that out.
  */
 export async function openBrowserLocalSource(): Promise<LocalImportSource> {
   const empty: LocalImportSource = { list: async () => [] };
