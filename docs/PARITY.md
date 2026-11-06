@@ -5,9 +5,9 @@ As of: 05.08.2026
 The M0 corpus separates executable repository baselines from external
 observations and open questions. It contains no private original data. The
 machine-readable cases live under `src/lib/__fixtures__/` and are discovered
-statically via `src/lib/parityCorpus.ts`. As a result, the same validated corpus
-is available in Vitest and in application diagnostics; file system access or
-private local paths are not part of the runtime API.
+statically via `src/lib/parityCorpus.ts`. The validated corpus is currently
+consumed by `parityCorpus.test.ts`; no application surface imports it or exposes it as application diagnostics. File
+system access or private local paths are not part of this shared API.
 
 ## Evidence status
 
@@ -65,7 +65,7 @@ is their compact summary.
 | Synthetic identity variants | Golden   | Golden   | Golden   | Golden   | Open n/a | Open     | Open n/a | Open n/a  | Open n/a    |
 | AP5006 / 1329-00004         | Observed | Observed | Observed | Open     | Observed | Observed | Open     | Observed  | Open        |
 
-## Corpus and diagnostics APIs
+## Corpus evaluation APIs
 
 `src/lib/parityCorpus.ts` exports:
 
@@ -82,9 +82,9 @@ is their compact summary.
 - `collectExpectedParityMismatches`: returns exact paths for partial v2
   expectations; the existing exact v1 comparison is retained separately.
 
-An application can pass current solver/project values directly as an
-observation. Vitest can load committed artifacts via `node:fs`. The shared
-production code, in contrast, imports no Node file system and knows no local
+The API can accept solver/project values directly as observations, but is not
+wired into the application. Vitest loads committed artifacts via `node:fs`.
+The shared corpus module imports no Node file system and knows no local
 production folders.
 
 ## AP5006 / 1329-00004 – observed target values
@@ -133,3 +133,30 @@ semantics or order are established under the new v1 contract.
    infeed direction and palletizing direction;
 5. a saved stack with interlayers and a differing top layer;
 6. anonymized `.mpb` files with controlled individual changes.
+
+## External `.rob` corpus harness
+
+The opt-in Node harness lives in `src/lib/parity/`: `discovery.node.ts` discovers
+external files, `runner.node.ts` runs comparisons, `reportWriter.node.ts` writes
+local reports and `sentinel.node.ts` checks a hash-only sentinel manifest.
+It is separate from the committed reference corpus above.
+
+Set `ROB_CORPUS_DIR` to an absolute external corpus directory, then run:
+
+- `bun run corpus:rob` for a corpus run and reports;
+- `bun run corpus:rob:sentinel` for the sentinel check (also requires an absolute
+  `ROB_CORPUS_SENTINEL_MANIFEST` path to a hash-only manifest);
+- `bun run test:corpus` for the opt-in external corpus test, skipped when
+  `ROB_CORPUS_DIR` is unset.
+
+`ROB_CORPUS_MAX_CANDIDATES_PER_GENERATOR` optionally overrides the default cap of
+500 for the corpus runner and external corpus test. The sentinel has its own
+optional `ROB_CORPUS_SENTINEL_MAX_CANDIDATES_PER_GENERATOR` cap. Reports go to a
+temporary directory by default, or an absolute `ROB_CORPUS_REPORT_DIR`.
+
+Customer files stay outside the repository. Discovery rejects relative roots,
+symlinked directories and oversized entries; the loader validates descriptors.
+Reports omit source text and absolute corpus paths. Regular corpus reports retain
+original basenames; sentinel reports anonymize them. Sentinel manifests contain
+hashes only. Do not copy corpus content into fixtures,
+logs or commit messages.

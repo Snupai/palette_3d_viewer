@@ -38,15 +38,37 @@ pallet. Mixed stacks show their actual distinct per-layer counts rather than one
 misleading average. Search/sort and portable
 project/resource import/export retain the repository's behavior.
 
+In server mode, the library separates browser-local plans under **Nur in diesem
+Browser (nicht veröffentlicht)** and marks each with **Nur in diesem Browser**.
+These plans remain on this browser until explicit publication.
+
+After sign-in, **Browserpläne synchronisieren** offers plan selection and
+publication consent. **Abweichungen vergleichen** opens the per-plan conflict
+comparison; postponing with **Später** leaves plans local. Successful sync removes
+the local copy, while unaccepted plans and newer browser changes remain local.
+
+The server-only session menu offers **Anmelden** with **Benutzername** and
+**Kennwort**. Once signed in, it shows the username, role and **Abmelden**;
+unsaved drafts require confirmation before sign-out. Admins also see
+**Benutzerverwaltung**, leading to `/admin`. That screen lists users and supports
+**Benutzer anlegen** and **Kennwort zurücksetzen**, with explicit loading, error
+and access-denied states. It is unavailable in local mode.
+
 ## Creation
 
-New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel**
-("Package & pallet → Choose pattern → Stack").
+New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel aufbauen**
+("Package & pallet → Choose pattern → Build stack"). Once saved, the third step
+becomes **Fertiger Plan** ("Finished plan").
 Review/save belongs to the stack stage, not a freely skippable planning tab.
 
 - Inputs use progressive sections, useful defaults and optional advanced controls.
   Dimensions begin blank. Required exact package count reflects the real production
   solver; a simple-raster suggestion is only a suggestion, not a claimed maximum.
+- When AI features are enabled, the guided creation form also accepts a
+  photographed pallet sheet. `DocumentCamera` and the gallery/file picker feed
+  `SheetPhotoImport`, which requests extraction
+  through `/api/sheet-extraction`. Extracted values remain editable; the photo
+  preview and reported issues help the user verify them before continuing.
 - Generation runs through `solverClient` and the worker protocol. Progress and results
   come from the actual run. Large top-down selected-pattern previews, alternatives
   and focused comparison support choice. Recommendation follows the existing

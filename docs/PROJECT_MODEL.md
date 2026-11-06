@@ -1,11 +1,11 @@
-# Project v2 Domain Model
+# Project Domain Model (schema v4)
 
-As of: 05.08.2026
+As of: 06.11.2026
 
 `ProjectV2` remains the compatible contract for the existing fixtures and
 `.rob` adapters. The canonical working and storage format is the current project
-version explicitly migrated from it. It adds individual package placements and
-robot cycles without reinterpreting the V2 contract. The previous `PalletData`
+schema version 4, explicitly migrated from v2 or v3. It adds individual package
+placements and robot cycles without reinterpreting the V2 contract. The previous `PalletData`
 remains a compatible DTO for `.rob`, the viewer and the layer editor for the time
 being.
 
@@ -79,14 +79,36 @@ ProjectV2 ── migrateProject ──▶ current Project
         └── projectSolutionToPalletData ◀┘ ──▶ existing viewer/editor
 ```
 
+`migrateProject` dispatches v2 records to `migrateProjectV2` and v3 records to
+`migrateProjectV3`; both produce the current v4 schema. Current v4 records are
+validated directly. Both migration paths seed the built-in default gripper and
+palletizing station only for `new` projects with empty equipment lists and no
+selected equipment. Imported or already configured equipment is preserved.
+
 This lets the project form and solver build incrementally on the current project
 model without rewriting the stable `.rob` workflow at the same time.
 
 ## Persistence and portable backup
 
-The existing IndexedDB `pallets-db` keeps the `pallets` store unchanged. In
-addition, there are separate stores for projects, reusable resources and
-quarantine records. Loading and importing go through a safe version switch;
+`NEXT_PUBLIC_PALETTE_STORAGE_MODE` selects `local` (the default) or `server`.
+There is no fallback between modes; server mode requires a PostgreSQL
+`DATABASE_URL`. Server records live in PostgreSQL `planner_records`, keyed by
+store and record ID, with a `jsonb` payload in `json` and an integer `version`
+for optimistic concurrency (ADR 0009/0006).
+
+Local mode uses IndexedDB `pallets-db`. It keeps the `pallets` store unchanged,
+alongside `projects`, `project-resources`, `project-quarantine`,
+`legacy-migrations` and storage-internal `record-versions`.
+
+In server mode, anonymous browser plans use the separate IndexedDB database
+`pallets-db:browser`, with the same stores plus `browser-plan-metadata`
+(ADR 0010). This is an explicit browser-local inventory, not a fallback for
+server errors or session loss. Browser plans become server records only through
+a consented sync in `browserSyncModel`. Metadata keeps sync links containing
+`{serverId, syncedVersion, syncedContentHash, syncedAt}`, scoped by `server`
+and `userId`, to compare later local and server changes.
+
+Loading and importing go through a safe version switch;
 unknown or corrupted records are quarantined with path diagnostics instead of
 being silently reinterpreted.
 
