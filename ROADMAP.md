@@ -10,7 +10,7 @@ checked against robot constraints, simulated, reported and exported in a
 controlled way. The existing `.rob` viewer/editor remains fully usable alongside
 it. Server mode adds shared PostgreSQL records, local accounts, administration,
 version-conflict handling, Browserpläne with explicit synchronization and scheduled
-backups. The automated baseline comprises 183 test files with 1833 tests,
+backups. The automated baseline comprises 183 test files with 1834 tests,
 TypeScript, ESLint, Prettier and production build gates, as well as a
 browser-verified create-solve-stack-reload and legacy import flow.
 
@@ -81,7 +81,7 @@ planning, solver and robotics layer underneath.
   (ADR 0010, implemented through PRs #73–#79)
 - scheduled consistent `pg_dump` backups, retention, health checks and restore
   tooling in the Compose backup service
-- automated baseline: 183 test files with 1833 tests, counted by `bun run test`
+- automated baseline: 183 test files with 1834 tests, counted by `bun run test`
 
 ### Still open, evidence-bound
 
