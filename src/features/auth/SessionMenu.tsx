@@ -142,22 +142,27 @@ export function SessionMenu({
   };
 
   if (session.status !== "signed-in") {
-    const readOnlyHint = t(
-      session.status === "error"
-        ? "auth.readOnly.sessionUnknown"
-        : "auth.readOnly.signIn",
+    const sessionHint = t(
+      session.status === "anonymous"
+        ? "auth.browserLocal.sessionHint"
+        : session.status === "error"
+          ? "auth.readOnly.sessionUnknown"
+          : "auth.readOnly.signIn",
     );
     return (
       <>
         {session.status === "loading" ? null : (
-          <span className="session-badge" title={readOnlyHint}>
-            {t("auth.readOnly.badge")}
-            <span className="sr-only"> {readOnlyHint}</span>
+          <span className="session-badge" title={sessionHint}>
+            {session.status === "anonymous"
+              ? t("auth.browserLocal.signedOut")
+              : t("auth.readOnly.badge")}
+            <span className="sr-only"> {sessionHint}</span>
           </span>
         )}
         <details className="fable-tool-menu session-menu">
           <summary>{t("auth.signIn")}</summary>
           <div>
+            <p className="session-user">{sessionHint}</p>
             <form
               className="session-form"
               aria-label={t("auth.signIn")}
@@ -233,6 +238,7 @@ export function SessionMenu({
             {error}
           </p>
         ) : null}
+        <p className="session-user">{t("auth.browserLocal.signOutNote")}</p>
         {confirmSignOut ? (
           <div role="alert" className="session-confirm">
             <p>{t("auth.confirm.signOutUnsaved")}</p>

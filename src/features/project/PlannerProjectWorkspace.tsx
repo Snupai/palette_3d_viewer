@@ -2518,7 +2518,11 @@ export function PlannerProjectWorkspace({
             onDownloadRob={downloadRob}
             onExportAll={() => void exportProjects("all")}
             onImport={(file) => void importProjects(file)}
-            editDisabledReason={generalReadOnlyHint}
+            createDisabledReason={generalReadOnlyHint}
+            editDisabledReason={(id) => {
+              const hint = accessFor(id).readOnlyHint;
+              return hint ? t(hint) : null;
+            }}
             deleteDisabledReason={(id) =>
               accessFor(id).canDelete ? null : t("auth.deleteNotAllowed")
             }

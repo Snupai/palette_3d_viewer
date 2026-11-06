@@ -1658,3 +1658,25 @@ details:has(> .report-sheet) {
   padding: 0;
   border: 0;
 }
+
+/* Browser plans are unpublished, including after signing in (ADR 0010). */
+.browser-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  border: 1px solid var(--caution);
+  color: var(--caution);
+  padding: 2px 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.library-section-title {
+  margin-top: 20px;
+  margin-bottom: 8px;
+  font-size: 20px;
+  line-height: 1.3;
+}
+.library-origin-section,
+.library-results {
+  min-width: 0;
+}

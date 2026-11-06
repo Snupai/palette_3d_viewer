@@ -13,8 +13,13 @@ import {
 } from "./planLibraryModel";
 
 export type PlanLibraryAccess = {
-  /** Disables creating, importing and editing, with this explanation. */
-  editDisabledReason?: string | null;
+  /** New plans and imports may target a different origin from existing rows. */
+  createDisabledReason?: string | null;
+  createHint?: string | null;
+  editDisabledReason?: (id: string) => string | null;
+  projectKey?: (project: ProjectLibraryProps["projects"][number]) => string;
+  originFor?: (id: string) => "server" | "browser-local";
+  onCopyToBrowser?: (id: string) => void;
   /** Why the project may not be deleted, or `null` when it may. */
   deleteDisabledReason?: (id: string) => string | null;
 };
@@ -24,9 +29,12 @@ export function PlanLibrary(
     onImportRob: (file: File) => void;
   } & PlanLibraryAccess,
 ) {
-  const editLocked = p.editDisabledReason ?? null;
+  const keyFor = (project: ProjectLibraryProps["projects"][number]) =>
+    p.projectKey?.(project) ?? project.id;
+  const createLocked = p.createDisabledReason ?? null;
+  const editLocked = (id: string) => p.editDisabledReason?.(id) ?? null;
   const deleteLocked = (id: string): string | null =>
-    editLocked ?? p.deleteDisabledReason?.(id) ?? null;
+    p.deleteDisabledReason?.(id) ?? null;
   const { t, tag } = useLocale();
   const [filtersOpen, setFiltersOpen] = useState(false);
   useEffect(() => {
@@ -112,23 +120,25 @@ export function PlanLibrary(
         <div className="button-row">
           <button
             className="ui-btn"
-            disabled={editLocked !== null}
-            title={editLocked ?? undefined}
+            disabled={createLocked !== null}
+            title={createLocked ?? undefined}
             onClick={() => robInput.current?.click()}
           >
             {t("planner.library.openRob")}
           </button>
           <button
             className="ui-btn-primary"
-            disabled={editLocked !== null}
-            title={editLocked ?? undefined}
+            disabled={createLocked !== null}
+            title={createLocked ?? undefined}
             onClick={p.onCreate}
           >
             {t("planner.library.newPlan")}
           </button>
         </div>
       </header>
-      {editLocked ? <p className="fable-notice">{editLocked}</p> : null}
+      {createLocked || p.createHint ? (
+        <p className="fable-notice">{createLocked ?? p.createHint}</p>
+      ) : null}
       <input
         className="hidden"
         ref={robInput}
@@ -294,7 +304,7 @@ export function PlanLibrary(
               <button
                 className="ui-btn"
                 disabled={
-                  !(p.projects.length || hasSearch) && editLocked !== null
+                  !(p.projects.length || hasSearch) && createLocked !== null
                 }
                 onClick={p.projects.length || hasSearch ? reset : p.onCreate}
               >
@@ -304,174 +314,254 @@ export function PlanLibrary(
               </button>
             </div>
           )}
-          <div role="list" aria-label={t("planner.library.savedPlans")}>
-            {shown.map(
-              ({ project: pr, data, layerCount, total, perLayerLabel }) => {
-                const key = p.projectKey?.(pr) ?? pr.id;
-                const d = pr.package.dimensionsMm;
-                const title =
-                  pr.productNumber ||
-                  pr.projectNumber ||
-                  t("planner.library.untitled");
-                return (
-                  <article key={key} role="listitem" className="plan-row">
-                    <button
-                      className="plan-thumb"
-                      onClick={() => p.onSelect(key)}
-                      aria-label={t("planner.library.openTitle", { title })}
-                    >
-                      <PlanRender
-                        data={data}
-                        emptyPackage={d}
-                        palletSize={pr.pallet?.dimensionsMm}
-                        title={t("planner.library.thumbTitle", {
-                          title,
-                          count: layerCount,
-                        })}
-                      />
-                    </button>
-                    <div className="plan-row-content">
-                      <div className="plan-row-title">
-                        <button onClick={() => p.onSelect(key)}>
-                          <h2>{title}</h2>
-                        </button>
-                        <span className="plan-origin">
-                          {projectNeedsGeometryReview(pr)
-                            ? t("planner.library.badgeReview")
-                            : pr.source.kind === "rob-import"
-                              ? t("planner.library.badgeRob")
-                              : layerCount
-                                ? t("planner.library.badgeStack")
-                                : t("planner.library.badgeDraft")}
-                        </span>
-                      </div>
-                      {(pr.projectNumber ||
-                        pr.source.kind === "rob-import") && (
-                        <p className="plan-subtitle">
-                          {[
-                            pr.projectNumber,
-                            pr.source.kind === "rob-import"
-                              ? pr.source.fileName
-                              : "",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      )}
-                      <dl className="plan-facts">
-                        <div>
-                          <dt>{t("planner.library.factPackage")}</dt>
-                          <dd>
-                            {d.length} × {d.width} × {d.height}{" "}
-                            <small>mm</small>
-                          </dd>
-                        </div>
-                        <div>
-                          <dt>{t("planner.library.layers")}</dt>
-                          <dd>{layerCount || "–"}</dd>
-                        </div>
-                        <div>
-                          <dt>{t("planner.library.factPackagesPerLayer")}</dt>
-                          <dd>{perLayerLabel}</dd>
-                        </div>
-                        <div>
-                          <dt>{t("planner.library.factTotal")}</dt>
-                          <dd>{total || "–"}</dd>
-                        </div>
-                        <div>
-                          <dt>{t("planner.library.pallet")}</dt>
-                          <dd>
-                            {pr.pallet
-                              ? `${pr.pallet.dimensionsMm.length} × ${pr.pallet.dimensionsMm.width}`
-                              : "–"}{" "}
-                            <small>mm</small>
-                          </dd>
-                        </div>
-                      </dl>
-                      <div className="plan-row-bottom">
-                        <span>
-                          {new Date(pr.updatedAt).toLocaleDateString(tag)}
-                        </span>
-                        <details className="plan-actions">
-                          <summary>{t("planner.library.moreActions")}</summary>
-                          <div>
-                            <button
-                              disabled={editLocked !== null}
-                              title={editLocked ?? undefined}
-                              onClick={() => p.onEdit(key)}
-                            >
-                              {t("planner.library.editDetails")}
-                            </button>
-                            <button
-                              disabled={editLocked !== null}
-                              title={editLocked ?? undefined}
-                              onClick={() => p.onDuplicate(key)}
-                            >
-                              {t("planner.library.duplicate")}
-                            </button>
-                            <button
-                              disabled={editLocked !== null}
-                              title={editLocked ?? undefined}
-                              onClick={() => p.onSaveAs(key)}
-                            >
-                              {t("planner.library.saveCopy")}
-                            </button>
-                            <button onClick={() => p.onExportSelected(key)}>
-                              {t("planner.library.exportProject")}
-                            </button>
-                            <button
-                              className="text-danger"
-                              disabled={deleteLocked(key) !== null}
-                              title={deleteLocked(key) ?? undefined}
-                              onClick={() => setPendingDelete(key)}
-                            >
-                              {t("planner.library.delete")}
-                            </button>
-                          </div>
-                        </details>
-                        {hasRobPlan(pr) && (
-                          <button
-                            className="ui-btn"
-                            onClick={() => p.onDownloadRob(key)}
+          {(p.originFor
+            ? [
+                {
+                  key: "browser-local",
+                  title: t("planner.library.browserSection"),
+                  entries: shown.filter(
+                    ({ project }) =>
+                      p.originFor?.(keyFor(project)) === "browser-local",
+                  ),
+                },
+                {
+                  key: "server",
+                  title: t("planner.library.serverSection"),
+                  entries: shown.filter(
+                    ({ project }) =>
+                      p.originFor?.(keyFor(project)) === "server",
+                  ),
+                },
+              ]
+            : [
+                {
+                  key: "all",
+                  title: t("planner.library.savedPlans"),
+                  entries: shown,
+                },
+              ]
+          ).map(
+            (group) =>
+              group.entries.length > 0 && (
+                <section
+                  key={group.key}
+                  className="library-origin-section"
+                  aria-label={group.title}
+                >
+                  {p.originFor && (
+                    <h2 className="library-section-title">{group.title}</h2>
+                  )}
+                  <div role="list" aria-label={group.title}>
+                    {group.entries.map(
+                      ({
+                        project: pr,
+                        data,
+                        layerCount,
+                        total,
+                        perLayerLabel,
+                      }) => {
+                        const key = keyFor(pr);
+                        const d = pr.package.dimensionsMm;
+                        const title =
+                          pr.productNumber ||
+                          pr.projectNumber ||
+                          t("planner.library.untitled");
+                        return (
+                          <article
+                            key={key}
+                            role="listitem"
+                            className="plan-row"
                           >
-                            {t("planner.library.downloadRob")}
-                          </button>
-                        )}
-                        <button
-                          className="ui-btn-primary"
-                          onClick={() => p.onSelect(key)}
-                        >
-                          {t("planner.open")}
-                        </button>
-                      </div>
-                      {pendingDelete === key && (
-                        <div className="inline-confirm" role="alert">
-                          <span>
-                            {t("planner.library.confirmDelete", { title })}
-                          </span>
-                          <button
-                            className="ui-btn ui-btn-danger"
-                            onClick={() => {
-                              setPendingDelete(null);
-                              p.onDelete(key);
-                            }}
-                          >
-                            {t("planner.library.delete")}
-                          </button>
-                          <button
-                            className="ui-btn"
-                            onClick={() => setPendingDelete(null)}
-                          >
-                            {t("planner.library.cancel")}
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </article>
-                );
-              },
-            )}
-          </div>
+                            <button
+                              className="plan-thumb"
+                              onClick={() => p.onSelect(key)}
+                              aria-label={t("planner.library.openTitle", {
+                                title,
+                              })}
+                            >
+                              <PlanRender
+                                data={data}
+                                emptyPackage={d}
+                                palletSize={pr.pallet?.dimensionsMm}
+                                title={t("planner.library.thumbTitle", {
+                                  title,
+                                  count: layerCount,
+                                })}
+                              />
+                            </button>
+                            <div className="plan-row-content">
+                              <div className="plan-row-title">
+                                <button onClick={() => p.onSelect(key)}>
+                                  <h2>{title}</h2>
+                                </button>
+                                <span className="plan-origin">
+                                  {projectNeedsGeometryReview(pr)
+                                    ? t("planner.library.badgeReview")
+                                    : pr.source.kind === "rob-import"
+                                      ? t("planner.library.badgeRob")
+                                      : layerCount
+                                        ? t("planner.library.badgeStack")
+                                        : t("planner.library.badgeDraft")}
+                                </span>
+                              </div>
+                              {p.originFor?.(key) === "browser-local" && (
+                                <span className="browser-plan-badge">
+                                  {t("planner.library.browserBadge")}
+                                </span>
+                              )}
+                              {(pr.projectNumber ||
+                                pr.source.kind === "rob-import") && (
+                                <p className="plan-subtitle">
+                                  {[
+                                    pr.projectNumber,
+                                    pr.source.kind === "rob-import"
+                                      ? pr.source.fileName
+                                      : "",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                </p>
+                              )}
+                              <dl className="plan-facts">
+                                <div>
+                                  <dt>{t("planner.library.factPackage")}</dt>
+                                  <dd>
+                                    {d.length} × {d.width} × {d.height}{" "}
+                                    <small>mm</small>
+                                  </dd>
+                                </div>
+                                <div>
+                                  <dt>{t("planner.library.layers")}</dt>
+                                  <dd>{layerCount || "–"}</dd>
+                                </div>
+                                <div>
+                                  <dt>
+                                    {t("planner.library.factPackagesPerLayer")}
+                                  </dt>
+                                  <dd>{perLayerLabel}</dd>
+                                </div>
+                                <div>
+                                  <dt>{t("planner.library.factTotal")}</dt>
+                                  <dd>{total || "–"}</dd>
+                                </div>
+                                <div>
+                                  <dt>{t("planner.library.pallet")}</dt>
+                                  <dd>
+                                    {pr.pallet
+                                      ? `${pr.pallet.dimensionsMm.length} × ${pr.pallet.dimensionsMm.width}`
+                                      : "–"}{" "}
+                                    <small>mm</small>
+                                  </dd>
+                                </div>
+                              </dl>
+                              <div className="plan-row-bottom">
+                                <span>
+                                  {new Date(pr.updatedAt).toLocaleDateString(
+                                    tag,
+                                  )}
+                                </span>
+                                <details className="plan-actions">
+                                  <summary>
+                                    {t("planner.library.moreActions")}
+                                  </summary>
+                                  <div>
+                                    <button
+                                      disabled={editLocked(key) !== null}
+                                      title={editLocked(key) ?? undefined}
+                                      onClick={() => p.onEdit(key)}
+                                    >
+                                      {t("planner.library.editDetails")}
+                                    </button>
+                                    <button
+                                      disabled={createLocked !== null}
+                                      title={createLocked ?? undefined}
+                                      onClick={() => p.onDuplicate(key)}
+                                    >
+                                      {t("planner.library.duplicate")}
+                                    </button>
+                                    <button
+                                      disabled={createLocked !== null}
+                                      title={createLocked ?? undefined}
+                                      onClick={() => p.onSaveAs(key)}
+                                    >
+                                      {t("planner.library.saveCopy")}
+                                    </button>
+                                    {p.onCopyToBrowser &&
+                                      p.originFor?.(key) === "server" &&
+                                      editLocked(key) !== null && (
+                                        <button
+                                          disabled={createLocked !== null}
+                                          title={createLocked ?? undefined}
+                                          onClick={() =>
+                                            p.onCopyToBrowser?.(key)
+                                          }
+                                        >
+                                          {t("planner.library.copyToBrowser")}
+                                        </button>
+                                      )}
+                                    <button
+                                      onClick={() => p.onExportSelected(key)}
+                                    >
+                                      {t("planner.library.exportProject")}
+                                    </button>
+                                    <button
+                                      className="text-danger"
+                                      disabled={deleteLocked(key) !== null}
+                                      title={deleteLocked(key) ?? undefined}
+                                      onClick={() => setPendingDelete(key)}
+                                    >
+                                      {t("planner.library.delete")}
+                                    </button>
+                                  </div>
+                                </details>
+                                {hasRobPlan(pr) && (
+                                  <button
+                                    className="ui-btn"
+                                    onClick={() => p.onDownloadRob(key)}
+                                  >
+                                    {t("planner.library.downloadRob")}
+                                  </button>
+                                )}
+                                <button
+                                  className="ui-btn-primary"
+                                  onClick={() => p.onSelect(key)}
+                                >
+                                  {t("planner.open")}
+                                </button>
+                              </div>
+                              {pendingDelete === key && (
+                                <div className="inline-confirm" role="alert">
+                                  <span>
+                                    {t("planner.library.confirmDelete", {
+                                      title,
+                                    })}
+                                  </span>
+                                  <button
+                                    className="ui-btn ui-btn-danger"
+                                    onClick={() => {
+                                      setPendingDelete(null);
+                                      p.onDelete(key);
+                                    }}
+                                  >
+                                    {t("planner.library.delete")}
+                                  </button>
+                                  <button
+                                    className="ui-btn"
+                                    onClick={() => setPendingDelete(null)}
+                                  >
+                                    {t("planner.library.cancel")}
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      },
+                    )}
+                  </div>
+                </section>
+              ),
+          )}
         </div>
       </div>
       <details className="library-transfer">
@@ -482,8 +572,8 @@ export function PlanLibrary(
           </button>
           <button
             className="ui-btn"
-            disabled={editLocked !== null}
-            title={editLocked ?? undefined}
+            disabled={createLocked !== null}
+            title={createLocked ?? undefined}
             onClick={() => jsonInput.current?.click()}
           >
             {t("planner.library.importPackage")}

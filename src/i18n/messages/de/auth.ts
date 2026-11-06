@@ -1,5 +1,10 @@
 /** Sign-in, sign-out and read-only hints in server mode (#34). */
 export const authDe = {
+  "auth.browserLocal.signedOut": "Nicht angemeldet",
+  "auth.browserLocal.sessionHint":
+    "Nicht angemeldet – Pläne bleiben in diesem Browser.",
+  "auth.browserLocal.signOutNote":
+    "Nach dem Abmelden erstellte Pläne bleiben in diesem Browser. Die nächste Person, die sich anmeldet, kann sie synchronisieren und veröffentlichen.",
   "auth.menu": "Konto",
   "auth.signIn": "Anmelden",
   "auth.signingIn": "Wird angemeldet …",

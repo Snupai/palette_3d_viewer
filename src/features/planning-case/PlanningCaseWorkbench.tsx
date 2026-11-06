@@ -92,6 +92,8 @@ export type PlanningCaseWorkbenchProps = {
    * (read-only server session, #34); `null` keeps them enabled.
    */
   editDisabledReason?: string | null;
+  /** Creation can target a different origin than the open plan. */
+  createDisabledReason?: string | null;
 };
 
 export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
@@ -416,6 +418,13 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
             <div className="fable-actions">
               <button
                 className="ui-btn"
+                disabled={Boolean(
+                  project ? p.editDisabledReason : p.createDisabledReason,
+                )}
+                title={
+                  (project ? p.editDisabledReason : p.createDisabledReason) ??
+                  undefined
+                }
                 onClick={project ? p.onEditProject : p.onCreateProject}
               >
                 {project
@@ -425,6 +434,8 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
               {project && (
                 <button
                   className="ui-btn-primary"
+                  disabled={Boolean(p.editDisabledReason)}
+                  title={p.editDisabledReason ?? undefined}
                   onClick={() => p.onStageChange("generate")}
                 >
                   {t("planningCase.continueToPatterns")}

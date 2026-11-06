@@ -60,6 +60,10 @@ export const plannerEn = {
   "planner.results.showMore_one": "Show {count} more pattern",
   "planner.results.showMore_other": "Show {count} more patterns",
   // Plan library
+  "planner.library.browserSection": "Only in this browser (not published)",
+  "planner.library.serverSection": "Published plans",
+  "planner.library.browserBadge": "Only in this browser",
+  "planner.library.copyToBrowser": "Copy into this browser",
   "planner.library.label": "Plan library",
   "planner.library.title": "Existing plans",
   "planner.library.openRob": "Open .rob",
