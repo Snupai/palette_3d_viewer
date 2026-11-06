@@ -8,6 +8,9 @@ import {
   within,
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { IDBFactory } from "fake-indexeddb";
+import { BrowserLocalPlannerStorage } from "~/lib/browserPlanStorage";
+import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
 import { createProject, updateProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
@@ -210,6 +213,133 @@ async function editLabelSideInEditor(
 }
 
 describe("PlannerProjectWorkspace editor integration", () => {
+  it.each([false, true])(
+    "follows a published open browser plan and preserves concurrent local edits (retained=%s)",
+    async (retained) => {
+      vi.stubGlobal("indexedDB", new IDBFactory());
+      sessionStorage.clear();
+      const browserStorage = new BrowserLocalPlannerStorage();
+      const browser = new ProjectRepository(browserStorage);
+      const project = plannerProject();
+      await browser.saveProject(project);
+      const serverStorage = Object.assign(new MemoryPlannerRecordStorage(), {
+        createdBy: () => "u-alice",
+      });
+      const server = new ProjectRepository(serverStorage);
+      const persist = server.saveProjectVersioned.bind(server);
+      const save = vi
+        .spyOn(server, "saveProjectVersioned")
+        .mockImplementation(async (...args) => {
+          const result = await persist(...args);
+          if (retained)
+            await browser.saveProject(
+              updateProject(
+                project,
+                { productNumber: "NEWER-LOCAL" },
+                { now: () => 30 },
+              ),
+            );
+          return result;
+        });
+      const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+        input === "/api/auth/me"
+          ? new Response(null, { status: 401 })
+          : new Response(
+              JSON.stringify({
+                user: { id: "u-alice", username: "alice", role: "user" },
+              }),
+            ),
+      );
+      render(
+        <PlannerProjectWorkspace
+          repository={server}
+          browserRepository={browser}
+          storageMode="server"
+          fetchImpl={fetchImpl}
+        />,
+      );
+      await screen.findByText("Nicht angemeldet");
+      await openSavedPlan();
+      await screen.findByRole("heading", { name: "M5-EDITOR" });
+      fireEvent.change(screen.getByLabelText("Benutzername"), {
+        target: { value: "alice" },
+      });
+      fireEvent.change(screen.getByLabelText("Kennwort"), {
+        target: { value: "secret" },
+      });
+      fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+      await screen.findByRole("dialog", {
+        name: "Browserpläne synchronisieren",
+      });
+      fireEvent.click(
+        screen.getByRole("checkbox", { name: /für alle lesbar/ }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "1 synchronisieren" }),
+      );
+      await screen.findByText(
+        "1 synchronisiert · 0 lokal behalten · 0 fehlgeschlagen",
+      );
+      await waitFor(() =>
+        expect(
+          screen.getByRole("button", { name: "Schließen" }),
+        ).toHaveProperty("disabled", false),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+      if (retained) {
+        expect(
+          document.querySelector(".fable-header .browser-plan-badge")
+            ?.textContent,
+        ).toBe("Nur in diesem Browser");
+        expect(
+          (await browser.getProject(project.id)).project?.productNumber,
+        ).toBe("NEWER-LOCAL");
+        fireEvent.click(
+          screen.getByRole("button", { name: "Planangaben bearbeiten" }),
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: /Artikel und Linie/ }),
+        );
+        fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+          target: { value: "UNSAVED" },
+        });
+        expect(
+          screen.getByRole("button", { name: /Browserpläne synchronisieren/ }),
+        ).toHaveProperty("disabled", true);
+        expect(save).toHaveBeenCalledTimes(1);
+      } else {
+        await waitFor(() =>
+          expect(
+            document.querySelector(".fable-header .browser-plan-badge"),
+          ).toBeNull(),
+        );
+        expect(await browserStorage.list(PROJECTS_STORE_NAME)).toEqual([]);
+        fireEvent.click(
+          screen.getByRole("button", { name: "Planangaben bearbeiten" }),
+        );
+        fireEvent.click(
+          screen.getByRole("button", { name: /Artikel und Linie/ }),
+        );
+        fireEvent.change(screen.getByLabelText("Artikelnummer"), {
+          target: { value: "AFTER-SYNC" },
+        });
+        fireEvent.click(
+          screen.getByRole("button", { name: "Änderungen speichern" }),
+        );
+        await waitFor(async () =>
+          expect(
+            (await server.getProject(project.id)).project?.productNumber,
+          ).toBe("AFTER-SYNC"),
+        );
+        expect(save.mock.calls.map(([, options]) => options)).toEqual([
+          { expectedVersion: null },
+          { expectedVersion: 1 },
+        ]);
+        expect(await browserStorage.list(PROJECTS_STORE_NAME)).toEqual([]);
+      }
+    },
+  );
+
   it("guards browser edits before sign-in and keeps subsequent editor saves local", async () => {
     const { project, repository: browser } = await repositoryWithProject();
     const server = new ProjectRepository(new MemoryPlannerRecordStorage());

@@ -77,7 +77,7 @@ import { useT, type Translate } from "~/i18n";
 import { parseRobText } from "~/lib/robParser";
 import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
 import { SessionMenu, usePlannerSession } from "~/features/auth/SessionMenu";
-import { LocalImportController } from "~/features/import/LocalImportDialog";
+import { BrowserSyncController } from "~/features/import/BrowserSyncController";
 import {
   plannerAccess,
   saveControl,
@@ -343,6 +343,7 @@ export function PlannerProjectWorkspace({
    * it settles; edits made meanwhile could not be carried over.
    */
   const [copySaving, setCopySaving] = useState(false);
+  const [syncBusy, setSyncBusy] = useState(false);
   const saveButtonFor = (access: PlannerAccess): SaveButtonState => {
     const control = saveControl(access);
     return {
@@ -1670,9 +1671,11 @@ export function PlannerProjectWorkspace({
       : all;
   }, [selectedCandidateId, solverResult]);
   const workspaceProject = editorDraftProject ?? selectedProject;
-  const workspaceSaveButton: SaveButtonState = copySaving
-    ? { label: null, disabledReason: t("auth.savingCopy") }
-    : saveButtonFor(accessFor(selectedId));
+  const workspaceSaveButton: SaveButtonState = syncBusy
+    ? { label: null, disabledReason: t("browserSync.running") }
+    : copySaving
+      ? { label: null, disabledReason: t("auth.savingCopy") }
+      : saveButtonFor(accessFor(selectedId));
   const readOnlyHint = accessFor(selectedId).readOnlyHint
     ? t(accessFor(selectedId).readOnlyHint!)
     : null;
@@ -2315,8 +2318,41 @@ export function PlannerProjectWorkspace({
                 </div>
               </details>
             )}
-          {storageMode === "server" ? (
-            <LocalImportController
+          {storageMode === "server" && browserStorageRef.current ? (
+            <BrowserSyncController
+              source={browserStorageRef.current}
+              onBusyChange={setSyncBusy}
+              blockedReason={
+                copySaving
+                  ? t("auth.savingCopy")
+                  : hasUnsavedChanges &&
+                      selectedId &&
+                      routing.reference(selectedId).origin === "browser-local"
+                    ? t("browserSync.saveFirst")
+                    : null
+              }
+              onSynced={(localId, serverId) => {
+                if (
+                  selectedProjectIdRef.current !==
+                    routing.key({ origin: "browser-local", id: localId }) ||
+                  hasUnsavedChanges
+                )
+                  return;
+                if (serverId)
+                  selectProject(
+                    routing.key({ origin: "server", id: serverId }),
+                  );
+                else {
+                  discardUnsavedPlannerChanges();
+                  selectedProjectIdRef.current = null;
+                  setSelectedId(null);
+                  setSelectedProject(null);
+                  setProjectDrawerOpen(true);
+                }
+              }}
+              server={
+                typeof window === "undefined" ? "" : window.location.origin
+              }
               session={session}
               repository={repository}
               creatorOf={serverCreatorOf}
@@ -2324,7 +2360,6 @@ export function PlannerProjectWorkspace({
               onSessionLost={sessionControls.markSessionLost}
             />
           ) : null}
-          {/* #71 BrowserSyncController belongs here; reuse browserStorageRef, routing.browser, repository, serverCreatorOf and refreshProjects. */}
           {saveFailure && backupStatus.hasPendingDrafts
             ? (() => {
                 const hint = t(
@@ -2649,7 +2684,10 @@ export function PlannerProjectWorkspace({
             workspaceProject &&
             robotMaterialization &&
             resolvedRobotSettings ? (
-              <fieldset className="fw-locked-fields" disabled={copySaving}>
+              <fieldset
+                className="fw-locked-fields"
+                disabled={copySaving || syncBusy}
+              >
                 <RoboticsWorkspace
                   project={workspaceProject}
                   repository={repository}

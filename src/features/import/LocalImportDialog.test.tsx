@@ -37,7 +37,9 @@ function localSource(
   });
 }
 
-function setup() {
+function setup(
+  options: { enabled?: boolean; onOpenChange?: (open: boolean) => void } = {},
+) {
   sessionStorage.clear();
   const local = createProject(
     { id: "local-plan", projectNumber: "L-7", productNumber: "Tee" },
@@ -52,6 +54,7 @@ function setup() {
   const onImported = vi.fn();
   render(
     <LocalImportController
+      {...options}
       session={ALICE}
       repository={repository}
       creatorOf={() => undefined}
@@ -68,6 +71,25 @@ function setup() {
 }
 
 describe("LocalImportController", () => {
+  it("waits for the browser sync dialog before offering legacy import", async () => {
+    const onOpenChange = vi.fn();
+    setup({ enabled: false, onOpenChange });
+    await Promise.resolve();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Lokale Pläne übernehmen/ }),
+    ).toBeNull();
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+    cleanup();
+    setup({ enabled: true, onOpenChange });
+    await screen.findByRole("dialog", {
+      name: "Lokale Pläne auf den Server übernehmen",
+    });
+    await waitFor(() => expect(onOpenChange).toHaveBeenLastCalledWith(true));
+    fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(onOpenChange).toHaveBeenLastCalledWith(false);
+  });
+
   it("opens the overview after sign-in and imports only after the public-readability confirmation", async () => {
     const { storage, onImported } = setup();
 
