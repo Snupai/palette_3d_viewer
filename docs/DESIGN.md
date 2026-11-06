@@ -1,4 +1,4 @@
-# Hallenboden — Palettenplaner
+# Hallenboden ("shop floor") — Palettenplaner ("Pallet Planner")
 
 The production UI follows the approved **Fable v2** proposal. Its material language
 is a quiet epoxy-grey floor, kraft cartons with tape, a wooden pallet and one Szaidel-navy
@@ -29,17 +29,19 @@ and unexplained technical status walls.
 
 ## Entry and saved plans
 
-The first screen offers two explicit choices: **Neuen Plan erstellen** and
-**Vorhandene Pläne ansehen**. The library is a full page with actual geometric
-thumbnails and visible package L × W × H, physical layer count, counts per layer,
-total packages and pallet dimensions. Filters combine dimensions, layer range,
-packages-per-layer range, origin and pallet. Mixed stacks show their actual distinct
-per-layer counts rather than one misleading average. Search/sort and portable
+The first screen offers two explicit choices: **Neuen Plan erstellen** ("Create new
+plan") and **Vorhandene Pläne ansehen** ("View existing plans"). The library is a
+full page with actual geometric thumbnails and visible package L × W × H,
+physical layer count, counts per layer, total packages and pallet dimensions.
+Filters combine dimensions, layer range, packages-per-layer range, origin and
+pallet. Mixed stacks show their actual distinct per-layer counts rather than one
+misleading average. Search/sort and portable
 project/resource import/export retain the repository's behavior.
 
 ## Creation
 
-New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel**.
+New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel**
+("Package & pallet → Choose pattern → Stack").
 Review/save belongs to the stack stage, not a freely skippable planning tab.
 
 - Inputs use progressive sections, useful defaults and optional advanced controls.

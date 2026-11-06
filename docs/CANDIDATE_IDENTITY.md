@@ -1,138 +1,138 @@
-# Kandidatenidentität und geometrische Gleichheit
+# Candidate identity and geometric equality
 
-Stand: 14.08.2026
+As of: 14.08.2026
 
-Diese Definition gilt für den Referenzkorpus und den späteren Solver. Sie trennt
-zwei Fragen, die nicht miteinander verwechselt werden dürfen:
+This definition applies to the reference corpus and the future solver. It separates
+two questions that must not be confused with each other:
 
-1. Liegen dieselben Packstücke an denselben Stellen? Das ist **geometrische
-   Gleichheit**.
-2. Beschreiben zwei Kandidaten zusätzlich denselben etiketten- und
-   greiftechnischen Plan? Das ist **Kandidatenidentität**.
+1. Are the same packages in the same positions? That is **geometric
+   equality**.
+2. Do two candidates additionally describe the same plan in terms of labels and
+   gripping? That is **candidate identity**.
 
-Die Verträge sind unabhängig versioniert:
+The contracts are versioned independently:
 
 - `CANDIDATE_GEOMETRY_EQUALITY_VERSION = 1`
 - `CANDIDATE_IDENTITY_VERSION = 1`
 
-Die ausführbaren Definitionen stehen in
-`src/domain/solver/candidateIdentity.ts`. Jeder Golden Case mit
-Kandidatenerwartungen nennt beide Versionen ausdrücklich. `null` bedeutet bei
-einer beobachteten Fremdquelle, dass deren Identitäts- oder
-Deduplizierungsregeln unbekannt sind.
+The executable definitions live in
+`src/domain/solver/candidateIdentity.ts`. Every golden case with
+candidate expectations names both versions explicitly. For an observed
+third-party source, `null` means that its identity or
+deduplication rules are unknown.
 
-## Geometrische Gleichheit v1
+## Geometric equality v1
 
-Für jedes Packstück wird das Tupel
-
-```text
-(x-Mittelpunkt, y-Mittelpunkt, Orientierung)
-```
-
-gebildet. Zwei Kandidaten sind genau dann geometrisch gleich, wenn ihre sortierten
-Tupelmengen exakt gleich sind.
-
-Dabei gilt bewusst:
-
-- Koordinaten werden exakt verglichen; es gibt keine Rundung oder Toleranz.
-- `0°`, `90°`, `180°` und `270°` bleiben verschieden, auch bei quadratischen
-  Packstücken. Orientierung kann später Etiketten- oder Greifbedeutung tragen.
-- Lokale Placement-IDs, Array-Reihenfolge, Etiketten und Greifgruppen werden für
-  diese eine Relation ignoriert.
-- Verschiebung, Spiegelung, Palettenrotation und andere Symmetrien werden nicht
-  automatisch gleichgesetzt.
-- Gleiche Geometrie behauptet ausdrücklich **keine** gleiche robotische
-  Ausführbarkeit.
-
-Diese enge Definition verhindert, dass der Solver echte Varianten durch eine
-ungeklärte Symmetrie- oder Etikettenannahme entfernt.
-
-## Grundlayout-Auswahlklassen
-
-Der finale Solver-Kandidatenindex fasst zusätzlich Varianten zusammen, die der
-Bediener pro physischer Stacklage selbst einstellen kann. Diese Auswahlpolicy ist
-bewusst **keine** Änderung an geometrischer Gleichheit v1 oder
-Kandidatenidentität v1.
-
-Für jeden validierten Placement-Satz wird über alle den Generierungsrahmen
-erhaltenden Spiegelungen und Drehungen ein kanonischer Grundlayout-Key gebildet.
-Für diesen Auswahl-Key gilt:
-
-- `0°` und `180°` beschreiben denselben physischen Paket-Footprint;
-- `90°` und `270°` beschreiben denselben physischen Paket-Footprint;
-- bekannte Etikettenseiten werden mit der globalen Transformation mitgeführt und
-  bleiben Teil des Keys;
-- ein nicht durch den Symmetriegenerator erzeugter Basis-Draft wird als
-  gerichteter Repräsentant bevorzugt;
-- weitere Generator- und Symmetrie-Provenienzen werden am Repräsentanten
-  zusammengeführt.
-
-Der gewählte Repräsentant behält seinen exakten gerichteten
-`geometryFingerprint`, seine `candidateIdentityFingerprint` und seinen daraus
-abgeleiteten Grip-Plan. Spiegelung an Palettenlänge oder -breite und eine
-180°-Drehung werden stattdessen pro einzelner physischer Lage im Stack-Builder
-gewählt; beim Materialisieren wird dafür die gerichtete Geometrie samt Grip-Plan
-neu abgeleitet.
-
-## Kandidatenidentität v1
-
-Die Identität enthält die geometrischen Tupel und zusätzlich alle bekannten
-operativen Angaben:
-
-- bekannte Placement-/Ablaufreihenfolge;
-- Etikettenseite je Packstück;
-- Zuordnung und Partition der Packstücke in Greifgruppen;
-- bekannte Greifreihenfolge;
-- Pick- und Place-Koordinaten samt Orientierung;
-- Packstückzahl je Griff;
-- die unveränderten `dx`-/`dy`-Werte.
-
-Lokale IDs werden über Geometrie und Gruppenmitgliedschaft kanonisiert. Das
-Umbenennen einer Placement- oder Grip-ID sowie eine andere Array-Reihenfolge
-ändern die Identität daher nicht.
-
-Unbekanntes wird konservativ behandelt:
-
-| Zustand                       | Bedeutung                                      |
-| ----------------------------- | ---------------------------------------------- |
-| Feld fehlt                    | unbekannt                                      |
-| `null`                        | ausdrücklich keine Zuordnung/kein Etikett      |
-| konkreter Wert                | bekannte operative Aussage                     |
-| Grip-Referenz ohne Definition | ungelöste Referenz; nicht still gleichzusetzen |
-| fehlendes `grips`             | Greifdefinitionen unbekannt                    |
-| `grips: []`                   | Greifdefinitionen nachweislich leer            |
-
-„Unbekannt“ ist nicht gleich „keins“. Ebenso bleiben gleiche Geometrien mit
-abweichendem Etikett, anderer Greifpartition oder anderer bekannter Reihenfolge
-verschiedene Kandidatenidentitäten.
-
-## Fingerprints und kompakte IDs
-
-Die kanonischen Fingerprints enthalten den vollständigen versionierten Inhalt.
-Für Tabellen und Fixtures wird daraus zusätzlich eine kompakte 64-Bit-FNV-1a-ID
-erzeugt:
+For each package, the tuple
 
 ```text
-candidate-v1-<16 Hexzeichen>
-geometry-v1-<16 Hexzeichen>
+(x center, y center, orientation)
 ```
 
-Der vollständige Fingerprint ist die maßgebliche Vergleichsgrundlage. Falls
-jemals eine Hash-Kollision festgestellt wird, dürfen zwei Kandidaten nicht
-zusammengeführt werden; zuerst sind die vollständigen Fingerprints zu vergleichen
-und anschließend ist das ID-Verfahren kontrolliert zu versionieren.
+is formed. Two candidates are geometrically equal if and only if their sorted
+tuple sets are exactly equal.
 
-## Versionsregel
+The following applies deliberately:
 
-Eine Version muss erhöht werden, wenn eine Änderung bestehende Fingerprints oder
-die Bedeutung von Gleichheit verändern kann, zum Beispiel durch:
+- Coordinates are compared exactly; there is no rounding or tolerance.
+- `0°`, `90°`, `180°` and `270°` remain distinct, even for square
+  packages. Orientation may later carry label or gripping meaning.
+- Local placement IDs, array order, labels and grip groups are ignored for
+  this one relation.
+- Translation, mirroring, pallet rotation and other symmetries are not
+  automatically treated as equal.
+- Equal geometry explicitly does **not** claim equal robotic
+  executability.
 
-- Koordinatentoleranzen oder Quantisierung;
-- Gleichsetzung von `0°` und `180°`;
-- neue Symmetrie- oder Spiegelregeln;
-- Aufnahme oder Entfernung von Etiketten-, Reihenfolge- oder Greifdaten;
-- geänderte Behandlung unbekannter Felder.
+This narrow definition prevents the solver from removing genuine variants based on an
+unresolved symmetry or label assumption.
 
-Eine neue Version ersetzt alte Corpus-Werte nicht still. Golden Cases werden
-explizit migriert oder behalten ihre bisherige Version, damit Solveränderungen
-vergleichbar bleiben.
+## Base-layout selection classes
+
+The final solver candidate index additionally merges variants that the
+operator can set themselves per physical stack layer. This selection policy is
+deliberately **not** a change to geometric equality v1 or
+candidate identity v1.
+
+For each validated placement set, a canonical base-layout key is formed over all
+mirrorings and rotations that preserve the generation frame.
+For this selection key:
+
+- `0°` and `180°` describe the same physical package footprint;
+- `90°` and `270°` describe the same physical package footprint;
+- known label sides are carried along with the global transformation and
+  remain part of the key;
+- a base draft not produced by the symmetry generator is preferred as the
+  directed representative;
+- further generator and symmetry provenances are merged onto the
+  representative.
+
+The chosen representative keeps its exact directed
+`geometryFingerprint`, its `candidateIdentityFingerprint` and the grip plan
+derived from them. Mirroring along the pallet length or width and a
+180° rotation are instead chosen per individual physical layer in the stack builder;
+on materialization, the directed geometry together with the grip plan is
+re-derived for this.
+
+## Candidate identity v1
+
+The identity contains the geometric tuples and additionally all known
+operational details:
+
+- known placement/execution order;
+- label side per package;
+- assignment and partition of the packages into grip groups;
+- known grip order;
+- pick and place coordinates including orientation;
+- package count per grip;
+- the unmodified `dx`/`dy` values.
+
+Local IDs are canonicalized via geometry and group membership.
+Renaming a placement or grip ID, as well as a different array order,
+therefore does not change the identity.
+
+Unknowns are treated conservatively:
+
+| State                             | Meaning                                                     |
+| --------------------------------- | ----------------------------------------------------------- |
+| Field missing                     | unknown                                                     |
+| `null`                            | explicitly no assignment/no label                           |
+| concrete value                    | known operational statement                                 |
+| Grip reference without definition | unresolved reference; must not be silently treated as equal |
+| missing `grips`                   | grip definitions unknown                                    |
+| `grips: []`                       | grip definitions verifiably empty                           |
+
+"Unknown" is not the same as "none". Likewise, equal geometries with
+a different label, a different grip partition or a different known order remain
+distinct candidate identities.
+
+## Fingerprints and compact IDs
+
+The canonical fingerprints contain the complete versioned content.
+For tables and fixtures, a compact 64-bit FNV-1a ID is additionally
+generated from them:
+
+```text
+candidate-v1-<16 hex characters>
+geometry-v1-<16 hex characters>
+```
+
+The complete fingerprint is the authoritative basis for comparison. If
+a hash collision is ever detected, two candidates must not be
+merged; first the complete fingerprints must be compared,
+and then the ID scheme must be versioned in a controlled manner.
+
+## Version rule
+
+A version must be incremented when a change can alter existing fingerprints or
+the meaning of equality, for example through:
+
+- coordinate tolerances or quantization;
+- treating `0°` and `180°` as equal;
+- new symmetry or mirroring rules;
+- adding or removing label, order or grip data;
+- changed handling of unknown fields.
+
+A new version does not silently replace old corpus values. Golden cases are
+explicitly migrated or keep their previous version so that solver changes
+remain comparable.

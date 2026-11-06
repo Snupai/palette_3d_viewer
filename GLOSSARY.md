@@ -1,9 +1,9 @@
-# Palettierungsplanung
+# Palletizing planning
 
-Fachbegriffe der Anwendung zur Planung von Paletten und Roboterabläufen.
+Domain terms of the application for planning pallets and robot sequences.
 
-## Sprache
+## Language
 
 **Werkskatalog**:
-Gemeinsam verwendete Sammlung wiederverwendbarer Paletten-, Greifer- und Palettierplatzdefinitionen.
-_Vermeiden_: persönlicher Ressourcenkatalog
+Shared collection of reusable pallet, gripper and palletizing station definitions (the "factory catalog").
+_Avoid_: personal resource catalog

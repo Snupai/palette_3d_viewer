@@ -1,7 +1,7 @@
-# Admin bei der Initialisierung anlegen
+# Create the admin during initialization
 
-Die Serverinstallation erhält bei der Initialisierung einen Admin mit sicherem Kennwort. Eine öffentliche Erstregistrierung nach dem Prinzip „der erste Benutzer wird Admin“ entfällt, damit der administrative Zugang nicht vom ersten Besucher der Installation abhängt. Weitere Benutzer werden vom Admin angelegt.
+The server installation receives an admin with a secure password during initialization. Public first-time registration following the principle "the first user becomes admin" is dropped, so that administrative access does not depend on the first visitor of the installation. Further users are created by the admin.
 
-Initialisierung und Wiederherstellung des Adminzugangs erfolgen über einen lokalen Verwaltungsbefehl auf dem Server mit verdeckter Kennworteingabe. Wiederholte Initialisierung lässt einen bestehenden Admin unverändert. Ein expliziter Reset setzt ein neues Kennwort und widerruft dessen bestehende Sitzungen.
+Initialization and recovery of admin access are done through a local administration command on the server with hidden password input. Repeated initialization leaves an existing admin unchanged. An explicit reset sets a new password and revokes that admin's existing sessions.
 
-Die erste Version verwendet lokale Benutzerkonten. Eine spätere Anmeldung mit Windows-/Domänen- oder Microsoft-365-Konten ist eine offene Erweiterung und keine Voraussetzung für die erste Version. Die vorhandene Firmenidentitätsinfrastruktur ist noch unbekannt; Anmeldeverfahren, Zuordnung externer Identitäten und Zulassung von Firmenbenutzern werden erst nach dieser Klärung entschieden.
+The first version uses local user accounts. A later sign-in with Windows/domain or Microsoft 365 accounts is an open extension and not a prerequisite for the first version. The existing company identity infrastructure is still unknown; the sign-in method, mapping of external identities and admission of company users will be decided only after this has been clarified.

@@ -1,5 +1,5 @@
-# Versionskonflikte statt stiller Überschreibungen
+# Version conflicts instead of silent overwrites
 
-Schreiben und Löschen prüfen atomar die erwartete Datensatzversion. Bei einem Konflikt antwortet der Server mit 409 und der Client behält den ungespeicherten Entwurf, damit parallele Bearbeitung nicht zu stillen Überschreibungen führt.
+Writes and deletes atomically check the expected record version. On a conflict the server responds with 409 and the client keeps the unsaved draft, so that concurrent editing does not lead to silent overwrites.
 
-Die Konfliktansicht zeigt links den eigenen Entwurf und rechts den aktuellen Serverstand mit hervorgehobenen Unterschieden. Zunächst werden vollständige Planstände verglichen und ausgewählt; alternativ kann der eigene Entwurf als Kopie gespeichert werden. Vor dem Speichern wird erneut die aktuelle Serverversion geprüft. Feldweises Zusammenführen ist eine mögliche spätere Erweiterung, weil unabhängig kombinierte Paketmaße und Platzierungen einen widersprüchlichen Plan ergeben können; automatisches Überschreiben oder Zusammenführen entfällt.
+The conflict view shows the user's own draft on the left and the current server state on the right, with the differences highlighted. Initially, complete plan states are compared and selected; alternatively, the user's own draft can be saved as a copy. Before saving, the current server version is checked again. Field-by-field merging is a possible later extension, because independently combined package dimensions and placements can produce a contradictory plan; automatic overwriting or merging is ruled out.

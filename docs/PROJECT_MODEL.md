@@ -1,68 +1,71 @@
-# Project-v2-Domänenmodell
+# Project v2 Domain Model
 
-Stand: 05.08.2026
+As of: 05.08.2026
 
-`ProjectV2` bleibt der kompatible Vertrag für die vorhandenen Fixtures und
-`.rob`-Adapter. Das kanonische Arbeits- und Speicherformat ist die daraus
-explizit migrierte aktuelle Projektversion. Sie ergänzt einzelne
-Packstückplatzierungen und Roboterzyklen, ohne den V2-Vertrag umzudeuten. Das
-bisherige `PalletData` bleibt vorerst ein kompatibler DTO für `.rob`, Viewer und
-Lageneditor.
+`ProjectV2` remains the compatible contract for the existing fixtures and
+`.rob` adapters. The canonical working and storage format is the current project
+version explicitly migrated from it. It adds individual package placements and
+robot cycles without reinterpreting the V2 contract. The previous `PalletData`
+remains a compatible DTO for `.rob`, the viewer and the layer editor for the time
+being.
 
-## Enthaltene Bereiche
+## Covered areas
 
-- Projekt- und Produktnummer sowie Erstellungs-/Änderungszeit
-- Herkunft als neues Projekt oder `.rob`-Import
-- Packstück mit Form, Maßen, Gewicht, Abstand, Einlaufrichtung, Labelseiten und
-  Mehrfachgreifen
-- Palette mit Typ, Maßen, Stauraum, Über-/Unterhang, Tara und Maximalgewicht
-- Greifer inklusive TCP, Hülle, Winkel, Maßgrenzen und typabhängigen Feldern
-- Palettierplatz inklusive Ursprung, Stör-/TCP-Kontur, Richtungen und Radius
-- mehrere Lösungen mit einzelnen Packstückplatzierungen, Lagenmustern,
-  versionierten Lagenstapeln, Roboterzyklen und vollständiger Lagenfolge
-- ausgewählter Greifer, Palettierplatz und aktive Lösung über geprüfte Referenzen
+- Project and product number as well as creation/modification time
+- Origin as a new project or `.rob` import
+- Package with shape, dimensions, weight, spacing, infeed direction, label sides
+  and multi-gripping
+- Pallet with type, dimensions, stacking clearance, overhang/underhang, tare and
+  maximum weight
+- Gripper including TCP, envelope, angles, dimension limits and type-dependent
+  fields
+- Palletizing station including origin, interference/TCP contour, directions and
+  radius
+- multiple solutions with individual package placements, layer patterns,
+  versioned layer stacks, robot cycles and the complete layer sequence
+- selected gripper, palletizing station and active solution via validated
+  references
 
-Das Schema prüft unter anderem eindeutige IDs, alle Querverweise, Zeitstempel,
-Min-/Maxbereiche, Palettengewicht und bevorzugte Palettierrichtung.
+Among other things, the schema validates unique IDs, all cross-references,
+timestamps, min/max ranges, pallet weight and preferred palletizing direction.
 
-## Maßachsen
+## Dimension axes
 
-Das Projektmodell verwendet fachlich eindeutige Namen:
+The project model uses domain-unambiguous names:
 
 ```text
 dimensionsMm.length × dimensionsMm.width × dimensionsMm.height
 ```
 
-Das historische `PalletData` übernimmt dagegen die Reihenfolge der `.rob`-
-Zeilen in den Feldern `width × length × height`. Beim Adapter gilt deshalb:
+The historical `PalletData`, by contrast, adopts the order of the `.rob` rows in
+the fields `width × length × height`. The adapter therefore applies:
 
-| Projektmodell | `.rob`-/Viewer-DTO                |
-| ------------- | --------------------------------- |
-| `length`      | `width` bzw. erstes `.rob`-Feld   |
-| `width`       | `length` bzw. zweites `.rob`-Feld |
-| `height`      | `height` bzw. drittes `.rob`-Feld |
+| Project model | `.rob`/viewer DTO               |
+| ------------- | ------------------------------- |
+| `length`      | `width` or first `.rob` field   |
+| `width`       | `length` or second `.rob` field |
+| `height`      | `height` or third `.rob` field  |
 
-Diese Abbildung ist durch einen semantischen Import-Projekt-Viewer-Roundtrip
-getestet.
+This mapping is tested by a semantic import-project-viewer round trip.
 
-## Importierte Altpläne
+## Imported legacy plans
 
-Ein `.rob`-Import enthält nicht alle Projektdaten. Der Adapter markiert deshalb
-folgende Werte ausdrücklich als unbekannt, statt sie aus Dateinamen oder
-Geometrie zu erraten:
+A `.rob` import does not contain all project data. The adapter therefore
+explicitly marks the following values as unknown instead of guessing them from
+file names or geometry:
 
-- Gewicht
-- Paletten-Stauraum
-- Tara und maximales Bruttogewicht
-- Palettierrichtung
-- Greiferdefinition und Palettierplatz
-- Projektbezeichnung
+- Weight
+- Pallet stacking clearance
+- Tare and maximum gross weight
+- Palletizing direction
+- Gripper definition and palletizing station
+- Project name
 
-Packstück- und Palettenmaße, Einlaufrichtung, Lagenmuster, Pick-/Place-Werte,
-Greifgruppen, Reihenfolge und Zwischenlagen werden übernommen. Der Dateiname
-ohne `.rob` wird als vorläufige Produktnummer verwendet.
+Package and pallet dimensions, infeed direction, layer patterns, pick/place
+values, grip groups, sequence and interlayers are carried over. The file name
+without `.rob` is used as a provisional product number.
 
-## Kompatibilitätsfluss
+## Compatibility flow
 
 ```text
 SavedPallet / .rob
@@ -71,25 +74,24 @@ SavedPallet / .rob
 savedPalletToProjectV2
         │
         ▼
-ProjectV2 ── migrateProject ──▶ aktuelles Project
+ProjectV2 ── migrateProject ──▶ current Project
         │                              │
-        └── projectSolutionToPalletData ◀┘ ──▶ bestehender Viewer/Editor
+        └── projectSolutionToPalletData ◀┘ ──▶ existing viewer/editor
 ```
 
-Damit können Projektformular und Solver schrittweise auf dem aktuellen
-Projektmodell aufbauen, ohne den stabilen `.rob`-Workflow gleichzeitig
-umzuschreiben.
+This lets the project form and solver build incrementally on the current project
+model without rewriting the stable `.rob` workflow at the same time.
 
-## Persistenz und portable Sicherung
+## Persistence and portable backup
 
-Die bestehende IndexedDB `pallets-db` behält den Store `pallets` unverändert.
-Dazu kommen getrennte Stores für Projekte, wiederverwendbare Ressourcen und
-Quarantäne-Datensätze. Laden und Importieren erfolgen über eine sichere
-Versionsweiche; unbekannte oder beschädigte Datensätze werden mit Pfad-Diagnosen
-quarantänisiert, statt still umgedeutet zu werden.
+The existing IndexedDB `pallets-db` keeps the `pallets` store unchanged. In
+addition, there are separate stores for projects, reusable resources and
+quarantine records. Loading and importing go through a safe version switch;
+unknown or corrupted records are quarantined with path diagnostics instead of
+being silently reinterpreted.
 
-Die Migration aus `SavedPallet` erzeugt deterministische Platzierungs- und
-Zyklus-IDs. Sie kopiert in den Projekt-Store und löscht den `.rob`-Quelldatensatz
-nicht. Portable JSON-Pakete können mehrere Projekte sowie Paletten-, Greifer- und
-Palettierplatzressourcen enthalten und unterstützen die Konfliktregeln
-`skip`, `overwrite` und `rename`.
+The migration from `SavedPallet` generates deterministic placement and cycle
+IDs. It copies into the project store and does not delete the `.rob` source
+record. Portable JSON packages can contain multiple projects as well as pallet,
+gripper and palletizing station resources, and support the conflict rules
+`skip`, `overwrite` and `rename`.

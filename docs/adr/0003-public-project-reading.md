@@ -1,5 +1,5 @@
-# Öffentliche Projekte mit geschützten Änderungen
+# Public projects with protected changes
 
-Alle Projekte der Serverinstallation sind auch ohne Anmeldung vollständig lesbar, durchsuchbar und exportierbar, einschließlich enthaltener Original-`.rob`-Texte, Dateinamen und Produktbezeichnungen. Kontodaten und interne Verwaltungsdaten sind davon ausgenommen. Änderungen und Löschungen am Original sind dem Ersteller und Admin vorbehalten; andere angemeldete Benutzer können eine eigene Kopie anlegen. Die Erstellerzuordnung begrenzt damit die Schreibrechte, nicht die Lesbarkeit.
+All projects of the server installation are fully readable, searchable and exportable even without signing in, including contained original `.rob` texts, file names and product names. Account data and internal administrative data are excluded from this. Changes to and deletion of the original are reserved for the creator and admin; other signed-in users can create their own copy. The creator assignment thus limits write permissions, not readability.
 
-Der Werkskatalog ist ebenfalls ohne Anmeldung lesbar, darf aber nur von Admins verändert werden. Bereits in Projekte übernommene Definitionen bleiben bei Änderungen am Katalog erhalten, damit bestehende Planungen nicht nachträglich verändert werden.
+The Werkskatalog is likewise readable without signing in, but may only be modified by admins. Definitions already adopted into projects are preserved when the catalog changes, so that existing plans are not altered retroactively.

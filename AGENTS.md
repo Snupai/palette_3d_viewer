@@ -20,7 +20,7 @@ everything in a Three.js viewer.
 
 ## Design
 
-The UI follows the approved Fable v2 “Hallenboden” design (epoxy-grey canvas,
+The UI follows the approved Fable v2 “Hallenboden” ("shop floor") design (epoxy-grey canvas,
 kraft/wood pallet material, one Szaidel-navy `--brand` accent `#173159`, Barlow,
 system light/dark); the former navy/steel corporate chrome is superseded. Tokens,
 workflow rules, and banned patterns live in `docs/DESIGN.md`. Do not restore
@@ -35,7 +35,7 @@ Architecture decisions for the planned local LAN backend (roadmap M9) live in
 `docs/adr/` (0001 SQLite single host, superseded by 0009 PostgreSQL in
 Docker/Podman … 0008 HTTPS). Follow them; changing one
 means writing a new ADR, not silently diverging. Domain terms (e.g.
-„Werkskatalog“) are defined in `GLOSSARY.md` — use them consistently in code,
+"Werkskatalog") are defined in `GLOSSARY.md` — use them consistently in code,
 UI, and docs.
 
 ## Commands
@@ -83,7 +83,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## `.rob` Format and Geometry
 
-- Layout: line 0 pallet dims, line 1 package dims with an optional 4th input-direction flag (`1` = packages arrive rotated 90°), line 2 unique layer count, line 3 total layer count, then one layer-order row per layer whose second column is the Zwischenlage flag, then per-layer coordinate blocks.
+- Layout: line 0 pallet dims, line 1 package dims with an optional 4th input-direction flag (`1` = packages arrive rotated 90°), line 2 unique layer count, line 3 total layer count, then one layer-order row per layer whose second column is the Zwischenlage (interlayer) flag, then per-layer coordinate blocks.
 - Blank lines are positionally significant and must not be filtered out during parsing; numeric fields are integer-based and parser errors include line numbers.
 - Each coordinate line holds x, y, rotation (0/90/180/270), package count, and dx/dy encoding the blue-line side or corner; a multi-package line is a single grip, so all its boxes share the same `placeX`/`placeY`; clicking a box highlights the whole grip and shows place coords.
 - Bottom-face Z (`layerZBottom`) is the sum of package heights below plus Zwischenlagen (3 mm each, `ZWISCHENLAGE_HEIGHT_MM`, matching the robot's `Dicke_ZwLagen`); robot place Z (`layerPlaceZ`) is bottom-face Z plus the current package height (top of the box); pallet height is excluded.

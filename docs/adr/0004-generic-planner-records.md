@@ -1,5 +1,5 @@
-# Generische Datensätze mit begrenzter Servervalidierung
+# Generic records with limited server validation
 
-Die Serverspeicherung verwendet eine generische Tabelle für JSON-Datensätze statt einer eigenen Tabelle je Store, weil die bestehenden Zugriffe vollständige Datensätze laden und anschließend im Client filtern. Der Server validiert erlaubte Stores, IDs, Berechtigungen, erwartete Version, JSON-Struktur und Größenlimits; die vollständige fachliche Zod-Validierung verbleibt zunächst im Client. Öffentliche Lesbarkeit von Projekten ist gesondert zu berücksichtigen und darf nicht durch eine pauschale Filterung auf den angemeldeten Ersteller ausgeschlossen werden.
+The server storage uses a generic table for JSON records instead of a separate table per store, because the existing access paths load complete records and then filter them in the client. The server validates allowed stores, IDs, permissions, expected version, JSON structure and size limits; full domain-level Zod validation remains in the client for now. Public readability of projects must be taken into account separately and must not be ruled out by blanket filtering on the signed-in creator.
 
-Originalfotos werden nach der Extraktion nicht dauerhaft gespeichert; nur die übernommenen Ergebnisse gehören zum gespeicherten Plan. Eine zusätzliche Ablage für Originalfotos ist daher zunächst nicht erforderlich.
+Original photos are not stored permanently after extraction; only the adopted results belong to the saved plan. Additional storage for original photos is therefore not required for now.

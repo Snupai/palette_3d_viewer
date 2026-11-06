@@ -1,3 +1,3 @@
-# HTTPS für den angemeldeten Betrieb
+# HTTPS for authenticated operation
 
-Anmeldung und angemeldete Nutzung erfolgen im regulären Betrieb auch im Werksnetz über HTTPS, beispielsweise über einen Reverse Proxy. Sitzungscookies werden dort immer mit `Secure` gesetzt. HTTP bleibt auf lokale Entwicklung über `localhost` beschränkt, damit Zugangsdaten und Sitzungstokens im regulären Betrieb nicht unverschlüsselt übertragen werden.
+In regular operation, sign-in and authenticated use run over HTTPS even on the factory network, for example via a reverse proxy. Session cookies are always set with `Secure` there. HTTP remains limited to local development via `localhost`, so that credentials and session tokens are not transmitted unencrypted in regular operation.

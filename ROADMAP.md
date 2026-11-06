@@ -1,484 +1,478 @@
-# Roadmap zum Palettierplaner
-
-Stand: 02.11.2026
-
-Umsetzungsstatus: **M0–M8 sind als durchgängiger interner Produktworkflow
-implementiert.** Projekte lassen sich ohne `.rob` anlegen, validieren, lokal
-speichern, lösen, vergleichen, zu Stapeln kombinieren, in Muster-/Reihenfolge-/
-Ablaufmodi bearbeiten, robotisch prüfen, simulieren, berichten und kontrolliert
-exportieren. Der bestehende `.rob`-Viewer/-Editor bleibt parallel vollständig
-nutzbar. Der automatisierte Stand umfasst 153 Testdateien (davon 1 übersprungen)
-mit 1216 bestandenen und 2 übersprungenen Tests, TypeScript-, ESLint-, Prettier-
-und Produktions-Build-Gates sowie einen im Browser geprüften
-Create-Solve-Stack-Reload- und Legacy-Import-Ablauf.
-
-Für die Fremdparität bleiben ausschließlich evidenzgebundene Fragen offen: das
-vollständige AP5006-Referenzpaket, die Semantik von „Blöcke“, die externen
-Vorzeichen-/Schlussfeldkonventionen, reale Produktionskinematik/-kollisionen und
-das proprietäre `.mpb`-Format. Diese Grenzen werden in UI, Export und Bericht als
-Observed, Open, internal oder unverified ausgewiesen und nicht als Kompatibilität
-behauptet.
-
-Grundlage ist die Anforderungsaufnahme vom 05.08.2026. Das Ziel ist ein
-moderner Web-Workflow auf Basis allgemeiner Palettier- und Greifprinzipien:
-Projekt erfassen, viele brauchbare Lagenmuster berechnen,
-visuell vergleichen, bearbeiten, robotisch prüfen, speichern und als `.rob`
-ausgeben.
-
-## Zielbild
-
-Ein Benutzer kann ohne vorhandene `.rob`-Datei:
-
-1. Produkt, Packstück, Palette, Greifer und Palettierplatz definieren.
-2. eine breite, reproduzierbare Menge unterschiedlicher Lagenmuster berechnen;
-3. die Kandidaten nach Stückzahl filtern und mit den Pfeiltasten visuell
-   vergleichen;
-4. zwei Lagenmuster zu einem vollständigen Stapel kombinieren;
-5. Positionen, Greifgruppen, Reihenfolge, Etiketten und Zwischenlagen
-   nachbearbeiten;
-6. Maße, Auslastung, Gewicht, Zyklen und Robotergrenzen prüfen;
-7. Ablauf und Greiferbewegung simulieren;
-8. das Projekt wieder öffnen, dokumentieren und als validierte `.rob`-Datei
-   ausgeben.
-
-Der vorhandene Viewer und Editor werden weiterverwendet. Sie bilden bereits das
-Visualisierungs- und Bearbeitungsfundament; die Roadmap ergänzt vor allem den
-fehlenden Planungs-, Solver- und Robotik-Unterbau.
-
-## Ausgangslage
-
-### Belastbar implementiert
-
-- `.rob`-Import mit zeilengenauen Fehlern, Original-/Editiert-Ansicht,
-  Parser/Serializer-Roundtrip, lokaler Bibliothek und bestehendem 2D-/3D-Editor
-- versioniertes Projektmodell, deterministische Migration, getrennte
-  Projekt-/Ressourcen-Stores, Suche, Sortierung, Duplizieren, „Speichern unter“
-  sowie portable JSON-Pakete
-- Projekt-/Packstückdialog mit Standard- und benutzerdefinierten Paletten,
-  Über-/Unterhang, Stauraum, Tara und Maximalgewicht
-- deterministischer Reihen-/Block-/Rand-/Mischmuster-Solver im Web Worker mit
-  Fortschritt, Abbruch, stabiler Identität, Deduplizierung und Diagnosen
-- Kandidatentabelle mit Anzahl-/Maximumfilter, `x von y`, Pfeiltastennavigation,
-  SVG-Miniaturen und unmittelbarer 3D-Vorschau
-- Stapelkomposition, freie Lagenfolge, Spiegelungen/Rotationen, Sonderlage,
-  variable Zwischenlagen, Produktionsmetriken und Grenzwarnungen
-- Projekteditor mit Muster-, Reihenfolge- und Flow-Modus, Mehrfach-/Rahmenauswahl,
-  Feinbewegung, Etiketten, Greifgruppen, Abhängigkeiten und gemeinsamer Historie
-- Greifer-/Stationsressourcen, Multipick-Zyklen, TCP-/Reichweiten-/Hüllraum- und
-  einfache Kollisionsdiagnosen sowie streng vorgeprüfter Projekt-`.rob`-Export
-- deterministische RobotCycle-Timeline, Vor-/Rückwärtssteuerung, feste Ansichten
-  und vereinfachte Roboter-/Greifervisualisierung
-- Druck-/PDF-Ansicht, Kennzahlen-/Warnungs-/Zyklusbericht und ausdrücklich
-  unverified, ausschließlich lesende `.mpb`-Diagnosegrenze
-- automatisierte Basis: 153 Testdateien (davon 1 übersprungen) mit 1216
-  bestandenen und 2 übersprungenen Tests
-
-### Weiterhin evidenzgebunden offen
-
-- vollständige Kandidatenfamilien und exaktes Ranking für AP5006
-- genaue Bedeutung und Bewertung von „Blöcke“
-- externe Etikett-, Vorzeichen- und letzte `.rob`-Feldsemantik
-- reale Roboterkinematik, Produktionskollisionen und Portalroboter
-- `.mpb`-Import und ein Writer
-
-## Leitplanken
-
-1. **Funktionsparität vor Oberflächenparität.** Der Kernablauf muss dieselben
-   Entscheidungen ermöglichen; das Web-UI darf moderner und kompakter bleiben.
-2. **Breite Kandidatenmenge statt eines einzigen Optimums.** Geometrisch
-   unterschiedliche Muster bleiben erhalten, auch wenn Stückzahl und Blockmaß
-   gleich sind.
-3. **Deterministisch und erklärbar.** Gleiche Eingaben erzeugen dieselben
-   Kandidaten in derselben Reihenfolge. Bewertungen und Ausschlussgründe sind
-   sichtbar.
-4. **Reiner Domain-Kern.** Geometrie, Solver, Metriken, Transformationen und
-   Robotik bleiben von React und Three.js getrennt und werden direkt getestet.
-5. **Referenzgetriebene Parität.** Evidenz wird ausdrücklich als Golden,
-   Observed oder Open geführt. Beobachtungen werden erst mit anonymisierter,
-   ausführbarer Grundlage zu Golden Cases; ungeklärte Heuristiken werden nicht
-   geraten oder still als kompatibel bezeichnet.
-6. **Bestehende `.rob`-Workflows nicht brechen.** Import, Bearbeitung,
-   Roundtrip und lokale Bibliothek bleiben während des Umbaus nutzbar.
+# Palletizing Planner Roadmap
+
+Status as of: 02.11.2026
+
+Implementation status: **M0–M8 are implemented as an end-to-end internal product
+workflow.** Projects can be created without a `.rob`, validated, saved locally,
+solved, compared, combined into stacks, edited in pattern/sequence/flow modes,
+checked against robot constraints, simulated, reported and exported in a
+controlled way. The existing `.rob` viewer/editor remains fully usable alongside
+it. The automated baseline comprises 153 test files (1 of them skipped) with
+1216 passing and 2 skipped tests, TypeScript, ESLint, Prettier and production
+build gates, as well as a browser-verified create-solve-stack-reload and legacy
+import flow.
+
+For third-party parity, only evidence-bound questions remain open: the complete
+AP5006 reference package, the semantics of "Blöcke" (blocks), the external
+sign/final-field conventions, real production kinematics/collisions and the
+proprietary `.mpb` format. These boundaries are labeled in the UI, export and
+report as Observed, Open, internal or unverified and are not claimed as
+compatibility.
+
+The basis is the requirements capture of 05.08.2026. The goal is a modern web
+workflow built on general palletizing and gripping principles: capture a
+project, compute many usable layer patterns, compare them visually, edit them,
+check them against robot constraints, save them and output them as `.rob`.
+
+## Target vision
+
+Without an existing `.rob` file, a user can:
+
+1. define the product, package, pallet, gripper and palletizing station.
+2. compute a broad, reproducible set of distinct layer patterns;
+3. filter the candidates by piece count and compare them visually with the
+   arrow keys;
+4. combine two layer patterns into a complete stack;
+5. refine positions, grip groups, sequence, labels and interlayers;
+6. check dimensions, utilization, weight, cycles and robot limits;
+7. simulate the flow and gripper motion;
+8. reopen the project, document it and output it as a validated `.rob` file.
+
+The existing viewer and editor will continue to be used. They already form the
+visualization and editing foundation; the roadmap mainly adds the missing
+planning, solver and robotics layer underneath.
+
+## Starting point
+
+### Reliably implemented
+
+- `.rob` import with line-accurate errors, original/edited view,
+  parser/serializer round trip, local library and the existing 2D/3D editor
+- versioned project model, deterministic migration, separate project/resource
+  stores, search, sorting, duplication, **Speichern unter** ("Save as") and
+  portable JSON packages
+- project/package dialog with standard and custom pallets, overhang/underhang,
+  stacking height, tare and maximum weight
+- deterministic row/block/edge/mixed-pattern solver in a Web Worker with
+  progress, cancellation, stable identity, deduplication and diagnostics
+- candidate table with count/maximum filter, `x von y` (x of y), arrow-key
+  navigation, SVG thumbnails and immediate 3D preview
+- stack composition, free layer sequence, mirroring/rotation, special layer,
+  variable interlayers, production metrics and limit warnings
+- project editor with pattern, sequence and flow modes, multi/box selection,
+  fine movement, labels, grip groups, dependencies and shared history
+- gripper/station resources, multipick cycles, TCP/reach/envelope and simple
+  collision diagnostics, plus a strictly pre-validated project `.rob` export
+- deterministic RobotCycle timeline, forward/backward control, fixed views and
+  simplified robot/gripper visualization
+- print/PDF view, metrics/warnings/cycle report and an explicitly unverified,
+  strictly read-only `.mpb` diagnostic boundary
+- automated baseline: 153 test files (1 of them skipped) with 1216 passing and
+  2 skipped tests
+
+### Still open, evidence-bound
+
+- complete candidate families and exact ranking for AP5006
+- exact meaning and scoring of "Blöcke"
+- external label, sign and final `.rob` field semantics
+- real robot kinematics, production collisions and gantry robots
+- `.mpb` import and a writer
+
+## Guardrails
+
+1. **Functional parity before UI parity.** The core flow must enable the same
+   decisions; the web UI may stay more modern and compact.
+2. **A broad candidate set instead of a single optimum.** Geometrically
+   different patterns are retained even if piece count and block dimensions are
+   equal.
+3. **Deterministic and explainable.** Identical inputs produce the same
+   candidates in the same order. Scores and exclusion reasons are visible.
+4. **Pure domain core.** Geometry, solver, metrics, transformations and
+   robotics stay separate from React and Three.js and are tested directly.
+5. **Reference-driven parity.** Evidence is explicitly tracked as Golden,
+   Observed or Open. Observations become Golden Cases only with an anonymized,
+   executable basis; unresolved heuristics are not guessed or silently labeled
+   compatible.
+6. **Do not break existing `.rob` workflows.** Import, editing, round trip and
+   the local library remain usable throughout the rework.
+
+## Releases and milestones
+
+Effort sizes are relative T-shirt sizes, not calendar commitments.
 
-## Releases und Meilensteine
+### R0 – Viewer/editor baseline (current state)
 
-Aufwandsgrößen sind relative T-Shirt-Größen und keine Kalenderzusagen.
+Status: available
 
-### R0 – Viewer/Editor-Basis (heutiger Stand)
+The product can check, visualize, manage locally and to a limited extent edit
+existing `.rob` plans. This remains the stable baseline for all subsequent
+releases.
 
-Status: vorhanden
+### M0 – Reference corpus and parity measurement
 
-Das Produkt kann vorhandene `.rob`-Pläne prüfen, visualisieren, lokal verwalten
-und begrenzt nachbearbeiten. Dies bleibt die stabile Basis aller folgenden
-Releases.
+Status: completed · Effort: S · Dependency: none
 
-### M0 – Referenzkorpus und Paritätsmessung
+Scope:
 
-Status: abgeschlossen · Aufwand: S · Abhängigkeit: keine
+- assemble three to five anonymized/synthetic reference projects with inputs,
+  expected metrics and machine-readable artifact references; reference
+  screenshots and exports only where evidence is actually available;
+- describe the run `AP5006 / 1329-00004` as the primary observed solver target
+  case and promote it to Golden only with executable evidence;
+- formally define candidate identity and geometric equality;
+- document open `.rob` fields, "Blöcke" semantics and solver deviations;
+- create a parity matrix per reference project.
 
-Umfang:
+Exit criteria:
 
-- drei bis fünf anonymisierte/synthetische Referenzprojekte mit Eingaben,
-  erwarteten Kennzahlen und maschinenlesbaren Artefaktverweisen zusammenstellen;
-  Screenshots und Exporte nur bei tatsächlich verfügbarer Evidenz referenzieren;
-- den Lauf `AP5006 / 1329-00004` als primären beobachteten Solver-Zielfall
-  beschreiben und erst mit ausführbarer Evidenz zu Golden hochstufen;
-- Kandidatenidentität und geometrische Gleichheit formal definieren;
-- offene `.rob`-Felder, „Blöcke“-Semantik und Solverabweichungen
-  dokumentieren;
-- eine Paritätsmatrix pro Referenzprojekt anlegen.
+- Expected values can be loaded automatically without committing private
+  original data to the repository.
+- For every later solver change it is measurable what moved closer to the
+  reference cases and what got worse.
 
-Exit-Kriterien:
+### M1 – Complete project and domain model
 
-- Erwartungswerte lassen sich automatisiert laden, ohne private Originaldaten
-  in das Repository zu übernehmen.
-- Für jede spätere Solveränderung ist messbar, was näher an den Referenzfällen
-  liegt und was sich verschlechtert hat.
+Status: implemented · Effort: M · Dependency: M0
 
-### M1 – Vollständiges Projekt- und Domänenmodell
+Scope:
 
-Status: implementiert · Aufwand: M · Abhängigkeit: M0
+- versioned model for `Project`, `Package`, `Pallet`, `Gripper`,
+  `PalletStation`, `Solution`, `LayerPattern`, `LayerStack` and `RobotCycle`;
+- clear separation between the imported `.rob` source and the editable project;
+- create/edit project dialog with cuboid, dimensions, weight, spacing, infeed
+  direction and multi-gripping;
+- EURO, industrial and custom pallets with overhang/underhang, stacking height,
+  tare and maximum weight;
+- schema migration of the existing IndexedDB data;
+- portable JSON export/import as a backup and diagnostic format.
 
-Umfang:
+Exit criteria:
 
-- versioniertes Modell für `Project`, `Package`, `Pallet`, `Gripper`,
-  `PalletStation`, `Solution`, `LayerPattern`, `LayerStack` und `RobotCycle`;
-- klare Trennung zwischen importierter `.rob`-Quelle und editierbarem Projekt;
-- Projekt-anlegen/-ändern-Dialog mit Quader, Abmessungen, Gewicht, Abstand,
-  Einlaufrichtung und Mehrfachgreifen;
-- EURO-, Industrie- und benutzerdefinierte Palette mit Über-/Unterhang,
-  Stauraum, Tara und Maximalgewicht;
-- Schema-Migration der bestehenden IndexedDB-Daten;
-- portabler JSON-Export/-Import als Sicherungs- und Diagnoseformat.
+- A new project can be created, validated, saved and reopened without a
+  `.rob`.
+- Existing saved `.rob` plans remain readable and round-trip capable.
 
-Exit-Kriterien:
+### M2 – Deterministic layer solver v1
 
-- Ein neues Projekt kann ohne `.rob` angelegt, validiert, gespeichert und wieder
-  geöffnet werden.
-- Bestehende gespeicherte `.rob`-Pläne bleiben lesbar und roundtrip-fähig.
+Status: implemented · Effort: XL · Dependency: M1
 
-### M2 – Deterministischer Lagen-Solver v1
+Scope:
 
-Status: implementiert · Aufwand: XL · Abhängigkeit: M1
+- 0°/90° rectangle packing within pallet, spacing and overhang;
+- generators for row, block, edge and mixed patterns;
+- generate symmetry variants, but remove only true geometric duplicates;
+- stable candidate ID derived from placement geometry, orientation and grip
+  data;
+- metrics for piece count, area, block dimensions and preliminary cycle count;
+- deterministic scoring and sorting;
+- solver execution in a Web Worker with progress and cancellation;
+- property-based checks for overlap, bounds and determinism.
 
-Umfang:
+Exit criteria:
 
-- 0°-/90°-Rechteckpackung innerhalb von Palette, Abstand und Überhang;
-- Generatoren für Reihen-, Block-, Rand- und Mischmuster;
-- Symmetrievarianten erzeugen, aber nur echte geometrische Duplikate entfernen;
-- stabile Kandidaten-ID aus Placement-Geometrie, Orientierung und Griffdaten;
-- Kennzahlen für Stückzahl, Fläche, Blockmaß und vorläufige Zykluszahl;
-- deterministische Bewertung und Sortierung;
-- Solver-Ausführung in einem Web Worker mit Fortschritt und Abbruch;
-- property-basierte Prüfungen für Überlappung, Begrenzung und Determinismus.
+- Every output is geometrically valid and reproducible for identical inputs.
+- The reference case reaches 55 packages per layer.
+- The solver retains several distinct 55-piece patterns. The observed
+  `65 gesamt / 15 mit 55` (65 total / 15 with 55) is a parity target, but becomes
+  a hard gate only once the underlying rules are sufficiently understood.
 
-Exit-Kriterien:
+### M3 – Candidate browser and immediate visual comparison
 
-- Jede Ausgabe ist geometrisch zulässig und bei gleichen Eingaben reproduzierbar.
-- Der Referenzfall erreicht 55 Packstücke je Lage.
-- Der Solver behält mehrere unterschiedliche 55er-Muster. Die beobachteten
-  `65 gesamt / 15 mit 55` sind ein Paritätsziel, aber erst dann ein hartes Gate,
-  wenn die zugrunde liegenden Regeln ausreichend geklärt sind.
+Status: implemented · Effort: L · Dependency: M2
 
-### M3 – Kandidatenbrowser und unmittelbarer visueller Vergleich
+Scope:
 
-Status: implementiert · Aufwand: L · Abhängigkeit: M2
+- focusable, scrollable solution table with no., count, status, cycles, length
+  and width;
+- exact count filter, "Maximum" quick selection and a visible `x von y`;
+- arrow up/down changes the active row and keeps it in the viewport;
+- instant 2D thumbnails, metrics and a large 3D preview without re-running the
+  solver;
+- stable sorting and filter reset without losing candidates;
+- diagnostic view for score and exclusion reasons.
 
-Umfang:
+Exit criteria:
 
-- fokussierbare, scrollbare Lösungstabelle mit Nr., Anzahl, Status, Zyklen,
-  Länge und Breite;
-- exakter Anzahlfilter, Schnellwahl „Maximum“ und sichtbares `x von y`;
-- Pfeil-hoch/-runter wechselt die aktive Zeile und hält sie im Viewport;
-- sofortige 2D-Miniaturen, Kennzahlen und große 3D-Vorschau ohne Solver-Neulauf;
-- stabile Sortierung und Filter-Reset ohne Verlust von Kandidaten;
-- Diagnoseansicht für Score und Ausschlussgründe.
+- The visual comparison described in the specification is fully possible with
+  mouse and keyboard.
+- Switching candidates updates the visible previews without noticeable delay.
 
-Exit-Kriterien:
+Outcome of M0–M3: **Planner Alpha**. From here on, a plan is created from input
+data for the first time instead of only from a `.rob` import.
 
-- Der in der Spezifikation beschriebene visuelle Abgleich ist vollständig mit
-  Maus und Tastatur möglich.
-- Ein Kandidatenwechsel aktualisiert die sichtbaren Vorschauen ohne merkliche
-  Verzögerung.
+### M4 – Stack composition and production metrics
 
-Ergebnis von M0–M3: **Planner Alpha**. Ab hier entsteht ein Plan erstmals aus
-Eingabedaten statt nur aus einem `.rob`-Import.
+Status: implemented · Effort: L · Dependency: M3
 
-### M4 – Stapelkomposition und Produktionskennzahlen
+Scope:
 
-Status: implementiert · Aufwand: L · Abhängigkeit: M3
+- select two layer patterns and combine them as a tower, longitudinal mirror,
+  transverse mirror or rotation;
+- derive the layer count from the stacking height limit, package height and interlayers;
+- freely editable layer sequence;
+- interlayer rules with thickness, bottom and top layer;
+- a deviating top layer with its own candidate list;
+- area/volume utilization, total weight, block dimensions and limit warnings;
+- 3D options "raise top layer", top views and layer labels.
 
-Umfang:
+Exit criteria:
 
-- zwei Lagenmuster auswählen und als Turm, Längsspiegel, Querspiegel oder
-  Rotation kombinieren;
-- Lagenzahl aus Stauraumhöhe, Packstückhöhe und Zwischenlagen ableiten;
-- frei editierbare Lagenfolge;
-- Zwischenlagenregeln mit Dicke, Boden- und Deckellage;
-- abweichende obere Lage mit eigener Kandidatenliste;
-- Flächen-/Volumennutzung, Gesamtgewicht, Blockmaß und Grenzwarnungen;
-- 3D-Optionen „obere Lage anheben“, Aufsichten und Lagenbezeichnungen.
+- The complete stack, metrics and warnings react consistently to every layer,
+  interlayer or special-layer change.
+- The example calculation `55 × 10 = 550` as well as height, area and volume
+  are covered as Golden tests.
 
-Exit-Kriterien:
+### M5 – Layer editor and sequence parity
 
-- Vollständiger Stapel, Kennzahlen und Warnungen reagieren konsistent auf jede
-  Lagen-, Zwischenlagen- oder Sonderlagenänderung.
-- Die Beispielrechnung `55 × 10 = 550` sowie Höhe, Fläche und Volumen sind als
-  Golden Tests abgedeckt.
+Status: implemented · Effort: L · Dependency: M4
 
-### M5 – Lageneditor- und Reihenfolge-Parität
+Scope:
 
-Status: implementiert · Aufwand: L · Abhängigkeit: M4
+- separate working modes for pattern, sequence and 2D flow check;
+- Ctrl multi-selection, Shift box selection, centering and fine positioning;
+- insert lengthwise/crosswise and change the label side;
+- explicitly number, add and remove grip groups;
+- automatic sequence as an editable suggestion;
+- show pick/place TCP, angle, group and status step by step;
+- extend the existing undo/redo and collision checks to all actions.
 
-Umfang:
+Exit criteria:
 
-- getrennte Arbeitsmodi für Muster, Reihenfolge und 2D-Ablaufprüfung;
-- Strg-Mehrfachauswahl, Shift-Rahmen, Zentrieren und Feinpositionierung;
-- längs/quer einfügen und Etikettenseite ändern;
-- Greifgruppen explizit nummerieren, ergänzen und entfernen;
-- automatische Reihenfolge als editierbarer Vorschlag;
-- Pick-/Place-TCP, Winkel, Gruppe und Status schrittweise anzeigen;
-- bestehende Undo/Redo- und Kollisionsprüfungen auf alle Aktionen ausweiten.
+- An imported or computed layer can be fully modified without text editing and
+  serialized back into a semantically equivalent `.rob` structure.
+- The known 55-piece reference plan can be represented as 36 cycles with 19
+  double and 17 single grips.
 
-Exit-Kriterien:
+### M6 – Gripper, palletizing station and robot-valid export
 
-- Eine importierte oder berechnete Lage kann ohne Textbearbeitung vollständig
-  verändert und wieder als semantisch gleiche `.rob`-Struktur serialisiert
-  werden.
-- Der bekannte 55er-Referenzplan kann als 36 Zyklen mit 19 Doppel- und 17
-  Einzelgriffen dargestellt werden.
+Status: implemented internally, third-party semantics partially Open · Effort: XL · Dependency: M5
 
-### M6 – Greifer, Palettierplatz und robotisch valider Export
+Scope:
 
-Status: intern implementiert, Fremdsemantik teilweise Open · Aufwand: XL · Abhängigkeit: M5
+- gripper library with TCP, envelope, angles, dimension limits and infeed
+  direction;
+- suction grippers first, clamp and fork grippers afterwards;
+- palletizing station with origin, interference contour, TCP limits,
+  directions, radius and infeed alignment;
+- multipick grouping and pick/place TCP calculation;
+- reach, envelope and simple collision checks;
+- `.rob` export from the project model instead of a mere round trip;
+- controlled comparison exports to verify the last two `.rob` fields and all
+  sign conventions.
 
-Umfang:
+Exit criteria:
 
-- Greiferbibliothek mit TCP, Hülle, Winkeln, Maßgrenzen und Einlaufrichtung;
-- Sauger zuerst, Klemm- und Gabelgreifer anschließend;
-- Palettierplatz mit Ursprung, Störkontur, TCP-Grenzen, Richtungen, Radius und
-  Einlauf-Ausrichtung;
-- Multipick-Gruppierung und Pick-/Place-TCP-Berechnung;
-- Reichweiten-, Hüllraum- und einfache Kollisionsprüfung;
-- `.rob`-Export aus dem Projektmodell statt bloßem Roundtrip;
-- kontrollierte Vergleichsexporte zur Verifikation der letzten beiden
-  `.rob`-Felder und aller Vorzeichenkonventionen.
+- Every exported cycle line is explainable from the project model and checked
+  against Golden Files.
+- Invalid gripper, angle, station or envelope combinations are blocked with a
+  clear explanation before export.
 
-Exit-Kriterien:
+Outcome of M4–M6: **Robot-ready Beta**. Plans can be designed, edited, checked
+against robot constraints and exported deliberately.
 
-- Jede exportierte Zykluszeile ist aus dem Projektmodell erklärbar und gegen
-  Golden Files geprüft.
-- Ungültige Greifer-, Winkel-, Stations- oder Hüllraumkombinationen werden vor
-  dem Export verständlich blockiert.
+### M7 – Robot simulation
 
-Ergebnis von M4–M6: **Robot-ready Beta**. Pläne können entworfen, bearbeitet,
-robotisch geprüft und gezielt exportiert werden.
+Status: implemented · Effort: L · Dependency: M6
 
-### M7 – Robotersimulation
+Scope:
 
-Status: implementiert · Aufwand: L · Abhängigkeit: M6
+- timeline of pick, transfer and place phases;
+- start/stop, step, back, end and a speed control;
+- gripper display for X/Y/Z/angle and the current group;
+- fixed top, front and top-right views plus zoom;
+- infeed conveyor, pallet, gripper and an initially simplified articulated arm;
+- motion duration from configured speeds and pick/place times;
+- gantry robots and detailed kinematics only after the flow has been verified.
 
-Umfang:
+Exit criteria:
 
-- Timeline aus Pick-, Transfer- und Place-Phasen;
-- Start/Stop, Schritt, Zurück, Ende und Geschwindigkeitsregler;
-- Greiferanzeige für X/Y/Z/Winkel und aktuelle Gruppe;
-- feste Ansichten oben, vorne und rechtsoben plus Zoom;
-- Einlaufband, Palette, Greifer und zunächst vereinfachter Knickarm;
-- Bewegungsdauer aus konfigurierten Geschwindigkeiten und Pick-/Place-Zeiten;
-- Portalroboter und detaillierte Kinematik erst nach dem verifizierten Ablauf.
+- Every robot group can be played back deterministically forward and backward.
+- Simulation and `.rob` export use exactly the same `RobotCycle` data.
 
-Exit-Kriterien:
+### M8 – Report, project management and legacy compatibility
 
-- Jede Robotergruppe lässt sich vorwärts und rückwärts deterministisch abspielen.
-- Simulation und `.rob`-Export verwenden exakt dieselben `RobotCycle`-Daten.
+Status: implemented up to the documented evidence boundary · Effort: L to XL · Dependency: M6, M7 for the simulation part
 
-### M8 – Bericht, Projektverwaltung und Legacy-Kompatibilität
+Scope:
 
-Status: bis zur dokumentierten Evidenzgrenze implementiert · Aufwand: L bis XL · Abhängigkeit: M6, für Simulationsteil M7
+- project/product filter, sorting, duplication and **Speichern unter**;
+- print view/PDF with 2D/3D image, metrics and robot cycles;
+- import/export package for project, gripper and palletizing station;
+- optional, strictly read-only `.mpb` importer for documented format v1 fields;
+- proprietary `.mpb` writer only after complete field understanding and with
+  real compatibility tests.
 
-Umfang:
+Exit criteria:
 
-- Projekt-/Produktfilter, Sortierung, Duplizieren und „Speichern unter“;
-- Druckansicht/PDF mit 2D-/3D-Bild, Kennzahlen und Roboterzyklen;
-- Import-/Exportpaket für Projekt, Greifer und Palettierplatz;
-- optionaler, ausschließlich lesender `.mpb`-Importer für dokumentierte
-  Format-v1-Felder;
-- proprietärer `.mpb`-Writer nur nach vollständigem Feldverständnis und mit
-  echten Kompatibilitätstests.
+- A project can be searched, duplicated, portably backed up and shared as a
+  report.
+- Legacy imports openly flag unknown or unverified fields.
 
-Exit-Kriterien:
+Outcome of M7–M8: **Parity Candidate** for the observed core workflow.
 
-- Ein Projekt kann gesucht, dupliziert, portabel gesichert und als Bericht
-  weitergegeben werden.
-- Legacy-Importe kennzeichnen unbekannte oder nicht verifizierte Felder offen.
+### M9 – Local backend with users on the LAN
 
-Ergebnis von M7–M8: **Parity Candidate** für den beobachteten Kernworkflow.
+Status: planned · Effort: L · Dependency: M8
 
-### M9 – Lokales Backend mit Benutzern im LAN
-
-Status: geplant · Aufwand: L · Abhängigkeit: M8
-
-Ziel ist ein ausschließlich lokal betriebener Server im Werksnetz (LAN), über den
-mehrere angemeldete Benutzer gemeinsame Projekte nutzen. Kein Cloud-Hosting,
-keine Erreichbarkeit aus dem Internet. Die verbindlichen Entscheidungen stehen
-in [`docs/adr/`](docs/adr/), Fachbegriffe wie „Werkskatalog“ in
+The goal is a server operated exclusively locally on the plant network (LAN),
+through which several signed-in users work on shared projects. No cloud hosting,
+no reachability from the internet. The binding decisions are in
+[`docs/adr/`](docs/adr/), domain terms such as "Werkskatalog" in
 [`GLOSSARY.md`](GLOSSARY.md).
 
-Umfang:
+Scope:
 
-- ein einzelner Host mit PostgreSQL als Container (`compose.yaml`, Docker oder
-  Podman) unter `DATABASE_URL`, Drizzle als Schema-, Migrations- und
-  Abfrageschicht; keine verteilten Schreibinstanzen; Tests laufen ohne
-  Container gegen PGlite
-  ([ADR 0009](docs/adr/0009-postgres-container.md), ersetzt ADR 0001);
-  `bun run stack:up` (bzw. `podman compose up -d --build`) startet Datenbank,
-  Migrationen und App als Container, `bun run db:up` + `bun run db:migrate`
-  nur die Datenbank für die Entwicklung, siehe README „Running the full stack
-  in containers“;
-- eine generische Tabelle für JSON-Datensätze; der Server prüft Stores, IDs,
-  Berechtigungen, erwartete Version, JSON-Struktur und Größenlimits, die
-  fachliche Zod-Validierung bleibt im Client
+- a single host with PostgreSQL as a container (`compose.yaml`, Docker or
+  Podman) under `DATABASE_URL`, Drizzle as the schema, migration and query
+  layer; no distributed write instances; tests run against PGlite without a
+  container
+  ([ADR 0009](docs/adr/0009-postgres-container.md), supersedes ADR 0001);
+  `bun run stack:up` (or `podman compose up -d --build`) starts the database,
+  migrations and app as containers, `bun run db:up` + `bun run db:migrate`
+  only the database for development, see README "Running the full stack
+  in containers";
+- a generic table for JSON records; the server checks stores, IDs,
+  permissions, expected version, JSON structure and size limits, while the
+  domain-level Zod validation stays in the client
   ([ADR 0004](docs/adr/0004-generic-planner-records.md));
-- Next.js-Route-Handler als schmale API für Projekt- und Ressourcendatensätze;
-- Projekte und Werkskatalog sind ohne Anmeldung lesbar, durchsuchbar und
-  exportierbar; Ändern und Löschen dürfen nur Ersteller und Admin, den
-  Werkskatalog nur Admins; andere Benutzer speichern eine eigene Kopie
+- Next.js route handlers as a thin API for project and resource records;
+- projects and the Werkskatalog can be read, searched and exported without
+  signing in; only the creator and admins may edit and delete, and only admins
+  may change the Werkskatalog; other users save their own copy
   ([ADR 0003](docs/adr/0003-public-project-reading.md));
-- lokale Benutzerkonten mit argon2-gehashten Passwörtern und httpOnly-Session-
-  Cookie, das außerhalb von `localhost` immer `Secure` ist und HTTPS erfordert
+- local user accounts with argon2-hashed passwords and an httpOnly session
+  cookie that is always `Secure` outside of `localhost` and requires HTTPS
   ([ADR 0008](docs/adr/0008-https-authentication.md));
-- der Admin wird per lokalem Verwaltungsbefehl angelegt bzw. zurückgesetzt,
-  keine öffentliche Erstregistrierung; weitere Benutzer legt der Admin an
+- the admin is created or reset via a local administration command, with no
+  public initial registration; the admin creates further users
   ([ADR 0005](docs/adr/0005-admin-initialization.md));
-- Schreiben und Löschen prüfen atomar die erwartete Version; Konflikte ergeben
-  409 und eine Vergleichsansicht statt stiller Überschreibung
+- writes and deletes atomically check the expected version; conflicts result in
+  409 and a comparison view instead of a silent overwrite
   ([ADR 0006](docs/adr/0006-optimistic-concurrency.md));
-- clientseitiger `ServerPlannerRecordStorage` implementiert über diese
-  Route-Handler die bestehende Schnittstelle `PlannerRecordStorage` aus
-  `src/lib/projectRepository.ts`, sodass `ProjectRepository` und die Workspaces
-  unverändert bleiben;
-- expliziter Speichermodus: entweder IndexedDB (Standard) oder Server, ohne
-  automatischen Wechsel und ohne Offline-Synchronisierung; ungespeicherte
-  Serverentwürfe werden lokal je Server, Benutzer und Projekt gesichert
+- a client-side `ServerPlannerRecordStorage` implements the existing
+  `PlannerRecordStorage` interface from `src/lib/projectRepository.ts` on top
+  of these route handlers, so that `ProjectRepository` and the workspaces
+  remain unchanged;
+- explicit storage mode: either IndexedDB (default) or server, with no
+  automatic switching and no offline synchronization; unsaved server drafts
+  are backed up locally per server, user and project
   ([ADR 0002](docs/adr/0002-explicit-storage-mode.md));
-- ausdrücklicher, wiederholbarer Import des bisherigen Browserbestands nach
-  Anmeldung mit Übersicht und Bestätigung der Veröffentlichung
+- an explicit, repeatable import of the existing browser data after signing in,
+  with an overview and confirmation of publication
   ([ADR 0007](docs/adr/0007-explicit-local-import.md));
-- als letzter Schritt stündliche konsistente `pg_dump`-Backups mit sieben Tagen
-  Aufbewahrung und Wiederherstellungstest
+- as the final step, hourly consistent `pg_dump` backups with seven days of
+  retention and a restore test
   ([ADR 0009](docs/adr/0009-postgres-container.md)).
 
-Die Umsetzung ist in kleine Issues mit dem Label `area:backend` geschnitten
+The implementation is split into small issues with the label `area:backend`
 (#23–#38).
 
-Spätere Schritte:
+Later steps:
 
-- Revisionen bzw. Versionsverlauf je Projekt;
-- feldweises Zusammenführen bei Versionskonflikten;
-- Freigabelinks für einzelne Projekte innerhalb des LAN;
-- Rollen (z. B. lesen, bearbeiten, verwalten);
-- Anmeldung mit Windows-/Domänen- oder Microsoft-365-Konten, sobald die
-  Firmenidentitätsinfrastruktur geklärt ist.
+- revisions or version history per project;
+- field-level merging on version conflicts;
+- share links for individual projects within the LAN;
+- roles (e.g. read, edit, manage);
+- sign-in with Windows/domain or Microsoft 365 accounts once the company
+  identity infrastructure has been clarified.
 
-Exit-Kriterien:
+Exit criteria:
 
-- Zwei Benutzer an verschiedenen Rechnern im LAN sehen dieselben Projekte;
-  ohne Anmeldung sind Projekte und Werkskatalog nur lesbar, Kontodaten und
-  interne Verwaltungsdaten gar nicht.
-- Parallele Bearbeitung desselben Projekts führt zu einem sichtbaren Konflikt,
-  nie zu einer stillen Überschreibung.
-- Ohne konfiguriertes Backend verhält sich die App unverändert wie mit
-  IndexedDB.
-- Speicher-Contract-Tests laufen gegen IndexedDB-, Memory- und Server-Speicher.
+- Two users on different machines on the LAN see the same projects; without
+  signing in, projects and the Werkskatalog are read-only, and account data and
+  internal administration data are not readable at all.
+- Concurrent editing of the same project leads to a visible conflict, never to
+  a silent overwrite.
+- Without a configured backend, the app behaves unchanged, as with IndexedDB.
+- Storage contract tests run against IndexedDB, memory and server storage.
 
-## Technischer Zielschnitt
+## Technical target structure
 
 ```text
 src/domain/
-├─ project/        Stammdaten, Validierung, Metriken
-├─ geometry/       Rechtecke, Transformationen, Kollisionen
-├─ solver/         Generatoren, Deduplizierung, Ranking
-├─ stack/          Lagenfolge, Verbund, Zwischen-/Sonderlagen
-├─ robotics/       Greifer, Station, Zyklen, Grenzen
-└─ formats/        internes Schema sowie .rob-Adapter
+├─ project/        master data, validation, metrics
+├─ geometry/       rectangles, transformations, collisions
+├─ solver/         generators, deduplication, ranking
+├─ stack/          layer sequence, interlocking, interlayers/special layers
+├─ robotics/       gripper, station, cycles, limits
+└─ formats/        internal schema and .rob adapters
 
-src/workers/       Solver-Ausführung und Fortschritt
-src/features/      Projekt, Kandidaten, Editor, Simulation, Bericht
-src/components/    wiederverwendbare UI und bestehender Viewer
+src/workers/       solver execution and progress
+src/features/      project, candidates, editor, simulation, report
+src/components/    reusable UI and existing viewer
 ```
 
-`PalletData` bleibt zunächst der kompatible Viewer-/Editor-DTO. Das neue
-Projektmodell liefert daraus gezielt eine Vorschau. So muss der bestehende
-Viewer nicht gleichzeitig mit dem Solver neu geschrieben werden.
+`PalletData` initially remains the compatible viewer/editor DTO. The new
+project model derives a targeted preview from it. This way the existing
+viewer does not have to be rewritten at the same time as the solver.
 
-## Paritäts-Scorecard
+## Parity scorecard
 
-Jeder Referenzfall erhält nach jedem Meilenstein dieselbe Bewertung:
+After every milestone, each reference case receives the same assessment:
 
-| Dimension   | Messung                                                    |
-| ----------- | ---------------------------------------------------------- |
-| Eingabe     | alle beobachteten Felder modelliert und validiert          |
-| Geometrie   | maximale Stückzahl und vorhandene Musterfamilien           |
-| Vielfalt    | Anzahl unterschiedlicher Kandidaten bei gleicher Stückzahl |
-| Ranking     | Position des visuell passenden Referenzmusters             |
-| Stapel      | Lagenfolge, Höhe, Zwischenlagen, Gewicht und Blockmaß      |
-| Robotik     | Gruppen, Reihenfolge, TCP, Winkel und Zykluszahl           |
-| Export      | semantischer Vergleich jeder `.rob`-Zeile                  |
-| Bedienung   | Kernablauf per Maus und Tastatur ohne Umweg möglich        |
-| Performance | Solverzeit und Vorschauwechsel für das Referenzgerät       |
+| Dimension   | Measurement                                                      |
+| ----------- | ---------------------------------------------------------------- |
+| Input       | all observed fields modeled and validated                        |
+| Geometry    | maximum piece count and existing pattern families                |
+| Diversity   | number of distinct candidates with the same piece count          |
+| Ranking     | position of the visually matching reference pattern              |
+| Stack       | layer sequence, height, interlayers, weight and block dimensions |
+| Robotics    | groups, sequence, TCP, angle and cycle count                     |
+| Export      | semantic comparison of every `.rob` line                         |
+| Usability   | core flow possible with mouse and keyboard without detours       |
+| Performance | solver time and preview switching on the reference device        |
 
-Eine Funktion gilt nicht schon dann als „fertig“, wenn die UI existiert. Sie
-braucht mindestens einen Domain-Test, einen Referenzfall und eine sichtbare
-Fehlerbehandlung.
+A feature does not count as "done" merely because the UI exists. It needs at
+least one domain test, one reference case and visible error handling.
 
-## Ursprünglicher Startplan (abgeschlossen)
+## Original start plan (completed)
 
-Diese zehn Arbeitspakete waren der empfohlene Einstieg in M0–M3 und sind
-umgesetzt. Die Reihenfolge bleibt als Nachweis dokumentiert; sie vermied eine
-frühe Großumgestaltung der vorhandenen Oberfläche.
+These ten work packages were the recommended entry into M0–M3 and have been
+implemented. The order remains documented as a record; it avoided an early
+large-scale redesign of the existing UI.
 
-1. anonymisiertes Golden-Case-Format und Paritätsmatrix definieren;
-2. `Project`-Schema v2 samt Zod-Validierung und Migration entwerfen;
-3. Adapter `Project/Solution -> PalletData` implementieren;
-4. Projekt- und Packstückdialog als schmalen End-to-End-Slice bauen;
-5. Palettenvorlagen, Überhang und Hüllraumvalidierung ergänzen;
-6. reine Metrikfunktionen für Fläche, Volumen, Höhe und Gewicht implementieren;
-7. kanonische Kandidaten-ID und echte Geometrie-Deduplizierung testen;
-8. ersten Reihen-/Blockmuster-Generator implementieren;
-9. Solver-Worker mit Fortschritt, Abbruch und deterministischer Sortierung
-   anbinden;
-10. Kandidatentabelle mit Anzahlfilter, `x von y` und Pfeiltastennavigation vor
-    die vorhandene 3D-Vorschau setzen.
+1. define the anonymized Golden Case format and parity matrix;
+2. design `Project` schema v2 including Zod validation and migration;
+3. implement the `Project/Solution -> PalletData` adapter;
+4. build the project and package dialog as a thin end-to-end slice;
+5. add pallet templates, overhang and envelope validation;
+6. implement pure metric functions for area, volume, height and weight;
+7. test the canonical candidate ID and true geometric deduplication;
+8. implement the first row/block pattern generator;
+9. wire up the solver worker with progress, cancellation and deterministic
+   sorting;
+10. place the candidate table with count filter, `x von y` and arrow-key
+    navigation in front of the existing 3D preview.
 
-Das erste sichtbare Produktinkrement endete bei Paket 4: Ein Projekt wurde ohne
-`.rob` angelegt und als noch manuelles Ein-Lagenmuster im bestehenden Viewer
-angezeigt. Danach wurde der Solver schrittweise ergänzt, ohne lange ohne
-vorzeigbaren End-to-End-Stand zu arbeiten. Der nächste geplante Schritt ist M9.
+The first visible product increment ended at package 4: a project was created
+without a `.rob` and displayed as a still-manual single-layer pattern in the
+existing viewer. After that, the solver was added step by step without working
+for long without a demonstrable end-to-end state. The next planned step is M9.
 
-## Offene Forschungsfragen
+## Open research questions
 
-- genaue Bedeutung und Bewertung von „Blöcke“
-- vollständige Erzeugungs- und Rankingheuristik des Original-Solvers
-- Stabilitätsregeln über benachbarte Lagen
-- exakte Etikettenregeln und deren Einfluss auf Kandidatenidentität
-- Bedeutung und Vorzeichen der letzten beiden `.rob`-Zyklusfelder
-- Greifer-/Stations-Kollisionsmodell und reale Kinematik
-- notwendiger Umfang eines `.mpb`-Imports
+- exact meaning and scoring of "Blöcke"
+- complete generation and ranking heuristics of the original solver
+- stability rules across adjacent layers
+- exact label rules and their influence on candidate identity
+- meaning and sign of the last two `.rob` cycle fields
+- gripper/station collision model and real kinematics
+- required scope of a `.mpb` import
 
-Diese Fragen laufen als Research-Track neben der Produktentwicklung. Sie dürfen
-Meilensteine verfeinern, sollen aber nur die Teile blockieren, für die exakte
-Kompatibilität tatsächlich nötig ist.
+These questions run as a research track alongside product development. They
+may refine milestones, but should only block the parts for which exact
+compatibility is actually required.
 
-## Bewusste Nicht-Ziele
+## Deliberate non-goals
 
-- pixelgenaue Nachbildung bestehender Desktop-Oberflächen
-- Portalroboter oder fotorealistische Robotermodelle
-- proprietärer `.mpb`-Writer
-- automatische Bildähnlichkeitssuche
-- vollständige Kollisionskinematik
-- Cloud-Hosting, öffentlich über das Internet erreichbare mandantenfähige Konten
-  oder SaaS-Betrieb (ein lokales Backend im LAN ist dagegen als M9 geplant)
+- pixel-accurate replication of existing desktop UIs
+- gantry robots or photorealistic robot models
+- proprietary `.mpb` writer
+- automatic image similarity search
+- complete collision kinematics
+- cloud hosting, multi-tenant accounts reachable publicly over the internet, or
+  SaaS operation (a local backend on the LAN, by contrast, is planned as M9)
 
-Damit bleibt der Fokus auf dem Alleinstellungsmerkmal: viele sinnvolle Muster
-erzeugen, schnell visuell vergleichen und robotisch weiterbearbeiten.
+This keeps the focus on the unique selling point: generating many sensible
+patterns, comparing them visually and quickly, and continuing to edit them with
+robot awareness.

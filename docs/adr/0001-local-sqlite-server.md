@@ -1,7 +1,7 @@
-# SQLite auf einem einzelnen Server
+# SQLite on a single server
 
-> **Ersetzt** durch [ADR 0009](0009-postgres-container.md): PostgreSQL im Container (Docker/Podman) statt SQLite-Datei.
+> **Superseded** by [ADR 0009](0009-postgres-container.md): PostgreSQL in a container (Docker/Podman) instead of a SQLite file.
 
-Die erste servergestützte Version läuft auf einem einzelnen Host mit dauerhaftem lokalem Datenträger und einer SQLite-Datenbank im WAL-Modus; `PALETTE_DB_PATH` legt den Pfad der Datenbank fest. Das entspricht dem Betrieb im Werksnetz und vermeidet die zusätzlichen Betriebsanforderungen einer verteilten Datenbank. Mehrere verteilte Schreibinstanzen sind nicht vorgesehen.
+The first server-backed version runs on a single host with durable local storage and a SQLite database in WAL mode; `PALETTE_DB_PATH` sets the database path. This matches operation on the plant network and avoids the additional operational requirements of a distributed database. Multiple distributed writer instances are not planned.
 
-Stündliche konsistente SQLite-Backups auf einen separaten Datenträger mit sieben Tagen Aufbewahrung und einem Wiederherstellungstest sind als Ziel bestätigt; damit wird ein möglicher Datenverlust von bis zu einer Stunde akzeptiert. Auf ausdrücklichen Wunsch wird dieser Teil erst als letzter Umsetzungsschritt bearbeitet. Die Backup-Funktion ist derzeit nicht implementiert.
+Hourly consistent SQLite backups to a separate storage volume with seven days of retention and a restore test are confirmed as the target; this accepts a possible data loss of up to one hour. As explicitly requested, this part is handled only as the last implementation step. The backup function is currently not implemented.
