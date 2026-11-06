@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createAdminUser,
+  deleteAdminUser,
   EMPTY_CREATE_USER_FORM,
   loadAdminScreen,
   passwordFormProblem,
@@ -257,6 +258,70 @@ describe("resetAdminUserPassword", () => {
       ok: false,
       message: "admin.error.sessionLost",
       screen: { status: "unauthenticated" },
+    });
+  });
+});
+
+describe("deleteAdminUser", () => {
+  it("encodes the target and sends DELETE only for another account", async () => {
+    const { impl, calls } = fakeFetch({
+      "DELETE /api/admin/users/u%201": () =>
+        new Response(null, { status: 204 }),
+    });
+    expect(await deleteAdminUser(impl, { id: "a1" }, "a1")).toEqual({
+      ok: false,
+      message: "admin.error.selfDeletion",
+    });
+    expect(calls).toEqual([]);
+    expect(await deleteAdminUser(impl, { id: "u 1" }, "a1")).toEqual({
+      ok: true,
+    });
+    expect(calls).toEqual([
+      { url: "/api/admin/users/u%201", init: { method: "DELETE" } },
+    ]);
+  });
+
+  it.each([
+    [409, "self_deletion", "admin.error.selfDeletion", undefined],
+    [409, "last_admin", "admin.error.lastAdmin", undefined],
+    [404, "user_not_found", "admin.error.userNotFound", undefined],
+    [
+      401,
+      "unauthenticated",
+      "admin.error.sessionLost",
+      { status: "unauthenticated" },
+    ],
+    [
+      403,
+      "forbidden",
+      "admin.error.sessionLost",
+      { status: "forbidden", username: "" },
+    ],
+    [
+      404,
+      "server_storage_disabled",
+      "admin.error.generic",
+      { status: "unavailable" },
+    ],
+    [500, "unknown", "admin.error.generic", undefined],
+  ])("maps %s %s", async (status, error, message, screen) => {
+    const { impl } = fakeFetch({
+      "DELETE /api/admin/users/u1": () => json({ error }, status),
+    });
+    expect(await deleteAdminUser(impl, { id: "u1" }, "a1")).toEqual({
+      ok: false,
+      message,
+      ...(screen ? { screen } : {}),
+    });
+  });
+
+  it("reports network failure", async () => {
+    const offline = (async () => {
+      throw new TypeError("offline");
+    }) as typeof fetch;
+    expect(await deleteAdminUser(offline, { id: "u1" }, "a1")).toEqual({
+      ok: false,
+      message: "admin.error.generic",
     });
   });
 });

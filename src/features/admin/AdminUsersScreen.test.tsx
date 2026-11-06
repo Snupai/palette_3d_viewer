@@ -1,4 +1,10 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AdminUsersScreen } from "./AdminUsersScreen";
@@ -75,4 +81,49 @@ describe("AdminUsersScreen", () => {
     ).toBeTruthy();
     expect(await screen.findByText("lager")).toBeTruthy();
   });
+});
+
+it("requires confirmation, allows cancellation and removes the deleted row", async () => {
+  let users = [
+    { id: "a1", username: "chef", role: "admin", createdAt: "2026-01-01" },
+    { id: "u1", username: "planer", role: "user", createdAt: "2026-01-01" },
+  ];
+  let deletes = 0;
+  const fetchImpl = (async (url: string, init?: RequestInit) => {
+    if (url === "/api/auth/me") return json({ user: users[0] });
+    if (init?.method === "DELETE") {
+      deletes++;
+      users = users.filter((user) => user.id !== "u1");
+      return new Response(null, { status: 204 });
+    }
+    return json({ users });
+  }) as typeof fetch;
+  render(<AdminUsersScreen fetchImpl={fetchImpl} />);
+  const ownRow = (await screen.findByText("chef")).closest("tr")!;
+  expect(
+    within(ownRow).getByRole<HTMLButtonElement>("button", {
+      name: "Benutzer löschen",
+    }).disabled,
+  ).toBe(true);
+  fireEvent.click(
+    within(screen.getByText("planer").closest("tr")!).getByRole("button", {
+      name: "Benutzer löschen",
+    }),
+  );
+  expect(screen.getByText(/Benutzer planer endgültig löschen/)).toBeTruthy();
+  expect(deletes).toBe(0);
+  fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+  expect(
+    screen.queryByRole("button", { name: "Endgültig löschen" }),
+  ).toBeNull();
+  expect(deletes).toBe(0);
+  fireEvent.click(
+    within(screen.getByText("planer").closest("tr")!).getByRole("button", {
+      name: "Benutzer löschen",
+    }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+  await waitFor(() => expect(screen.queryByText("planer")).toBeNull());
+  expect(deletes).toBe(1);
+  expect(screen.getByText("Benutzer planer wurde gelöscht.")).toBeTruthy();
 });

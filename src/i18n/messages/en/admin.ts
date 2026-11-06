@@ -34,6 +34,14 @@ export const adminEn = {
   "admin.reset.heading": "New password for {username}",
   "admin.reset.submit": "Set password",
   "admin.reset.cancel": "Cancel",
+  "admin.delete.open": "Delete user",
+  "admin.delete.confirm":
+    "Permanently delete user {username}? All sessions will end. Saved plans will be retained.",
+  "admin.delete.submit": "Permanently delete",
+  "admin.delete.cancel": "Cancel",
+  "admin.delete.success": "User {username} was deleted.",
+  "admin.error.selfDeletion": "You cannot delete your own account.",
+  "admin.error.lastAdmin": "The last admin cannot be deleted.",
   "admin.saving": "Saving …",
   "admin.reset.success":
     "Password for {username} was set; existing sessions have ended.",

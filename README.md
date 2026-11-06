@@ -275,10 +275,13 @@ docker compose run --rm migrate node admin.mjs reset-password --username admin
 e.g. for provisioning scripts.
 
 After initialization, sign in and open `/admin` to create further users and
-reset their passwords; a reset revokes that user's sessions. There is no public
+reset their passwords or delete accounts after confirmation. Both reset and deletion
+revoke all of that user's sessions. Deletion retains saved plans and clears their
+creator association; admins can still manage those plans. Admins cannot delete
+their own account or the last admin. There is no public
 registration. The admin-only API exposes `GET /api/admin/users` (list),
-`POST /api/admin/users` (create), and `POST /api/admin/users/[id]/password`
-(reset). Authentication uses `POST /api/auth/login`, `POST /api/auth/logout`
+`POST /api/admin/users` (create), `POST /api/admin/users/[id]/password`
+(reset), and `DELETE /api/admin/users/[id]` (delete). Authentication uses `POST /api/auth/login`, `POST /api/auth/logout`
 and `GET /api/auth/me`.
 
 Sessions last 12 hours. The `palette_session` cookie is `HttpOnly`, `SameSite=Lax`

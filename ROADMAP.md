@@ -396,8 +396,6 @@ is implemented through PRs #73–#79.
 
 Remaining work:
 
-- add user deletion; the admin UI/API currently supports listing, creation and
-  password resets, but no account deletion;
 - add login rate limiting; `/api/auth/login` currently has no attempt throttle;
 - retain server-side deletion tombstones or equivalent version continuity;
   deleting a record currently removes its row, so recreating the same ID starts
