@@ -636,6 +636,34 @@ describe("resolveProjectImportConflict", () => {
     expect(importableKeys(retry)).toEqual([]);
   });
 
+  it("scopes browser sync copies to each publisher while retries find their own copy", async () => {
+    const { remote, conflict, local } = await conflictFor(BOB, ALICE);
+    const resolveFor = (user: SessionUser) =>
+      resolveProjectImportConflict(remote.target, conflict, "save-copy", {
+        user,
+        copyUserId: user.id,
+        now: 900,
+      });
+    expect((await resolveFor(ALICE)).kind).toBe("copied");
+    remote.state.actor = BOB;
+    expect((await resolveFor(BOB)).kind).toBe("copied");
+    expect(await resolveFor(ALICE)).toEqual({
+      kind: "copy-exists",
+      id: projectImportCopyId(local, ALICE.id),
+    });
+    expect(remote.creatorOf(projectImportCopyId(local, ALICE.id))).toBe(
+      ALICE.id,
+    );
+    expect(remote.creatorOf(projectImportCopyId(local, BOB.id))).toBe(BOB.id);
+    expect(await remote.ids()).toEqual(
+      [
+        "a",
+        projectImportCopyId(local, ALICE.id),
+        projectImportCopyId(local, BOB.id),
+      ].sort(),
+    );
+  });
+
   it("refuses to replace a plan the user may not change", async () => {
     const { remote, conflict } = await conflictFor(BOB, ALICE);
     expect(conflict.canReplace).toBe(false);

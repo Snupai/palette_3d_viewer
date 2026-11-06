@@ -53,6 +53,8 @@ export const localImportEn = {
     "The import was aborted. Entries already imported stay on the server; a retry skips them.",
   "localImport.error.load": "Reading local plans failed: {message}",
   "localImport.error.plan": "Comparing with the server failed: {message}",
+  "localImport.error.recordTooLarge":
+    "The plan is too large. The server allows at most 4 MiB per plan.",
   "localImport.error.unknown": "unknown error",
   "localImport.outcome.kept": "{name}: kept the server state.",
   "localImport.outcome.replaced":
