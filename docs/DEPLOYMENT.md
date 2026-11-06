@@ -68,7 +68,39 @@ podman compose run --rm migrate node admin.mjs init
 Both variants build the same images. `migrate` must finish successfully with exit
 code 0; `app` starts afterwards. `db`, `app`, and, after the first backup, also
 `backup` should be healthy. The admin command prompts for the password with hidden
-input. Then open the website at <http://localhost:3000> and sign in.
+input. The website is reachable at <http://localhost:3000> for anonymous use.
+Before signing in, configure HTTPS as described under
+[Access on the plant network](#access-on-the-plant-network).
+
+## Plans, sign-in and shared browsers
+
+In server mode, server plans and the Werkskatalog are anonymously readable.
+Writing server plans requires sign-in and permission; catalog writes require an
+admin. After creating the first admin, sign in over HTTPS and open `/admin` to
+create further users or reset their passwords.
+
+Anonymous users can prepare Browserpläne without signing in. These plans live
+only in that browser profile and origin, in the separate `pallets-db:browser`
+IndexedDB; they are not included in PostgreSQL backups. Clearing browser data
+can lose unpublished plans. Server outages or expired sessions never redirect
+server-plan saves into this local inventory.
+
+After sign-in, the synchronization popup asks for plan selection and explicit
+publication consent before uploading. Signing in or closing the popup alone
+publishes nothing. For conflicts, users can keep the server version, replace it
+with the local version when permitted, save a new copy, or postpone. Declined or
+postponed plans stay local for a later attempt. After confirmed synchronization,
+the accepted local payload is removed and a server/account-specific link remains;
+a newer local edit made during synchronization is retained.
+
+Publishing makes the plan anonymously readable, searchable and exportable on
+this server, including file/product names and the original `.rob` text verbatim.
+Unsynchronized Browserpläne belong to the browser inventory, not to an account:
+anyone using the same browser profile can see them, and the next person to sign
+in can publish them under their account. Signing out does not delete untouched
+Browserpläne. Use separate browser profiles for sensitive work on shared machines.
+Legacy local-mode data has a separate explicit import that retains its originals.
+See [ADR 0010](adr/0010-browser-local-plans.md) for the storage and consent rules.
 
 ## Rolling out changes and stopping
 
@@ -97,7 +129,7 @@ docker compose logs backup
 ```
 
 A restore replaces the entire database. First bring the stack to the same
-code version as the backup and stop the writing services:
+code version as the backup and stop both the app and the hourly backup loop:
 
 ```sh
 docker compose stop app backup
@@ -116,7 +148,10 @@ For other machines, put an HTTPS reverse proxy on the host in front of the websi
 with a certificate trusted by the clients and forwarding
 to `http://127.0.0.1:3000`. The database remains bound locally.
 Authenticated operation requires HTTPS according to [ADR 0008](adr/0008-https-authentication.md);
-the HTTP exception applies only to local development via `localhost`.
+sessions last 12 hours and the session cookie is always `Secure`, except in
+`NODE_ENV=development` on `localhost` or loopback. Production containers and
+`bun run start` / `bun run preview` require HTTPS even on localhost; the plain
+HTTP exception applies to local `bun run dev` only.
 
 ## Optional: local image import with llama.cpp
 

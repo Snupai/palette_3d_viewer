@@ -15,16 +15,20 @@ Import, inspect, and edit `.rob` pallet plans in the browser.
 - Gripper/station resources, reach/envelope/collision diagnostics, validated
   project-derived `.rob` export, deterministic simulation, and printable reports
 - Safe portable project/resource packages
-- Existing `.rob` import, local library, original/edited text, 2D editor, and
-  Three.js viewer retained as a separate compatible workflow
+- Import existing `.rob` files as planner projects; migrate the old local library
+  into projects while retaining original source text
+- Local accounts and sign-in, with user creation and password resets at `/admin`
+- PostgreSQL records with optimistic concurrency and explicit local-data import
+- Anonymous Browserpläne in server mode, with consent-based post-login
+  synchronization and whole-plan conflict resolution
 
 ## Roadmap
 
 The prioritized path from the current `.rob` viewer/editor to a complete
-pallet planner is documented in [ROADMAP.md](ROADMAP.md). It includes a planned,
-local-only backend (PostgreSQL via Docker/Podman Compose, user accounts on the
-plant LAN); browser-local
-IndexedDB storage stays the default.
+pallet planner is documented in [ROADMAP.md](ROADMAP.md). M9 delivers the LAN
+backend (PostgreSQL via Docker/Podman Compose and local user accounts); ADR 0010
+adds anonymous browser-local plans and explicit synchronization after sign-in.
+Browser-local IndexedDB storage stays the default build mode.
 Decisions for that backend are recorded as ADRs in [docs/adr/](docs/adr/);
 domain terms are defined in [GLOSSARY.md](GLOSSARY.md).
 The evolving reference-case scorecard is documented in
@@ -47,17 +51,21 @@ bun install
 bun run dev
 ```
 
-Open `http://localhost:3000`. Create a planner project from the default workspace,
-or switch to the legacy `.rob` workspace to import an existing plan.
+Open `http://localhost:3000`. Create a planner project or import an existing
+`.rob` file inside the planner.
 
 Available verification commands:
 
 ```sh
 bun run test:run
 bun run typecheck
+bun run check                 # lint + typecheck
 bun run lint
+bun run lint:fix              # apply lint fixes
+bun run format:write          # format source and docs
 bun run format:check
 bun run build
+bun run preview               # build and start the production server
 ```
 
 ## External `.rob` corpus parity
@@ -73,12 +81,15 @@ they do not retain the configured root or any absolute source path.
 ```sh
 ROB_CORPUS_DIR="<absolute-local-directory>" bun run corpus:rob
 ROB_CORPUS_DIR="<absolute-local-directory>" bun run test:corpus
+ROB_CORPUS_DIR="<absolute-local-directory>" bun run corpus:rob:sentinel
 ```
 
 `corpus:rob` writes a local report and exits nonzero when a `FAIL` check is
 recorded. `test:corpus` exercises the configured external corpus without
 writing a report. When `ROB_CORPUS_DIR` is unset, the external Vitest case is
-skipped cleanly, including during the normal test suite.
+skipped cleanly, including during the normal test suite. `corpus:rob:sentinel`
+prints an anonymized, hash-only manifest and solver summary; execution failures
+make it exit nonzero.
 
 The named solver scenarios are conservative: `nominal-strict-v1` uses encoded
 pallet dimensions, zero clearance, and no policy overhang;
@@ -99,12 +110,13 @@ inference slot busy.
 
 Model server settings (all optional; empty counts as unset):
 
-| Variable                   | Meaning                                                                                                                                                          |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SHEET_EXTRACTION_API`     | `ollama` (default, `/api/chat`) or `openai` (OpenAI-compatible `/v1/chat/completions`, e.g. llama.cpp `llama-server` started with `--mmproj`)                    |
-| `SHEET_EXTRACTION_URL`     | Base URL; default `http://127.0.0.1:11434` (`ollama`) or `:8080` (`openai`). The older `OLLAMA_URL` is used when this is unset.                                  |
-| `SHEET_EXTRACTION_MODEL`   | Model name; Ollama defaults to `qwen2.5vl:32b`, `openai` omits it so a single-model `llama-server -m …` uses its loaded model (router/multi-model mode needs it) |
-| `SHEET_EXTRACTION_API_KEY` | Sent as `Authorization: Bearer <key>` (`llama-server --api-key`); never logged                                                                                   |
+| Variable                          | Meaning                                                                                                                                                          |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SHEET_EXTRACTION_API`            | `ollama` (default, `/api/chat`) or `openai` (OpenAI-compatible `/v1/chat/completions`, e.g. llama.cpp `llama-server` started with `--mmproj`)                    |
+| `SHEET_EXTRACTION_URL`            | Base URL; default `http://127.0.0.1:11434` (`ollama`) or `:8080` (`openai`). The older `OLLAMA_URL` is used when this is unset.                                  |
+| `SHEET_EXTRACTION_MODEL`          | Model name; Ollama defaults to `qwen2.5vl:32b`, `openai` omits it so a single-model `llama-server -m …` uses its loaded model (router/multi-model mode needs it) |
+| `SHEET_EXTRACTION_MAX_CONCURRENT` | Maximum concurrent inferences per app process (positive integer, default `1`); excess requests receive 429                                                       |
+| `SHEET_EXTRACTION_API_KEY`        | Sent as `Authorization: Bearer <key>` (`llama-server --api-key`); never logged                                                                                   |
 
 The choice is explicit: there is no probing or fallback between servers.
 
@@ -128,21 +140,40 @@ folder and writes its report there without following links.
 
 ## Storage mode
 
-Plans are stored in exactly one place, chosen at build time (ADR 0002):
+The primary storage mode is chosen at build time (ADR 0002, amended by
+[ADR 0010](docs/adr/0010-browser-local-plans.md)):
 
-- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local` (default) keeps everything in the
-  browser's IndexedDB, as before.
-- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server backed by the
-  PostgreSQL container at `DATABASE_URL` (ADR 0009). The browser reads and
-  writes projects and the Werkskatalog through the records API
-  (`/api/records`, `ServerPlannerRecordStorage`); writes need a signed-in
-  session. A stale write is rejected as a version conflict (ADR 0006); a
-  missing session, a refused write or an unreachable server fails with a
-  typed `ServerStorageError`.
+- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=local` (default) keeps plans and resources
+  in the browser's IndexedDB (`pallets-db`).
+- `NEXT_PUBLIC_PALETTE_STORAGE_MODE=server` uses the LAN server backed by
+  PostgreSQL at `DATABASE_URL` (ADR 0009). Server plans and the Werkskatalog
+  are anonymously readable through `/api/records`; server writes require
+  sign-in and permission. A stale write is rejected as a version conflict
+  (ADR 0006). Missing sessions, refused writes and unreachable servers produce
+  typed `ServerStorageError` errors.
 
-An unreachable server or an expired session never switches to IndexedDB.
-`createPlannerRecordStorage()` in `src/lib/plannerStorageFactory.ts` is the only
-place that maps the mode to a storage.
+In server mode, anonymous users can also create, import, edit, duplicate and
+remove Browserpläne in the separate `pallets-db:browser` IndexedDB. These plans
+stay in this browser until explicitly published. After sign-in, a synchronization
+popup asks users to select plans and consent to publication. Conflicts offer
+keep server, replace with local (when permitted), save as a new copy, or postpone.
+Declining or postponing leaves the plans local. After confirmed synchronization,
+the accepted local payload is removed and a link scoped to the server and account
+is retained; a newer local edit made during synchronization stays pending.
+
+Published plans become anonymously readable, searchable and exportable, including
+file/product names and verbatim original `.rob` text. Unsynchronized Browserpläne
+belong to the browser inventory, not an account: on a shared browser, the next
+person to sign in can publish plans left by someone else. Deliberate sign-out
+does not delete those plans. Keep sensitive work off shared browser profiles.
+
+The separate explicit local import publishes legacy local-mode data only after
+selection and consent, and keeps the local originals (ADR 0007). It does not
+import Browserpläne. Neither workflow is an automatic offline replica. An
+unreachable server or expired session never reroutes server-plan saves into
+IndexedDB. `createPlannerRecordStorage()` selects the primary storage;
+`createBrowserLocalPlannerStorage()` explicitly constructs the anonymous browser
+inventory, both in `src/lib/plannerStorageFactory.ts`.
 
 ### Running the full stack in containers
 
@@ -202,13 +233,14 @@ in `scripts/pg-backup.sh` (POSIX sh, tested by
 **Restore** replaces the whole database with the dump, in one transaction (on
 any error nothing changes): every schema is dropped first, so tables from a
 migration newer than the dump disappear and `migrate` re-applies them on the
-next start. Stop the app first so no one keeps writing, then pass a file name
+next start. First use the same code version as the backup and stop both the app
+and the hourly backup loop, then pass a file name
 from `PALETTE_BACKUP_DIR` and `--yes`:
 
 ```sh
-docker compose stop app
+docker compose stop app backup
 bun run db:restore palette-20261105T140000Z.dump --yes
-docker compose up -d                  # migrate re-runs (no-op), app starts
+docker compose up -d                  # migrate runs, app and backup restart
 ```
 
 Without `--yes` the command only checks the file and prints the warning. On a
@@ -242,6 +274,19 @@ docker compose run --rm migrate node admin.mjs reset-password --username admin
 (`podman compose` works the same.) Piped stdin is read one password per line,
 e.g. for provisioning scripts.
 
+After initialization, sign in and open `/admin` to create further users and
+reset their passwords; a reset revokes that user's sessions. There is no public
+registration. The admin-only API exposes `GET /api/admin/users` (list),
+`POST /api/admin/users` (create), and `POST /api/admin/users/[id]/password`
+(reset). Authentication uses `POST /api/auth/login`, `POST /api/auth/logout`
+and `GET /api/auth/me`.
+
+Sessions last 12 hours. The `palette_session` cookie is `HttpOnly`, `SameSite=Lax`
+and always `Secure`, except in development on `localhost` or a loopback address.
+Production containers and `bun run start` / `bun run preview` therefore require
+HTTPS for sign-in, including on localhost; plain HTTP is for local `bun run dev`
+only. See [deployment access setup](docs/DEPLOYMENT.md#access-on-the-plant-network).
+
 ### Database only (development)
 
 `compose.yaml` starts PostgreSQL 17 (`docker.io/library/postgres:17`) with a
@@ -250,8 +295,10 @@ database:
 
 ```sh
 cp .env.example .env          # uncomment DATABASE_URL (matches the container)
+# Also set NEXT_PUBLIC_PALETTE_STORAGE_MODE=server in .env; DATABASE_URL alone is ignored.
 bun run db:up                 # docker compose up -d db
 bun run db:migrate            # apply drizzle/ migrations to DATABASE_URL
+bun run dev                   # server mode, with development HTTP on loopback
 bun run db:down               # stop; data stays in the volume
 ```
 
