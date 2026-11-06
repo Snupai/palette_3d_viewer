@@ -227,7 +227,7 @@ function sameCatalogContent(
 }
 
 /** FNV-1a over UTF-16 code units, two seeds → 16 hex digits. */
-function contentHash(text: string): string {
+export function contentHash(text: string): string {
   const fnv = (seed: number) => {
     let hash = seed;
     for (let index = 0; index < text.length; index += 1) {
@@ -247,12 +247,19 @@ const COPY_ID_PREFIX_LENGTH = 160;
  * yield the same copy id, so a repeated "import as copy" finds the existing
  * copy instead of creating a duplicate.
  */
-export function importCopyId(id: string, content: string): string {
-  return `${id.slice(0, COPY_ID_PREFIX_LENGTH)}~import-${contentHash(content)}`;
+export function importCopyId(
+  id: string,
+  content: string,
+  userId?: string,
+): string {
+  // Legacy imports keep their ids; browser sync scopes retries to their publisher.
+  const state =
+    userId === undefined ? content : stableJson([userId, id, content]);
+  return `${id.slice(0, COPY_ID_PREFIX_LENGTH)}~import-${contentHash(state)}`;
 }
 
-export function projectImportCopyId(project: Project): string {
-  return importCopyId(project.id, planContent(project));
+export function projectImportCopyId(project: Project, userId?: string): string {
+  return importCopyId(project.id, planContent(project), userId);
 }
 
 export function catalogImportCopyId(resource: ProjectResource): string {
@@ -700,10 +707,11 @@ export function projectImportCopy(
   local: Project,
   now: number,
   projectNumber?: string,
+  userId?: string,
 ): Project {
   return duplicateProjectModel(
     local,
-    { id: projectImportCopyId(local), projectNumber },
+    { id: projectImportCopyId(local, userId), projectNumber },
     { now: () => now },
   );
 }
@@ -747,6 +755,8 @@ export type ImportResolveOptions = {
   now: number;
   /** Project number of a copy; omitted keeps the local one. */
   copyProjectNumber?: string;
+  /** Browser sync scopes deterministic copies to the publishing user. */
+  copyUserId?: string;
 };
 
 async function refreshedProjectConflict(
@@ -786,6 +796,7 @@ export async function resolveProjectImportConflict(
       conflict.local,
       options.now,
       options.copyProjectNumber,
+      options.copyUserId,
     );
     try {
       await target.createProject(copy);
