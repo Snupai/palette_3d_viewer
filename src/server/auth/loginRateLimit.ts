@@ -81,7 +81,8 @@ export function loginClientAddress(
   if (!trustProxy) return "unknown";
   const value = request.headers.get("x-forwarded-for")?.trim() ?? "";
   // Require the trusted proxy to overwrite the header with one client IP.
-  if (!isIP(value)) return "unknown";
+  // Scoped IPv6 addresses are not valid URL hosts. Use the shared fallback.
+  if (!isIP(value) || value.includes("%")) return "unknown";
   // URL canonicalizes equivalent IPv6 spellings.
   return isIP(value) === 6 ? new URL(`http://[${value}]`).hostname : value;
 }

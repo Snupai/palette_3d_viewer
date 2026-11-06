@@ -92,6 +92,7 @@ describe("client address trust", () => {
       "unknown",
     );
     expect(loginClientAddress(request("forged"), true)).toBe("unknown");
+    expect(loginClientAddress(request("fe80::1%eth0"), true)).toBe("unknown");
     expect(loginClientAddress(new Request("https://palette.local"), true)).toBe(
       "unknown",
     );
