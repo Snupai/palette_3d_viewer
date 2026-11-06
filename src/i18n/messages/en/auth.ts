@@ -18,6 +18,9 @@ export const authEn = {
   "auth.readOnly.checking": "Checking the sign-in …",
   "auth.readOnly.sessionUnknown":
     "The sign-in status is unknown; editing is locked.",
+  "auth.saveInBrowser": "Save in this browser",
+  "auth.browserLocalHint":
+    "This plan stays in this browser and is not published.",
   "auth.saveAsCopy": "Save as copy",
   "auth.savingCopy": "Saving the copy; editing is locked until it is done.",
   "auth.copyHint":

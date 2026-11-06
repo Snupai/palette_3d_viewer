@@ -294,10 +294,10 @@ export function PlannerProjectWorkspace({
   const { session } = sessionControls;
   /** What the session may do with a stored project (or a new one). */
   const accessFor = (projectId: string | null | undefined): PlannerAccess =>
-    plannerAccess(
-      session,
-      projectId ? repository.projectCreatedBy(projectId) : undefined,
-    );
+    plannerAccess(session, {
+      origin: "server",
+      createdBy: projectId ? repository.projectCreatedBy(projectId) : undefined,
+    });
   /**
    * A copy save is in flight. Its success reopens the plan under the copy's
    * id, which resets every editing surface, so all of them are locked until
@@ -317,7 +317,10 @@ export function PlannerProjectWorkspace({
       repository.recordCreatedBy(store, id),
     [repository],
   );
-  const generalAccess = plannerAccess(session, undefined);
+  const generalAccess = plannerAccess(session, {
+    origin: "server",
+    createdBy: undefined,
+  });
   const readOnlyHint = generalAccess.readOnlyHint
     ? t(generalAccess.readOnlyHint)
     : null;
@@ -367,7 +370,7 @@ export function PlannerProjectWorkspace({
       cause instanceof ServerStorageError &&
       cause.kind === "unauthenticated"
     ) {
-      sessionControls.markSignedOut();
+      sessionControls.markSessionLost();
       return t("auth.error.sessionExpired");
     }
     return null;
@@ -2133,7 +2136,7 @@ export function PlannerProjectWorkspace({
               repository={repository}
               creatorOf={serverCreatorOf}
               onImported={() => void refreshProjects()}
-              onSessionLost={sessionControls.markSignedOut}
+              onSessionLost={sessionControls.markSessionLost}
             />
           ) : null}
           {saveFailure && backupStatus.hasPendingDrafts

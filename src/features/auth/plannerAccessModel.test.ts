@@ -19,6 +19,10 @@ const ADMIN: PlannerSession = {
   user: { id: "u-admin", username: "admin", role: "admin" },
 };
 
+function server(createdBy: string | null | undefined) {
+  return { origin: "server" as const, createdBy };
+}
+
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -27,35 +31,107 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 describe("plannerAccess", () => {
+  it.each([
+    [
+      { status: "local" },
+      ["overwrite", "overwrite", "overwrite", "overwrite", "overwrite"],
+      [true, true, true, true, true],
+    ],
+    [
+      { status: "loading" },
+      ["none", "none", "none", "none", "none"],
+      [false, false, false, false, false],
+    ],
+    [
+      { status: "error" },
+      ["none", "none", "none", "none", "none"],
+      [false, false, false, false, false],
+    ],
+    [
+      { status: "session-lost" },
+      ["none", "none", "none", "none", "none"],
+      [false, false, false, false, false],
+    ],
+    [
+      { status: "anonymous" },
+      ["browser-local", "none", "none", "none", "none"],
+      [true, false, false, false, false],
+    ],
+    [
+      ALICE,
+      ["browser-local", "overwrite", "overwrite", "copy", "copy"],
+      [true, true, true, false, false],
+    ],
+    [
+      ADMIN,
+      ["browser-local", "overwrite", "overwrite", "overwrite", "overwrite"],
+      [true, true, true, true, true],
+    ],
+  ] as const)(
+    "checks every origin for $0.status",
+    (session, saves, deletes) => {
+      const plans = [
+        { origin: "browser-local" } as const,
+        server(undefined),
+        server("u-alice"),
+        server("u-bob"),
+        server(null),
+      ];
+      const access = plans.map((plan) => plannerAccess(session, plan));
+      expect(access.map((item) => item.save)).toEqual(saves);
+      expect(access.map((item) => item.canDelete)).toEqual(deletes);
+      expect(access.map((item) => item.canCreate)).toEqual(
+        session.status === "local" || session.status === "signed-in"
+          ? [true, true, true, true, true]
+          : session.status === "anonymous"
+            ? [true, false, false, false, false]
+            : [false, false, false, false, false],
+      );
+    },
+  );
+
+  it("keeps lost sessions locked with a sign-in and draft-retention hint", () => {
+    expect(
+      plannerAccess({ status: "session-lost" }, server("u-alice")),
+    ).toEqual({
+      canCreate: false,
+      save: "none",
+      canDelete: false,
+      readOnlyHint: "auth.error.sessionExpired",
+    });
+  });
+
   it("leaves local mode fully editable, with or without a creator", () => {
     const local: PlannerSession = { status: "local" };
     expect(initialPlannerSession("local")).toEqual(local);
-    expect(plannerAccess(local, undefined)).toEqual({
+    expect(plannerAccess(local, server(undefined))).toEqual({
       canCreate: true,
       save: "overwrite",
       canDelete: true,
       readOnlyHint: null,
     });
-    expect(plannerAccess(local, "someone")).toEqual(
-      plannerAccess(local, undefined),
+    expect(plannerAccess(local, server("someone"))).toEqual(
+      plannerAccess(local, server(undefined)),
     );
   });
 
   it("makes anonymous visitors read-only with a sign-in hint", () => {
-    expect(plannerAccess({ status: "anonymous" }, "u-alice")).toEqual({
+    expect(plannerAccess({ status: "anonymous" }, server("u-alice"))).toEqual({
       canCreate: false,
       save: "none",
       canDelete: false,
       readOnlyHint: "auth.readOnly.signIn",
     });
-    expect(plannerAccess({ status: "anonymous" }, undefined).save).toBe("none");
+    expect(plannerAccess({ status: "anonymous" }, server(undefined)).save).toBe(
+      "none",
+    );
   });
 
   it("stays read-only while the session is loading or unknown", () => {
     expect(initialPlannerSession("server")).toEqual({ status: "loading" });
     expect(
       [{ status: "loading" } as const, { status: "error" } as const].map(
-        (session) => plannerAccess(session, "u-alice"),
+        (session) => plannerAccess(session, server("u-alice")),
       ),
     ).toEqual([
       {
@@ -74,7 +150,7 @@ describe("plannerAccess", () => {
   });
 
   it("lets the creator overwrite and delete their project", () => {
-    expect(plannerAccess(ALICE, "u-alice")).toEqual({
+    expect(plannerAccess(ALICE, server("u-alice"))).toEqual({
       canCreate: true,
       save: "overwrite",
       canDelete: true,
@@ -83,24 +159,24 @@ describe("plannerAccess", () => {
   });
 
   it("lets a signed-in user create a project not stored yet", () => {
-    expect(plannerAccess(ALICE, undefined).save).toBe("overwrite");
+    expect(plannerAccess(ALICE, server(undefined)).save).toBe("overwrite");
   });
 
   it("makes another user's project save as a copy, without delete", () => {
-    expect(plannerAccess(ALICE, "u-bob")).toEqual({
+    expect(plannerAccess(ALICE, server("u-bob"))).toEqual({
       canCreate: true,
       save: "copy",
       canDelete: false,
       readOnlyHint: null,
     });
     // A deleted creator leaves no owner: only admins may change the original.
-    expect(plannerAccess(ALICE, null).save).toBe("copy");
+    expect(plannerAccess(ALICE, server(null)).save).toBe("copy");
   });
 
   it("lets admins overwrite and delete every project", () => {
     expect(
       ["u-bob", null, undefined].map((createdBy) =>
-        plannerAccess(ADMIN, createdBy),
+        plannerAccess(ADMIN, server(createdBy)),
       ),
     ).toEqual(
       Array(3).fill({
@@ -114,17 +190,30 @@ describe("plannerAccess", () => {
 });
 
 describe("saveControl", () => {
+  it.each([{ status: "anonymous" } as const, ALICE, ADMIN])(
+    "labels browser-only saves without publishing for $status",
+    (session) => {
+      expect(
+        saveControl(plannerAccess(session, { origin: "browser-local" })),
+      ).toEqual({
+        label: "auth.saveInBrowser",
+        disabledReason: null,
+        hint: "auth.browserLocalHint",
+      });
+    },
+  );
+
   it("keeps, relabels or disables the save button per save mode", () => {
-    expect(saveControl(plannerAccess(ALICE, "u-alice"))).toEqual({
+    expect(saveControl(plannerAccess(ALICE, server("u-alice")))).toEqual({
       label: null,
       disabledReason: null,
     });
-    expect(saveControl(plannerAccess(ALICE, "u-bob"))).toEqual({
+    expect(saveControl(plannerAccess(ALICE, server("u-bob")))).toEqual({
       label: "auth.saveAsCopy",
       disabledReason: null,
     });
     expect(
-      saveControl(plannerAccess({ status: "anonymous" }, "u-bob")),
+      saveControl(plannerAccess({ status: "anonymous" }, server("u-bob"))),
     ).toEqual({ label: null, disabledReason: "auth.readOnly.signIn" });
   });
 });

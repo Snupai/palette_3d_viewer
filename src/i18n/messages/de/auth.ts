@@ -17,6 +17,9 @@ export const authDe = {
   "auth.readOnly.checking": "Die Anmeldung wird geprüft …",
   "auth.readOnly.sessionUnknown":
     "Der Anmeldestatus ist unbekannt; Bearbeiten ist gesperrt.",
+  "auth.saveInBrowser": "Im Browser speichern",
+  "auth.browserLocalHint":
+    "Dieser Plan bleibt in diesem Browser und wird nicht veröffentlicht.",
   "auth.saveAsCopy": "Als Kopie speichern",
   "auth.savingCopy":
     "Die Kopie wird gespeichert; Bearbeiten ist so lange gesperrt.",
