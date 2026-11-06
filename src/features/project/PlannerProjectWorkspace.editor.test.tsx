@@ -205,6 +205,105 @@ async function editLabelSideInEditor(
 }
 
 describe("PlannerProjectWorkspace editor integration", () => {
+  it("guards browser edits before sign-in and keeps subsequent editor saves local", async () => {
+    const { project, repository: browser } = await repositoryWithProject();
+    const server = new ProjectRepository(new MemoryPlannerRecordStorage());
+    const serverSave = vi.spyOn(server, "saveProjectVersioned");
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      input === "/api/auth/me"
+        ? new Response(null, { status: 401 })
+        : new Response(
+            JSON.stringify({
+              user: { id: "u-alice", username: "alice", role: "user" },
+            }),
+          ),
+    );
+    const dirty = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={server}
+        browserRepository={browser}
+        storageMode="server"
+        fetchImpl={fetchImpl}
+        onUnsavedChange={dirty}
+      />,
+    );
+    await editLabelSideInEditor(dirty);
+    fireEvent.change(screen.getByLabelText("Benutzername"), {
+      target: { value: "alice" },
+    });
+    fireEvent.change(screen.getByLabelText("Kennwort"), {
+      target: { value: "secret" },
+    });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await screen.findByText(
+      "Speichern oder verwerfen Sie zuerst die ungespeicherten Änderungen am Browserplan. Melden Sie sich danach erneut an.",
+    );
+    expect(fetchImpl.mock.calls.map(([url]) => url)).toEqual(["/api/auth/me"]);
+    const save = vi.spyOn(browser, "saveProjectVersioned");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Im Browser speichern" }),
+    );
+    await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(false));
+    expect(save.mock.calls[0]?.[1]).toEqual({ expectedVersion: 1 });
+    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+    await waitFor(() =>
+      expect(document.querySelector(".session-menu summary")?.textContent).toBe(
+        "alice",
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("Etikettseite"), {
+      target: { value: "right" },
+    });
+    await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(true));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Im Browser speichern" }),
+    );
+    await waitFor(() => expect(dirty).toHaveBeenLastCalledWith(false));
+    expect(save.mock.calls[1]?.[1]).toEqual({ expectedVersion: 2 });
+    expect(
+      (await browser.getProject(project.id)).project?.solutions[0]?.patterns[0]
+        ?.placements[0]?.labelSide,
+    ).toBe("right");
+    expect(serverSave).not.toHaveBeenCalled();
+    expect(window.location.pathname).toContain("browser-local");
+  });
+
+  it("keeps a browser editor draft when a second tab has saved and reports quota failures visibly", async () => {
+    const { project, repository: browser } = await repositoryWithProject();
+    const server = new ProjectRepository(new MemoryPlannerRecordStorage());
+    const dirty = vi.fn();
+    render(
+      <PlannerProjectWorkspace
+        repository={server}
+        browserRepository={browser}
+        storageMode="server"
+        fetchImpl={async () => new Response(null, { status: 401 })}
+        onUnsavedChange={dirty}
+      />,
+    );
+    await editLabelSideInEditor(dirty);
+    await browser.saveProject({ ...project, projectNumber: "OTHER TAB" });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Im Browser speichern" }),
+    );
+    await screen.findByText(
+      /Dieser Browserplan wurde in einem anderen Tab geändert/,
+    );
+    expect(dirty).toHaveBeenLastCalledWith(true);
+    expect((await browser.getProject(project.id)).project?.projectNumber).toBe(
+      "OTHER TAB",
+    );
+    vi.spyOn(browser, "saveProjectVersioned").mockRejectedValueOnce(
+      new DOMException("full", "QuotaExceededError"),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Im Browser speichern" }),
+    );
+    await screen.findByText(/Der Browserspeicher ist voll/);
+    expect(dirty).toHaveBeenLastCalledWith(true);
+  });
+
   it("guards a dirty editor, propagates its draft, and saves through the repository", async () => {
     const { project, repository } = await repositoryWithProject();
     const onUnsavedChange = vi.fn();
@@ -432,6 +531,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(
       await screen.findByText(
         "Die Sitzung ist abgelaufen. Bitte erneut anmelden; die Änderungen bleiben in diesem Fenster erhalten.",
+        { selector: '[role="alert"]' },
       ),
     ).toBeTruthy();
     // Signed out, but the editor and its draft are still there, the save is

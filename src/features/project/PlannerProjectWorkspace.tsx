@@ -61,10 +61,7 @@ import {
   projectWithPersistedStack,
   type StackWorkspaceState,
 } from "~/features/stack/stackWorkspaceModel";
-import {
-  exportRepositoryPackageJson,
-  exportProjectPackageJson,
-} from "~/lib/projectPackage";
+import { exportRepositoryPackageJson } from "~/lib/projectPackage";
 import {
   materializedStackToPalletData,
   projectSolutionToPalletData,
@@ -89,7 +86,10 @@ import {
 } from "~/features/auth/plannerAccessModel";
 import type { PlannerStoreName } from "~/lib/plannerDatabase";
 import type { RecordVersion } from "~/lib/plannerRecordStorage";
-import { createBrowserLocalPlannerStorage, createPlannerRecordStorage } from "~/lib/plannerStorageFactory";
+import {
+  createBrowserLocalPlannerStorage,
+  createPlannerRecordStorage,
+} from "~/lib/plannerStorageFactory";
 import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
   createProjectRepository,
@@ -296,14 +296,25 @@ export function PlannerProjectWorkspace({
   const repositoryRef = useRef<ProjectRepository | null>(null);
   repositoryRef.current ??=
     providedRepository ??
-    createProjectRepository(createPlannerRecordStorage({ mode: storageMode, fetch: fetchImpl }));
+    createProjectRepository(
+      createPlannerRecordStorage({ mode: storageMode, fetch: fetchImpl }),
+    );
   const repository = repositoryRef.current;
-  const browserStorageRef = useRef<ReturnType<typeof createBrowserLocalPlannerStorage> | null>(null);
+  const browserStorageRef = useRef<ReturnType<
+    typeof createBrowserLocalPlannerStorage
+  > | null>(null);
   const routingRef = useRef<WorkspaceRepositoryModel | null>(null);
   if (!routingRef.current) {
-    if (storageMode === "server") browserStorageRef.current = createBrowserLocalPlannerStorage();
-    routingRef.current = new WorkspaceRepositoryModel(storageMode, repository,
-      storageMode === "server" ? providedBrowserRepository ?? createProjectRepository(browserStorageRef.current!) : null);
+    if (storageMode === "server")
+      browserStorageRef.current = createBrowserLocalPlannerStorage();
+    routingRef.current = new WorkspaceRepositoryModel(
+      storageMode,
+      repository,
+      storageMode === "server"
+        ? (providedBrowserRepository ??
+          createProjectRepository(browserStorageRef.current!))
+        : null,
+    );
   }
   const routing = routingRef.current;
   const sessionControls = usePlannerSession(storageMode, fetchImpl);
@@ -311,10 +322,20 @@ export function PlannerProjectWorkspace({
   /** What the session may do with a stored project (or a new one). */
   const newPlanOrigin = newWorkspacePlanOrigin(storageMode, session);
   const accessFor = (key: string | null | undefined): PlannerAccess => {
-    const reference = key ? routing.reference(key) : { origin: newPlanOrigin, id: "" };
-    return plannerAccess(session, reference.origin === "browser-local"
-      ? { origin: "browser-local" }
-      : { origin: "server", createdBy: key ? repository.projectCreatedBy(reference.id) : undefined });
+    const reference = key
+      ? routing.reference(key)
+      : { origin: newPlanOrigin, id: "" };
+    return plannerAccess(
+      session,
+      reference.origin === "browser-local"
+        ? { origin: "browser-local" }
+        : {
+            origin: "server",
+            createdBy: key
+              ? repository.projectCreatedBy(reference.id)
+              : undefined,
+          },
+    );
   };
   /**
    * A copy save is in flight. Its success reopens the plan under the copy's
@@ -337,7 +358,9 @@ export function PlannerProjectWorkspace({
     [repository],
   );
   const generalAccess = accessFor(null);
-  const generalReadOnlyHint = generalAccess.readOnlyHint ? t(generalAccess.readOnlyHint) : null;
+  const generalReadOnlyHint = generalAccess.readOnlyHint
+    ? t(generalAccess.readOnlyHint)
+    : null;
   /**
    * Local draft backups (ADR 0002, #35), keyed by server, user and project.
    * The user is the last signed-in one, so a draft lost to an expired session
@@ -469,7 +492,13 @@ export function PlannerProjectWorkspace({
     project: Project,
     source: DraftLease["source"],
   ): DraftLease | null => {
-    if (selectedProjectIdRef.current && routing.reference(selectedProjectIdRef.current).origin === "browser-local") return null;
+    if (
+      selectedProjectIdRef.current &&
+      routing.reference(selectedProjectIdRef.current).origin ===
+        "browser-local" &&
+      routing.reference(selectedProjectIdRef.current).id === project.id
+    )
+      return null;
     const current = draftLeaseRef.current;
     if (current?.projectId === project.id) return current;
     const owner = backupUserRef.current;
@@ -558,21 +587,21 @@ export function PlannerProjectWorkspace({
       setDialogMode("create");
     } else if (route.kind === "plan") {
       setShowWelcome(false);
-      selectedProjectIdRef.current = route.id;
-      setSelectedId(route.id);
+      selectedProjectIdRef.current = routing.key(routing.reference(route.id));
+      setSelectedId(routing.key(routing.reference(route.id)));
       if (route.stage) {
         routeStageRef.current = route.stage;
         setActiveStage(route.stage);
       }
       if (route.view === "edit") {
         setInputSection("meta");
-        pendingEditIdRef.current = route.id;
+        pendingEditIdRef.current = routing.key(routing.reference(route.id));
       } else if (route.view) {
         routeToolRef.current = route.view;
       }
     }
     setRouteReady(true);
-  }, []);
+  }, [routing]);
 
   // The open editor draft is backed up as it changes (server mode only).
   // Once the editor is clean again (saved, undone) the lease it started ends;
@@ -634,10 +663,23 @@ export function PlannerProjectWorkspace({
       });
       if (request !== listRequest.current) return;
       setProjects(result.projects);
-      if (result.errors.length > 0) setError(tRef.current("project.error.libraryFailed", { message: result.errors.map((cause) => cause instanceof Error ? cause.message : String(cause)).join("; ") }));
+      if (result.errors.length > 0)
+        setError(
+          tRef.current("project.error.libraryFailed", {
+            message: result.errors
+              .map((cause) =>
+                cause instanceof Error ? cause.message : String(cause),
+              )
+              .join("; "),
+          }),
+        );
       const diagnostic = diagnosticText(result.diagnostics);
       if (diagnostic) setError(diagnostic);
-      setSelectedId((current) => current ?? (result.projects[0] ? routing.keyFor(result.projects[0]) : null));
+      setSelectedId(
+        (current) =>
+          current ??
+          (result.projects[0] ? routing.keyFor(result.projects[0]) : null),
+      );
     } catch (cause) {
       if (request !== listRequest.current) return;
       console.error("Failed to load project library", cause);
@@ -738,7 +780,9 @@ export function PlannerProjectWorkspace({
       .then((result) => {
         if (request !== projectRequest.current) return;
         loadedVersionRef.current =
-          routing.reference(selectedId).origin === "server" && result.project && typeof result.version === "number"
+          routing.reference(selectedId).origin === "server" &&
+          result.project &&
+          typeof result.version === "number"
             ? { projectId: result.project.id, version: result.version }
             : null;
         if (!result.project) {
@@ -795,9 +839,15 @@ export function PlannerProjectWorkspace({
     origin: WorkspacePlanOrigin,
   ): Promise<VersionedProject> => {
     const options =
-      origin === "browser-local" ? undefined : lease && storageMode === "server"
-        ? { expectedVersion: lease.baseVersion }
-        : projectSaveOptions(storageMode, loadedVersionRef.current, project.id);
+      origin === "browser-local"
+        ? undefined
+        : lease && storageMode === "server"
+          ? { expectedVersion: lease.baseVersion }
+          : projectSaveOptions(
+              storageMode,
+              loadedVersionRef.current,
+              project.id,
+            );
     const generation = navigationGeneration.current;
     // Like the success paths: a reply for a plan the user has left (switched,
     // closed, discarded) must not open a conflict view over the new context.
@@ -805,11 +855,15 @@ export function PlannerProjectWorkspace({
     // still-held lease counts as open too.
     const stillOpen = () =>
       generation === navigationGeneration.current &&
-      (selectedProjectIdRef.current === routing.key({ id: project.id, origin }) ||
+      (selectedProjectIdRef.current ===
+        routing.key({ id: project.id, origin }) ||
         (lease !== null && draftLeaseRef.current?.token === lease.token));
     try {
       const saved = await routing.save(project, origin, options);
-      if (origin === "server" && selectedProjectIdRef.current === routing.keyFor(saved.project)) {
+      if (
+        origin === "server" &&
+        selectedProjectIdRef.current === routing.keyFor(saved.project)
+      ) {
         loadedVersionRef.current = {
           projectId: saved.project.id,
           version: saved.version,
@@ -817,8 +871,13 @@ export function PlannerProjectWorkspace({
       }
       return saved;
     } catch (cause) {
-      if (isBrowserQuotaError(cause)) throw new Error(t("project.error.browserQuota"), { cause });
-      if (origin === "browser-local" && isProjectVersionConflict(cause, project.id)) throw new Error(t("project.error.browserConflict"), { cause });
+      if (isBrowserQuotaError(cause))
+        throw new Error(t("project.error.browserQuota"), { cause });
+      if (
+        origin === "browser-local" &&
+        isProjectVersionConflict(cause, project.id)
+      )
+        throw new Error(t("project.error.browserConflict"), { cause });
       if (!options || !isProjectVersionConflict(cause, project.id)) throw cause;
       if (!stillOpen()) throw cause;
       const server = await readConflictServerState(repository, project.id);
@@ -911,7 +970,11 @@ export function PlannerProjectWorkspace({
           setCopySaving(false);
         }
       }
-      const { project: saved, version } = await persistProject(project, lease, origin);
+      const { project: saved, version } = await persistProject(
+        project,
+        lease,
+        origin,
+      );
       settle(version, true);
       return { saved, version, copied: false };
     } catch (cause) {
@@ -942,19 +1005,26 @@ export function PlannerProjectWorkspace({
     }
   };
 
-  const draftOrigin = (project: Project): WorkspacePlanOrigin => selectedId && selectedProject?.id === project.id
-    ? routing.reference(selectedId).origin : newPlanOrigin;
-  const saveProject = async (project: Project, origin = draftOrigin(project)): Promise<Project> => {
+  const draftOrigin = (project: Project): WorkspacePlanOrigin =>
+    selectedId && selectedProject?.id === project.id
+      ? routing.reference(selectedId).origin
+      : newPlanOrigin;
+  const saveProject = async (
+    project: Project,
+    origin = draftOrigin(project),
+  ): Promise<Project> => {
     setShowWelcome(false);
     setProjectDrawerOpen(false);
     setError(null);
     setStatusMessage(null);
-    const switchedProject = selectedId !== routing.key({ id: project.id, origin });
+    const switchedProject =
+      selectedId !== routing.key({ id: project.id, origin });
     const generation = navigationGeneration.current;
     const { saved, version, copied } = await saveForSession(project, origin);
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = routing.keyFor(saved);
-    loadedVersionRef.current = origin === "server" ? { projectId: saved.id, version } : null;
+    loadedVersionRef.current =
+      origin === "server" ? { projectId: saved.id, version } : null;
     setSelectedId(routing.keyFor(saved));
     setSelectedProject(saved);
     setEditorDraftProject(null);
@@ -1105,12 +1175,15 @@ export function PlannerProjectWorkspace({
   };
 
   useEffect(() => {
-    if (pendingEditIdRef.current !== (selectedProject ? routing.keyFor(selectedProject) : null)) {
+    if (
+      !selectedProject ||
+      pendingEditIdRef.current !== routing.keyFor(selectedProject)
+    ) {
       return;
     }
     pendingEditIdRef.current = null;
     setDialogMode("edit");
-  }, [selectedProject]);
+  }, [routing, selectedProject]);
 
   const openProductionTool = (tool: ProductionTool) => {
     if (tool === activeTool) return;
@@ -1146,10 +1219,15 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const origin = session.status === "anonymous" ? "browser-local" : routing.reference(id).origin;
+      const origin =
+        session.status === "anonymous"
+          ? "browser-local"
+          : routing.reference(id).origin;
       if (!generalAccess.canCreate) return;
       const { project: copied } = await routing.copy(source, origin, {
-        projectNumber: source.projectNumber ? t("project.copySuffix", { number: source.projectNumber }) : t("project.copy"),
+        projectNumber: source.projectNumber
+          ? t("project.copySuffix", { number: source.projectNumber })
+          : t("project.copy"),
       });
       const result = { project: copied };
       discardUnsavedPlannerChanges();
@@ -1166,7 +1244,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to duplicate project", cause);
-      if (isBrowserQuotaError(cause)) { setError(t("project.error.browserQuota")); return; }
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1200,9 +1281,15 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
-      const origin = session.status === "anonymous" ? "browser-local" : routing.reference(id).origin;
+      const origin =
+        session.status === "anonymous"
+          ? "browser-local"
+          : routing.reference(id).origin;
       if (!generalAccess.canCreate) return;
-      const { project: saved } = await routing.copy(source, origin, { projectNumber, productNumber });
+      const { project: saved } = await routing.copy(source, origin, {
+        projectNumber,
+        productNumber,
+      });
       discardUnsavedPlannerChanges();
       setGeneratorLaunchRequest(null);
       selectedProjectIdRef.current = routing.keyFor(saved);
@@ -1215,7 +1302,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to save project as", cause);
-      if (isBrowserQuotaError(cause)) { setError(t("project.error.browserQuota")); return; }
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1270,7 +1360,10 @@ export function PlannerProjectWorkspace({
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to delete project", cause);
-      if (isBrowserQuotaError(cause)) { setError(t("project.error.browserQuota")); return; }
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1309,15 +1402,36 @@ export function PlannerProjectWorkspace({
     setError(null);
     setStatusMessage(null);
     try {
+      if (selection === "all" && routing.browser) {
+        const [server, browser] = await Promise.all([
+          exportRepositoryPackageJson(repository),
+          exportRepositoryPackageJson(routing.browser, { resourceIds: [] }),
+        ]);
+        const diagnostics = [
+          ...server.diagnostics,
+          ...browser.diagnostics,
+        ].filter(({ severity }) => severity === "error");
+        if (diagnostics.length) {
+          setError(diagnostics.map(({ message }) => message).join("\n"));
+          return;
+        }
+        downloadJson("planner-projects.json", server.json);
+        downloadJson("browser-plans.json", browser.json);
+        setStatusMessage(t("project.status.exportedAll"));
+        return;
+      }
       const reference = projectId ? routing.reference(projectId) : null;
-      const result = selection === "selected" && reference
-        ? await exportRepositoryPackageJson(routing.repository(reference.origin), { projectIds: [reference.id], ...(reference.origin === "browser-local" ? { resourceIds: [] } : {}) })
-        : await (async () => {
-            const listed = await routing.list();
-            if (listed.errors.length) throw listed.errors[0];
-            const resources = await repository.listResources();
-            return { json: exportProjectPackageJson({ projects: listed.projects, resources: resources.resources }), diagnostics: [...listed.diagnostics, ...resources.diagnostics] };
-          })();
+      const result = await exportRepositoryPackageJson(
+        reference ? routing.repository(reference.origin) : repository,
+        selection === "selected" && reference
+          ? {
+              projectIds: [reference.id],
+              ...(reference.origin === "browser-local"
+                ? { resourceIds: [] }
+                : {}),
+            }
+          : {},
+      );
       const errors = result.diagnostics.filter(
         ({ severity }) => severity === "error",
       );
@@ -1389,14 +1503,19 @@ export function PlannerProjectWorkspace({
       // would not re-run; force it so stale inputs cannot be saved back.
       if (
         selectedProjectIdRef.current &&
-        result.projects.some((project) => routing.keyFor(project) === selectedProjectIdRef.current)
+        result.projects.some(
+          (project) => routing.keyFor(project) === selectedProjectIdRef.current,
+        )
       ) {
         setProjectReloadToken((token) => token + 1);
       }
       await refreshProjects();
     } catch (cause) {
       console.error("Failed to import project package", cause);
-      if (isBrowserQuotaError(cause)) { setError(t("project.error.browserQuota")); return; }
+      if (isBrowserQuotaError(cause)) {
+        setError(t("project.error.browserQuota"));
+        return;
+      }
       const lost = sessionLossMessage(cause);
       if (lost) {
         setError(lost);
@@ -1411,7 +1530,11 @@ export function PlannerProjectWorkspace({
   };
 
   const importRobAsProject = async (file: File) => {
-    if (!generalAccess.canCreate || !confirmDiscardUnsaved(t("project.action.openRob"))) return;
+    if (
+      !generalAccess.canCreate ||
+      !confirmDiscardUnsaved(t("project.action.openRob"))
+    )
+      return;
     const origin = newPlanOrigin;
     discardUnsavedPlannerChanges();
     setError(null);
@@ -1499,7 +1622,11 @@ export function PlannerProjectWorkspace({
       input: LayerSolverInput,
       appended = false,
     ) => {
-      if (!selectedProjectIdRef.current || routing.reference(selectedProjectIdRef.current).id !== projectId) return;
+      if (
+        !selectedProjectIdRef.current ||
+        routing.reference(selectedProjectIdRef.current).id !== projectId
+      )
+        return;
       setSolverResult(result);
       setSolverInput(input);
       // Background patterns only extend the list; keep the user's selection.
@@ -1507,7 +1634,7 @@ export function PlannerProjectWorkspace({
       setSelectedCandidateId(result.candidates[0]?.id ?? null);
       setCurrentLayerIndex(0);
     },
-    [],
+    [routing],
   );
   const resetSolver = useCallback(() => {
     setSolverResult(null);
@@ -1544,7 +1671,9 @@ export function PlannerProjectWorkspace({
   const workspaceSaveButton: SaveButtonState = copySaving
     ? { label: null, disabledReason: t("auth.savingCopy") }
     : saveButtonFor(accessFor(selectedId));
-  const readOnlyHint = accessFor(selectedId).readOnlyHint ? t(accessFor(selectedId).readOnlyHint!) : null;
+  const readOnlyHint = accessFor(selectedId).readOnlyHint
+    ? t(accessFor(selectedId).readOnlyHint!)
+    : null;
   const physicalPalletBoundsMm = useMemo(
     () =>
       workspaceProject?.pallet
@@ -1843,12 +1972,18 @@ export function PlannerProjectWorkspace({
       solverInput,
       state,
     );
-    const { saved, version, copied } = await saveForSession(updated, draftOrigin(updated));
+    const { saved, version, copied } = await saveForSession(
+      updated,
+      draftOrigin(updated),
+    );
     if (generation !== navigationGeneration.current)
       return "cancelled" as const;
     if (copied) {
       selectedProjectIdRef.current = routing.keyFor(saved);
-      loadedVersionRef.current = routing.reference(routing.keyFor(saved)).origin === "server" ? { projectId: saved.id, version } : null;
+      loadedVersionRef.current =
+        routing.reference(routing.keyFor(saved)).origin === "server"
+          ? { projectId: saved.id, version }
+          : null;
       setSelectedId(routing.keyFor(saved));
     }
     setSelectedProject(saved);
@@ -1993,7 +2128,10 @@ export function PlannerProjectWorkspace({
       source: "save",
     };
     draftLeaseRef.current = lease;
-    selectedProjectIdRef.current = routing.key({ id: backup.projectId, origin: "server" });
+    selectedProjectIdRef.current = routing.key({
+      id: backup.projectId,
+      origin: "server",
+    });
     setSelectedId(routing.key({ id: backup.projectId, origin: "server" }));
     setRestoringDraft(true);
     try {
@@ -2196,10 +2334,20 @@ export function PlannerProjectWorkspace({
               })()
             : null}
           <SessionMenu
-            controls={{ ...sessionControls, signIn: async (username, password) => {
-              if (hasUnsavedChanges && ((dialogMode === "create" && newPlanOrigin === "browser-local") || (selectedId && routing.reference(selectedId).origin === "browser-local"))) return "project.error.saveBrowserBeforeSignIn";
-              return sessionControls.signIn(username, password);
-            } }}
+            controls={{
+              ...sessionControls,
+              signIn: async (username, password) => {
+                if (
+                  hasUnsavedChanges &&
+                  ((dialogMode === "create" &&
+                    newPlanOrigin === "browser-local") ||
+                    (selectedId &&
+                      routing.reference(selectedId).origin === "browser-local"))
+                )
+                  return "project.error.saveBrowserBeforeSignIn";
+                return sessionControls.signIn(username, password);
+              },
+            }}
             hasUnsavedDrafts={pendingDraftsAtSignOut}
             beforeLeave={() =>
               confirmDiscardUnsaved(t("auth.action.openUserManagement"))
@@ -2286,7 +2434,7 @@ export function PlannerProjectWorkspace({
             }
             onDownloadRob={
               selectedProject
-                ? () => downloadRob(selectedProject.id)
+                ? () => downloadRob(routing.keyFor(selectedProject))
                 : undefined
             }
             loadingProject={loadingProject}
@@ -2303,7 +2451,7 @@ export function PlannerProjectWorkspace({
             onOpenProjects={browsePlans}
             onCreateProject={createNew}
             onEditProject={() => openInputs()}
-            editDisabledReason={generalReadOnlyHint}
+            editDisabledReason={readOnlyHint}
             onOpenTool={openProductionTool}
             onImportRob={(file) => void importRobAsProject(file)}
             solverResult={solverResult}
