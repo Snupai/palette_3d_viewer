@@ -34,6 +34,14 @@ export const adminDe = {
   "admin.reset.heading": "Neues Kennwort für {username}",
   "admin.reset.submit": "Kennwort setzen",
   "admin.reset.cancel": "Abbrechen",
+  "admin.delete.open": "Benutzer löschen",
+  "admin.delete.confirm":
+    "Benutzer {username} endgültig löschen? Alle Sitzungen werden beendet. Gespeicherte Pläne bleiben erhalten.",
+  "admin.delete.submit": "Endgültig löschen",
+  "admin.delete.cancel": "Abbrechen",
+  "admin.delete.success": "Benutzer {username} wurde gelöscht.",
+  "admin.error.selfDeletion": "Sie können Ihr eigenes Konto nicht löschen.",
+  "admin.error.lastAdmin": "Der letzte Admin kann nicht gelöscht werden.",
   "admin.saving": "Wird gespeichert …",
   "admin.reset.success":
     "Kennwort für {username} wurde gesetzt; bestehende Sitzungen sind beendet.",

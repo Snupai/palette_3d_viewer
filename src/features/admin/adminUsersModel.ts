@@ -110,6 +110,8 @@ const ERROR_MESSAGES: Record<string, MessageKey> = {
   username_taken: "admin.error.usernameTaken",
   invalid_username: "admin.error.invalidUsername",
   user_not_found: "admin.error.userNotFound",
+  self_deletion: "admin.error.selfDeletion",
+  last_admin: "admin.error.lastAdmin",
 };
 
 const WEAK_PASSWORD_MESSAGES: Record<string, MessageKey> = {
@@ -227,6 +229,26 @@ export async function resetAdminUserPassword(
           screen: { status: "unauthenticated" },
         }
       : { ok: true };
+  } catch {
+    return { ok: false, message: "admin.error.generic" };
+  }
+}
+
+/** Called only after the screen has confirmed deletion. */
+export async function deleteAdminUser(
+  fetchImpl: Fetch,
+  user: Pick<AdminUser, "id">,
+  currentUserId: string,
+): Promise<AdminActionResult> {
+  if (user.id === currentUserId) {
+    return { ok: false, message: "admin.error.selfDeletion" };
+  }
+  try {
+    const response = await fetchImpl(
+      `/api/admin/users/${encodeURIComponent(user.id)}`,
+      { method: "DELETE" },
+    );
+    return response.status === 204 ? { ok: true } : await failureFor(response);
   } catch {
     return { ok: false, message: "admin.error.generic" };
   }

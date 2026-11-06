@@ -13,3 +13,18 @@ Implementation note: with the container stack, run
 connects to the database on the Compose network. After sign-in, admins can create
 further users and reset passwords at `/admin`; see the
 [README](../../README.md#admin-account).
+
+## Addendum: account deletion (#86)
+
+Admins can permanently delete other local accounts through
+`DELETE /api/admin/users/[id]` and a confirmation at `/admin`. Deleting one's
+own account or the last admin is rejected (409 `self_deletion` /
+`last_admin`); unknown accounts return 404 `user_not_found`. Deletions lock
+admin rows in ID order and recheck the acting admin inside the transaction, so
+concurrent requests cannot remove all admins or act as an already deleted admin.
+
+The local account model is unchanged: there is no disabled-account state.
+Existing foreign keys revoke all sessions (`ON DELETE CASCADE`) and retain
+planner records with `created_by = NULL` (`ON DELETE SET NULL`); content,
+versions and public read access remain intact. Admins retain write access to
+these records; ordinary users do not inherit ownership. No migration is needed.

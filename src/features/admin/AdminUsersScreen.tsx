@@ -9,6 +9,7 @@ import { LanguageSwitcher } from "~/i18n/LanguageSwitcher";
 
 import {
   createAdminUser,
+  deleteAdminUser,
   EMPTY_CREATE_USER_FORM,
   loadAdminScreen,
   resetAdminUserPassword,
@@ -206,6 +207,8 @@ function UserTable({
   clearNotice: () => void;
 }) {
   const { t } = useLocale();
+  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
   const [resetting, setResetting] = useState<string | null>(null);
   return (
     <section className="admin-section" aria-labelledby="admin-users-heading">
@@ -234,7 +237,50 @@ function UserTable({
                 <td>{t(roleKey(user.role))}</td>
                 <td>{new Date(user.createdAt).toLocaleDateString(locale)}</td>
                 <td>
-                  {resetting === user.id ? (
+                  {deleting === user.id ? (
+                    <div className="admin-form" aria-busy={deleteBusy}>
+                      <p>
+                        {t("admin.delete.confirm", { username: user.username })}
+                      </p>
+                      <div className="button-row">
+                        <button
+                          className="ui-btn ui-btn-sm"
+                          type="button"
+                          disabled={deleteBusy}
+                          onClick={() => setDeleting(null)}
+                        >
+                          {t("admin.delete.cancel")}
+                        </button>
+                        <button
+                          className="ui-btn ui-btn-sm ui-btn-danger"
+                          type="button"
+                          disabled={deleteBusy}
+                          onClick={async () => {
+                            setDeleteBusy(true);
+                            try {
+                              const ok = await onResult(
+                                await deleteAdminUser(
+                                  fetchImpl,
+                                  user,
+                                  currentUserId,
+                                ),
+                                t("admin.delete.success", {
+                                  username: user.username,
+                                }),
+                              );
+                              if (ok) setDeleting(null);
+                            } finally {
+                              setDeleteBusy(false);
+                            }
+                          }}
+                        >
+                          {deleteBusy
+                            ? t("admin.saving")
+                            : t("admin.delete.submit")}
+                        </button>
+                      </div>
+                    </div>
+                  ) : resetting === user.id ? (
                     <ResetPasswordForm
                       user={user}
                       onCancel={() => setResetting(null)}
@@ -255,16 +301,37 @@ function UserTable({
                       }}
                     />
                   ) : (
-                    <button
-                      className="ui-btn ui-btn-sm"
-                      type="button"
-                      onClick={() => {
-                        clearNotice();
-                        setResetting(user.id);
-                      }}
-                    >
-                      {t("admin.reset.open")}
-                    </button>
+                    <div className="button-row">
+                      <button
+                        className="ui-btn ui-btn-sm"
+                        type="button"
+                        disabled={deleteBusy}
+                        onClick={() => {
+                          clearNotice();
+                          setDeleting(null);
+                          setResetting(user.id);
+                        }}
+                      >
+                        {t("admin.reset.open")}
+                      </button>
+                      <button
+                        className="ui-btn ui-btn-sm"
+                        type="button"
+                        disabled={deleteBusy || user.id === currentUserId}
+                        title={
+                          user.id === currentUserId
+                            ? t("admin.error.selfDeletion")
+                            : undefined
+                        }
+                        onClick={() => {
+                          clearNotice();
+                          setResetting(null);
+                          setDeleting(user.id);
+                        }}
+                      >
+                        {t("admin.delete.open")}
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>

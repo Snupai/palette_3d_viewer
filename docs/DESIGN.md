@@ -51,7 +51,8 @@ The server-only session menu offers **Anmelden** with **Benutzername** and
 **Kennwort**. Once signed in, it shows the username, role and **Abmelden**;
 unsaved drafts require confirmation before sign-out. Admins also see
 **Benutzerverwaltung**, leading to `/admin`. That screen lists users and supports
-**Benutzer anlegen** and **Kennwort zurücksetzen**, with explicit loading, error
+**Benutzer anlegen**, **Kennwort zurücksetzen** and **Benutzer löschen**
+(with confirmation and a note that saved plans remain), with explicit loading, error
 and access-denied states. It is unavailable in local mode.
 
 ## Creation
