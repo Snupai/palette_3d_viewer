@@ -101,8 +101,8 @@ type Request = {
  * overwritten. 409 becomes `RecordVersionConflictError`; every other failure
  * a {@link ServerStorageError}. It never falls back to IndexedDB.
  *
- * Known server limitation (#27): a delete removes the row, so a recreated
- * record starts again at version 1.
+ * Server tombstones keep versions increasing across delete/recreate, while
+ * reads still report deleted records as missing (ADR 0011).
  */
 export class ServerPlannerRecordStorage implements PlannerRecordStorage {
   readonly supportsLocalMaintenance = false;

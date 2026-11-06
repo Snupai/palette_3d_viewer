@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   integer,
   jsonb,
@@ -17,7 +18,8 @@ import { users } from "./users";
  * The server only checks structure; full Zod validation stays in the client.
  *
  * - `json` holds the record as a `jsonb` object.
- * - `version` starts at 1 and is bumped by every write (ADR 0006).
+ * - `version` starts at 1 and is bumped by every put, including recreation.
+ * - `deleted` retains version continuity without retaining the deleted payload.
  * - `created_by` is the creating user's id (`users.id`, #28); nullable, and
  *   set to null when that user is deleted so their records survive.
  */
@@ -27,6 +29,7 @@ export const plannerRecords = pgTable(
     store: text("store").notNull(),
     id: text("id").notNull(),
     json: jsonb("json").$type<Record<string, unknown>>().notNull(),
+    deleted: boolean("deleted").notNull().default(false),
     version: integer("version").notNull().default(1),
     createdBy: text("created_by").references(() => users.id, {
       onDelete: "set null",

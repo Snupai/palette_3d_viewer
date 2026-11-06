@@ -357,6 +357,97 @@ describe("deleteRecord", () => {
     });
   });
 
+  it("hides tombstones, rejects stale writes and atomically recreates at a higher version", async () => {
+    await insert("project-1", { name: "private payload" });
+    await insert("visible");
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 1,
+      }),
+    ).toEqual({ ok: true });
+    expect(await getRecord(database.db, "projects", "project-1")).toEqual({
+      ok: true,
+      record: null,
+    });
+    const listed = await listRecords(database.db, "projects");
+    expect(listed.ok && listed.records.map((row) => row.id)).toEqual([
+      "visible",
+    ]);
+    const [tombstone] = await database.db
+      .select()
+      .from(plannerRecords)
+      .where(eq(plannerRecords.id, "project-1"));
+    expect(tombstone).toMatchObject({
+      deleted: true,
+      json: {},
+      version: 1,
+      createdBy: null,
+    });
+    const staleWrite = () =>
+      putRecord(
+        database.db,
+        {
+          store: "projects",
+          record: { id: "project-1", name: "stale" },
+          expectedVersion: 1,
+          userId: bob,
+          onlyCreatedBy: bob,
+        },
+        T2,
+      );
+    expect(await staleWrite()).toMatchObject({
+      kind: "conflict",
+      actualVersion: null,
+    });
+    const results = await Promise.all(
+      ["B", "C"].map((name) =>
+        putRecord(
+          database.db,
+          {
+            store: "projects",
+            record: { id: "project-1", name },
+            expectedVersion: null,
+            userId: bob,
+            onlyCreatedBy: bob,
+          },
+          T1,
+        ),
+      ),
+    );
+    expect(results.filter((result) => result.ok)).toHaveLength(1);
+    expect(results.find((result) => result.ok)).toMatchObject({
+      record: { version: 2, createdBy: bob, createdAt: T1, updatedAt: T1 },
+    });
+    expect(results.find((result) => !result.ok)).toMatchObject({
+      kind: "conflict",
+      actualVersion: 2,
+    });
+    expect(await staleWrite()).toMatchObject({
+      kind: "conflict",
+      actualVersion: 2,
+    });
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 1,
+        onlyCreatedBy: bob,
+      }),
+    ).toMatchObject({ kind: "conflict", actualVersion: 2 });
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 2,
+        onlyCreatedBy: bob,
+      }),
+    ).toEqual({ ok: true });
+    const recreated = await insert("project-1");
+    expect(recreated).toMatchObject({ ok: true, record: { version: 3 } });
+  });
+
   it("reports a conflict for a stale or missing version and keeps the record", async () => {
     await insert("project-1");
     expect(

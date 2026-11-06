@@ -15,6 +15,13 @@
       "when": 1793789437490,
       "tag": "0001_users_sessions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793999483290,
+      "tag": "0002_remarkable_firedrake",
+      "breakpoints": true
     }
   ]
 }

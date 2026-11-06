@@ -149,7 +149,7 @@ describePlannerRecordStorageContract(
   {
     label: "ServerPlannerRecordStorage",
     storeNames: SERVER_STORE_NAMES,
-    versionsSurviveDelete: false,
+    versionsSurviveDelete: true,
   },
 );
 

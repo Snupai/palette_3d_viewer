@@ -36,7 +36,8 @@ Architecture decisions for the implemented LAN backend (M9: records, auth, admin
 PostgreSQL) and browser-local plans with explicit sync live in `docs/adr/`.
 Read the relevant ADR before changing storage, access, or sync: 0001–0008 cover
 storage/access/concurrency/import/HTTPS; 0009 supersedes 0001 with PostgreSQL in
-Docker/Podman; 0010 amends 0002/0007 with browser-local plans. Changing a decision
+Docker/Podman; 0010 amends 0002/0007 with browser-local plans; 0011 amends 0006 with server
+record tombstones and version continuity across delete/recreate. Changing a decision
 means writing a new ADR, not silently diverging. Domain terms (e.g.
 "Werkskatalog") are defined in `GLOSSARY.md` — use them consistently in code,
 UI, and docs.
