@@ -636,7 +636,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
     expect(readDraftBackups(storage, aliceScope())).toHaveLength(1);
   });
 
-  it("offers a backed-up draft after sign-in and restores it through the versioned save", async () => {
+  it("restores a server backup without changing the open browser plan with the same id", async () => {
     const storage = stubLocalStorage();
     const { project, repository } = await repositoryWithProject();
     const draft = updateProject(project, { productNumber: "RESTORED" });
@@ -644,10 +644,19 @@ describe("PlannerProjectWorkspace editor integration", () => {
     // Another user's draft on this server is not offered.
     seedBackup(storage, { ...aliceScope(), userId: "u-bob" }, draft, 1, 5);
     const save = vi.spyOn(repository, "saveProjectVersioned");
+    const browser = new ProjectRepository(new MemoryPlannerRecordStorage());
+    await browser.saveProject({ ...project, productNumber: "BROWSER" });
+    const localSave = vi.spyOn(browser, "saveProjectVersioned");
+    window.history.replaceState(
+      null,
+      "",
+      `/plan/${encodeURIComponent(`browser-local:${project.id}`)}/build`,
+    );
 
     render(
       <PlannerProjectWorkspace
         repository={repository}
+        browserRepository={browser}
         storageMode="server"
         fetchImpl={signedInFetch}
       />,
@@ -656,6 +665,7 @@ describe("PlannerProjectWorkspace editor integration", () => {
       name: "Ungespeicherte Entwürfe aus einer früheren Sitzung",
     });
     expect(offer.querySelectorAll("li")).toHaveLength(1);
+    await screen.findByRole("heading", { name: "BROWSER" });
     fireEvent.click(screen.getByRole("button", { name: "Wiederherstellen" }));
 
     await waitFor(async () => {
@@ -664,6 +674,11 @@ describe("PlannerProjectWorkspace editor integration", () => {
       expect(saved.version).toBe(2);
     });
     expect(save).toHaveBeenCalledWith(draft, { expectedVersion: 1 });
+    expect(localSave).not.toHaveBeenCalled();
+    expect((await browser.getProject(project.id)).project?.productNumber).toBe(
+      "BROWSER",
+    );
+    expect((await browser.getProject(project.id)).version).toBe(1);
     expect(
       await screen.findByText(
         "Entwurf wiederhergestellt und gespeichert: RESTORED",

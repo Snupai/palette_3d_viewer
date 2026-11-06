@@ -2135,7 +2135,7 @@ export function PlannerProjectWorkspace({
     setSelectedId(routing.key({ id: backup.projectId, origin: "server" }));
     setRestoringDraft(true);
     try {
-      const saved = await saveProject(backup.project);
+      const saved = await saveProject(backup.project, "server");
       // Re-read so a load started before the save cannot win with the
       // version the draft replaced.
       setProjectReloadToken((token) => token + 1);
