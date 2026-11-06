@@ -290,6 +290,11 @@ Production containers and `bun run start` / `bun run preview` therefore require
 HTTPS for sign-in, including on localhost; plain HTTP is for local `bun run dev`
 only. See [deployment access setup](docs/DEPLOYMENT.md#access-on-the-plant-network).
 
+Failed logins are limited to 5 per normalized username and 30 per client address
+within 15 minutes, with temporary `429` / `Retry-After` responses. Successful
+login clears the username counter. See [deployment configuration](docs/DEPLOYMENT.md#login-throttling)
+for proxy trust, shared-address fallback and process-local limits.
+
 ### Database only (development)
 
 `compose.yaml` starts PostgreSQL 17 (`docker.io/library/postgres:17`) with a

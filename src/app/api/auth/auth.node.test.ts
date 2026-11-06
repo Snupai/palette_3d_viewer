@@ -18,7 +18,11 @@ import { sessions } from "~/server/db/schema";
 import { setServerDatabaseForTesting } from "~/server/db/serverDatabase";
 import { openMigratedTestDatabase } from "~/server/db/testing";
 
-import { POST as login } from "./login/route";
+import { createLoginHandler } from "~/server/auth/loginHandler";
+import { createLoginRateLimiter } from "~/server/auth/loginRateLimit";
+
+let time = 0;
+let login = createLoginHandler();
 import { POST as logout } from "./logout/route";
 import { GET as me } from "./me/route";
 
@@ -43,6 +47,8 @@ afterAll(async () => {
 });
 
 beforeEach(async () => {
+  time = 0;
+  login = createLoginHandler(createLoginRateLimiter(() => time));
   setServerDatabaseForTesting(database.db);
   await database.db.delete(sessions);
 });
@@ -88,6 +94,30 @@ async function signIn(): Promise<string> {
 }
 
 describe("POST /api/auth/login", () => {
+  it("throttles existing and unknown users identically, then allows recovery", async () => {
+    for (const username of ["planer", "nobody"]) {
+      for (let i = 0; i < 5; i++) {
+        expect(
+          (await login(loginRequest({ username, password: "wrong" }))).status,
+        ).toBe(401);
+      }
+      const response = await login(
+        loginRequest({
+          username: ` ${username.toUpperCase()} `,
+          password: "correct horse battery",
+        }),
+      );
+      expect(response.status).toBe(429);
+      expect(response.headers.get("Retry-After")).toBe("900");
+      expect(response.headers.get("cache-control")).toBe("no-store");
+      expect(response.headers.get("set-cookie")).toBeNull();
+      expect(await response.json()).toEqual({ error: "too_many_attempts" });
+    }
+    expect(await database.db.select().from(sessions)).toEqual([]);
+    time = 900_000;
+    await signIn();
+  });
+
   it("sets an httpOnly, SameSite=Lax, Secure session cookie and returns the user", async () => {
     const response = await login(
       loginRequest({ username: " PLANER ", password: "correct horse battery" }),

@@ -162,28 +162,36 @@ describe("SessionMenu", () => {
     expect(onSignedOut).toHaveBeenCalledOnce();
   });
 
-  it("shows a wrong password without signing in", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
-      pathOf(input) === "/api/auth/me"
-        ? json({ error: "unauthenticated" }, 401)
-        : json({ error: "invalid_credentials" }, 401),
-    );
-    render(<Harness mode="server" fetchImpl={fetchImpl} />);
-    await waitFor(() =>
-      expect(screen.getByTestId("status").textContent).toBe("anonymous"),
-    );
-    fireEvent.change(screen.getByLabelText("Benutzername"), {
-      target: { value: "alice" },
-    });
-    fireEvent.change(screen.getByLabelText("Kennwort"), {
-      target: { value: "wrong" },
-    });
-    fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
-    expect((await screen.findByRole("alert")).textContent).toBe(
-      "Benutzername oder Kennwort ist falsch.",
-    );
-    expect(screen.getByTestId("status").textContent).toBe("anonymous");
-  });
+  it.each([
+    [401, "invalid_credentials", "Benutzername oder Kennwort ist falsch."],
+    [
+      429,
+      "too_many_attempts",
+      "Zu viele Anmeldeversuche. Bitte später erneut versuchen.",
+    ],
+  ])(
+    "shows login error %s without signing in",
+    async (status, error, message) => {
+      const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+        pathOf(input) === "/api/auth/me"
+          ? json({ error: "unauthenticated" }, 401)
+          : json({ error }, status),
+      );
+      render(<Harness mode="server" fetchImpl={fetchImpl} />);
+      await waitFor(() =>
+        expect(screen.getByTestId("status").textContent).toBe("anonymous"),
+      );
+      fireEvent.change(screen.getByLabelText("Benutzername"), {
+        target: { value: "alice" },
+      });
+      fireEvent.change(screen.getByLabelText("Kennwort"), {
+        target: { value: "wrong" },
+      });
+      fireEvent.submit(screen.getByRole("form", { name: "Anmelden" }));
+      expect((await screen.findByRole("alert")).textContent).toBe(message);
+      expect(screen.getByTestId("status").textContent).toBe("anonymous");
+    },
+  );
 
   it("asks before leaving for the user management and stays when declined", async () => {
     const admin = { id: "u-admin", username: "admin", role: "admin" };

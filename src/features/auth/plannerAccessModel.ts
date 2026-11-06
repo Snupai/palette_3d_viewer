@@ -220,6 +220,9 @@ export async function signIn(
       headers: JSON_HEADERS,
       body: JSON.stringify({ username, password }),
     });
+    if (response.status === 429) {
+      return { ok: false, message: "auth.error.tooManyAttempts" };
+    }
     if (response.status === 401) {
       return { ok: false, message: "auth.error.invalidCredentials" };
     }

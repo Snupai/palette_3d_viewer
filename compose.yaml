@@ -68,6 +68,7 @@ services:
     restart: unless-stopped
     environment:
       DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
+      PALETTE_LOGIN_TRUST_PROXY: ${PALETTE_LOGIN_TRUST_PROXY:-false}
       # Sheet-photo import (optional). SHEET_EXTRACTION_API: `ollama` (default)
       # or `openai` (OpenAI-compatible, e.g. llama.cpp `llama-server`). Inside
       # the container 127.0.0.1 is the container itself; point at the host, e.g.
