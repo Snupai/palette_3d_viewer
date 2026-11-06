@@ -5,6 +5,7 @@ import {
   PLANNER_DATABASE_NAME,
   PROJECTS_STORE_NAME,
 } from "~/lib/plannerDatabase";
+import { createBrowserLocalPlannerStorage } from "~/lib/plannerStorageFactory";
 import { describePlannerRecordStorageContract } from "~/lib/plannerRecordStorageContract";
 import {
   IndexedDbPlannerRecordStorage,
@@ -19,6 +20,11 @@ describePlannerRecordStorageContract(() => new MemoryPlannerRecordStorage(), {
 describePlannerRecordStorageContract(
   () => new IndexedDbPlannerRecordStorage(new IDBFactory()),
   { label: "IndexedDbPlannerRecordStorage" },
+);
+
+describePlannerRecordStorageContract(
+  () => createBrowserLocalPlannerStorage({ indexedDb: new IDBFactory() }),
+  { label: "BrowserLocalPlannerStorage (named database)" },
 );
 
 describe("record versions of records written before versioning", () => {

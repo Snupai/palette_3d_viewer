@@ -1,4 +1,6 @@
 export const PLANNER_DATABASE_NAME = "pallets-db";
+export const BROWSER_PLANNER_DATABASE_NAME = "pallets-db:browser";
+export const BROWSER_PLAN_METADATA_STORE_NAME = "browser-plan-metadata";
 export const PLANNER_DATABASE_VERSION = 5;
 
 export const PALLETS_STORE_NAME = "pallets";
@@ -31,7 +33,8 @@ export const PLANNER_STORE_NAMES: readonly PlannerStoreName[] = [
 
 export type PlannerDatabaseStoreName =
   | PlannerStoreName
-  | typeof RECORD_VERSIONS_STORE_NAME;
+  | typeof RECORD_VERSIONS_STORE_NAME
+  | typeof BROWSER_PLAN_METADATA_STORE_NAME;
 
 export function recordVersionKey(
   storeName: PlannerStoreName,
@@ -40,7 +43,10 @@ export function recordVersionKey(
   return `${storeName}:${id}`;
 }
 
-const databasePromises = new WeakMap<IDBFactory, Promise<IDBDatabase>>();
+const databasePromises = new WeakMap<
+  IDBFactory,
+  Map<string, Promise<IDBDatabase>>
+>();
 
 function ensureIndex(
   store: IDBObjectStore,
@@ -106,28 +112,35 @@ function upgradeDatabase(request: IDBOpenDBRequest): void {
   ensureIndex(legacyMigrations, "migratedAt", "migratedAt");
 
   ensureStore(database, transaction, RECORD_VERSIONS_STORE_NAME);
+  if (database.name === BROWSER_PLANNER_DATABASE_NAME) {
+    ensureStore(database, transaction, BROWSER_PLAN_METADATA_STORE_NAME);
+  }
 }
 
 export function openPlannerDatabase(
   indexedDb: IDBFactory = globalThis.indexedDB,
+  databaseName: string = PLANNER_DATABASE_NAME,
 ): Promise<IDBDatabase> {
   if (!indexedDb) {
     return Promise.reject(
       new Error("IndexedDB is unavailable in the current environment."),
     );
   }
-  const existing = databasePromises.get(indexedDb);
+  let databases = databasePromises.get(indexedDb);
+  if (!databases) {
+    databases = new Map();
+    databasePromises.set(indexedDb, databases);
+  }
+  const cache = databases;
+  const existing = cache.get(databaseName);
   if (existing) return existing;
 
   const promise = new Promise<IDBDatabase>((resolve, reject) => {
-    const request = indexedDb.open(
-      PLANNER_DATABASE_NAME,
-      PLANNER_DATABASE_VERSION,
-    );
+    const request = indexedDb.open(databaseName, PLANNER_DATABASE_VERSION);
     let settled = false;
     const clearCachedPromise = () => {
-      if (databasePromises.get(indexedDb) === promise) {
-        databasePromises.delete(indexedDb);
+      if (cache.get(databaseName) === promise) {
+        cache.delete(databaseName);
       }
     };
     const fail = (cause: unknown) => {
@@ -167,7 +180,7 @@ export function openPlannerDatabase(
     request.onblocked = () =>
       fail(new Error("IndexedDB open is blocked by another browser tab."));
   });
-  databasePromises.set(indexedDb, promise);
+  cache.set(databaseName, promise);
   return promise;
 }
 
@@ -184,14 +197,15 @@ export async function runPlannerTransaction<T>(
   mode: IDBTransactionMode,
   operation: (transaction: IDBTransaction) => T | Promise<T>,
   indexedDb: IDBFactory = globalThis.indexedDB,
+  databaseName: string = PLANNER_DATABASE_NAME,
 ): Promise<T> {
-  const database = await openPlannerDatabase(indexedDb);
+  const database = await openPlannerDatabase(indexedDb, databaseName);
   return new Promise<T>((resolve, reject) => {
     let transaction: IDBTransaction;
     try {
       transaction = database.transaction(storeNames, mode);
     } catch (cause) {
-      databasePromises.delete(indexedDb);
+      databasePromises.get(indexedDb)?.delete(databaseName);
       reject(cause instanceof Error ? cause : new Error(String(cause)));
       return;
     }
