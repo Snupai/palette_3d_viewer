@@ -26,8 +26,6 @@ export const browserSyncDe = {
     "Die Sitzung ist abgelaufen. Bereits erzielte Ergebnisse bleiben erhalten. Melden Sie sich erneut an, um fortzufahren.",
   "browserSync.networkLost":
     "Die Verbindung wurde unterbrochen. Bereits erzielte Ergebnisse bleiben erhalten. Vergleichen Sie erneut, um fortzufahren.",
-  "browserSync.catalog":
-    "Werkskatalog-Einträge werden hier nicht veröffentlicht. Dafür steht anschließend der bisherige lokale Import bereit.",
   "browserSync.unreadable":
     "{count} lokale Einträge sind nicht lesbar und bleiben im Browser.",
   "browserSync.result.synced": "Synchronisiert",

@@ -11,20 +11,15 @@ import type {
   BrowserLocalPlannerStorage,
   BrowserPlanSyncLink,
 } from "~/lib/browserPlanStorage";
-import {
-  PROJECTS_STORE_NAME,
-  PROJECT_RESOURCES_STORE_NAME,
-} from "~/lib/plannerDatabase";
+import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
 import { RecordVersionConflictError } from "~/lib/plannerRecordStorage";
 import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 import {
   contentHash,
   mayReplaceProject,
-  readLocalImportInventory,
   projectEntryKey,
   projectImportCopyId,
   resolveProjectImportConflict,
-  type CatalogPlanEntry,
   type LocalImportTarget,
   type LocalUnreadableEntry,
   type ServerProjectState,
@@ -59,8 +54,6 @@ export type BrowserSyncEntry = {
 };
 export type BrowserSyncPlan = {
   projects: BrowserSyncEntry[];
-  /** Informational only: browser synchronization never publishes catalog entries. */
-  catalog: CatalogPlanEntry[];
   unreadable: LocalUnreadableEntry[];
 };
 
@@ -198,27 +191,9 @@ export async function planBrowserSync(
       ),
     );
   }
-  // Catalog data is excluded from the browser workflow even for administrators.
-  // Preserve the established admin-only classification for stray legacy data.
-  const catalogRows = await source.list(PROJECT_RESOURCES_STORE_NAME);
-  const inventory = await readLocalImportInventory({
-    list: async (store) =>
-      store === PROJECT_RESOURCES_STORE_NAME ? catalogRows : [],
-  });
-  const catalog: CatalogPlanEntry[] = [];
-  for (const local of inventory.catalog)
-    catalog.push({
-      key: local.key,
-      local,
-      status: "admin-only",
-      server: null,
-      canReplace: false,
-    });
-  return {
-    projects,
-    catalog,
-    unreadable: [...unreadable, ...inventory.unreadable],
-  };
+  // ADR 0010 has no browser-local catalog, including for administrators.
+  // Ignore stray resource rows without publishing or deleting them.
+  return { projects, unreadable };
 }
 
 export function canStartBrowserSync(

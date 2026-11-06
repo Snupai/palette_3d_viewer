@@ -25,7 +25,6 @@ type Props = {
   summary: string | null;
   progress: string | null;
   pendingConflicts: number;
-  catalogCount: number;
   unreadableCount: number;
   signedIn: boolean;
   onToggle: (key: string) => void;
@@ -145,11 +144,6 @@ export function BrowserSyncOverview(props: Props) {
               </li>
             ))}
           </ul>
-          {props.catalogCount > 0 ? (
-            <p className="text-muted text-body mt-3">
-              {t("browserSync.catalog")}
-            </p>
-          ) : null}
           {props.unreadableCount > 0 ? (
             <p className="text-muted text-body mt-3">
               {t("browserSync.unreadable", { count: props.unreadableCount })}

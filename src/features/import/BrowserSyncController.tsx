@@ -455,7 +455,6 @@ export function BrowserSyncController({
           }
           progress={progress ? t("browserSync.progress", progress) : null}
           pendingConflicts={conflicts.length}
-          catalogCount={plan?.catalog.length ?? 0}
           unreadableCount={plan?.unreadable.length ?? 0}
           onToggle={(key) =>
             setSelection((current) => {

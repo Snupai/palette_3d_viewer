@@ -754,27 +754,37 @@ describe("browser sync failures", () => {
     expect((await f.source.getMetadata("p"))?.links).toEqual([]);
   });
 
-  it("never syncs catalog entries for non-admins", async () => {
-    const f = await setup();
-    const resource = createProjectResource(
-      { kind: "pallet", value: getPalletTemplate("euro") },
-      { now: () => 5 },
-    );
-    await f.source.put(PROJECT_RESOURCES_STORE_NAME, resource);
-    const plan = await f.plan();
-    expect(plan.catalog.map(({ status }) => status)).toEqual(["admin-only"]);
-    await runBrowserSync(
-      f.source,
-      f.target,
-      plan,
-      new Set(plan.catalog.map(({ key }) => key)),
-      alice,
-      options,
-    );
-    expect(f.catalogCreate).not.toHaveBeenCalled();
-    expect(f.catalogReplace).not.toHaveBeenCalled();
-    expect(await f.source.list(PROJECT_RESOURCES_STORE_NAME)).toEqual([
-      resource,
-    ]);
-  });
+  it.each(["user", "admin"] as const)(
+    "ignores stray browser catalog rows for %s without changing them",
+    async (role) => {
+      const f = await setup();
+      const resource = createProjectResource(
+        { kind: "pallet", value: getPalletTemplate("euro") },
+        { now: () => 5 },
+      );
+      await f.source.put(PROJECT_RESOURCES_STORE_NAME, resource);
+      const context = { ...alice, user: { ...alice.user, role } };
+      const plan = await planBrowserSync(f.source, f.target, context);
+      expect(plan).toEqual({
+        projects: [
+          expect.objectContaining({ key: "project:p", status: "new" }),
+        ],
+        unreadable: [],
+      });
+      await runBrowserSync(
+        f.source,
+        f.target,
+        plan,
+        selected,
+        context,
+        options,
+      );
+      expect(await f.storage.get(PROJECTS_STORE_NAME, "p")).toEqual(base);
+      expect(f.catalogCreate).not.toHaveBeenCalled();
+      expect(f.catalogReplace).not.toHaveBeenCalled();
+      expect(await f.source.list(PROJECT_RESOURCES_STORE_NAME)).toEqual([
+        resource,
+      ]);
+    },
+  );
 });
