@@ -155,7 +155,9 @@ describe("viewer scene controller cleanup", () => {
       root: new THREE.Group(),
       fixed: new THREE.Group(),
       liftCarriage: new THREE.Group(),
+      arm: null,
       setLiftCarriageMm,
+      setArmJoints: vi.fn(),
       dispose: robotCellDispose,
     };
     const equipmentSetConfig = vi.fn();

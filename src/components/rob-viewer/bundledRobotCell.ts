@@ -1,3 +1,4 @@
+import { BUNDLED_UR10E_CELL } from "~/domain/robotics/ur10eCell";
 import type {
   ViewerRobotCellAssetConfig,
   ViewerSceneCalibrationConfig,
@@ -12,30 +13,21 @@ export const BUNDLED_ROBOT_CELL = {
     fixed: "cell-fixed",
     liftCarriage: "lift-carriage",
     // The CAD arm is a flat group of baked part meshes ("Copy of Base/Link1..6"),
-    // not a joint chain, so it cannot be posed. It is hidden in favour of the
-    // animated procedural arm; the lift column itself lives under `cell-fixed`
-    // and therefore stays visible.
+    // not a joint chain, so it cannot be posed. Its node only supplies the
+    // mount frame of the articulated UR10e and stays hidden; the lift column
+    // itself lives under `cell-fixed` and therefore stays visible.
     staticArm: "eSeries_UR10e_1",
   },
-  liftTravelMm: {
-    min: 0,
-    max: 900,
+  // Articulated UR10e (Universal_Robots_ROS2_Description meshes, BSD-3; see
+  // public/models/ur10e/README.md). It is mounted on the lift carriage at the
+  // `staticArm` node frame, which matches `BUNDLED_UR10E_CELL` (base at
+  // viewer (1058.6, 599.5, 746.1) mm, −45° yaw at zero travel).
+  articulatedArm: {
+    assetUrl: "/models/ur10e/ur10e.glb",
+    revision:
+      "sha256:08eb736d8864481dde95d3af3e16c3a5d1ea550685dc7f497088b89313ddfbf5",
   },
-  // Measured from the CAD mount node of `eSeries_UR10e_1` on the lift carriage
-  // (source -141.4, 890.1, 1400.5 at zero travel) mapped through
-  // `sourceToViewer`. Link lengths are the UR10e datasheet values: d1 = 180.7,
-  // a2 = 612.7, and a3 + d5 + d6 = 807.95 so the two-link visualization reaches
-  // the TCP rather than the wrist centre.
-  robotMount: {
-    baseMm: {
-      x: 1_058.6,
-      y: 599.5,
-      z: 746.1,
-    },
-    baseHeightMm: 180.7,
-    upperArmLengthMm: 612.7,
-    forearmLengthMm: 807.95,
-  },
+  liftTravelMm: BUNDLED_UR10E_CELL.liftTravelMm,
   sourceToViewer: {
     scaleMmPerMeter: 1_000,
     rotationXRad: Math.PI / 2,
@@ -53,19 +45,19 @@ export const BUNDLED_ROBOT_CELL = {
     },
   },
   replacesProcedural: {
-    // The CAD arm cannot be animated, so the procedural arm stays in charge of
-    // the motion while the rest of the cell (frame, lift column, conveyor,
-    // cabinet) keeps its CAD geometry.
-    robot: false,
+    // The articulated UR10e replaces the procedural two-link arm; frame, lift
+    // column, conveyor and cabinet keep their CAD geometry.
+    robot: true,
     conveyor: true,
   },
   evidence: {
-    geometry: "CAD-derived visual geometry from the supplied cell assembly.",
+    geometry:
+      "CAD-derived visual geometry from the supplied cell assembly; articulated UR10e meshes from Universal Robots' ROS 2 description.",
     lift: "CAD-derived vertical travel: 0–900 mm.",
     placement:
       "Viewer placement derived from measured CAD bounding boxes: the pallet station is set on the free floor area west of the machine frame, with the cell floor one pallet height below the viewer origin plane.",
     limitations:
-      "The CAD arm meshes carry no joint frames, so the animated arm is the procedural two-link visualization mounted at the measured CAD base. Lift position is a visualization target; UR10 kinematics, synchronized lift timing, reach, and collisions are not checked.",
+      "UR10e reach, joint limits, singularity proximity and payload are checked at every route waypoint with analytic kinematics and the lift axis. Collisions between the arm and the cell and synchronized lift timing are not checked; the flange-to-suction offset is a provisional 0 mm.",
   },
 } as const satisfies ViewerRobotCellAssetConfig;
 
@@ -78,5 +70,9 @@ export const BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION = {
   pickupPose: {
     positionMm: { x: 1_492, y: 207, z: 962 },
     yawDeg: -90,
+  },
+  robotBaseMm: {
+    x: BUNDLED_UR10E_CELL.baseMm.x,
+    y: BUNDLED_UR10E_CELL.baseMm.y,
   },
 } as const satisfies ViewerSceneCalibrationConfig;

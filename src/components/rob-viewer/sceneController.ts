@@ -6,6 +6,7 @@ import {
   loadGripperModel,
   type LoadedGripperModel,
 } from "~/components/rob-viewer/gripperLoader";
+import type { Ur10eJoints } from "~/domain/robotics/ur10eKinematics";
 import {
   loadBundledRobotCell,
   type LoadedRobotCell,
@@ -131,6 +132,7 @@ export type ViewerSceneController = {
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   setLiftCarriageMm(value: number | null): void;
+  setRobotJoints(joints: Ur10eJoints | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
   setTemporaryCalibration(state: ViewerTemporaryCalibrationState | null): void;
@@ -147,6 +149,7 @@ type ViewerRuntime = {
   ): void;
   setVisibleUpToLayer(visibleUpToLayer: number): void;
   setLiftCarriageMm(value: number | null): void;
+  setRobotJoints(joints: Ur10eJoints | null): void;
   setSimulationPose(pose: ViewerScenePose | null): void;
   setSimulationState(state: ViewerSimulationState | null): void;
   setTemporaryCalibration(state: ViewerTemporaryCalibrationState | null): void;
@@ -251,6 +254,7 @@ export function createViewerSceneController({
   let visibleUpToLayer = 1;
   let sceneOptions: ViewerSceneOptions = {};
   let liftCarriageMm: number | null = 0;
+  let robotJoints: Ur10eJoints | null = null;
   let simulationPose: ViewerScenePose | null = null;
   let simulationState: ViewerSimulationState | null = null;
   let temporaryCalibration: ViewerTemporaryCalibrationState | null = null;
@@ -466,6 +470,7 @@ export function createViewerSceneController({
           robotCellAbortController = null;
           loadedRobotCell = loaded;
           loaded.setLiftCarriageMm(liftCarriageMm);
+          loaded.setArmJoints(robotJoints);
           equipment?.setRobotCell(loaded.root);
           animationLoop?.requestRender();
         })
@@ -800,6 +805,11 @@ export function createViewerSceneController({
         loadedRobotCell?.setLiftCarriageMm(value);
         animationLoop?.requestRender();
       },
+      setRobotJoints(joints) {
+        if (runtimeDisposed) return;
+        loadedRobotCell?.setArmJoints(joints);
+        animationLoop?.requestRender();
+      },
       setSimulationPose(pose) {
         if (runtimeDisposed) return;
         equipment?.setSimulationPose(pose);
@@ -846,6 +856,11 @@ export function createViewerSceneController({
       if (disposed) return;
       liftCarriageMm = value;
       runtime?.setLiftCarriageMm(value);
+    },
+    setRobotJoints(joints) {
+      if (disposed) return;
+      robotJoints = joints;
+      runtime?.setRobotJoints(joints);
     },
     setSimulationPose(pose) {
       if (disposed) return;
