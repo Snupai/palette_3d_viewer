@@ -234,6 +234,53 @@ export const roboticsDe = {
   "robotics.evidence.exportIssues":
     "{count} Export-Einstellungen müssen noch technisch geprüft werden.",
 
+  // UR10e lift-cell kinematics
+  "robotics.item.kinematics": "UR10e-Kinematik",
+  "robotics.kinematics.notChecked":
+    "Nicht geprüft: Nur geführte Pläne mit Griffen laufen in der mitgelieferten UR10e-Hubzelle.",
+  "robotics.kinematics.reach":
+    "{solved} von {count} Bahnstützpunkten sind mit UR10e und Hubachse innerhalb der Gelenkgrenzen erreichbar.",
+  "robotics.kinematics.unreachable_one":
+    "{count} Stützpunkt liegt außerhalb der Reichweite.",
+  "robotics.kinematics.unreachable_other":
+    "{count} Stützpunkte liegen außerhalb der Reichweite.",
+  "robotics.kinematics.unreachable":
+    "{count} Stützpunkte liegen außerhalb der Reichweite.",
+  "robotics.kinematics.jointLimit_one":
+    "{count} Stützpunkt ist nur außerhalb der Gelenkgrenzen erreichbar.",
+  "robotics.kinematics.jointLimit_other":
+    "{count} Stützpunkte sind nur außerhalb der Gelenkgrenzen erreichbar.",
+  "robotics.kinematics.jointLimit":
+    "{count} Stützpunkte sind nur außerhalb der Gelenkgrenzen erreichbar.",
+  "robotics.kinematics.singular_one":
+    "{count} Stützpunkt liegt nahe einer Singularität (Schulter, Ellbogen oder Handgelenk).",
+  "robotics.kinematics.singular_other":
+    "{count} Stützpunkte liegen nahe einer Singularität (Schulter, Ellbogen oder Handgelenk).",
+  "robotics.kinematics.singular":
+    "{count} Stützpunkte liegen nahe einer Singularität (Schulter, Ellbogen oder Handgelenk).",
+  "robotics.kinematics.pathOk":
+    "Alle {count} Zwischenpunkte der geraden Bahnsegmente sind erreichbar.",
+  "robotics.kinematics.pathUnsolved":
+    "{count} von {total} Zwischenpunkten der geraden Bahnsegmente sind nicht erreichbar.",
+  "robotics.kinematics.noSingularity":
+    "Kein Stützpunkt liegt nahe einer Singularität.",
+  "robotics.kinematics.configuration_one":
+    "{count} Konfigurationswechsel des Arms innerhalb eines Griffs.",
+  "robotics.kinematics.configuration_other":
+    "{count} Konfigurationswechsel des Arms innerhalb von Griffen.",
+  "robotics.kinematics.configuration":
+    "{count} Konfigurationswechsel des Arms innerhalb von Griffen.",
+  "robotics.kinematics.payload": "Traglast höchstens {max} kg von {limit} kg.",
+  "robotics.kinematics.payloadExceeded":
+    "Traglast in {count} Griffen überschritten (höchstens {max} kg von {limit} kg).",
+  "robotics.kinematics.payloadNoGripper":
+    "Die Greifermasse ist nicht hinterlegt; gezählt sind nur die Pakete.",
+  "robotics.kinematics.payloadNotChecked":
+    "Paketgewicht fehlt, daher wurde die Traglast nicht geprüft.",
+  "robotics.kinematics.limitations":
+    "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist vorläufig 0 mm.",
+  "robotics.kinematics.decimalSeparator": ",",
+
   // Obstacle editor
   "robotics.obstacleDefaultName": "Hindernis {number}",
   "robotics.addObstacle": "Hindernis hinzufügen",

@@ -15,6 +15,10 @@ import type { PalletData } from "~/domain/palletTypes";
 import { createProject } from "~/domain/project/projectFactory";
 import type { Project } from "~/domain/project/projectSchema";
 import type { RobotCycleMaterialization } from "~/domain/robotics";
+import {
+  createInitialRobotWorkspaceSettings,
+  materializeRobotWorkspace,
+} from "~/features/robotics/robotWorkspaceModel";
 import { SimulationWorkspace } from "~/features/simulation/SimulationWorkspace";
 
 const robViewerSpy = vi.hoisted(() => vi.fn());
@@ -112,6 +116,88 @@ describe("SimulationWorkspace robot cell integration", () => {
       expect(latestViewerProps().liftCarriageMm).toBe(450);
     });
     expect(screen.getByText("450 mm")).toBeTruthy();
+  });
+
+  it("drives the articulated UR10e and the lift from the inverse kinematics", () => {
+    const project = createProject(
+      {
+        id: "kinematic-project",
+        package: {
+          dimensionsMm: { length: 400, width: 300, height: 250 },
+          multiPickAllowed: false,
+          palletizingDirection: "x-negative-y-positive",
+        },
+        solutions: [
+          {
+            id: "solution-1",
+            name: "Solution",
+            origin: "calculated",
+            patterns: [
+              {
+                id: "pattern-1",
+                name: "Pattern",
+                grips: [],
+                placements: [
+                  {
+                    id: "placement-1",
+                    sequence: 0,
+                    positionMm: { x: 0, y: 0 },
+                    rotation: 0,
+                    gripId: null,
+                    labelSide: null,
+                  },
+                ],
+              },
+            ],
+            stack: {
+              interlayerThicknessMm: 3,
+              layers: [
+                { id: "layer-1", patternId: "pattern-1", interlayerBefore: 0 },
+              ],
+              trailingInterlayer: 0,
+            },
+            robotCycles: [],
+          },
+        ],
+        activeSolutionId: "solution-1",
+      },
+      { createId: (kind) => `${kind}-kinematic`, now: () => 3 },
+    );
+
+    render(
+      <SimulationWorkspace
+        project={project}
+        materialization={materializeRobotWorkspace(
+          project,
+          createInitialRobotWorkspaceSettings(project),
+        )}
+        previewData={previewData()}
+      />,
+    );
+
+    // Cursor 0 is the first pick at the calibrated conveyor pickup.
+    const props = latestViewerProps();
+    expect(props.equipment?.robot).toBeNull();
+    expect(props.liftCarriageMm).toBeCloseTo(415.9, 9);
+    expect(
+      props.robotJoints!.map(
+        (angle) => Math.round(((angle * 180) / Math.PI) * 1e6) / 1e6,
+      ),
+    ).toEqual([
+      165.507316, -29.233318, 128.937033, -189.703715, -90, -59.492684,
+    ]);
+    expect(
+      screen.getByRole<HTMLInputElement>("slider", {
+        name: "Hubposition Ewellix",
+      }).disabled,
+    ).toBe(true);
+    expect(
+      screen.getByText(
+        "Der Hub folgt während der Simulation der UR10e-Kinematik.",
+      ),
+    ).toBeTruthy();
+    expect(screen.getByText("erreichbar")).toBeTruthy();
+    expect(screen.getByText("165,5°")).toBeTruthy();
   });
 
   it("does not infer the bundled cell or expose the lift control for ROB imports", () => {

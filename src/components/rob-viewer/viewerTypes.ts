@@ -1,6 +1,7 @@
 import type * as THREE from "three";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { Box, PalletData } from "~/domain/palletTypes";
+import type { Ur10eJoints } from "~/domain/robotics/ur10eKinematics";
 
 export const VIEWER_CAMERA_PRESETS = ["top", "front", "right-top"] as const;
 export type ViewerCameraPreset = (typeof VIEWER_CAMERA_PRESETS)[number];
@@ -18,6 +19,8 @@ export type ViewerSceneCalibrationConfig = {
   robotCellRevision: string;
   palletPose: ViewerScenePose;
   pickupPose: ViewerScenePose;
+  /** Robot base axis in the viewer frame; simulated transfers swing around it. */
+  robotBaseMm?: { x: number; y: number };
 };
 
 export type ViewerTemporaryCalibrationConfig = {
@@ -83,24 +86,19 @@ export type ViewerRobotCellAssetConfig = {
     readonly fixed: string;
     readonly liftCarriage: string;
     /**
-     * Static CAD arm mesh group. It carries no joint frames, so it is hidden
-     * whenever the animated procedural arm takes over.
+     * Static CAD arm mesh group. It carries no joint frames; it is hidden
+     * whenever another arm takes over, and its node frame is the mount of the
+     * articulated arm.
      */
     readonly staticArm?: string;
   };
   /**
-   * CAD-derived mount of the robot on the lift carriage, in viewer coordinates
-   * at zero lift travel. Present only when the arm placement was measured.
+   * Articulated arm GLB with one node per URDF link (Z-up, metres). It is
+   * mounted on the lift carriage at the `staticArm` node frame.
    */
-  readonly robotMount?: {
-    readonly baseMm: {
-      readonly x: number;
-      readonly y: number;
-      readonly z: number;
-    };
-    readonly baseHeightMm: number;
-    readonly upperArmLengthMm: number;
-    readonly forearmLengthMm: number;
+  readonly articulatedArm?: {
+    readonly assetUrl: string;
+    readonly revision: string;
   };
   readonly liftTravelMm: {
     readonly min: number;
@@ -213,6 +211,8 @@ export type RobViewerProps = {
   showSceneControls?: boolean;
   equipment?: ViewerEquipmentConfig;
   liftCarriageMm?: number | null;
+  /** UR10e joint angles (rad) for the articulated cell arm; null shows its home posture. */
+  robotJoints?: Ur10eJoints | null;
   simulationPose?: ViewerScenePose | null;
   simulationState?: ViewerSimulationState | null;
   sceneCalibration?: ViewerSceneCalibrationConfig;

@@ -15,6 +15,7 @@ export type RobotMotionWaypointName =
   | "pick-approach"
   | "pick"
   | "pick-lift"
+  | "return-transfer"
   | "transfer"
   | "place-approach"
   | "place";
@@ -120,7 +121,7 @@ export function createRobotCycleMotionRoute(
 /** Return route between cycles, with vertical retract and vertical pick approach. */
 export function createRobotCycleTransitionRoute(
   previous: Pick<RobotCycle, "transferPose" | "placePose">,
-  next: Pick<RobotCycle, "pickPose" | "transferPose">,
+  next: Pick<RobotCycle, "pickPose" | "transferPose" | "returnTransferPose">,
 ): RobotMotionRoute {
   assertOneFrame(
     [
@@ -128,6 +129,7 @@ export function createRobotCycleTransitionRoute(
       previous.transferPose,
       next.pickPose,
       next.transferPose,
+      ...(next.returnTransferPose ? [next.returnTransferPose] : []),
     ],
     "Consecutive robot cycles must use one coordinate frame.",
   );
@@ -137,6 +139,7 @@ export function createRobotCycleTransitionRoute(
     next.pickPose.positionMm.z,
     next.transferPose.positionMm.z,
   );
+  const via = next.returnTransferPose;
   const waypoints: RobotMotionWaypoint[] = [
     { name: "previous-place", pose: previous.placePose },
     {
@@ -146,6 +149,14 @@ export function createRobotCycleTransitionRoute(
         z: safeZ,
       }),
     },
+    ...(via
+      ? [
+          {
+            name: "return-transfer" as const,
+            pose: poseAt(via, { ...via.positionMm, z: safeZ }),
+          },
+        ]
+      : []),
     {
       name: "pick-approach",
       pose: poseAt(
@@ -159,6 +170,7 @@ export function createRobotCycleTransitionRoute(
   return routeFrom(waypoints, [
     "cycle-retract",
     "cycle-traverse",
+    ...(via ? (["cycle-traverse"] as const) : []),
     "pick-approach",
   ]);
 }

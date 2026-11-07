@@ -12,3 +12,5 @@ export * from "~/domain/robotics/resources";
 export * from "~/domain/robotics/robExport";
 export * from "~/domain/robotics/timeline";
 export * from "~/domain/robotics/types";
+export * from "~/domain/robotics/ur10eCell";
+export * from "~/domain/robotics/ur10eKinematics";

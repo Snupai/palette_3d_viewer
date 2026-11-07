@@ -694,6 +694,15 @@ export function ReportWorkspace({
                   </tbody>
                 </table>
               </div>
+              <h3 className="text-ink text-body mt-3 font-semibold">
+                {t("reporting.kinematics.title")}
+              </h3>
+              <ul className="text-muted text-micro mt-1 list-disc space-y-1 pl-5 leading-5">
+                {report.robotKinematics.lines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+                <li>{report.robotKinematics.limitations}</li>
+              </ul>
             </section>
           )}
 

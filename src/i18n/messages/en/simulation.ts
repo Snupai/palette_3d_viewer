@@ -26,6 +26,8 @@ export const simulationEn = {
   // Lift
   "simulation.lift.title": "Lift (Ewellix)",
   "simulation.lift.position": "Ewellix lift position",
+  "simulation.lift.automatic":
+    "During the simulation the lift follows the UR10e kinematics.",
   // Timing
   "simulation.timing.title": "Motion timing",
   "simulation.timing.linearSpeed": "Path speed (mm/s)",
@@ -40,6 +42,20 @@ export const simulationEn = {
   "simulation.tcp.keyPoint": "Key point",
   "simulation.tcp.exact": "exact",
   "simulation.tcp.interpolated": "interpolated",
+  "simulation.kinematics.title": "UR10e joints",
+  "simulation.kinematics.joint": "Joint",
+  "simulation.kinematics.angle": "Angle",
+  "simulation.kinematics.joint1": "Base",
+  "simulation.kinematics.joint2": "Shoulder",
+  "simulation.kinematics.joint3": "Elbow",
+  "simulation.kinematics.joint4": "Wrist 1",
+  "simulation.kinematics.joint5": "Wrist 2",
+  "simulation.kinematics.joint6": "Wrist 3",
+  "simulation.kinematics.solved": "reachable",
+  "simulation.kinematics.singular": "reachable, near a singularity",
+  "simulation.kinematics.unreachable": "out of reach",
+  "simulation.kinematics.jointLimit": "only outside the joint limits",
+  "simulation.kinematics.status": "Status",
   // Timeline phases
   "simulation.phase.cycleRetract": "Retract from pallet",
   "simulation.phase.cycleTraverse": "Travel above feed",

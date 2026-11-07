@@ -230,6 +230,50 @@ export const roboticsEn = {
   "robotics.evidence.exportIssues":
     "{count} export settings still require engineering review.",
 
+  // UR10e lift-cell kinematics
+  "robotics.item.kinematics": "UR10e kinematics",
+  "robotics.kinematics.notChecked":
+    "Not checked: only guided plans with grips run in the bundled UR10e lift cell.",
+  "robotics.kinematics.reach":
+    "{solved} of {count} route waypoints are reachable by the UR10e with the lift axis, within the joint limits.",
+  "robotics.kinematics.unreachable_one": "{count} waypoint is out of reach.",
+  "robotics.kinematics.unreachable_other":
+    "{count} waypoints are out of reach.",
+  "robotics.kinematics.unreachable": "{count} waypoints are out of reach.",
+  "robotics.kinematics.jointLimit_one":
+    "{count} waypoint is reachable only outside the joint limits.",
+  "robotics.kinematics.jointLimit_other":
+    "{count} waypoints are reachable only outside the joint limits.",
+  "robotics.kinematics.jointLimit":
+    "{count} waypoints are reachable only outside the joint limits.",
+  "robotics.kinematics.singular_one":
+    "{count} waypoint is near a singularity (shoulder, elbow or wrist).",
+  "robotics.kinematics.singular_other":
+    "{count} waypoints are near a singularity (shoulder, elbow or wrist).",
+  "robotics.kinematics.singular":
+    "{count} waypoints are near a singularity (shoulder, elbow or wrist).",
+  "robotics.kinematics.pathOk":
+    "All {count} intermediate points of the straight route segments are reachable.",
+  "robotics.kinematics.pathUnsolved":
+    "{count} of {total} intermediate points of the straight route segments are not reachable.",
+  "robotics.kinematics.noSingularity": "No waypoint is near a singularity.",
+  "robotics.kinematics.configuration_one":
+    "{count} arm configuration change within a grip.",
+  "robotics.kinematics.configuration_other":
+    "{count} arm configuration changes within grips.",
+  "robotics.kinematics.configuration":
+    "{count} arm configuration changes within grips.",
+  "robotics.kinematics.payload": "Payload at most {max} kg of {limit} kg.",
+  "robotics.kinematics.payloadExceeded":
+    "Payload exceeded in {count} grips (at most {max} kg of {limit} kg).",
+  "robotics.kinematics.payloadNoGripper":
+    "The gripper mass is not recorded; only the packages are counted.",
+  "robotics.kinematics.payloadNotChecked":
+    "Package weight is missing, so the payload was not checked.",
+  "robotics.kinematics.limitations":
+    "Not checked: collisions between the arm and the cell, and synchronized lift timing. The flange-to-suction gripper offset is a provisional 0 mm.",
+  "robotics.kinematics.decimalSeparator": ".",
+
   // Obstacle editor
   "robotics.obstacleDefaultName": "Obstacle {number}",
   "robotics.addObstacle": "Add obstacle",

@@ -32,6 +32,7 @@ const controller = vi.hoisted(() => ({
   setData: vi.fn(),
   setVisibleUpToLayer: vi.fn(),
   setLiftCarriageMm: vi.fn(),
+  setRobotJoints: vi.fn(),
   setSimulationPose: vi.fn(),
   setSimulationState: vi.fn(),
   setTemporaryCalibration: vi.fn(),

@@ -87,7 +87,7 @@ domain logic into workspaces, `components` render.
 - **`src/domain/`** — pure logic, no React.
   - `solver/` — pattern generation (`generators`, `rectangularBlock`), validation, `metrics`, `labelOrientation`, ranking in `solve.ts`. Must stay deterministic and order-independent.
   - `stack/` — layer composition, interlayers, capacity, `materialize.ts`.
-  - `robotics/` — grip grouping, cycle materialization, frames/poses, reach & collision `checks`, `timeline`, `robExport`.
+  - `robotics/` — grip grouping, cycle materialization, frames/poses, reach & collision `checks`, `timeline`, `robExport`. `ur10eKinematics` holds UR10e DH FK, analytic 8-solution IK and the URDF link chain of `public/models/ur10e/ur10e.glb`; `ur10eCell` holds the bundled lift-cell installation (base from the CAD mount, lift 0–900 mm, `GRIPPER_FLANGE_TO_SUCTION_MM`) and per-waypoint reach/limit/singularity/payload checks (warnings, `kinematics` phase). `features/robotics/cellKinematicsModel.ts` maps guided-plan cycles into the cell frame exactly like the simulation; the viewer poses the arm from the same IK.
   - `project/` — project schema v2, migration, factory, pallet templates, equipment profiles.
   - `sheetExtraction/` — sheet schema, prompt, validation; `lib/sheetExtraction/` handles model transport/config/evaluation, `/api/sheet-extraction` guards uploads and inference. Photos are not stored.
   - `geometry/`, `formats/` — canonical rectangle math; MPB v1.
@@ -116,7 +116,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite contains 1834 tests in 183 files (3 tests and 1 file skipped) and is
+The suite contains 1898 tests in 190 files (2 tests and 1 file skipped) and is
 deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for

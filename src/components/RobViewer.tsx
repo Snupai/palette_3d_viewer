@@ -97,6 +97,7 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
       showSceneControls = true,
       equipment,
       liftCarriageMm,
+      robotJoints,
       simulationPose,
       simulationState,
       sceneCalibration,
@@ -227,6 +228,10 @@ export const RobViewer = forwardRef<RobViewerHandle, RobViewerProps>(
     useEffect(() => {
       controllerRef.current?.setLiftCarriageMm(liftCarriageMm ?? null);
     }, [liftCarriageMm]);
+
+    useEffect(() => {
+      controllerRef.current?.setRobotJoints(robotJoints ?? null);
+    }, [robotJoints]);
 
     useEffect(() => {
       controllerRef.current?.setSimulationPose(simulationPose ?? null);

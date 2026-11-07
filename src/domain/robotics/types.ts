@@ -5,6 +5,7 @@ import type {
   Project,
 } from "~/domain/project/projectSchema";
 import type { MaterializedStackResult } from "~/domain/stack/types";
+import type { Ur10eCellKinematicsSummary } from "~/domain/robotics/ur10eCell";
 
 export type RobotDiagnosticSeverity = "info" | "warning" | "error";
 
@@ -18,6 +19,7 @@ export type RobotDiagnosticPhase =
   | "reach"
   | "envelope"
   | "collision"
+  | "kinematics"
   | "timeline"
   | "export"
   | "legacy-import";
@@ -61,6 +63,14 @@ export type RobotDiagnosticCode =
   | "tcp-envelope-exceeded"
   | "tool-envelope-exceeded"
   | "obstacle-collision"
+  | "kinematics-unreachable"
+  | "kinematics-joint-limit"
+  | "kinematics-singularity-shoulder"
+  | "kinematics-singularity-elbow"
+  | "kinematics-singularity-wrist"
+  | "kinematics-configuration-change"
+  | "kinematics-payload-exceeded"
+  | "kinematics-payload-not-checked"
   | "invalid-timeline-config"
   | "timeline-frame-mismatch"
   | "empty-robot-plan"
@@ -235,6 +245,12 @@ export type RobotCycle = {
   pickPose: RobotPose;
   transferPose: RobotPose;
   placePose: RobotPose;
+  /**
+   * Optional empty-return via point between the previous place and this
+   * pick. Only simulation cycles set it (to swing around the robot base);
+   * canonical cycles leave it undefined and return in one straight move.
+   */
+  returnTransferPose?: RobotPose;
   /** Pallet-local grip pose for legacy .rob place fields; this is not a robot TCP pose. */
   placeGripPosePallet: RobotPose & { frame: "pallet" };
   legacyUnknownFields: LegacyRobUnknownFields | null;
@@ -293,4 +309,9 @@ export type RobotCycleMaterialization = {
   cycles: readonly RobotCycle[];
   diagnostics: readonly RobotDiagnostic[];
   valid: boolean;
+  /**
+   * UR10e lift-cell kinematics summary, set by the workspace when the plan
+   * runs in the bundled cell; absent or null means kinematics were not checked.
+   */
+  cellKinematics?: Ur10eCellKinematicsSummary | null;
 };

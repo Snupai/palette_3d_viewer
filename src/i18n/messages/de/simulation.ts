@@ -25,6 +25,8 @@ export const simulationDe = {
   // Lift
   "simulation.lift.title": "Hub (Ewellix)",
   "simulation.lift.position": "Hubposition Ewellix",
+  "simulation.lift.automatic":
+    "Der Hub folgt während der Simulation der UR10e-Kinematik.",
   // Timing
   "simulation.timing.title": "Bewegungszeiten",
   "simulation.timing.linearSpeed": "Bahngeschwindigkeit (mm/s)",
@@ -39,6 +41,20 @@ export const simulationDe = {
   "simulation.tcp.keyPoint": "Stützpunkt",
   "simulation.tcp.exact": "exakt",
   "simulation.tcp.interpolated": "interpoliert",
+  "simulation.kinematics.title": "UR10e-Gelenke",
+  "simulation.kinematics.joint": "Gelenk",
+  "simulation.kinematics.angle": "Winkel",
+  "simulation.kinematics.joint1": "Basis",
+  "simulation.kinematics.joint2": "Schulter",
+  "simulation.kinematics.joint3": "Ellbogen",
+  "simulation.kinematics.joint4": "Handgelenk 1",
+  "simulation.kinematics.joint5": "Handgelenk 2",
+  "simulation.kinematics.joint6": "Handgelenk 3",
+  "simulation.kinematics.solved": "erreichbar",
+  "simulation.kinematics.singular": "erreichbar, nahe Singularität",
+  "simulation.kinematics.unreachable": "außerhalb der Reichweite",
+  "simulation.kinematics.jointLimit": "nur außerhalb der Gelenkgrenzen",
+  "simulation.kinematics.status": "Status",
   // Timeline phases
   "simulation.phase.cycleRetract": "Von Palette zurückziehen",
   "simulation.phase.cycleTraverse": "Fahrt über Zufuhr",

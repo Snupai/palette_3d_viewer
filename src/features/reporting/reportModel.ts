@@ -13,6 +13,10 @@ import type {
   StackWarning,
 } from "~/domain/stack";
 import { palletLayerToPatternPreview } from "~/lib/previewAdapters";
+import {
+  describeCellKinematics,
+  type CellKinematicsDescription,
+} from "~/features/robotics/cellKinematicsModel";
 
 export type PlanningReportCapture =
   | {
@@ -96,6 +100,8 @@ export type PlanningReportModel = {
   warnings: readonly PlanningReportWarning[];
   layerSequence: readonly PlanningReportLayerRow[];
   robotCycles: ReturnType<typeof createRobotCycleReport>;
+  /** UR10e lift-cell check results and what remains unchecked. */
+  robotKinematics: CellKinematicsDescription;
   provenanceNotes: readonly string[];
 };
 
@@ -361,6 +367,7 @@ export function createPlanningReportModel(input: {
     warnings: reportWarnings(materialization, t),
     layerSequence: layerSequence(materialization),
     robotCycles,
+    robotKinematics: describeCellKinematics(materialization.cellKinematics, t),
     provenanceNotes: [
       t("reporting.model.note.svg"),
       t("reporting.model.note.capture"),

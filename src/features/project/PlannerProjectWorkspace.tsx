@@ -1827,7 +1827,7 @@ export function PlannerProjectWorkspace({
           ).filter(({ id }) => id !== "export")
         : [];
     const robotReadinessBlocked =
-      robotReadinessItems.length !== 5 ||
+      robotReadinessItems.length !== 6 ||
       robotReadinessItems.some(({ status }) =>
         ["blocked", "needs-input", "engineering"].includes(status),
       );

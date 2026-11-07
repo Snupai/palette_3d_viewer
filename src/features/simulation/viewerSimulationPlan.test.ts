@@ -96,11 +96,41 @@ describe("calibrated viewer simulation plan", () => {
       positionMm: { x: 489, y: 395, z: 100 },
       yawDeg: 90,
     });
+    // Pick bears −42.2° and place −160.3° from the robot base (1058.6, 599.5);
+    // the transfer sits on the 595 mm mean radius at the −101.2° mid bearing
+    // instead of the straight midpoint (990.5, 301) next to the base column.
+    expect(calibrated[0]?.transferPose).toEqual({
+      frame: "pallet",
+      positionMm: { x: 942.959663423, y: 15.890080987, z: 1_262 },
+      yawDeg: -180,
+    });
+    // The empty return from cycle 1's place to cycle 2's pick swings around
+    // the base as well; the first cycle has no return move.
+    expect(calibrated[0]?.returnTransferPose).toBeUndefined();
+    expect(calibrated[1]?.returnTransferPose).toEqual({
+      frame: "pallet",
+      // Place bears −160.25° and pick −40.96°: mid −100.6° on the 582.9 mm
+      // mean radius; yaw halfway from 90° to −90°.
+      positionMm: { x: 951.331904036, y: 26.532769931, z: 1_262 },
+      yawDeg: 0,
+    });
+    expect(cycles).toEqual(sourceSnapshot);
+  });
+
+  it("keeps the straight pick/place midpoint without a robot pivot", () => {
+    const { robotCellRevision, palletPose, pickupPose } =
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION;
+    const withoutPivot = { robotCellRevision, palletPose, pickupPose };
+    const calibrated = createViewerSimulationCycles(
+      cycles,
+      timelinePoseToViewerPose,
+      withoutPivot,
+    );
+
     expect(calibrated[0]?.transferPose).toEqual({
       frame: "pallet",
       positionMm: { x: 990.5, y: 301, z: 1_262 },
       yawDeg: -180,
     });
-    expect(cycles).toEqual(sourceSnapshot);
   });
 });

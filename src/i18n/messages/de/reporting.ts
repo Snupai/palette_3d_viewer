@@ -112,6 +112,7 @@ export const reportingDe = {
     "{count} Zyklen · {single} einfach · {double} doppelt · {larger} größere Multipicks",
   "reporting.cycles.summary":
     "{count} Zyklen · {single} einfach · {double} doppelt · {larger} größere Multipicks",
+  "reporting.kinematics.title": "UR10e-Kinematik",
   "reporting.cycles.group": "Gruppe",
   "reporting.cycles.pick": "Aufnahme X/Y/Z/Gier",
   "reporting.cycles.transfer": "Transfer X/Y/Z/Gier",
