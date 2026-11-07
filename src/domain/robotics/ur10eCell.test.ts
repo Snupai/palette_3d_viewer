@@ -3,6 +3,7 @@ import type { RobotCycle, RobotPose } from "~/domain/robotics/types";
 import {
   BUNDLED_UR10E_CELL,
   GRIPPER_FLANGE_TO_SUCTION_MM,
+  blendUr10eCellPoses,
   solveUr10eCellPose,
   ur10eBaseTransform,
   ur10eLiftCandidates,
@@ -195,6 +196,8 @@ describe("UR10e cycle checks", () => {
       jointLimitWaypointCount: 0,
       singularWaypointCount: 0,
       configurationChangeCount: 0,
+      pathSampleCount: 30,
+      unsolvedPathSampleCount: 7,
       liftUsedMm: { min: 0, max: expect.closeTo(615.9, 9) as number },
       payload: {
         status: "checked",
@@ -211,10 +214,18 @@ describe("UR10e cycle checks", () => {
         details?.phase,
       ]),
     ).toEqual([
+      // Straight moves first (one finding per move), then the waypoints.
+      [
+        "kinematics-unreachable",
+        "cycle-2",
+        "previous-place-retract→pick-approach",
+      ],
+      ["kinematics-unreachable", "cycle-2", "transfer→place-approach"],
+      ["kinematics-unreachable", "cycle-2", "place-approach→place"],
       ["kinematics-unreachable", "cycle-2", "place-approach"],
       ["kinematics-unreachable", "cycle-2", "place"],
     ]);
-    expect(result.diagnostics[1]).toMatchObject({
+    expect(result.diagnostics[4]).toMatchObject({
       severity: "warning",
       phase: "kinematics",
       layerId: "layer-1",
@@ -277,6 +288,73 @@ describe("UR10e cycle checks", () => {
     expect(unweighted.diagnostics.map(({ code }) => code)).toEqual([
       "kinematics-payload-not-checked",
     ]);
+  });
+
+  it("finds an unreachable straight return and clears it with a via point", () => {
+    const direct = validateUr10eCellKinematics(
+      [reachable, cycle("cycle-2", 1, pose(789, 795, 250, 90))],
+      { packageWeightKg: 5 },
+    );
+    expect(direct.summary).toMatchObject({
+      waypointCount: 12,
+      solvedWaypointCount: 12,
+      pathSampleCount: 30,
+      unsolvedPathSampleCount: 2,
+    });
+    expect(direct.diagnostics).toEqual([
+      {
+        severity: "warning",
+        phase: "kinematics",
+        code: "kinematics-unreachable",
+        message:
+          'Cycle "cycle-2" move previous-place-retract → pick-approach passes TCP (964.75, 648, 1162) mm, which the UR10e cannot reach at any lift position.',
+        cycleId: "cycle-2",
+        layerId: "layer-1",
+        resourceId: "bundled-ur10e-lift-cell",
+        details: {
+          phase: "previous-place-retract→pick-approach",
+          check: "path-sample",
+          fraction: 0.25,
+        },
+      },
+    ]);
+
+    const viaBase = validateUr10eCellKinematics(
+      [
+        reachable,
+        {
+          ...cycle("cycle-2", 1, pose(789, 795, 250, 90)),
+          returnTransferPose: pose(942, 16, 1_162, 0),
+        },
+      ],
+      { packageWeightKg: 5 },
+    );
+    expect(viaBase.summary).toMatchObject({
+      waypointCount: 13,
+      solvedWaypointCount: 13,
+      pathSampleCount: 33,
+      unsolvedPathSampleCount: 0,
+    });
+    expect(viaBase.diagnostics).toEqual([]);
+  });
+
+  it("blends joints between the solved ends of a move", () => {
+    const blend = blendUr10eCellPoses(
+      { positionMm: { x: 1_492, y: 207, z: 1_162 }, yawDeg: -90 },
+      { positionMm: { x: 789, y: 795, z: 1_162 }, yawDeg: 90 },
+      0.5,
+    );
+    expect(blend?.liftMm).toBeCloseTo(615.9, 9);
+    expect(degrees(blend!.joints)).toEqual([
+      71.515095, -19.317098, 139.374849, -210.057751, -90, -63.484905,
+    ]);
+    expect(
+      blendUr10eCellPoses(
+        { positionMm: { x: 3_000, y: 3_000, z: 500 }, yawDeg: 0 },
+        PICKUP,
+        0.5,
+      ),
+    ).toBeNull();
   });
 
   it("solves every pose identically regardless of the cycle order", () => {

@@ -252,6 +252,10 @@ export const roboticsEn = {
     "{count} waypoints are near a singularity (shoulder, elbow or wrist).",
   "robotics.kinematics.singular":
     "{count} waypoints are near a singularity (shoulder, elbow or wrist).",
+  "robotics.kinematics.pathOk":
+    "All {count} intermediate points of the straight route segments are reachable.",
+  "robotics.kinematics.pathUnsolved":
+    "{count} of {total} intermediate points of the straight route segments are not reachable.",
   "robotics.kinematics.noSingularity": "No waypoint is near a singularity.",
   "robotics.kinematics.configuration_one":
     "{count} arm configuration change within a grip.",

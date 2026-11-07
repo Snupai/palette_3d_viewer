@@ -16,6 +16,7 @@ import type { Project } from "~/domain/project/projectSchema";
 import {
   createRobotTimeline,
   seekRobotTimeline,
+  blendUr10eCellPoses,
   solveUr10eCellPose,
   stationPointToPallet,
   type RobotCycleMaterialization,
@@ -197,7 +198,18 @@ export function SimulationWorkspace({
       ? solveUr10eCellPose(simulationFrame.tcpPose)
       : null;
   const solvedArm = armSolution?.status === "solved" ? armSolution : null;
-  const viewerLiftMm = solvedArm ? solvedArm.liftMm : liftCarriageMm;
+  // Frames between two solvable waypoints whose straight TCP line leaves the
+  // workspace blend in joint space (the checks report such moves).
+  const blendedArm =
+    armSolution && !solvedArm && sample
+      ? blendUr10eCellPoses(
+          sample.segment.fromPose,
+          sample.segment.toPose,
+          sample.segmentProgress,
+        )
+      : null;
+  const shownArm = solvedArm ?? blendedArm;
+  const viewerLiftMm = shownArm ? shownArm.liftMm : liftCarriageMm;
 
   const equipment = useMemo<ViewerEquipmentConfig>(() => {
     const firstPick = viewerCycles[0]?.pickPose ?? null;
@@ -484,7 +496,7 @@ export function SimulationWorkspace({
                 liftCarriageMm={
                   project.source.kind === "new" ? viewerLiftMm : null
                 }
-                robotJoints={solvedArm?.joints ?? null}
+                robotJoints={shownArm?.joints ?? null}
                 simulationPose={simulationFrame.tcpPose}
                 simulationState={simulationFrame}
                 sceneCalibration={sceneCalibration ?? undefined}
@@ -504,7 +516,7 @@ export function SimulationWorkspace({
               <div className="ed-panel-head">
                 <h3 id="sim-lift-title">{t("simulation.lift.title")}</h3>
                 <output htmlFor="lift-carriage-mm" className="ed-status">
-                  {solvedArm ? mm(viewerLiftMm, tag) : viewerLiftMm} mm
+                  {shownArm ? mm(viewerLiftMm, tag) : viewerLiftMm} mm
                 </output>
               </div>
               <input
@@ -515,13 +527,13 @@ export function SimulationWorkspace({
                 max={BUNDLED_ROBOT_CELL.liftTravelMm.max}
                 step={10}
                 value={viewerLiftMm}
-                disabled={solvedArm !== null}
+                disabled={shownArm !== null}
                 onChange={(event) =>
                   setLiftCarriageMm(Number(event.target.value))
                 }
                 className="accent-brand"
               />
-              {solvedArm ? (
+              {shownArm ? (
                 <p className="text-muted text-micro mt-1">
                   {t("simulation.lift.automatic")}
                 </p>
@@ -541,8 +553,8 @@ export function SimulationWorkspace({
                         {t(kinematicsStatusKey(armSolution))}
                       </td>
                     </tr>
-                    {solvedArm
-                      ? solvedArm.joints.map((angle, index) => (
+                    {shownArm
+                      ? shownArm.joints.map((angle, index) => (
                           <tr key={jointLabels[index]}>
                             <td>{t(jointLabels[index]!)}</td>
                             <td className="num">

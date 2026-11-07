@@ -116,7 +116,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite contains 1896 tests in 190 files (2 tests and 1 file skipped) and is
+The suite contains 1898 tests in 190 files (2 tests and 1 file skipped) and is
 deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for

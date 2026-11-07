@@ -258,6 +258,10 @@ export const roboticsDe = {
     "{count} Stützpunkte liegen nahe einer Singularität (Schulter, Ellbogen oder Handgelenk).",
   "robotics.kinematics.singular":
     "{count} Stützpunkte liegen nahe einer Singularität (Schulter, Ellbogen oder Handgelenk).",
+  "robotics.kinematics.pathOk":
+    "Alle {count} Zwischenpunkte der geraden Bahnsegmente sind erreichbar.",
+  "robotics.kinematics.pathUnsolved":
+    "{count} von {total} Zwischenpunkten der geraden Bahnsegmente sind nicht erreichbar.",
   "robotics.kinematics.noSingularity":
     "Kein Stützpunkt liegt nahe einer Singularität.",
   "robotics.kinematics.configuration_one":

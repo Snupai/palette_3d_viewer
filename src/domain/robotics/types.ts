@@ -245,6 +245,12 @@ export type RobotCycle = {
   pickPose: RobotPose;
   transferPose: RobotPose;
   placePose: RobotPose;
+  /**
+   * Optional empty-return via point between the previous place and this
+   * pick. Only simulation cycles set it (to swing around the robot base);
+   * canonical cycles leave it undefined and return in one straight move.
+   */
+  returnTransferPose?: RobotPose;
   /** Pallet-local grip pose for legacy .rob place fields; this is not a robot TCP pose. */
   placeGripPosePallet: RobotPose & { frame: "pallet" };
   legacyUnknownFields: LegacyRobUnknownFields | null;

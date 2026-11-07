@@ -91,7 +91,7 @@ export function createViewerSimulationCycles(
       ? viewerFrameFromReference(referencePick, calibration.pickupPose)
       : null;
 
-  return cycles.map((cycle) => {
+  const mapped = cycles.map((cycle) => {
     const localPick = toViewerPose(cycle.pickPose);
     const localTransfer = toViewerPose(cycle.transferPose);
     const localPlace = toViewerPose(cycle.placePose);
@@ -111,14 +111,42 @@ export function createViewerSimulationCycles(
           calibration.robotBaseMm,
         )
       : localTransfer;
-
-    return {
-      ...cycle,
-      pickPose: asTimelinePose(worldPick),
-      transferPose: asTimelinePose(worldTransfer),
-      placePose: asTimelinePose(worldPlace),
-    };
+    return { cycle, worldPick, worldTransfer, worldPlace };
   });
+
+  const pivot = calibration?.robotBaseMm;
+  return mapped.map(
+    ({ cycle, worldPick, worldTransfer, worldPlace }, index) => {
+      const previousPlace = mapped[index - 1]?.worldPlace;
+      // The empty return swings around the robot base like the carried move;
+      // its height is lifted to the route's safe Z by the transition route.
+      const returnTransferPose =
+        pivot && previousPlace
+          ? asTimelinePose({
+              positionMm: {
+                ...transferPoint(
+                  previousPlace.positionMm,
+                  worldPick.positionMm,
+                  pivot,
+                ),
+                z: worldTransfer.positionMm.z,
+              },
+              yawDeg: interpolateViewerYawDeg(
+                previousPlace.yawDeg,
+                worldPick.yawDeg,
+                0.5,
+              ),
+            })
+          : undefined;
+      return {
+        ...cycle,
+        pickPose: asTimelinePose(worldPick),
+        transferPose: asTimelinePose(worldTransfer),
+        placePose: asTimelinePose(worldPlace),
+        ...(returnTransferPose ? { returnTransferPose } : {}),
+      };
+    },
+  );
 }
 
 export function timelinePoseToViewerPose(pose: RobotPose): ViewerScenePose {

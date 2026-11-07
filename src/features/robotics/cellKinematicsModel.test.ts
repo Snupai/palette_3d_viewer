@@ -95,12 +95,15 @@ describe("bundled UR10e cell kinematics", () => {
       robot: "UR10e",
       installationId: "bundled-ur10e-lift-cell",
       cycleCount: 36,
-      waypointCount: 250,
-      solvedWaypointCount: 250,
+      // 36 × 5 carried waypoints + 35 × 3 return waypoints (incl. the via point).
+      waypointCount: 285,
+      solvedWaypointCount: 285,
       unreachableWaypointCount: 0,
       jointLimitWaypointCount: 0,
       singularWaypointCount: 0,
       configurationChangeCount: 0,
+      pathSampleCount: 747,
+      unsolvedPathSampleCount: 0,
       liftUsedMm: { min: 0, max: 900 },
       payload: {
         status: "checked",
@@ -154,7 +157,8 @@ describe("bundled UR10e cell kinematics", () => {
     ).toEqual({
       status: "warning",
       lines: [
-        "250 von 250 Bahnstützpunkten sind mit UR10e und Hubachse innerhalb der Gelenkgrenzen erreichbar.",
+        "285 von 285 Bahnstützpunkten sind mit UR10e und Hubachse innerhalb der Gelenkgrenzen erreichbar.",
+        "Alle 747 Zwischenpunkte der geraden Bahnsegmente sind erreichbar.",
         "Kein Stützpunkt liegt nahe einer Singularität.",
         "Traglast in 36 Griffen überschritten (höchstens 13,0 kg von 12,5 kg).",
         "Die Greifermasse ist nicht hinterlegt; gezählt sind nur die Pakete.",
@@ -191,7 +195,7 @@ describe("bundled UR10e cell kinematics", () => {
       label: "UR10e-Kinematik",
       status: "warning",
       evidence:
-        "250 von 250 Bahnstützpunkten sind mit UR10e und Hubachse innerhalb der Gelenkgrenzen erreichbar. Kein Stützpunkt liegt nahe einer Singularität. Paketgewicht fehlt, daher wurde die Traglast nicht geprüft.",
+        "285 von 285 Bahnstützpunkten sind mit UR10e und Hubachse innerhalb der Gelenkgrenzen erreichbar. Alle 747 Zwischenpunkte der geraden Bahnsegmente sind erreichbar. Kein Stützpunkt liegt nahe einer Singularität. Paketgewicht fehlt, daher wurde die Traglast nicht geprüft.",
     });
   });
 

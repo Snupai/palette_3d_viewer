@@ -200,6 +200,8 @@ describe("planning report model", () => {
           jointLimitWaypointCount: 0,
           singularWaypointCount: 1,
           configurationChangeCount: 0,
+          pathSampleCount: 12,
+          unsolvedPathSampleCount: 2,
           liftUsedMm: { min: 0, max: 120 },
           payload: {
             status: "checked",
@@ -217,6 +219,7 @@ describe("planning report model", () => {
     expect(checked.robotKinematics.lines).toEqual([
       "4 of 5 route waypoints are reachable by the UR10e with the lift axis, within the joint limits.",
       "1 waypoint is out of reach.",
+      "2 of 12 intermediate points of the straight route segments are not reachable.",
       "1 waypoint is near a singularity (shoulder, elbow or wrist).",
       "Payload at most 4.5 kg of 12.5 kg.",
       "The gripper mass is not recorded; only the packages are counted.",

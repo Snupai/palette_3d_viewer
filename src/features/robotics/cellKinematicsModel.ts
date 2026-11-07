@@ -85,6 +85,14 @@ export function describeCellKinematics(
     );
   }
   lines.push(
+    summary.unsolvedPathSampleCount > 0
+      ? t("robotics.kinematics.pathUnsolved", {
+          count: summary.unsolvedPathSampleCount,
+          total: summary.pathSampleCount,
+        })
+      : t("robotics.kinematics.pathOk", { count: summary.pathSampleCount }),
+  );
+  lines.push(
     summary.singularWaypointCount > 0
       ? t("robotics.kinematics.singular", {
           count: summary.singularWaypointCount,
@@ -120,6 +128,7 @@ export function describeCellKinematics(
   }
   const clean =
     summary.solvedWaypointCount === summary.waypointCount &&
+    summary.unsolvedPathSampleCount === 0 &&
     summary.singularWaypointCount === 0 &&
     summary.configurationChangeCount === 0 &&
     payload.status === "checked" &&

@@ -1,3 +1,4 @@
+import { interpolateRobotPose } from "~/domain/robotics/frames";
 import {
   createRobotCycleMotionRoute,
   createRobotCycleTransitionRoute,
@@ -312,6 +313,10 @@ export type Ur10eCellKinematicsSummary = {
   jointLimitWaypointCount: number;
   singularWaypointCount: number;
   configurationChangeCount: number;
+  /** Interior samples of the straight moves between consecutive waypoints. */
+  pathSampleCount: number;
+  /** Path samples without a solution (out of reach or outside joint limits). */
+  unsolvedPathSampleCount: number;
   liftUsedMm: { min: number; max: number } | null;
   payload: Ur10ePayloadCheck;
 };
@@ -335,6 +340,9 @@ function cycleWaypoints(
   // the previous cycle and the carried route already cover.
   return [...transition.slice(1, -1), ...carried];
 }
+
+/** Interior fractions sampled on every straight move between waypoints. */
+export const UR10E_PATH_SAMPLE_FRACTIONS = [0.25, 0.5, 0.75] as const;
 
 const SINGULARITY_CODES: Record<Ur10eSingularityKind, RobotDiagnosticCode> = {
   shoulder: "kinematics-singularity-shoulder",
@@ -364,11 +372,48 @@ export function validateUr10eCellKinematics(
   const diagnostics: RobotDiagnostic[] = [];
   const waypoints: Ur10eWaypointResult[] = [];
   let configurationChangeCount = 0;
+  let pathSampleCount = 0;
+  let unsolvedPathSampleCount = 0;
 
   for (let index = 0; index < cycles.length; index += 1) {
     const cycle = cycles[index]!;
+    const route = cycleWaypoints(cycles, index);
+    // Straight moves between waypoints: report the first unsolved interior
+    // sample per move, since the animation interpolates the TCP linearly.
+    for (let step = 1; step < route.length; step += 1) {
+      const from = route[step - 1]!;
+      const to = route[step]!;
+      let reported = false;
+      for (const fraction of UR10E_PATH_SAMPLE_FRACTIONS) {
+        pathSampleCount += 1;
+        const sample = interpolateRobotPose(from.pose, to.pose, fraction);
+        const solution = solveUr10eCellPose(sample, installation);
+        if (solution.status === "solved") continue;
+        unsolvedPathSampleCount += 1;
+        if (reported) continue;
+        reported = true;
+        const p = sample.positionMm;
+        diagnostics.push({
+          severity: "warning",
+          phase: "kinematics",
+          code:
+            solution.status === "unreachable"
+              ? "kinematics-unreachable"
+              : "kinematics-joint-limit",
+          message: `Cycle "${cycle.id}" move ${from.name} → ${to.name} passes TCP (${round3(p.x)}, ${round3(p.y)}, ${round3(p.z)}) mm, which the ${UR10E.model} cannot reach${solution.status === "joint-limit" ? " within its joint limits" : " at any lift position"}.`,
+          cycleId: cycle.id,
+          layerId: cycle.physicalLayerId,
+          resourceId: installation.id,
+          details: {
+            phase: `${from.name}→${to.name}`,
+            check: "path-sample",
+            fraction,
+          },
+        });
+      }
+    }
     let previous: Ur10eWaypointResult | null = null;
-    for (const waypoint of cycleWaypoints(cycles, index)) {
+    for (const waypoint of route) {
       const pose = {
         positionMm: { ...waypoint.pose.positionMm },
         yawDeg: waypoint.pose.yawDeg,
@@ -522,6 +567,8 @@ export function validateUr10eCellKinematics(
         ({ singularities }) => singularities.length > 0,
       ).length,
       configurationChangeCount,
+      pathSampleCount,
+      unsolvedPathSampleCount,
       liftUsedMm:
         lifts.length > 0
           ? { min: Math.min(...lifts), max: Math.max(...lifts) }
@@ -530,5 +577,28 @@ export function validateUr10eCellKinematics(
     },
     waypoints,
     diagnostics,
+  };
+}
+
+/**
+ * Joint-space blend between the solutions of a move's end poses. The
+ * simulation uses it for frames whose straight-line TCP pose has no IK
+ * solution, so the arm keeps moving instead of snapping to its home posture.
+ */
+export function blendUr10eCellPoses(
+  from: Ur10eCellPose,
+  to: Ur10eCellPose,
+  progress: number,
+  installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+): { liftMm: number; joints: Ur10eJoints } | null {
+  const start = solveUr10eCellPose(from, installation);
+  const end = solveUr10eCellPose(to, installation);
+  if (start.status !== "solved" || end.status !== "solved") return null;
+  const t = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+  return {
+    liftMm: start.liftMm + (end.liftMm - start.liftMm) * t,
+    joints: start.joints.map(
+      (angle, index) => angle + (end.joints[index]! - angle) * t,
+    ) as unknown as Ur10eJoints,
   };
 }

@@ -104,6 +104,16 @@ describe("calibrated viewer simulation plan", () => {
       positionMm: { x: 942.959663423, y: 15.890080987, z: 1_262 },
       yawDeg: -180,
     });
+    // The empty return from cycle 1's place to cycle 2's pick swings around
+    // the base as well; the first cycle has no return move.
+    expect(calibrated[0]?.returnTransferPose).toBeUndefined();
+    expect(calibrated[1]?.returnTransferPose).toEqual({
+      frame: "pallet",
+      // Place bears −160.25° and pick −40.96°: mid −100.6° on the 582.9 mm
+      // mean radius; yaw halfway from 90° to −90°.
+      positionMm: { x: 951.331904036, y: 26.532769931, z: 1_262 },
+      yawDeg: 0,
+    });
     expect(cycles).toEqual(sourceSnapshot);
   });
 
