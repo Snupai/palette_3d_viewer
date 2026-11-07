@@ -14,6 +14,10 @@ import {
   type RobotPose,
 } from "~/domain/robotics";
 import type { Translate } from "~/i18n";
+import {
+  createBundledCellKinematics,
+  describeCellKinematics,
+} from "~/features/robotics/cellKinematicsModel";
 import type { ViewerScenePose } from "~/components/rob-viewer/viewerTypes";
 
 export type RobotWorkspaceSettings = {
@@ -59,7 +63,14 @@ export type RobotReadinessStatus =
   | "blocked";
 
 export type RobotReadinessItem = {
-  id: "plan" | "equipment" | "pickup" | "workspace" | "obstacles" | "export";
+  id:
+    | "plan"
+    | "equipment"
+    | "pickup"
+    | "workspace"
+    | "kinematics"
+    | "obstacles"
+    | "export";
   label: string;
   status: RobotReadinessStatus;
   evidence: string;
@@ -263,10 +274,25 @@ export function materializeRobotWorkspace(
   project: Project,
   settings: RobotWorkspaceSettings,
 ): RobotCycleMaterialization {
-  const materialization = materializeRobotCycles(
+  const materialized = materializeRobotCycles(
     project,
     materializationOptionsFromWorkspace(settings),
   );
+  // UR10e findings are warnings: the cell calibration is CAD-derived, so they
+  // inform the plan review without blocking the derived .rob export.
+  const kinematics = createBundledCellKinematics(
+    project,
+    materialized,
+    (pose) => robotPoseToViewerPose(pose, project, materialized),
+  );
+  const materialization: RobotCycleMaterialization = {
+    ...materialized,
+    diagnostics: [
+      ...materialized.diagnostics,
+      ...(kinematics?.diagnostics ?? []),
+    ],
+    cellKinematics: kinematics?.summary ?? null,
+  };
   const diagnostics = validateRobotWorkspaceSettings(settings);
   if (diagnostics.length === 0) return materialization;
   return {
@@ -323,6 +349,7 @@ export function createRobotReadiness(
     ({ code }) => code === "reach-not-checked-zero-radius-sentinel",
   );
   const collisionBlocked = hasDiagnosticError(materialization, ["collision"]);
+  const kinematics = describeCellKinematics(materialization.cellKinematics, t);
 
   return [
     {
@@ -398,6 +425,12 @@ export function createRobotReadiness(
             : reachNotChecked
               ? t("robotics.evidence.workspaceSentinel")
               : t("robotics.evidence.workspaceOk"),
+    },
+    {
+      id: "kinematics",
+      label: t("robotics.item.kinematics"),
+      status: kinematics.status,
+      evidence: kinematics.lines.join(" "),
     },
     {
       id: "obstacles",

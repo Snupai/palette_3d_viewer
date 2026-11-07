@@ -16,9 +16,11 @@ import type { Project } from "~/domain/project/projectSchema";
 import {
   createRobotTimeline,
   seekRobotTimeline,
+  solveUr10eCellPose,
   stationPointToPallet,
   type RobotCycleMaterialization,
   type RobotTimelineConfig,
+  type Ur10eCellSolution,
 } from "~/domain/robotics";
 import { useLocale, type MessageKey } from "~/i18n";
 import { robotPoseToViewerPose } from "~/features/robotics/robotWorkspaceModel";
@@ -48,6 +50,27 @@ const defaultConfig: RobotTimelineConfig = {
   placeDwellMs: 250,
   betweenCycleDwellMs: 0,
 };
+
+const jointLabels: readonly MessageKey[] = [
+  "simulation.kinematics.joint1",
+  "simulation.kinematics.joint2",
+  "simulation.kinematics.joint3",
+  "simulation.kinematics.joint4",
+  "simulation.kinematics.joint5",
+  "simulation.kinematics.joint6",
+];
+
+function kinematicsStatusKey(solution: Ur10eCellSolution): MessageKey {
+  if (solution.status === "unreachable") {
+    return "simulation.kinematics.unreachable";
+  }
+  if (solution.status === "joint-limit") {
+    return "simulation.kinematics.jointLimit";
+  }
+  return solution.singularities.length > 0
+    ? "simulation.kinematics.singular"
+    : "simulation.kinematics.solved";
+}
 
 const timingFields: ReadonlyArray<
   readonly [MessageKey, keyof RobotTimelineConfig]
@@ -167,6 +190,14 @@ export function SimulationWorkspace({
     timelinePoseToViewerPose,
     sceneCalibration?.palletPose,
   );
+  // In the calibrated cell the animated TCP pose is in the cell frame, so the
+  // arm and the lift come straight from the UR10e inverse kinematics.
+  const armSolution =
+    sceneCalibration && simulationFrame.tcpPose
+      ? solveUr10eCellPose(simulationFrame.tcpPose)
+      : null;
+  const solvedArm = armSolution?.status === "solved" ? armSolution : null;
+  const viewerLiftMm = solvedArm ? solvedArm.liftMm : liftCarriageMm;
 
   const equipment = useMemo<ViewerEquipmentConfig>(() => {
     const firstPick = viewerCycles[0]?.pickPose ?? null;
@@ -207,10 +238,6 @@ export function SimulationWorkspace({
     );
     const envelope = materialization.gripper?.envelopeMm;
     const robotCell = project.source.kind === "new" ? BUNDLED_ROBOT_CELL : null;
-    // The CAD cell has no driveable joint chain, so the procedural arm is what
-    // moves. Mount it on the measured CAD base and follow the lift carriage so
-    // the travel slider keeps its meaning.
-    const robotMount = robotCell?.robotMount ?? null;
     return {
       conveyor:
         conveyorPose && materialization.conveyor
@@ -233,19 +260,10 @@ export function SimulationWorkspace({
             showModel: true,
           }
         : null,
-      robot: robotMount
-        ? {
-            baseMm: {
-              x: robotMount.baseMm.x,
-              y: robotMount.baseMm.y,
-              z: robotMount.baseMm.z + liftCarriageMm,
-            },
-            baseHeightMm: robotMount.baseHeightMm,
-            upperArmLengthMm: robotMount.upperArmLengthMm,
-            forearmLengthMm: robotMount.forearmLengthMm,
-            homePose: robotHomePose,
-          }
-        : materialization.station
+      // The bundled cell carries the articulated UR10e on its lift carriage;
+      // only uncalibrated scenes keep the procedural two-link arm.
+      robot:
+        !robotCell && materialization.station
           ? {
               baseMm: robotBase,
               baseHeightMm: 320,
@@ -256,7 +274,7 @@ export function SimulationWorkspace({
           : null,
       robotCell,
     };
-  }, [liftCarriageMm, materialization, project, viewerCycles]);
+  }, [materialization, project, viewerCycles]);
 
   const temporaryCalibration = useMemo<ViewerTemporaryCalibrationConfig>(() => {
     const firstCycle = viewerCycles[0] ?? null;
@@ -464,8 +482,9 @@ export function SimulationWorkspace({
                 showSceneControls
                 equipment={equipment}
                 liftCarriageMm={
-                  project.source.kind === "new" ? liftCarriageMm : null
+                  project.source.kind === "new" ? viewerLiftMm : null
                 }
+                robotJoints={solvedArm?.joints ?? null}
                 simulationPose={simulationFrame.tcpPose}
                 simulationState={simulationFrame}
                 sceneCalibration={sceneCalibration ?? undefined}
@@ -485,7 +504,7 @@ export function SimulationWorkspace({
               <div className="ed-panel-head">
                 <h3 id="sim-lift-title">{t("simulation.lift.title")}</h3>
                 <output htmlFor="lift-carriage-mm" className="ed-status">
-                  {liftCarriageMm} mm
+                  {solvedArm ? mm(viewerLiftMm, tag) : viewerLiftMm} mm
                 </output>
               </div>
               <input
@@ -495,13 +514,47 @@ export function SimulationWorkspace({
                 min={BUNDLED_ROBOT_CELL.liftTravelMm.min}
                 max={BUNDLED_ROBOT_CELL.liftTravelMm.max}
                 step={10}
-                value={liftCarriageMm}
+                value={viewerLiftMm}
+                disabled={solvedArm !== null}
                 onChange={(event) =>
                   setLiftCarriageMm(Number(event.target.value))
                 }
                 className="accent-brand"
               />
+              {solvedArm ? (
+                <p className="text-muted text-micro mt-1">
+                  {t("simulation.lift.automatic")}
+                </p>
+              ) : null}
             </section>
+          ) : null}
+
+          {armSolution ? (
+            <details className="ed-panel-details" open>
+              <summary>{t("simulation.kinematics.title")}</summary>
+              <div>
+                <table className="ed-table">
+                  <tbody>
+                    <tr>
+                      <td>{t("simulation.kinematics.status")}</td>
+                      <td className="num">
+                        {t(kinematicsStatusKey(armSolution))}
+                      </td>
+                    </tr>
+                    {solvedArm
+                      ? solvedArm.joints.map((angle, index) => (
+                          <tr key={jointLabels[index]}>
+                            <td>{t(jointLabels[index]!)}</td>
+                            <td className="num">
+                              {`${mm((angle * 180) / Math.PI, tag)}°`}
+                            </td>
+                          </tr>
+                        ))
+                      : null}
+                  </tbody>
+                </table>
+              </div>
+            </details>
           ) : null}
 
           <details className="ed-panel-details">

@@ -1,4 +1,6 @@
-import { translateDe } from "~/i18n";
+import { createTranslator, de, en, translateDe } from "~/i18n";
+
+const translateEn = createTranslator(en, de);
 import { describe, expect, it } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
 import type { Gripper, PalletStation } from "~/domain/project/projectSchema";
@@ -165,6 +167,60 @@ describe("planning report model", () => {
       status: "fallback",
       reason: "capture-not-attempted",
     });
+  });
+
+  it("reports the UR10e result and what stays unchecked instead of a blanket note", () => {
+    const { project, materialization, previewData } = fixture();
+    const unchecked = createPlanningReportModel({
+      project,
+      materialization,
+      previewData,
+      t: translateDe,
+    });
+    expect(unchecked.robotKinematics).toEqual({
+      status: "not-checked",
+      lines: [
+        "Nicht geprüft: Nur geführte Pläne mit Griffen laufen in der mitgelieferten UR10e-Hubzelle.",
+      ],
+      limitations:
+        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist vorläufig 0 mm.",
+    });
+
+    const checked = createPlanningReportModel({
+      project,
+      materialization: {
+        ...materialization,
+        cellKinematics: {
+          robot: "UR10e",
+          installationId: "bundled-ur10e-lift-cell",
+          cycleCount: 1,
+          waypointCount: 5,
+          solvedWaypointCount: 4,
+          unreachableWaypointCount: 1,
+          jointLimitWaypointCount: 0,
+          singularWaypointCount: 1,
+          configurationChangeCount: 0,
+          liftUsedMm: { min: 0, max: 120 },
+          payload: {
+            status: "checked",
+            maxPayloadKg: 4.5,
+            limitKg: 12.5,
+            gripperMassIncluded: false,
+            exceededCycleCount: 0,
+          },
+        },
+      },
+      previewData,
+      t: translateEn,
+    });
+    expect(checked.robotKinematics.status).toBe("warning");
+    expect(checked.robotKinematics.lines).toEqual([
+      "4 of 5 route waypoints are reachable by the UR10e with the lift axis, within the joint limits.",
+      "1 waypoint is out of reach.",
+      "1 waypoint is near a singularity (shoulder, elbow or wrist).",
+      "Payload at most 4.5 kg of 12.5 kg.",
+      "The gripper mass is not recorded; only the packages are counted.",
+    ]);
   });
 
   it("retains an available fixed right-top capture with explicit provenance", () => {

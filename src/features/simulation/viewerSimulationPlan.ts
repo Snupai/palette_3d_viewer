@@ -17,12 +17,49 @@ function asTimelinePose(pose: ViewerScenePose): RobotPose {
   };
 }
 
+function cleanNumber(value: number): number {
+  const rounded = Math.round(value * 1_000_000_000) / 1_000_000_000;
+  return Object.is(rounded, -0) ? 0 : rounded;
+}
+
+/**
+ * Horizontal transfer point. Without a robot pivot it is the pick/place
+ * midpoint; with one it lies on the arc around the robot base (mean radius,
+ * mean bearing on the shorter side), so the animated straight moves swing
+ * around the robot instead of cutting through its base.
+ */
+function transferPoint(
+  pick: ViewerScenePose["positionMm"],
+  place: ViewerScenePose["positionMm"],
+  pivot: { x: number; y: number } | undefined,
+): { x: number; y: number } {
+  if (!pivot) {
+    return { x: (pick.x + place.x) / 2, y: (pick.y + place.y) / 2 };
+  }
+  const pickBearing = Math.atan2(pick.y - pivot.y, pick.x - pivot.x);
+  const placeBearing = Math.atan2(place.y - pivot.y, place.x - pivot.x);
+  const delta = Math.atan2(
+    Math.sin(placeBearing - pickBearing),
+    Math.cos(placeBearing - pickBearing),
+  );
+  const bearing = pickBearing + delta / 2;
+  const radius =
+    (Math.hypot(pick.x - pivot.x, pick.y - pivot.y) +
+      Math.hypot(place.x - pivot.x, place.y - pivot.y)) /
+    2;
+  return {
+    x: cleanNumber(pivot.x + radius * Math.cos(bearing)),
+    y: cleanNumber(pivot.y + radius * Math.sin(bearing)),
+  };
+}
+
 function calibratedTransferPose(
   localPick: ViewerScenePose,
   localTransfer: ViewerScenePose,
   localPlace: ViewerScenePose,
   worldPick: ViewerScenePose,
   worldPlace: ViewerScenePose,
+  pivot: { x: number; y: number } | undefined,
 ): ViewerScenePose {
   const clearanceMm = Math.max(
     0,
@@ -31,8 +68,7 @@ function calibratedTransferPose(
   );
   return {
     positionMm: {
-      x: (worldPick.positionMm.x + worldPlace.positionMm.x) / 2,
-      y: (worldPick.positionMm.y + worldPlace.positionMm.y) / 2,
+      ...transferPoint(worldPick.positionMm, worldPlace.positionMm, pivot),
       z:
         Math.max(worldPick.positionMm.z, worldPlace.positionMm.z) + clearanceMm,
     },
@@ -72,6 +108,7 @@ export function createViewerSimulationCycles(
           localPlace,
           worldPick,
           worldPlace,
+          calibration.robotBaseMm,
         )
       : localTransfer;
 

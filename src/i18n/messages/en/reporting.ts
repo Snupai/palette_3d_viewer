@@ -110,6 +110,7 @@ export const reportingEn = {
     "{count} cycles · {single} single · {double} double · {larger} larger multipick",
   "reporting.cycles.summary":
     "{count} cycles · {single} single · {double} double · {larger} larger multipick",
+  "reporting.kinematics.title": "UR10e kinematics",
   "reporting.cycles.group": "Group",
   "reporting.cycles.pick": "Pick X/Y/Z/yaw",
   "reporting.cycles.transfer": "Transfer X/Y/Z/yaw",
