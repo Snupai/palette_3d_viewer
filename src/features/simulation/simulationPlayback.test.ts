@@ -53,7 +53,8 @@ function robotCycle(
     transferPose,
     placePose,
     placeGripPosePallet: { ...placePose, frame: "pallet" },
-    legacyUnknownFields: null,
+    placeApproach: null,
+    placeApproachPose: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
       groupingSource: "suction-adjacency-v1",

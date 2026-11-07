@@ -111,12 +111,20 @@ export function createViewerSimulationCycles(
           calibration.robotBaseMm,
         )
       : localTransfer;
-    return { cycle, worldPick, worldTransfer, worldPlace };
+    // The place pre-position is a pallet-side pose like the place itself.
+    const localApproach = cycle.placeApproachPose
+      ? toViewerPose(cycle.placeApproachPose)
+      : null;
+    const worldApproach =
+      localApproach && calibration
+        ? composeViewerPoses(calibration.palletPose, localApproach)
+        : localApproach;
+    return { cycle, worldPick, worldTransfer, worldPlace, worldApproach };
   });
 
   const pivot = calibration?.robotBaseMm;
   return mapped.map(
-    ({ cycle, worldPick, worldTransfer, worldPlace }, index) => {
+    ({ cycle, worldPick, worldTransfer, worldPlace, worldApproach }, index) => {
       const previousPlace = mapped[index - 1]?.worldPlace;
       // The empty return swings around the robot base like the carried move;
       // its height is lifted to the route's safe Z by the transition route.
@@ -143,6 +151,7 @@ export function createViewerSimulationCycles(
         pickPose: asTimelinePose(worldPick),
         transferPose: asTimelinePose(worldTransfer),
         placePose: asTimelinePose(worldPlace),
+        placeApproachPose: worldApproach ? asTimelinePose(worldApproach) : null,
         ...(returnTransferPose ? { returnTransferPose } : {}),
       };
     },

@@ -45,6 +45,8 @@ import {
   type RobotPose,
 } from "~/domain/robotics";
 import { parseRobText } from "~/lib/robParser";
+import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
+import { savedPalletToProject } from "~/lib/projectAdapters";
 import { findGripCollision, footprintSize } from "~/domain/palletGeometry";
 
 function suctionGripper(id = "suction-1"): Gripper {
@@ -310,7 +312,8 @@ function cycle(
     transferPose,
     placePose,
     placeGripPosePallet: { ...placePose, frame: "pallet" },
-    legacyUnknownFields: null,
+    placeApproach: null,
+    placeApproachPose: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
       groupingSource: "suction-adjacency-v1",
@@ -508,7 +511,9 @@ describe("robotics materialization and ordering", () => {
       },
     });
     expect(exported.ok).toBe(true);
-    expect(exported.text).not.toBeNull();
+    expect(
+      exported.diagnostics.filter(({ severity }) => severity === "error"),
+    ).toEqual([]);
     expect(parseRobText(exported.text!).uniqueLayers[1]).toEqual([
       expect.objectContaining({
         pickX: 100,
@@ -701,7 +706,7 @@ describe("robotics materialization and ordering", () => {
           gripperId: "suction-2",
           pickPose: { x: 11, y: -22, z: 333, rotation: 90 },
           placePose: { x: 101, y: 51, z: 40, rotation: 180 },
-          labelOffset: { x: 7, y: -9 },
+          placeApproachDirection: { dx: 7, dy: -9 },
         },
       ],
     });
@@ -720,10 +725,19 @@ describe("robotics materialization and ordering", () => {
         positionMm: { x: 11, y: -22, z: 333 },
         yawDeg: 90,
       },
-      legacyUnknownFields: {
-        field8: 7,
-        field9: -9,
-        semantics: "repository-dx-dy-unverified",
+      placeApproach: {
+        dx: 7,
+        dy: -9,
+        direction: { dx: 1, dy: -1 },
+        offsetMm: 80,
+        clearanceMm: 10,
+        source: "imported-project-cycle",
+      },
+      // Legacy .rob axes are pallet axes: (101, 51) + (1, −1) · 80, Z + 40 + 10.
+      placeApproachPose: {
+        frame: "legacy-rob",
+        positionMm: { x: 181, y: -29, z: 90 },
+        yawDeg: 180,
       },
       provenance: {
         cycleSource: "imported-project-cycle",
@@ -1178,6 +1192,39 @@ describe("coordinate frames and safety boundaries", () => {
     expect(segmentHits[0]?.details?.radiusMm).toBeCloseTo(707.107, 3);
   });
 
+  it("checks the place pre-position and the diagonal slide like every other waypoint", () => {
+    const lateral = {
+      ...cycle(
+        "lateral",
+        0,
+        pose(0, 300, 400, 0),
+        pose(500, 300, 600, 0),
+        pose(950, 0, 400, 0),
+      ),
+      placeApproachPose: pose(1_030, 0, 450, 0),
+    };
+    const diagnostics = validateCycleMotionBoundaries(
+      [lateral],
+      station({ robotRadiusMm: { min: 0, max: 1_000 } }),
+      { negativeX: 0, positiveX: 0, negativeY: 0, positiveY: 0 },
+    );
+
+    expect(
+      diagnostics
+        .filter(({ code }) => code === "reach-above-maximum")
+        .map(({ details }) => details?.phase),
+    ).toEqual(["place-approach-above", "place-approach"]);
+    expect(
+      createRobotCycleMotionRoute(lateral).segments.map(({ kind }) => kind),
+    ).toEqual([
+      "pick-lift",
+      "pick-traverse",
+      "transfer-traverse",
+      "place-approach",
+      "place-slide",
+    ]);
+  });
+
   it("builds carried and between-cycle motion with vertical approaches and elevated traversal", () => {
     const carried = createRobotCycleMotionRoute(
       cycle(
@@ -1387,7 +1434,7 @@ describe("project-derived .rob export", () => {
           gripperId: "suction-1",
           pickPose: { x: 0, y: 0, z: 100, rotation: 0 },
           placePose: { x: 10, y: 10, z: 40, rotation: 0 },
-          labelOffset: { x: 0, y: 0 },
+          placeApproachDirection: { dx: 0, dy: 0 },
         },
         {
           id: "explicit-cycle-b",
@@ -1398,7 +1445,7 @@ describe("project-derived .rob export", () => {
           gripperId: "suction-1",
           pickPose: { x: 0, y: 0, z: 100, rotation: 0 },
           placePose: { x: 120, y: 10, z: 40, rotation: 0 },
-          labelOffset: { x: 0, y: 0 },
+          placeApproachDirection: { dx: 0, dy: 0 },
         },
       ],
     });
@@ -1495,10 +1542,10 @@ describe("project-derived .rob export", () => {
 
     expect(materialized.valid).toBe(true);
     expect(materialized.cycles[0]).toMatchObject({
-      legacyUnknownFields: {
-        field8: 1,
-        field9: -1,
-        semantics: "repository-dx-dy-unverified",
+      placeApproach: {
+        dx: 1,
+        dy: -1,
+        direction: { dx: 1, dy: -1 },
         source: "calculated-pattern-grip",
       },
       provenance: { sourceGripId: gripId },
@@ -1516,7 +1563,207 @@ describe("project-derived .rob export", () => {
       }),
       { pickReference },
     );
-    expect(adjacencyGrouped.cycles[0]?.legacyUnknownFields).toBeNull();
+    expect(adjacencyGrouped.cycles[0]?.placeApproach).toBeNull();
+    expect(adjacencyGrouped.cycles[0]?.placeApproachPose).toBeNull();
+  });
+
+  it("places from the .rob dx/dy pre-position in pallet axes, independent of place rotation", () => {
+    const approachProject = (
+      rotation: 0 | 90,
+      direction: Project["package"]["palletizingDirection"],
+    ) => {
+      const grips = [
+        { id: "east", x: 500, y: 300, dx: 1, dy: 0 },
+        { id: "south", x: 300, y: 500, dx: 0, dy: -1 },
+        { id: "vertical", x: 700, y: 500, dx: 0, dy: 0 },
+      ];
+      const project = projectWithRobotPatterns({
+        patterns: [
+          {
+            id: "pattern-1",
+            name: "Approach pattern",
+            grips: grips.map((grip, index) => ({
+              id: grip.id,
+              groupNumber: index + 1,
+              pickX: 0,
+              pickY: 0,
+              pickRotation: 0,
+              x: grip.x,
+              y: grip.y,
+              rotation,
+              numPackages: 1,
+              dx: grip.dx,
+              dy: grip.dy,
+            })),
+            placements: grips.map((grip, index) => ({
+              ...placement(`package-${grip.id}`, index, grip.x, grip.y),
+              rotation,
+              gripId: grip.id,
+            })),
+            groupOrder: grips.map(({ id }) => id),
+            orderDependencies: [],
+          },
+        ],
+        layers: [
+          {
+            id: "physical-layer-1",
+            patternId: "pattern-1",
+            interlayerBefore: 0,
+          },
+        ],
+      });
+      return {
+        ...project,
+        package: { ...project.package, palletizingDirection: direction },
+      };
+    };
+    const approachOffsets = (project: Project) =>
+      materializeRobotCycles(project, { pickReference }).cycles.map(
+        ({ placePose, placeApproachPose, placeApproach }) => ({
+          direction: placeApproach?.direction,
+          offset: placeApproachPose && {
+            x: placeApproachPose.positionMm.x - placePose.positionMm.x,
+            y: placeApproachPose.positionMm.y - placePose.positionMm.y,
+            z: placeApproachPose.positionMm.z - placePose.positionMm.z,
+          },
+        }),
+      );
+
+    const unrotated = materializeRobotCycles(
+      approachProject(0, "x-positive-y-positive"),
+      { pickReference },
+    );
+    expect(unrotated.valid).toBe(true);
+    // Final grip Z is the layer top (40 mm); pre-position Z adds 40 + 10 mm.
+    expect(
+      unrotated.cycles.map(({ placePose, placeApproachPose }) => [
+        placePose.positionMm,
+        placeApproachPose?.positionMm ?? null,
+      ]),
+    ).toEqual([
+      [
+        { x: 500, y: 300, z: 40 },
+        { x: 580, y: 300, z: 90 },
+      ],
+      [
+        { x: 300, y: 500, z: 40 },
+        { x: 300, y: 420, z: 90 },
+      ],
+      [{ x: 700, y: 500, z: 40 }, null],
+    ]);
+    expect(
+      createRobotTimeline(unrotated.cycles)
+        .segments.filter(({ cycleIndex }) => cycleIndex === 0)
+        .map(({ kind }) => kind),
+    ).toEqual([
+      "pick-dwell",
+      "pick-lift",
+      "pick-traverse",
+      "transfer-traverse",
+      "place-approach",
+      "place-slide",
+      "place-dwell",
+    ]);
+
+    const expected = [
+      { direction: { dx: 1, dy: 0 }, offset: { x: 80, y: 0, z: 50 } },
+      { direction: { dx: 0, dy: -1 }, offset: { x: 0, y: -80, z: 50 } },
+      { direction: { dx: 0, dy: 0 }, offset: null },
+    ];
+    expect(
+      approachOffsets(approachProject(0, "x-positive-y-positive")),
+    ).toEqual(expected);
+    expect(
+      approachOffsets(approachProject(90, "x-positive-y-positive")),
+    ).toEqual(expected);
+    // Station axes mirror pallet X for x-negative palletizing; the pallet-side
+    // pre-position stays the same.
+    expect(
+      approachOffsets(approachProject(0, "x-negative-y-positive")),
+    ).toEqual([
+      { direction: { dx: 1, dy: 0 }, offset: { x: -80, y: 0, z: 50 } },
+      { direction: { dx: 0, dy: -1 }, offset: { x: 0, y: -80, z: 50 } },
+      { direction: { dx: 0, dy: 0 }, offset: null },
+    ]);
+  });
+
+  it("round-trips imported .rob fields 8/9 unchanged while deriving the pre-position", () => {
+    const robText = [
+      "1200 800 144",
+      "200 300 150",
+      "1",
+      "1",
+      "0 0",
+      "1 0",
+      "3",
+      "100 50 0 150 200 0 1 1 0",
+      "100 50 0 450 200 0 1 0 -1",
+      "100 50 0 750 200 0 1 0 0",
+    ].join("\n");
+    const project: Project = {
+      ...savedPalletToProject({
+        schemaVersion: CURRENT_PALLET_SCHEMA_VERSION,
+        id: "rob-approach",
+        name: "approach.rob",
+        createdAt: 1,
+        data: parseRobText(robText),
+        rawText: robText,
+        originalRawText: robText,
+      }),
+      grippers: [suctionGripper()],
+      palletStations: [station()],
+      selectedGripperId: "suction-1",
+      selectedPalletStationId: "station-1",
+    };
+    expect(
+      project.solutions[0]!.robotCycles.map(
+        ({ placeApproachDirection }) => placeApproachDirection,
+      ),
+    ).toEqual([
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 0 },
+    ]);
+
+    const materialized = materializeRobotCycles(project, { pickReference });
+    expect(
+      materialized.cycles.map(({ placePose, placeApproachPose }) => [
+        placePose.positionMm,
+        placeApproachPose?.positionMm ?? null,
+      ]),
+    ).toEqual([
+      [
+        { x: 150, y: 200, z: 150 },
+        { x: 230, y: 200, z: 310 },
+      ],
+      [
+        { x: 450, y: 200, z: 150 },
+        { x: 450, y: 120, z: 310 },
+      ],
+      [{ x: 750, y: 200, z: 150 }, null],
+    ]);
+
+    const options = identityExportOptions(
+      materialized.cycles.map(({ id }) => id),
+    );
+    options.unknownFields = { mode: "preserve-imported" };
+    const exported = exportProjectRob(materialized, options);
+    expect(
+      exported.diagnostics.filter(({ severity }) => severity === "error"),
+    ).toEqual([]);
+    expect(
+      parseRobText(exported.text!).uniqueLayers[1]?.map(({ dx, dy }) => [
+        dx,
+        dy,
+      ]),
+    ).toEqual([
+      [1, 0],
+      [0, -1],
+      [0, 0],
+    ]);
+    expect(
+      project.source.kind === "rob-import" && project.source.rawRobText,
+    ).toBe(robText);
   });
 
   it("blocks one sign mapping across legacy and station coordinate frames", () => {
@@ -1557,7 +1804,7 @@ describe("project-derived .rob export", () => {
           gripperId: "suction-1",
           pickPose: { x: 0, y: 0, z: 100, rotation: 0 },
           placePose: { x: 10, y: 10, z: 40, rotation: 0 },
-          labelOffset: { x: 0, y: 0 },
+          placeApproachDirection: { dx: 0, dy: 0 },
         },
       ],
     });

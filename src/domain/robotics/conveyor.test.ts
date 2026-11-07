@@ -42,7 +42,8 @@ function cycle(overrides: Partial<RobotCycle> = {}): RobotCycle {
       positionMm: { x: 700, y: 800, z: 115 },
       yawDeg: 0,
     },
-    legacyUnknownFields: null,
+    placeApproach: null,
+    placeApproachPose: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
       groupingSource: "suction-adjacency-v1",

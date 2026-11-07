@@ -11,6 +11,7 @@ import {
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
   PREVIOUS_PROJECT_SCHEMA_VERSION,
+  PROJECT_SCHEMA_V3_VERSION,
   PROJECT_SCHEMA_VERSION,
   projectSchema,
   projectV2Schema,
@@ -112,7 +113,7 @@ function placementsAndCycles(
       z: null,
       rotation: canonicalRotationFromLegacy(grip.rotation, inputDirection),
     },
-    labelOffset: { x: grip.dx, y: grip.dy },
+    placeApproachDirection: { dx: grip.dx, dy: grip.dy },
   })) satisfies RobotCycle[];
 
   return { placements, cycles };
@@ -197,18 +198,64 @@ export function migrateProjectV2(projectInput: ProjectV2): Project {
   );
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * V3/V4 robot cycles stored `.rob` fields 8/9 as `labelOffset: { x, y }`.
+ * Renames them to `placeApproachDirection: { dx, dy }` without changing values.
+ * Anything unexpected is passed through so schema validation reports it.
+ */
+function renameLegacyCycleApproachFields(
+  value: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!Array.isArray(value.solutions)) return value;
+  return {
+    ...value,
+    solutions: value.solutions.map((solution: unknown) => {
+      if (!isRecord(solution) || !Array.isArray(solution.robotCycles)) {
+        return solution;
+      }
+      return {
+        ...solution,
+        robotCycles: solution.robotCycles.map((cycle: unknown) => {
+          if (!isRecord(cycle) || !("labelOffset" in cycle)) return cycle;
+          const { labelOffset, ...rest } = cycle;
+          if (!isRecord(labelOffset) || "placeApproachDirection" in rest) {
+            return cycle;
+          }
+          const { x, y, ...extra } = labelOffset;
+          return {
+            ...rest,
+            placeApproachDirection: { ...extra, dx: x, dy: y },
+          };
+        }),
+      };
+    }),
+  };
+}
+
 /** Adds the built-in default equipment only to fully unconfigured ordinary V3 projects. */
 export function migrateProjectV3(value: unknown): Project {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return projectSchema.parse(value);
-  }
+  if (!isRecord(value)) return projectSchema.parse(value);
 
   return seedMigratedDefaultEquipment(
     projectSchema.parse({
-      ...value,
+      ...renameLegacyCycleApproachFields(value),
       schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
     }),
   );
+}
+
+/** Renames the V4 cycle `labelOffset` to `placeApproachDirection` (issue #96). */
+export function migrateProjectV4(value: unknown): Project {
+  if (!isRecord(value)) return projectSchema.parse(value);
+
+  return projectSchema.parse({
+    ...renameLegacyCycleApproachFields(value),
+    schemaVersion: CURRENT_PROJECT_SCHEMA_VERSION,
+  });
 }
 
 /**
@@ -220,8 +267,11 @@ export function migrateProject(value: unknown): Project {
   if (schemaVersion === PROJECT_SCHEMA_VERSION) {
     return migrateProjectV2(projectV2Schema.parse(value));
   }
-  if (schemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION) {
+  if (schemaVersion === PROJECT_SCHEMA_V3_VERSION) {
     return migrateProjectV3(value);
+  }
+  if (schemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION) {
+    return migrateProjectV4(value);
   }
   if (schemaVersion === CURRENT_PROJECT_SCHEMA_VERSION) {
     return projectSchema.parse(value);
@@ -244,6 +294,7 @@ export function safeMigrateProject(value: unknown):
       project: migrateProject(value),
       migrated:
         schemaVersion === PROJECT_SCHEMA_VERSION ||
+        schemaVersion === PROJECT_SCHEMA_V3_VERSION ||
         schemaVersion === PREVIOUS_PROJECT_SCHEMA_VERSION,
       diagnostics: [],
     };

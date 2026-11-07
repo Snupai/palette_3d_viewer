@@ -244,6 +244,8 @@ export function timelinePhaseLabel(
       return t("simulation.phase.transferTraverse");
     case "place-approach":
       return t("simulation.phase.placeApproach");
+    case "place-slide":
+      return t("simulation.phase.placeSlide");
     case "place-dwell":
       return t("simulation.phase.placeDwell");
     case "between-cycle-dwell":

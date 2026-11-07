@@ -58,7 +58,8 @@ export type StackPatternCycle = {
     z: number | null;
     rotation: Rotation;
   };
-  labelOffset: { x: number; y: number };
+  /** Raw `.rob` fields 8/9: place pre-position side in pallet axes (see `~/domain/placeApproach`). */
+  placeApproachDirection: { dx: number; dy: number };
 };
 
 export type ProjectPatternProvenance = {

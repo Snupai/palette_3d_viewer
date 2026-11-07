@@ -106,7 +106,7 @@ export function createInitialRobotExportSettings(): RobotExportWorkspaceSettings
     field8: "0",
     field9: "0",
     unknownFieldSemantics:
-      "Unknown final .rob fields supplied for internal inspection only; external semantics remain unverified.",
+      "Place pre-position side (dx, dy) in pallet axes, supplied as one explicit value for every cycle.",
     unknownFieldProvenance: "User-selected robotics workspace export policy.",
     allowCountOnlyInterlayers: false,
   };

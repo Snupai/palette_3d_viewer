@@ -134,15 +134,26 @@ function transformGrip(
     frame,
     transform,
   );
-  const labelOffset = transformVector({ x: grip.dx, y: grip.dy }, transform);
+  const approach = transformVector({ x: grip.dx, y: grip.dy }, transform);
   return {
     ...grip,
     x: place.positionMm.x,
     y: place.positionMm.y,
     rotation: place.rotation,
-    dx: labelOffset.x,
-    dy: labelOffset.y,
+    dx: approach.x,
+    dy: approach.y,
   };
+}
+
+function transformApproachDirection(
+  direction: StackPatternCycle["placeApproachDirection"],
+  transform: StackLayerTransform,
+): StackPatternCycle["placeApproachDirection"] {
+  const vector = transformVector(
+    { x: direction.dx, y: direction.dy },
+    transform,
+  );
+  return { dx: vector.x, dy: vector.y };
 }
 
 function transformCycle(
@@ -166,7 +177,10 @@ function transformCycle(
       y: place.positionMm.y,
       rotation: place.rotation,
     },
-    labelOffset: transformVector(cycle.labelOffset, transform),
+    placeApproachDirection: transformApproachDirection(
+      cycle.placeApproachDirection,
+      transform,
+    ),
   };
 }
 
@@ -317,7 +331,7 @@ export function transformStackPattern(
         placementIds: [...cycle.placementIds],
         pickPose: { ...cycle.pickPose },
         placePose: { ...cycle.placePose },
-        labelOffset: { ...cycle.labelOffset },
+        placeApproachDirection: { ...cycle.placeApproachDirection },
       })),
       frameMm: pattern.transformFrameMm,
       frameProvenance:
@@ -350,7 +364,7 @@ export function transformStackPattern(
         placementIds: [...cycle.placementIds],
         pickPose: { ...cycle.pickPose },
         placePose: { ...cycle.placePose },
-        labelOffset: { ...cycle.labelOffset },
+        placeApproachDirection: { ...cycle.placeApproachDirection },
       })),
       frameMm: null,
       frameProvenance: missingFrameProvenance,

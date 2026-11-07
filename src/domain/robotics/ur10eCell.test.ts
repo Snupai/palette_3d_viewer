@@ -56,7 +56,8 @@ function cycle(
     transferPose: pose(942, 16, 1_162, -180),
     placePose,
     placeGripPosePallet: { ...placePose, frame: "pallet" },
-    legacyUnknownFields: null,
+    placeApproach: null,
+    placeApproachPose: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
       groupingSource: "suction-adjacency-v1",
@@ -336,6 +337,33 @@ describe("UR10e cycle checks", () => {
       unsolvedPathSampleCount: 0,
     });
     expect(viaBase.diagnostics).toEqual([]);
+  });
+
+  it("solves the place pre-position and samples the diagonal slide", () => {
+    const vertical = validateUr10eCellKinematics([reachable], {
+      packageWeightKg: 5,
+    });
+    const lateral = validateUr10eCellKinematics(
+      [{ ...reachable, placeApproachPose: pose(789, 875, 300, 90) }],
+      { packageWeightKg: 5 },
+    );
+    expect(vertical.summary).toMatchObject({
+      waypointCount: 5,
+      solvedWaypointCount: 5,
+      pathSampleCount: 12,
+    });
+    // + place-approach-above and the pre-position; + one slide segment.
+    expect(lateral.summary).toMatchObject({
+      waypointCount: 6,
+      solvedWaypointCount: 6,
+      pathSampleCount: 15,
+      unsolvedPathSampleCount: 0,
+    });
+    expect(lateral.waypoints.map(({ name }) => name).slice(-3)).toEqual([
+      "place-approach-above",
+      "place-approach",
+      "place",
+    ]);
   });
 
   it("blends joints between the solved ends of a move", () => {

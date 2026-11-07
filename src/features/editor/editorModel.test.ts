@@ -374,7 +374,7 @@ function persistedSolverOrderProject(
               z: null,
               rotation: grip.rotation,
             },
-            labelOffset: { x: grip.dx, y: grip.dy },
+            placeApproachDirection: { dx: grip.dx, dy: grip.dy },
           };
         })
       : [];
@@ -936,7 +936,7 @@ describe("Project editor pattern geometry", () => {
               gripperId: gripper.id,
               pickPose: { x: 50, y: 100, z: null, rotation: 0 },
               placePose: { x: 100, y: 150, z: null, rotation: 0 },
-              labelOffset: { x: 0, y: 14 },
+              placeApproachDirection: { dx: 0, dy: 14 },
             },
           ],
         },
@@ -1004,7 +1004,7 @@ describe("Project editor pattern geometry", () => {
       id: "cycle-g2",
       placementIds: ["p3", "p4"],
       placePose: { x: 50, y: 100, rotation: 90 },
-      labelOffset: { x: 0, y: -1 },
+      placeApproachDirection: { dx: 0, dy: -1 },
     });
   });
 
