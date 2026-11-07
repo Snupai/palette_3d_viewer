@@ -14,10 +14,10 @@ backups. The automated baseline comprises 183 test files with 1834 tests,
 TypeScript, ESLint, Prettier and production build gates, as well as a
 browser-verified create-solve-stack-reload and legacy import flow.
 
-For third-party parity, only evidence-bound questions remain open: the complete
-AP5006 reference package, the semantics of "Blöcke" (blocks), the external
-sign/final-field conventions, real production kinematics/collisions and the
-proprietary `.mpb` format. These boundaries are labeled in the UI, export and
+For third-party parity, only evidence-bound questions remain open: the semantics
+of "Blöcke" (blocks), the external sign/final-field conventions and real
+production kinematics/collisions. Solver parity is considered reached, and the
+proprietary `.mpb` format is no longer pursued. These boundaries are labeled in the UI, export and
 report as Observed, Open, internal or unverified and are not claimed as
 compatibility.
 
@@ -85,11 +85,11 @@ planning, solver and robotics layer underneath.
 
 ### Still open, evidence-bound
 
-- complete candidate families and exact ranking for AP5006
 - exact meaning and scoring of "Blöcke"
 - external label, sign and final `.rob` field semantics
-- real robot kinematics, production collisions and gantry robots
-- `.mpb` import and a writer
+- real robot kinematics: articulated UR10e on the lift axis
+  ([#93](https://github.com/Snupai/palette_3d_viewer/issues/93)), UR20 later
+  with its own cell model; production collisions and gantry robots
 
 ## Guardrails
 
@@ -311,9 +311,8 @@ Scope:
 - project/product filter, sorting, duplication and **Speichern unter**;
 - print view/PDF with 2D/3D image, metrics and robot cycles;
 - import/export package for project, gripper and palletizing station;
-- optional, strictly read-only `.mpb` importer for documented format v1 fields;
-- proprietary `.mpb` writer only after complete field understanding and with
-  real compatibility tests.
+- ~~optional, strictly read-only `.mpb` importer and `.mpb` writer~~ — dropped;
+  the existing read-only v1 diagnostic boundary stays as implemented.
 
 Exit criteria:
 
@@ -325,7 +324,7 @@ Outcome of M7–M8: **Parity Candidate** for the observed core workflow.
 
 ### M9 – Local backend with users on the LAN
 
-Status: implemented, including ADR 0010; remaining work listed below · Effort: L · Dependency: M8
+Status: implemented, including ADR 0010 · Effort: L · Dependency: M8
 
 The implemented backend is a server operated locally on the plant network (LAN),
 through which several signed-in users work on shared projects. No cloud hosting,
@@ -491,12 +490,10 @@ implemented; the remaining backend work is listed under M9.
 ## Open research questions
 
 - exact meaning and scoring of "Blöcke"
-- complete generation and ranking heuristics of the original solver
 - stability rules across adjacent layers
 - exact label rules and their influence on candidate identity
 - meaning and sign of the last two `.rob` cycle fields
 - gripper/station collision model and real kinematics
-- required scope of a `.mpb` import
 
 These questions run as a research track alongside product development. They
 may refine milestones, but should only block the parts for which exact
@@ -506,7 +503,7 @@ compatibility is actually required.
 
 - pixel-accurate replication of existing desktop UIs
 - gantry robots or photorealistic robot models
-- proprietary `.mpb` writer
+- `.mpb` import or writer (dropped; only the existing read-only diagnostic stays)
 - automatic image similarity search
 - complete collision kinematics
 - cloud hosting, multi-tenant accounts reachable publicly over the internet, or
