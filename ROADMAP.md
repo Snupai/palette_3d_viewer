@@ -87,9 +87,9 @@ planning, solver and robotics layer underneath.
 
 - exact meaning and scoring of "Blöcke"
 - external label, sign and final `.rob` field semantics
-- real robot kinematics: articulated UR10e on the lift axis
-  ([#93](https://github.com/Snupai/palette_3d_viewer/issues/93)), UR20 later
-  with its own cell model; production collisions and gantry robots
+- real robot kinematics beyond the UR10e lift cell (implemented in
+  [#93](https://github.com/Snupai/palette_3d_viewer/issues/93)): UR20 with its
+  own cell model, production collisions and gantry robots
 
 ## Guardrails
 
