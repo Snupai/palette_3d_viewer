@@ -7,7 +7,8 @@ export type RobotMotionSegmentKind =
   | "pick-lift"
   | "pick-traverse"
   | "transfer-traverse"
-  | "place-approach";
+  | "place-approach"
+  | "place-slide";
 
 export type RobotMotionWaypointName =
   | "previous-place"
@@ -17,6 +18,7 @@ export type RobotMotionWaypointName =
   | "pick-lift"
   | "return-transfer"
   | "transfer"
+  | "place-approach-above"
   | "place-approach"
   | "place";
 
@@ -69,21 +71,34 @@ function routeFrom(
 
 /**
  * Canonical carried route. Horizontal motion occurs only at the highest supplied
- * cycle Z, while pickup and placement use same-X/Y vertical moves.
+ * cycle Z, and pickup uses a same-X/Y vertical move.
+ *
+ * Without a place pre-position (`.rob` dx/dy `0 0`) the place is a same-X/Y
+ * vertical move. With one, the robot traverses above the pre-position, lowers
+ * to it (`place-approach`) and then moves diagonally into the final place
+ * (`place-slide`), see `~/domain/placeApproach`.
  */
 export function createRobotCycleMotionRoute(
-  cycle: Pick<RobotCycle, "pickPose" | "transferPose" | "placePose">,
+  cycle: Pick<RobotCycle, "pickPose" | "transferPose" | "placePose"> &
+    Partial<Pick<RobotCycle, "placeApproachPose">>,
 ): RobotMotionRoute {
+  const approach = cycle.placeApproachPose ?? null;
   assertOneFrame(
-    [cycle.pickPose, cycle.transferPose, cycle.placePose],
-    "Cycle pick, transfer, and place poses must use one coordinate frame.",
+    [
+      cycle.pickPose,
+      cycle.transferPose,
+      cycle.placePose,
+      ...(approach ? [approach] : []),
+    ],
+    "Cycle pick, transfer, place, and place-approach poses must use one coordinate frame.",
   );
   const safeZ = Math.max(
     cycle.pickPose.positionMm.z,
     cycle.transferPose.positionMm.z,
     cycle.placePose.positionMm.z,
+    approach?.positionMm.z ?? Number.NEGATIVE_INFINITY,
   );
-  const waypoints: RobotMotionWaypoint[] = [
+  const carried: RobotMotionWaypoint[] = [
     { name: "pick", pose: cycle.pickPose },
     {
       name: "pick-lift",
@@ -100,22 +115,52 @@ export function createRobotCycleMotionRoute(
         cycle.transferPose.yawDeg,
       ),
     },
-    {
-      name: "place-approach",
-      pose: poseAt(
-        cycle.placePose,
-        { ...cycle.placePose.positionMm, z: safeZ },
-        cycle.placePose.yawDeg,
-      ),
-    },
-    { name: "place", pose: cycle.placePose },
   ];
-  return routeFrom(waypoints, [
-    "pick-lift",
-    "pick-traverse",
-    "transfer-traverse",
-    "place-approach",
-  ]);
+  if (!approach) {
+    return routeFrom(
+      [
+        ...carried,
+        {
+          name: "place-approach",
+          pose: poseAt(
+            cycle.placePose,
+            { ...cycle.placePose.positionMm, z: safeZ },
+            cycle.placePose.yawDeg,
+          ),
+        },
+        { name: "place", pose: cycle.placePose },
+      ],
+      ["pick-lift", "pick-traverse", "transfer-traverse", "place-approach"],
+    );
+  }
+  const above =
+    approach.positionMm.z < safeZ
+      ? [
+          {
+            name: "place-approach-above" as const,
+            pose: poseAt(
+              approach,
+              { ...approach.positionMm, z: safeZ },
+              approach.yawDeg,
+            ),
+          },
+        ]
+      : [];
+  return routeFrom(
+    [
+      ...carried,
+      ...above,
+      { name: "place-approach", pose: approach },
+      { name: "place", pose: cycle.placePose },
+    ],
+    [
+      "pick-lift",
+      "pick-traverse",
+      ...(above.length > 0 ? (["transfer-traverse"] as const) : []),
+      "place-approach",
+      "place-slide",
+    ],
+  );
 }
 
 /** Return route between cycles, with vertical retract and vertical pick approach. */

@@ -4,6 +4,7 @@ import type {
   PalletizingDirection,
   Project,
 } from "~/domain/project/projectSchema";
+import type { PlaceApproachDirection } from "~/domain/placeApproach";
 import type { MaterializedStackResult } from "~/domain/stack/types";
 import type { Ur10eCellKinematicsSummary } from "~/domain/robotics/ur10eCell";
 
@@ -181,11 +182,20 @@ export type RobotGripGroup = {
     | "suction-adjacency-v1";
 };
 
-export type LegacyRobUnknownFields = {
-  field8: number;
-  field9: number;
-  /** Repository interpretation only; semantics in external robot software remain unverified. */
-  semantics: "repository-dx-dy-unverified";
+/**
+ * Place approach from `.rob` fields 8/9 (see `~/domain/placeApproach`):
+ * pre-position = final place + (dx, dy) · offset in pallet axes, raised by
+ * package height + clearance; then a diagonal move down into the place.
+ */
+export type RobotCyclePlaceApproach = {
+  /** Raw field 8 as stored in the project; exported unchanged. */
+  dx: number;
+  /** Raw field 9 as stored in the project; exported unchanged. */
+  dy: number;
+  /** Unit direction in pallet axes; `0 0` is a vertical place. */
+  direction: PlaceApproachDirection;
+  offsetMm: number;
+  clearanceMm: number;
   source:
     | "imported-project-cycle"
     | "explicit-project-cycle"
@@ -253,7 +263,12 @@ export type RobotCycle = {
   returnTransferPose?: RobotPose;
   /** Pallet-local grip pose for legacy .rob place fields; this is not a robot TCP pose. */
   placeGripPosePallet: RobotPose & { frame: "pallet" };
-  legacyUnknownFields: LegacyRobUnknownFields | null;
+  placeApproach: RobotCyclePlaceApproach | null;
+  /**
+   * Pre-position in the frame of `placePose`, or `null` for a vertical place.
+   * The carried route ends here and then moves diagonally into `placePose`.
+   */
+  placeApproachPose: RobotPose | null;
   provenance: RobotCycleProvenance;
 };
 

@@ -9,12 +9,19 @@ import type {
   PlanningSolution,
   Project,
 } from "~/domain/project/projectSchema";
+import {
+  DEFAULT_PLACE_APPROACH_SETTINGS,
+  placeApproachDirection,
+  placeApproachPosition,
+  type PlaceApproachDirection,
+} from "~/domain/placeApproach";
 import { validateCycleMotionBoundaries } from "~/domain/robotics/checks";
 import { validateSuctionCompatibility } from "~/domain/robotics/compatibility";
 import {
   createCalculatedRobotConveyorModel,
   robotConveyorObstacle,
 } from "~/domain/robotics/conveyor";
+import { directionSigns } from "~/domain/robotics/frames";
 import {
   groupPlacementsForSuction,
   groupsFromExplicitCycles,
@@ -36,11 +43,13 @@ import type {
   PickReference,
   RobotCycle,
   RobotCycleLayer,
+  RobotCyclePlaceApproach,
   RobotCycleMaterialization,
   RobotCycleMaterializationOptions,
   RobotCycleProvenance,
   RobotDiagnostic,
   RobotGripGroup,
+  RobotPose,
 } from "~/domain/robotics/types";
 import { materializeProjectSolutionStack } from "~/domain/stack/project";
 import type {
@@ -83,6 +92,56 @@ function sourceCycleForGroup(
       ({ sourceCycleId }) => sourceCycleId === group.sourceCycleId,
     ) ?? null
   );
+}
+
+/**
+ * Resolves the `.rob` field 8/9 place approach for one cycle. The direction is
+ * given in pallet axes; station poses flip it with the palletizing direction
+ * signs, pallet and legacy `.rob` poses already use pallet axes.
+ */
+function placeApproachForCycle(
+  raw: {
+    dx: number;
+    dy: number;
+    source: RobotCyclePlaceApproach["source"];
+  } | null,
+  placePose: RobotPose,
+  packageHeightMm: number,
+  stationDirection: PalletizingDirection | null,
+): Pick<RobotCycle, "placeApproach" | "placeApproachPose"> {
+  if (!raw) return { placeApproach: null, placeApproachPose: null };
+  const direction = placeApproachDirection(raw.dx, raw.dy);
+  const settings = DEFAULT_PLACE_APPROACH_SETTINGS;
+  const placeApproach: RobotCyclePlaceApproach = {
+    dx: raw.dx,
+    dy: raw.dy,
+    direction,
+    offsetMm: settings.offsetMm,
+    clearanceMm: settings.clearanceMm,
+    source: raw.source,
+  };
+  const signs = stationDirection
+    ? directionSigns(stationDirection)
+    : { x: 1, y: 1 };
+  const position = placeApproachPosition(
+    placePose.positionMm,
+    {
+      dx: (direction.dx * signs.x) as PlaceApproachDirection["dx"],
+      dy: (direction.dy * signs.y) as PlaceApproachDirection["dy"],
+    },
+    packageHeightMm,
+    settings,
+  );
+  return {
+    placeApproach,
+    placeApproachPose: position
+      ? {
+          frame: placePose.frame,
+          positionMm: position,
+          yawDeg: placePose.yawDeg,
+        }
+      : null,
+  };
 }
 
 function orderSource(
@@ -520,24 +579,27 @@ export function materializeRobotCycles(
             : { ...group.centerPalletMm },
           yawDeg: sourceCycle ? poses.placePose.yawDeg : group.placeRotationDeg,
         },
-        legacyUnknownFields: sourceCycle
-          ? {
-              field8: sourceCycle.labelOffset.x,
-              field9: sourceCycle.labelOffset.y,
-              semantics: "repository-dx-dy-unverified",
-              source:
-                solution.origin === "imported"
-                  ? "imported-project-cycle"
-                  : "explicit-project-cycle",
-            }
-          : sourceGrip
+        ...placeApproachForCycle(
+          sourceCycle
             ? {
-                field8: sourceGrip.dx,
-                field9: sourceGrip.dy,
-                semantics: "repository-dx-dy-unverified",
-                source: "calculated-pattern-grip",
+                dx: sourceCycle.placeApproachDirection.dx,
+                dy: sourceCycle.placeApproachDirection.dy,
+                source:
+                  solution.origin === "imported"
+                    ? "imported-project-cycle"
+                    : "explicit-project-cycle",
               }
-            : null,
+            : sourceGrip
+              ? {
+                  dx: sourceGrip.dx,
+                  dy: sourceGrip.dy,
+                  source: "calculated-pattern-grip",
+                }
+              : null,
+          poses.placePose,
+          project.package.dimensionsMm.height,
+          poses.placePose.frame === "station" ? resources.direction : null,
+        ),
         provenance,
       };
       cycles.push(cycle);

@@ -4,6 +4,7 @@ import {
 } from "~/domain/geometry";
 import type { Grip, Rotation } from "~/domain/palletTypes";
 import { footprintSize, gripsToBoxes } from "~/domain/palletGeometry";
+import { PLACE_APPROACH_OFFSET_MM } from "~/domain/placeApproach";
 
 type BoxBounds = {
   left: number;
@@ -46,8 +47,6 @@ export type GripNeighborIndex = {
 };
 
 const COORDINATE_TOLERANCE = 0.500_001;
-
-export const LEGACY_ROB_DELTA_APPROACH_DISTANCE_MM = 80;
 
 export function compareGripPositionsBottomLeftRowMajor(
   left: { x: number; y: number },
@@ -708,7 +707,7 @@ export function deriveGripDeltasForPlacementOrder(
         boundsByGrip[dependentIndex] ?? [],
         placedBounds,
         candidate.delta,
-        LEGACY_ROB_DELTA_APPROACH_DISTANCE_MM,
+        PLACE_APPROACH_OFFSET_MM,
       ),
     );
 

@@ -86,7 +86,10 @@ planning, solver and robotics layer underneath.
 ### Still open, evidence-bound
 
 - exact meaning and scoring of "Blöcke"
-- external label, sign and final `.rob` field semantics
+- external label and sign semantics (the last two `.rob` fields are clarified,
+  see below)
+- real place pre-position offset and safety clearance at the cell (simulation
+  uses 80 mm and a provisional 10 mm, `src/domain/placeApproach.ts`)
 - real robot kinematics beyond the UR10e lift cell (implemented in
   [#93](https://github.com/Snupai/palette_3d_viewer/issues/93)): UR20 with its
   own cell model, production collisions and gantry robots
@@ -492,7 +495,13 @@ implemented; the remaining backend work is listed under M9.
 - exact meaning and scoring of "Blöcke"
 - stability rules across adjacent layers
 - exact label rules and their influence on candidate identity
-- meaning and sign of the last two `.rob` cycle fields
+- ~~meaning and sign of the last two `.rob` cycle fields~~ — clarified in
+  [#96](https://github.com/Snupai/palette_3d_viewer/issues/96): `dx`/`dy`
+  ∈ {−1, 0, 1} put the place pre-position at final + (dx, dy) · offset in
+  pallet axes (not rotated with the place), raised by package height + a
+  safety clearance; the robot then slides diagonally into the place, `0 0` is
+  a vertical place. Offset and clearance at the real cell remain to be
+  measured.
 - gripper/station collision model and real kinematics
 
 These questions run as a research track alongside product development. They

@@ -303,8 +303,8 @@ export const roboticsDe = {
   "robotics.quantization.reject": "Dezimalwerte ablehnen",
   "robotics.lastTwoFields": "Letzte zwei .rob-Felder",
   "robotics.lastTwoFieldsAria": "Behandlung der letzten .rob-Felder",
-  "robotics.unknownField.block": "Blockieren: Bedeutung unbekannt",
-  "robotics.unknownField.fromCycle": "Griff-dx/dy, sonst 0",
+  "robotics.unknownField.block": "Blockieren: Felder 8/9 nicht schreiben",
+  "robotics.unknownField.fromCycle": "Vorposition dx/dy des Griffs, sonst 0",
   "robotics.unknownField.preserve": "Importierte Werte beibehalten",
   "robotics.unknownField.explicit": "Werte eintragen",
   "robotics.countOnlyInterlayers":
@@ -317,8 +317,8 @@ export const roboticsDe = {
   "robotics.acknowledgeAria": "Ungeprüfte .rob-Zuordnung bestätigen",
   "robotics.acknowledgeText":
     "Diese Zuordnung ist selbst eingetragen und belegt keine Kompatibilität mit externer Robotersoftware.",
-  "robotics.field8": "Feld 8",
-  "robotics.field9": "Feld 9",
+  "robotics.field8": "Feld 8 (dx Vorposition)",
+  "robotics.field9": "Feld 9 (dy Vorposition)",
   "robotics.fieldsMeaning": "Bedeutung der Felder 8 und 9",
   "robotics.fieldsSource": "Quelle dieser Werte",
 

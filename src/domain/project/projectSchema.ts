@@ -2,10 +2,15 @@ import { z } from "zod";
 
 /** Compatibility version used by the existing ProjectV2 fixtures and adapters. */
 export const PROJECT_SCHEMA_VERSION = 2 as const;
-/** Previous canonical version, retained for one-time persisted-project upgrades. */
-export const PREVIOUS_PROJECT_SCHEMA_VERSION = 3 as const;
+/** First canonical version with placements and cycles; seeds default equipment on upgrade. */
+export const PROJECT_SCHEMA_V3_VERSION = 3 as const;
+/**
+ * Previous canonical version, retained for one-time persisted-project upgrades.
+ * V4 stored `.rob` fields 8/9 of robot cycles as `labelOffset: { x, y }`.
+ */
+export const PREVIOUS_PROJECT_SCHEMA_VERSION = 4 as const;
 /** Canonical version persisted by the planning repository. */
-export const CURRENT_PROJECT_SCHEMA_VERSION = 4 as const;
+export const CURRENT_PROJECT_SCHEMA_VERSION = 5 as const;
 
 const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
@@ -696,7 +701,13 @@ export const robotCycleSchema = z
     gripperId: optionalReferenceSchema,
     pickPose: robotPoseSchema,
     placePose: robotPoseSchema,
-    labelOffset: z.object({ x: finiteNumber, y: finiteNumber }).strict(),
+    /**
+     * Raw `.rob` fields 8/9 (dx, dy): side of the place pre-position in pallet
+     * axes, see `~/domain/placeApproach`. Schema v4 stored it as `labelOffset`.
+     */
+    placeApproachDirection: z
+      .object({ dx: finiteNumber, dy: finiteNumber })
+      .strict(),
   })
   .strict()
   .superRefine((value, context) => {

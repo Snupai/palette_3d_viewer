@@ -65,6 +65,7 @@ export const simulationEn = {
   "simulation.phase.pickTraverse": "Travel from pickup",
   "simulation.phase.transferTraverse": "Travel above pallet",
   "simulation.phase.placeApproach": "Place approach",
+  "simulation.phase.placeSlide": "Diagonal place move",
   "simulation.phase.placeDwell": "Place dwell",
   "simulation.phase.betweenCycleDwell": "Between-cycle dwell",
 } as const satisfies Record<keyof typeof simulationDe, string>;

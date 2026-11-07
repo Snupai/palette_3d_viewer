@@ -73,7 +73,7 @@ function copyPatternIdentity(pattern: StackPattern) {
       placementIds: [...cycle.placementIds],
       pickPose: { ...cycle.pickPose },
       placePose: { ...cycle.placePose },
-      labelOffset: { ...cycle.labelOffset },
+      placeApproachDirection: { ...cycle.placeApproachDirection },
     })),
     frameMm: pattern.transformFrameMm,
     frameProvenance: pattern.transformFrameProvenance,
@@ -343,7 +343,7 @@ export function materializeStack(
           }),
           pickPose: { ...cycle.pickPose },
           placePose: { ...cycle.placePose, z: zTopMm },
-          labelOffset: { ...cycle.labelOffset },
+          placeApproachDirection: { ...cycle.placeApproachDirection },
         };
       });
     }

@@ -155,7 +155,7 @@ export function stackPatternsFromProjectSolution(
         gripperId: cycle.gripperId,
         pickPose: { ...cycle.pickPose },
         placePose: { ...cycle.placePose },
-        labelOffset: { ...cycle.labelOffset },
+        placeApproachDirection: { ...cycle.placeApproachDirection },
       }));
     const cycleCount =
       cycles.length > 0 || pattern.placements.length === 0

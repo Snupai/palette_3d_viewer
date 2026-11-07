@@ -1263,7 +1263,7 @@ function synchronizePatternCycles(
           z: existing?.placePose.z ?? null,
           rotation: canonicalRotationFromLegacy(grip.rotation, inputDirection),
         },
-        labelOffset: { x: grip.dx, y: grip.dy },
+        placeApproachDirection: { dx: grip.dx, dy: grip.dy },
       },
     ];
   });

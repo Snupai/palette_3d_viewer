@@ -64,6 +64,7 @@ export const simulationDe = {
   "simulation.phase.pickTraverse": "Fahrt von Aufnahme",
   "simulation.phase.transferTraverse": "Fahrt über Palette",
   "simulation.phase.placeApproach": "Ablage anfahren",
+  "simulation.phase.placeSlide": "Schräg in Ablage fahren",
   "simulation.phase.placeDwell": "Verweilen Ablage",
   "simulation.phase.betweenCycleDwell": "Verweilen zwischen Zyklen",
 } as const;

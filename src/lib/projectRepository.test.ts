@@ -13,7 +13,7 @@ import {
 } from "~/domain/project/projectFactory";
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
-  PREVIOUS_PROJECT_SCHEMA_VERSION,
+  PROJECT_SCHEMA_V3_VERSION,
 } from "~/domain/project/projectSchema";
 import { createProjectResource } from "~/domain/project/projectResource";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
@@ -179,7 +179,7 @@ describe("project repository", () => {
     );
     const storedV3 = {
       ...currentEmpty,
-      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+      schemaVersion: PROJECT_SCHEMA_V3_VERSION,
     };
     const storage = new MemoryPlannerRecordStorage({
       [PROJECTS_STORE_NAME]: [storedV3],

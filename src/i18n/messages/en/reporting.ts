@@ -138,16 +138,14 @@ export const reportingEn = {
   "reporting.model.signMessage":
     "At least one robot cycle retains an unverified coordinate/sign convention; the report does not claim external robot compatibility.",
   "reporting.model.signDetail": "Cycle signConventionStatus is unverified.",
-  "reporting.model.legacyMessage":
-    "Imported final .rob fields are retained, but their external semantics remain explicitly unknown/unverified.",
-  "reporting.model.legacyDetail":
-    "Repository dx/dy interpretation is not an external format claim.",
   "reporting.model.note.svg":
     "2D drawings are deterministic SVG projections from the report PalletData adapter.",
   "reporting.model.note.capture":
     "3D images use the viewer's fixed right-top preset when canvas capture is available; otherwise the 2D SVG fallback is printed.",
   "reporting.model.note.cycles":
     "Robot cycles are the canonical materialized RobotCycle rows shared with simulation and project-derived export.",
+  "reporting.model.note.placeApproach":
+    "Place pre-position (.rob fields 8/9, dx/dy): pre-position = final position + (dx, dy) · {offset} mm in pallet axes, height = place Z + package height + {clearance} mm (provisional); then a diagonal move into the final position, 0 0 = vertical. {lateral} of {count} cycles place from the side. The real cell usually uses a smaller offset; export writes the fields unchanged.",
   "reporting.model.note.unknown":
     "Unknown formulas, proprietary fields, sign conventions, and kinematics remain labelled unknown, internal, or unverified.",
 } as const satisfies Record<keyof typeof reportingDe, string>;

@@ -129,8 +129,10 @@ semantics or order are established under the new v1 contract.
 2. placement geometry of all 65 candidates or at least of the 15 55-package
    patterns;
 3. stable order and complete values of the solution table;
-4. controlled `.rob` export pairs for `dx`/`dy`, label, grip group,
-   infeed direction and palletizing direction;
+4. controlled `.rob` export pairs for label, grip group, infeed direction and
+   palletizing direction (`dx`/`dy` semantics are clarified in #96: place
+   pre-position side in pallet axes; only the real offset/clearance values at
+   the cell are still open);
 5. a saved stack with interlayers and a differing top layer;
 6. anonymized `.mpb` files with controlled individual changes.
 

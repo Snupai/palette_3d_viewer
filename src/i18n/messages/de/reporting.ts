@@ -141,16 +141,14 @@ export const reportingDe = {
     "Mindestens ein Roboterzyklus behält eine ungeprüfte Koordinaten-/Vorzeichenkonvention bei; der Bericht erhebt keinen Anspruch auf Kompatibilität mit externen Robotern.",
   "reporting.model.signDetail":
     "Der signConventionStatus des Zyklus ist unverified.",
-  "reporting.model.legacyMessage":
-    "Übernommene finale .rob-Felder bleiben erhalten, ihre externe Bedeutung bleibt aber ausdrücklich unbekannt/ungeprüft.",
-  "reporting.model.legacyDetail":
-    "Die dx/dy-Interpretation im Repository ist keine Aussage über ein externes Format.",
   "reporting.model.note.svg":
     "2D-Zeichnungen sind deterministische SVG-Projektionen aus dem PalletData-Adapter des Berichts.",
   "reporting.model.note.capture":
     "3D-Bilder nutzen die feste Voreinstellung rechts oben des Viewers, sofern eine Canvas-Aufnahme möglich ist; andernfalls wird der 2D-SVG-Ersatz gedruckt.",
   "reporting.model.note.cycles":
     "Roboterzyklen sind die kanonisch materialisierten RobotCycle-Zeilen, die mit Simulation und projektabgeleitetem Export geteilt werden.",
+  "reporting.model.note.placeApproach":
+    "Ablage-Vorposition (.rob-Felder 8/9, dx/dy): Vorposition = Endposition + (dx, dy) · {offset} mm in Palettenachsen, Höhe = Ablage-Z + Pakethöhe + {clearance} mm (vorläufig); danach schräge Fahrt in die Endposition, 0 0 = senkrecht. {lateral} von {count} Zyklen legen seitlich ab. Der Versatz ist an der Anlage meist kleiner; Export schreibt die Felder unverändert.",
   "reporting.model.note.unknown":
     "Unbekannte Formeln, proprietäre Felder, Vorzeichenkonventionen und Kinematik bleiben als unbekannt, intern oder ungeprüft gekennzeichnet.",
 } as const;

@@ -17,6 +17,7 @@ import {
 import {
   CURRENT_PROJECT_SCHEMA_VERSION,
   PREVIOUS_PROJECT_SCHEMA_VERSION,
+  PROJECT_SCHEMA_V3_VERSION,
   PROJECT_SCHEMA_VERSION,
   projectSchema,
 } from "~/domain/project/projectSchema";
@@ -103,7 +104,7 @@ describe("project schema migration", () => {
 
     const migrated = migrateProject({
       ...ordinary,
-      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+      schemaVersion: PROJECT_SCHEMA_V3_VERSION,
     });
 
     expect(migrated.schemaVersion).toBe(CURRENT_PROJECT_SCHEMA_VERSION);
@@ -132,11 +133,11 @@ describe("project schema migration", () => {
 
     const migratedImport = migrateProject({
       ...imported,
-      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+      schemaVersion: PROJECT_SCHEMA_V3_VERSION,
     });
     const migratedConfigured = migrateProject({
       ...configured,
-      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+      schemaVersion: PROJECT_SCHEMA_V3_VERSION,
     });
 
     expect(migratedImport.grippers).toEqual([]);
@@ -153,6 +154,69 @@ describe("project schema migration", () => {
     expect(migratedConfigured.selectedPalletStationId).toBe(
       configured.selectedPalletStationId,
     );
+  });
+
+  it("renames V4 cycle labelOffset to placeApproachDirection without changing values", () => {
+    const current = migrateProject(projectV2());
+    const stored = {
+      ...current,
+      schemaVersion: PREVIOUS_PROJECT_SCHEMA_VERSION,
+      solutions: current.solutions.map((solution) => ({
+        ...solution,
+        robotCycles: solution.robotCycles.map(
+          ({ placeApproachDirection, ...cycle }, index) => ({
+            ...cycle,
+            labelOffset:
+              index === 0
+                ? { x: 1, y: -1 }
+                : {
+                    x: placeApproachDirection.dx,
+                    y: placeApproachDirection.dy,
+                  },
+          }),
+        ),
+      })),
+    };
+
+    const result = safeMigrateProject(stored);
+
+    expect(PREVIOUS_PROJECT_SCHEMA_VERSION).toBe(4);
+    expect(CURRENT_PROJECT_SCHEMA_VERSION).toBe(5);
+    expect(result.migrated).toBe(true);
+    expect(result.project?.schemaVersion).toBe(5);
+    expect(
+      result.project?.solutions[0]?.robotCycles.map(
+        ({ placeApproachDirection }) => placeApproachDirection,
+      ),
+    ).toEqual(
+      current.solutions[0]!.robotCycles.map(
+        ({ placeApproachDirection }, index) =>
+          index === 0 ? { dx: 1, dy: -1 } : placeApproachDirection,
+      ),
+    );
+    expect(
+      result.project?.solutions[0]?.robotCycles.some(
+        (cycle) => "labelOffset" in cycle,
+      ),
+    ).toBe(false);
+    expect(safeMigrateProject({ ...current }).migrated).toBe(false);
+  });
+
+  it("rejects a V5 cycle that still uses labelOffset", () => {
+    const current = migrateProject(projectV2());
+    const result = safeMigrateProject({
+      ...current,
+      solutions: current.solutions.map((solution) => ({
+        ...solution,
+        robotCycles: solution.robotCycles.map(
+          ({ placeApproachDirection: _direction, ...cycle }) => ({
+            ...cycle,
+            labelOffset: { x: 0, y: 0 },
+          }),
+        ),
+      })),
+    });
+    expect(result.success).toBe(false);
   });
 
   it("assigns missing grip group numbers from unused positive integers", () => {

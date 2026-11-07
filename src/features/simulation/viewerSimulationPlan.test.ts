@@ -38,7 +38,8 @@ function cycle(
     transferPose,
     placePose,
     placeGripPosePallet: { ...placePose, frame: "pallet" },
-    legacyUnknownFields: null,
+    placeApproach: null,
+    placeApproachPose: null,
     provenance: {
       cycleSource: "calculated-suction-cycle",
       groupingSource: "suction-adjacency-v1",
@@ -115,6 +116,31 @@ describe("calibrated viewer simulation plan", () => {
       yawDeg: 0,
     });
     expect(cycles).toEqual(sourceSnapshot);
+  });
+
+  it("moves the place pre-position with the calibrated pallet", () => {
+    const [first, second] = cycles;
+    const withApproach = [
+      {
+        ...first,
+        // dx = 1: 80 mm in pallet +X, raised by package height 40 + 10 mm.
+        placeApproachPose: pose(480, 300, 150, 0),
+      },
+      second,
+    ];
+    const calibrated = createViewerSimulationCycles(
+      withApproach,
+      timelinePoseToViewerPose,
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+    );
+
+    // The calibrated pallet is turned 90°, so pallet +X becomes cell +Y.
+    expect(calibrated[0]?.placeApproachPose).toEqual({
+      frame: "pallet",
+      positionMm: { x: 489, y: 475, z: 150 },
+      yawDeg: 90,
+    });
+    expect(calibrated[1]?.placeApproachPose).toBeNull();
   });
 
   it("keeps the straight pick/place midpoint without a robot pivot", () => {

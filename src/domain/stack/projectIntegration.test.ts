@@ -141,7 +141,7 @@ function executionOrderProject(options: {
               z: null,
               rotation: grip.rotation,
             },
-            labelOffset: { x: grip.dx, y: grip.dy },
+            placeApproachDirection: { dx: grip.dx, dy: grip.dy },
           };
         })
       : [];

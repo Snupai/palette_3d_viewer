@@ -182,7 +182,7 @@ function unknownFieldsForCycle(
     return { field8: 0, field9: 0 };
   }
   if (policy.mode === "preserve-imported") {
-    if (!cycle.legacyUnknownFields) {
+    if (!cycle.placeApproach) {
       diagnostics.push({
         severity: "error",
         phase: "export",
@@ -195,14 +195,14 @@ function unknownFieldsForCycle(
     }
     return {
       field8: quantized(
-        cycle.legacyUnknownFields.field8,
+        cycle.placeApproach.dx,
         quantization,
         `${cycle.id}.field8`,
         diagnostics,
         cycle,
       ),
       field9: quantized(
-        cycle.legacyUnknownFields.field9,
+        cycle.placeApproach.dy,
         quantization,
         `${cycle.id}.field9`,
         diagnostics,
@@ -211,17 +211,17 @@ function unknownFieldsForCycle(
     };
   }
   if (policy.mode === "from-cycle-or-zero") {
-    if (!cycle.legacyUnknownFields) return { field8: 0, field9: 0 };
+    if (!cycle.placeApproach) return { field8: 0, field9: 0 };
     return {
       field8: quantized(
-        cycle.legacyUnknownFields.field8,
+        cycle.placeApproach.dx,
         quantization,
         `${cycle.id}.field8`,
         diagnostics,
         cycle,
       ),
       field9: quantized(
-        cycle.legacyUnknownFields.field9,
+        cycle.placeApproach.dy,
         quantization,
         `${cycle.id}.field9`,
         diagnostics,

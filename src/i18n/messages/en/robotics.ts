@@ -296,8 +296,8 @@ export const roboticsEn = {
   "robotics.quantization.reject": "Reject decimal values",
   "robotics.lastTwoFields": "Last two .rob fields",
   "robotics.lastTwoFieldsAria": "Handling of the last .rob fields",
-  "robotics.unknownField.block": "Block: meaning unknown",
-  "robotics.unknownField.fromCycle": "Grip dx/dy, otherwise 0",
+  "robotics.unknownField.block": "Block: do not write fields 8/9",
+  "robotics.unknownField.fromCycle": "Grip pre-position dx/dy, otherwise 0",
   "robotics.unknownField.preserve": "Keep imported values",
   "robotics.unknownField.explicit": "Enter values",
   "robotics.countOnlyInterlayers":
@@ -310,8 +310,8 @@ export const roboticsEn = {
   "robotics.acknowledgeAria": "Confirm unverified .rob mapping",
   "robotics.acknowledgeText":
     "This mapping was entered manually and does not prove compatibility with external robot software.",
-  "robotics.field8": "Field 8",
-  "robotics.field9": "Field 9",
+  "robotics.field8": "Field 8 (pre-position dx)",
+  "robotics.field9": "Field 9 (pre-position dy)",
   "robotics.fieldsMeaning": "Meaning of fields 8 and 9",
   "robotics.fieldsSource": "Source of these values",
 

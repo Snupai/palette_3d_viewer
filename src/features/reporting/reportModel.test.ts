@@ -169,6 +169,32 @@ describe("planning report model", () => {
     });
   });
 
+  it("states the .rob field 8/9 place pre-position semantics and values instead of an unverified warning", () => {
+    const { project, materialization, previewData } = fixture();
+    const report = createPlanningReportModel({
+      project,
+      materialization,
+      previewData,
+      t: translateDe,
+    });
+    const english = createPlanningReportModel({
+      project,
+      materialization,
+      previewData,
+      t: translateEn,
+    });
+
+    expect(report.warnings.map(({ code }) => code)).not.toContain(
+      "unknown-legacy-fields",
+    );
+    expect(report.provenanceNotes).toContain(
+      "Ablage-Vorposition (.rob-Felder 8/9, dx/dy): Vorposition = Endposition + (dx, dy) · 80 mm in Palettenachsen, Höhe = Ablage-Z + Pakethöhe + 10 mm (vorläufig); danach schräge Fahrt in die Endposition, 0 0 = senkrecht. 0 von 1 Zyklen legen seitlich ab. Der Versatz ist an der Anlage meist kleiner; Export schreibt die Felder unverändert.",
+    );
+    expect(english.provenanceNotes).toContain(
+      "Place pre-position (.rob fields 8/9, dx/dy): pre-position = final position + (dx, dy) · 80 mm in pallet axes, height = place Z + package height + 10 mm (provisional); then a diagonal move into the final position, 0 0 = vertical. 0 of 1 cycles place from the side. The real cell usually uses a smaller offset; export writes the fields unchanged.",
+    );
+  });
+
   it("reports the UR10e result and what stays unchecked instead of a blanket note", () => {
     const { project, materialization, previewData } = fixture();
     const unchecked = createPlanningReportModel({

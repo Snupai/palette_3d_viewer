@@ -1,6 +1,10 @@
 import type { Translate } from "~/i18n";
 import type { LayerPatternPreview } from "~/domain/layerPatternPreview";
 import type { PalletData } from "~/domain/palletTypes";
+import {
+  PLACE_APPROACH_CLEARANCE_MM,
+  PLACE_APPROACH_OFFSET_MM,
+} from "~/domain/placeApproach";
 import type { Project } from "~/domain/project/projectSchema";
 import {
   createRobotCycleReport,
@@ -257,27 +261,25 @@ function reportWarnings(
       },
     });
   }
-  if (
-    materialization.cycles.some(
-      ({ legacyUnknownFields }) => legacyUnknownFields,
-    )
-  ) {
-    warnings.push({
-      id: "report:unknown-legacy-fields",
-      severity: "warning",
-      source: "report",
-      code: "unknown-legacy-fields",
-      message: t("reporting.model.legacyMessage"),
-      provenance: {
-        status: "unverified",
-        source: "retained-legacy-rob-fields",
-        detail: t("reporting.model.legacyDetail"),
-      },
-    });
-  }
   return [
     ...new Map(warnings.map((warning) => [warning.id, warning])).values(),
   ];
+}
+
+/** Semantics and values of the `.rob` field 8/9 place approach. */
+function placeApproachNote(
+  materialization: RobotCycleMaterialization,
+  t: Translate,
+): string {
+  const lateral = materialization.cycles.filter(
+    ({ placeApproachPose }) => placeApproachPose !== null,
+  ).length;
+  return t("reporting.model.note.placeApproach", {
+    offset: PLACE_APPROACH_OFFSET_MM,
+    clearance: PLACE_APPROACH_CLEARANCE_MM,
+    lateral,
+    count: materialization.cycles.length,
+  });
 }
 
 function layerSequence(
@@ -372,6 +374,7 @@ export function createPlanningReportModel(input: {
       t("reporting.model.note.svg"),
       t("reporting.model.note.capture"),
       t("reporting.model.note.cycles"),
+      placeApproachNote(materialization, t),
       t("reporting.model.note.unknown"),
     ],
   };
