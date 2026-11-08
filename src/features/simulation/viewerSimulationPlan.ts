@@ -84,11 +84,22 @@ export function createViewerSimulationCycles(
   cycles: readonly RobotCycle[],
   toViewerPose: (pose: RobotPose) => ViewerScenePose,
   calibration: ViewerSceneCalibrationConfig | null,
+  packageHeightMm?: number,
 ): readonly RobotCycle[] {
   const referencePick = cycles[0] ? toViewerPose(cycles[0].pickPose) : null;
+  const pickupTarget =
+    calibration?.pickupSurfaceZMm !== undefined && packageHeightMm !== undefined
+      ? {
+          ...calibration.pickupPose,
+          positionMm: {
+            ...calibration.pickupPose.positionMm,
+            z: calibration.pickupSurfaceZMm + packageHeightMm,
+          },
+        }
+      : calibration?.pickupPose;
   const pickupFrame =
-    calibration && referencePick
-      ? viewerFrameFromReference(referencePick, calibration.pickupPose)
+    pickupTarget && referencePick
+      ? viewerFrameFromReference(referencePick, pickupTarget)
       : null;
 
   const mapped = cycles.map((cycle) => {

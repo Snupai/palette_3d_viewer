@@ -107,7 +107,7 @@ describe("bundled UR10e asset", () => {
     );
   });
 
-  it("mounts the kinematic base exactly at the CAD arm node on the lift carriage", async () => {
+  it("mounts the kinematic base at the CAD arm node lowered onto the carriage plate", async () => {
     const { document } = await readGlb(
       modelPath("robot-cell", "ur10-palletizer.glb"),
     );
@@ -123,7 +123,17 @@ describe("bundled UR10e asset", () => {
     };
     expect(viewer.x).toBeCloseTo(BUNDLED_UR10E_CELL.baseMm.x, 1);
     expect(viewer.y).toBeCloseTo(BUNDLED_UR10E_CELL.baseMm.y, 1);
-    expect(viewer.z).toBeCloseTo(BUNDLED_UR10E_CELL.baseMm.z, 1);
+    expect(
+      viewer.z + BUNDLED_ROBOT_CELL.articulatedArm.mountHeightMm,
+    ).toBeCloseTo(BUNDLED_UR10E_CELL.baseMm.z, 1);
+
+    // The stretched lift column ends exactly at the plate the base stands on.
+    const column = nodeNamed(document, BUNDLED_ROBOT_CELL.liftColumn.node);
+    const columnFootMm = column.translation![1] * scaleMmPerMeter;
+    expect(columnFootMm + BUNDLED_ROBOT_CELL.liftColumn.heightMm).toBeCloseTo(
+      y * scaleMmPerMeter + BUNDLED_ROBOT_CELL.articulatedArm.mountHeightMm,
+      1,
+    );
 
     // A pure rotation about source Y is the same yaw about viewer Z.
     const [qx, qy, qz, qw] = mount.rotation!;

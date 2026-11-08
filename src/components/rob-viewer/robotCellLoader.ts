@@ -46,13 +46,18 @@ const MM_PER_METER = 1_000;
  * the CAD source is Y-up, so the mount turns −90° about X; link transforms
  * from the domain kinematics are in millimetres and the GLB in metres.
  */
-const mountArticulatedArm = (staticArm: Object3D, armScene: Object3D) => {
+const mountArticulatedArm = (
+  staticArm: Object3D,
+  armScene: Object3D,
+  mountHeightMm: number,
+) => {
   const links = UR10E_LINK_NAMES.map((name) => namedNode(armScene, name));
   const mount = new Group();
   mount.name = "articulated-arm-mount";
   mount.matrixAutoUpdate = false;
   mount.matrix
     .copy(staticArm.matrix)
+    .multiply(new Matrix4().makeTranslation(0, mountHeightMm / MM_PER_METER, 0))
     .multiply(new Matrix4().makeRotationX(-Math.PI / 2));
   for (const link of links) {
     link.removeFromParent();
@@ -184,7 +189,13 @@ export const prepareRobotCell = (
     );
   }
   const arm =
-    armScene && staticArm ? mountArticulatedArm(staticArm, armScene) : null;
+    armScene && staticArm
+      ? mountArticulatedArm(
+          staticArm,
+          armScene,
+          config.articulatedArm?.mountHeightMm ?? 0,
+        )
+      : null;
   arm?.setJoints(DEFAULT_ARM_JOINTS);
 
   root.removeFromParent();
@@ -199,6 +210,10 @@ export const prepareRobotCell = (
   root.updateMatrixWorld(true);
 
   const carriageSourceY = liftCarriage.position.y;
+  const liftColumn = config.liftColumn
+    ? namedNode(fixed, config.liftColumn.node)
+    : null;
+  const liftColumnScaleY = liftColumn?.scale.y ?? 1;
   let disposed = false;
   return {
     root,
@@ -222,6 +237,13 @@ export const prepareRobotCell = (
         carriageSourceY + clamped / config.sourceToViewer.scaleMmPerMeter;
       liftCarriage.updateMatrix();
       liftCarriage.updateMatrixWorld(true);
+      if (liftColumn && config.liftColumn) {
+        liftColumn.scale.y =
+          (liftColumnScaleY * (config.liftColumn.heightMm + clamped)) /
+          config.liftColumn.heightMm;
+        liftColumn.updateMatrix();
+        liftColumn.updateMatrixWorld(true);
+      }
       return clamped;
     },
     dispose() {

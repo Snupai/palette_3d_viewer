@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { RobotCycle, RobotPose } from "~/domain/robotics/types";
 import {
   BUNDLED_UR10E_CELL,
+  GRIPPER_FLANGE_OFFSET_X_MM,
   GRIPPER_FLANGE_TO_SUCTION_MM,
   blendUr10eCellPoses,
+  planUr10eLayerLifts,
   solveUr10eCellPose,
   ur10eBaseTransform,
   ur10eLiftCandidates,
   ur10ePreferredBranch,
+  ur10eSegmentLiftMm,
   validateUr10eCellKinematics,
   type Ur10eCellPose,
 } from "~/domain/robotics/ur10eCell";
@@ -75,13 +78,15 @@ function cycle(
 }
 
 describe("bundled UR10e lift cell", () => {
-  it("keeps the flange-to-suction offset as one provisional 0 mm parameter", () => {
-    expect(GRIPPER_FLANGE_TO_SUCTION_MM).toBe(0);
-    expect(BUNDLED_UR10E_CELL.flangeToSuctionMm).toBe(0);
+  it("keeps the measured gripper offsets as single parameters", () => {
+    expect(GRIPPER_FLANGE_TO_SUCTION_MM).toBe(131.4);
+    expect(BUNDLED_UR10E_CELL.flangeToSuctionMm).toBe(131.4);
+    expect(GRIPPER_FLANGE_OFFSET_X_MM).toBe(-50.9);
+    expect(BUNDLED_UR10E_CELL.flangeOffsetXMm).toBe(-50.9);
     expect(BUNDLED_UR10E_CELL.baseMm).toEqual({
       x: 1_058.6,
       y: 599.5,
-      z: 746.1,
+      z: 732.9,
     });
     expect(BUNDLED_UR10E_CELL.baseYawDeg).toBe(-45);
     expect(BUNDLED_UR10E_CELL.liftTravelMm).toEqual({ min: 0, max: 900 });
@@ -96,7 +101,7 @@ describe("bundled UR10e lift cell", () => {
     const candidates = ur10eLiftCandidates(PICKUP, BUNDLED_UR10E_CELL);
     expect(
       candidates.slice(0, 5).map((value) => Math.round(value * 10) / 10),
-    ).toEqual([415.9, 405.9, 425.9, 395.9, 435.9]);
+    ).toEqual([560.5, 550.5, 570.5, 540.5, 580.5]);
     // 5.9 … 895.9 mm in 10 mm steps plus both end stops.
     expect(candidates).toHaveLength(92);
     expect(
@@ -112,31 +117,44 @@ describe("bundled UR10e lift cell", () => {
 
     expect(solution.status).toBe("solved");
     if (solution.status !== "solved") return;
-    expect(solution.liftMm).toBeCloseTo(415.9, 9);
+    expect(solution.liftMm).toBeCloseTo(560.5, 9);
     expect(degrees(solution.joints)).toEqual([
-      165.507316, -29.233318, 128.937033, -189.703715, -90, -59.492684,
+      168.359393, -28.371972, 132.066734, -193.694762, -90, -56.640607,
     ]);
     expect(solution.branch).toEqual({ shoulder: 0, wrist: 1, elbow: 0 });
     expect(solution.singularities).toEqual([]);
 
-    const tcpInCell = multiplyTransforms(
+    const flangeInCell = multiplyTransforms(
       ur10eBaseTransform(BUNDLED_UR10E_CELL, solution.liftMm),
       ur10eForwardKinematics(solution.joints),
     );
     const deviation = transformDeviation(
-      tcpInCell,
-      downwardToolTransform(PICKUP.positionMm, PICKUP.yawDeg * DEG),
+      flangeInCell,
+      downwardToolTransform(
+        {
+          // Yaw −90°: the gripper's local −X flange offset points to cell +Y.
+          x: PICKUP.positionMm.x,
+          y: PICKUP.positionMm.y - GRIPPER_FLANGE_OFFSET_X_MM,
+          z: PICKUP.positionMm.z + GRIPPER_FLANGE_TO_SUCTION_MM,
+        },
+        PICKUP.yawDeg * DEG,
+      ),
     );
     expect(deviation.positionMm).toBeLessThan(1e-6);
     expect(deviation.rotation).toBeLessThan(1e-9);
   });
 
   it("moves the flange up by the configured flange-to-suction offset", () => {
-    const offsetCell = { ...BUNDLED_UR10E_CELL, flangeToSuctionMm: 150 };
-    const withOffset = solveUr10eCellPose(PICKUP, offsetCell);
+    const withOffset = solveUr10eCellPose(PICKUP, BUNDLED_UR10E_CELL);
     const raised = solveUr10eCellPose(
-      { ...PICKUP, positionMm: { ...PICKUP.positionMm, z: 1_112 } },
-      BUNDLED_UR10E_CELL,
+      {
+        ...PICKUP,
+        positionMm: {
+          ...PICKUP.positionMm,
+          z: PICKUP.positionMm.z + GRIPPER_FLANGE_TO_SUCTION_MM,
+        },
+      },
+      { ...BUNDLED_UR10E_CELL, flangeToSuctionMm: 0 },
     );
     expect(withOffset).toEqual(raised);
   });
@@ -149,32 +167,71 @@ describe("bundled UR10e lift cell", () => {
       }),
     ).toEqual({
       status: "unreachable",
-      liftMm: 0,
-      wristDistanceMm: expect.closeTo(3_102.851797, 6) as number,
+      liftMm: expect.closeTo(98.5, 9) as number,
+      wristDistanceMm: expect.closeTo(3_066.947297, 6) as number,
     });
-    // Straight below the base the wrist stays inside the d4 shoulder offset.
+    // With the flange straight below the base the wrist stays inside the d4
+    // shoulder offset (the flange sits 50.9 mm along −X of the TCP at yaw 0).
     expect(
       solveUr10eCellPose({
-        positionMm: { x: 1_058.6, y: 599.5, z: 500 },
+        positionMm: { x: 1_058.6 + 50.9, y: 599.5, z: 500 },
         yawDeg: 0,
       }),
     ).toEqual({
       status: "unreachable",
-      liftMm: 0,
-      wristDistanceMm: expect.closeTo(310.25, 9) as number,
+      liftMm: expect.closeTo(98.5, 9) as number,
+      wristDistanceMm: expect.closeTo(264.15, 9) as number,
     });
   });
 
   it("flags a TCP close to the base axis as near the shoulder singularity", () => {
     const solution = solveUr10eCellPose({
-      positionMm: { x: 1_058.6 - 180, y: 599.5, z: 900 },
+      // The flange sits 50.9 mm along −X of the TCP at yaw 0, so it ends up
+      // 180 mm from the base axis.
+      positionMm: { x: 1_058.6 - 180 + 50.9, y: 599.5, z: 900 },
       yawDeg: 0,
     });
     expect(solution.status).toBe("solved");
     if (solution.status !== "solved") return;
     expect(solution.singularities).toEqual(["shoulder"]);
     expect(solution.margins.shoulderMm).toBeCloseTo(45.516783, 6);
-    expect(solution.liftMm).toBeCloseTo(353.9, 9);
+    expect(solution.liftMm).toBeCloseTo(498.5, 9);
+  });
+});
+
+describe("UR10e layer lift plan", () => {
+  const onLayer = (layer: number, item: RobotCycle): RobotCycle => ({
+    ...item,
+    physicalLayerId: `layer-${layer}`,
+    physicalLayerIndex: layer - 1,
+  });
+  // Low layer, a high layer that needs the lift, then a low layer again.
+  const stacked = [
+    onLayer(1, cycle("cycle-1", 0, pose(789, 795, 250, 90))),
+    onLayer(2, cycle("cycle-2", 1, pose(789, 795, 2_100, 90))),
+    onLayer(3, cycle("cycle-3", 2, pose(789, 795, 250, 90))),
+  ];
+
+  it("starts at the bottom and only raises the lift for later layers", () => {
+    // Layer 3 is low again but reachable at 350 mm, so the lift stays up.
+    expect(planUr10eLayerLifts(stacked)).toEqual([
+      { layerId: "layer-1", liftMm: 0 },
+      { layerId: "layer-2", liftMm: 350 },
+      { layerId: "layer-3", liftMm: 350 },
+    ]);
+  });
+
+  it("moves the lift to the new layer height during the retract only", () => {
+    const plan = [
+      { layerId: "layer-1", liftMm: 0 },
+      { layerId: "layer-2", liftMm: 300 },
+    ];
+    const cycles = stacked.slice(0, 2);
+    expect(ur10eSegmentLiftMm(plan, cycles, 1, "cycle-retract", 0.25)).toBe(75);
+    expect(ur10eSegmentLiftMm(plan, cycles, 1, "cycle-traverse", 0.25)).toBe(
+      300,
+    );
+    expect(ur10eSegmentLiftMm(plan, cycles, 0, "cycle-retract", 0.5)).toBe(0);
   });
 });
 
@@ -199,7 +256,7 @@ describe("UR10e cycle checks", () => {
       configurationChangeCount: 0,
       pathSampleCount: 30,
       unsolvedPathSampleCount: 7,
-      liftUsedMm: { min: 0, max: expect.closeTo(615.9, 9) as number },
+      liftUsedMm: { min: 0, max: 0 },
       payload: {
         status: "checked",
         maxPayloadKg: 5,
@@ -232,7 +289,7 @@ describe("UR10e cycle checks", () => {
       layerId: "layer-1",
       resourceId: "bundled-ur10e-lift-cell",
       message:
-        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach for every lift position (wrist 2529.525 mm from the shoulder at lift 0 mm).',
+        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach at the layer lift of 0 mm (wrist 2532.315 mm from the shoulder).',
     });
   });
 
@@ -308,7 +365,7 @@ describe("UR10e cycle checks", () => {
         phase: "kinematics",
         code: "kinematics-unreachable",
         message:
-          'Cycle "cycle-2" move previous-place-retract → pick-approach passes TCP (964.75, 648, 1162) mm, which the UR10e cannot reach at any lift position.',
+          'Cycle "cycle-2" move previous-place-retract → pick-approach passes TCP (964.75, 648, 1162) mm, which the UR10e cannot reach at the layer lift of 0 mm.',
         cycleId: "cycle-2",
         layerId: "layer-1",
         resourceId: "bundled-ur10e-lift-cell",
@@ -372,9 +429,9 @@ describe("UR10e cycle checks", () => {
       { positionMm: { x: 789, y: 795, z: 1_162 }, yawDeg: 90 },
       0.5,
     );
-    expect(blend?.liftMm).toBeCloseTo(615.9, 9);
+    expect(blend?.liftMm).toBeCloseTo(760.5, 9);
     expect(degrees(blend!.joints)).toEqual([
-      71.515095, -19.317098, 139.374849, -210.057751, -90, -63.484905,
+      75.227371, -16.403163, 141.736582, -215.333418, -90, -59.772629,
     ]);
     expect(
       blendUr10eCellPoses(

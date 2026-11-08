@@ -104,7 +104,7 @@ describe("bundled UR10e cell kinematics", () => {
       configurationChangeCount: 0,
       pathSampleCount: 747,
       unsolvedPathSampleCount: 0,
-      liftUsedMm: { min: 0, max: 900 },
+      liftUsedMm: { min: 0, max: 170 },
       payload: {
         status: "checked",
         maxPayloadKg: 5,
@@ -114,6 +114,15 @@ describe("bundled UR10e cell kinematics", () => {
       },
     });
     expect(result?.diagnostics).toEqual([]);
+    // The lift starts at the bottom and only rises once layer 6 needs it.
+    expect(result?.layerLifts).toEqual([
+      { layerId: "layer-1", liftMm: 0 },
+      { layerId: "layer-2", liftMm: 0 },
+      { layerId: "layer-3", liftMm: 0 },
+      { layerId: "layer-4", liftMm: 0 },
+      { layerId: "layer-5", liftMm: 0 },
+      { layerId: "layer-6", liftMm: 170 },
+    ]);
     expect(materialization.cellKinematics).toEqual(result?.summary);
 
     let worstPositionMm = 0;
@@ -125,7 +134,20 @@ describe("bundled UR10e cell kinematics", () => {
           ur10eBaseTransform(BUNDLED_UR10E_CELL, solution.liftMm),
           ur10eForwardKinematics(solution.joints),
         ),
-        downwardToolTransform(pose.positionMm, (pose.yawDeg * Math.PI) / 180),
+        downwardToolTransform(
+          {
+            x:
+              pose.positionMm.x +
+              BUNDLED_UR10E_CELL.flangeOffsetXMm *
+                Math.cos((pose.yawDeg * Math.PI) / 180),
+            y:
+              pose.positionMm.y +
+              BUNDLED_UR10E_CELL.flangeOffsetXMm *
+                Math.sin((pose.yawDeg * Math.PI) / 180),
+            z: pose.positionMm.z + BUNDLED_UR10E_CELL.flangeToSuctionMm,
+          },
+          (pose.yawDeg * Math.PI) / 180,
+        ),
       );
       worstPositionMm = Math.max(worstPositionMm, deviation.positionMm);
       worstRotation = Math.max(worstRotation, deviation.rotation);
@@ -164,7 +186,7 @@ describe("bundled UR10e cell kinematics", () => {
         "Die Greifermasse ist nicht hinterlegt; gezählt sind nur die Pakete.",
       ],
       limitations:
-        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist vorläufig 0 mm.",
+        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 131,4 mm, gemessen am Greifermodell.",
     });
   });
 

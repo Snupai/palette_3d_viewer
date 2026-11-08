@@ -1,4 +1,7 @@
-import { BUNDLED_UR10E_CELL } from "~/domain/robotics/ur10eCell";
+import {
+  BUNDLED_UR10E_CELL,
+  UR10E_MOUNT_BELOW_CAD_NODE_MM,
+} from "~/domain/robotics/ur10eCell";
 import type {
   ViewerRobotCellAssetConfig,
   ViewerSceneCalibrationConfig,
@@ -20,14 +23,21 @@ export const BUNDLED_ROBOT_CELL = {
   },
   // Articulated UR10e (Universal_Robots_ROS2_Description meshes, BSD-3; see
   // public/models/ur10e/README.md). It is mounted on the lift carriage at the
-  // `staticArm` node frame, which matches `BUNDLED_UR10E_CELL` (base at
-  // viewer (1058.6, 599.5, 746.1) mm, −45° yaw at zero travel).
+  // `staticArm` node frame lowered onto the carriage plate, which matches
+  // `BUNDLED_UR10E_CELL` (base at viewer (1058.6, 599.5, 732.9) mm, −45° yaw
+  // at zero travel).
   articulatedArm: {
     assetUrl: "/models/ur10e/ur10e.glb",
     revision:
       "sha256:08eb736d8864481dde95d3af3e16c3a5d1ea550685dc7f497088b89313ddfbf5",
+    mountHeightMm: UR10E_MOUNT_BELOW_CAD_NODE_MM,
   },
   liftTravelMm: BUNDLED_UR10E_CELL.liftTravelMm,
+  // Ewellix LIFTKIT: foot at source y = 131.9 mm, carriage plate at 876.9 mm.
+  liftColumn: {
+    node: "LIFTKIT_UR_900_0000_601R",
+    heightMm: 745,
+  },
   sourceToViewer: {
     scaleMmPerMeter: 1_000,
     rotationXRad: Math.PI / 2,
@@ -57,7 +67,7 @@ export const BUNDLED_ROBOT_CELL = {
     placement:
       "Viewer placement derived from measured CAD bounding boxes: the pallet station is set on the free floor area west of the machine frame, with the cell floor one pallet height below the viewer origin plane.",
     limitations:
-      "UR10e reach, joint limits, singularity proximity and payload are checked at every route waypoint with analytic kinematics and the lift axis. Collisions between the arm and the cell and synchronized lift timing are not checked; the flange-to-suction offset is a provisional 0 mm.",
+      "UR10e reach, joint limits, singularity proximity and payload are checked at every route waypoint with analytic kinematics and the lift axis. Collisions between the arm and the cell and synchronized lift timing are not checked; the flange-to-suction offset is 131.4 mm, measured on the gripper model.",
   },
 } as const satisfies ViewerRobotCellAssetConfig;
 
@@ -71,6 +81,9 @@ export const BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION = {
     positionMm: { x: 1_492, y: 207, z: 962 },
     yawDeg: -90,
   },
+  // Belt top of `Förderband 1,5m Multi` in the viewer frame (CAD part
+  // 25.0040_0_108, source y = 909.8 mm); packages stand on it.
+  pickupSurfaceZMm: 765.8,
   robotBaseMm: {
     x: BUNDLED_UR10E_CELL.baseMm.x,
     y: BUNDLED_UR10E_CELL.baseMm.y,

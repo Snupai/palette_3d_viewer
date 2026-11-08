@@ -19,6 +19,12 @@ export type ViewerSceneCalibrationConfig = {
   robotCellRevision: string;
   palletPose: ViewerScenePose;
   pickupPose: ViewerScenePose;
+  /**
+   * Conveyor belt top in the viewer frame. When set, the simulated pick TCP
+   * (top face of the package) is placed at this height plus the package
+   * height instead of `pickupPose.positionMm.z`.
+   */
+  pickupSurfaceZMm?: number;
   /** Robot base axis in the viewer frame; simulated transfers swing around it. */
   robotBaseMm?: { x: number; y: number };
 };
@@ -94,15 +100,27 @@ export type ViewerRobotCellAssetConfig = {
   };
   /**
    * Articulated arm GLB with one node per URDF link (Z-up, metres). It is
-   * mounted on the lift carriage at the `staticArm` node frame.
+   * mounted on the lift carriage at the `staticArm` node frame, shifted along
+   * the node's vertical axis by `mountHeightMm` (negative = lower).
    */
   readonly articulatedArm?: {
     readonly assetUrl: string;
     readonly revision: string;
+    readonly mountHeightMm: number;
   };
   readonly liftTravelMm: {
     readonly min: number;
     readonly max: number;
+  };
+  /**
+   * Static lift column under `fixed` whose node origin is its foot and whose
+   * local Y is vertical. The CAD column does not telescope, so it is stretched
+   * vertically with the carriage travel to keep the carriage plate under the
+   * arm.
+   */
+  readonly liftColumn?: {
+    readonly node: string;
+    readonly heightMm: number;
   };
   readonly sourceToViewer: {
     readonly scaleMmPerMeter: number;

@@ -17,8 +17,10 @@ import {
   createRobotTimeline,
   seekRobotTimeline,
   blendUr10eCellPoses,
-  solveUr10eCellPose,
+  planUr10eLayerLifts,
+  solveUr10eCellPoseAtLift,
   stationPointToPallet,
+  ur10eSegmentLiftMm,
   type RobotCycleMaterialization,
   type RobotTimelineConfig,
   type Ur10eCellSolution,
@@ -124,12 +126,19 @@ export function SimulationWorkspace({
         materialization.cycles,
         (pose) => robotPoseToViewerPose(pose, project, materialization),
         sceneCalibration,
+        project.package.dimensionsMm.height,
       ),
     [materialization, project, sceneCalibration],
   );
   const timeline = useMemo(
     () => createRobotTimeline(viewerCycles, config),
     [config, viewerCycles],
+  );
+  // The lift starts at the bottom and rises layer by layer (one height per
+  // layer), exactly as the UR10e checks assume.
+  const layerLifts = useMemo(
+    () => (sceneCalibration ? planUr10eLayerLifts(viewerCycles) : null),
+    [sceneCalibration, viewerCycles],
   );
   const [cursorMs, setCursorMs] = useState(0);
   const [direction, setDirection] = useState<PlaybackDirection>("forward");
@@ -193,9 +202,19 @@ export function SimulationWorkspace({
   );
   // In the calibrated cell the animated TCP pose is in the cell frame, so the
   // arm and the lift come straight from the UR10e inverse kinematics.
+  const frameLiftMm =
+    layerLifts && sample
+      ? ur10eSegmentLiftMm(
+          layerLifts,
+          timeline.cycles,
+          sample.segment.cycleIndex,
+          sample.segment.kind,
+          sample.segmentProgress,
+        )
+      : null;
   const armSolution =
-    sceneCalibration && simulationFrame.tcpPose
-      ? solveUr10eCellPose(simulationFrame.tcpPose)
+    sceneCalibration && simulationFrame.tcpPose && frameLiftMm !== null
+      ? solveUr10eCellPoseAtLift(simulationFrame.tcpPose, frameLiftMm)
       : null;
   const solvedArm = armSolution?.status === "solved" ? armSolution : null;
   // Frames between two solvable waypoints whose straight TCP line leaves the
@@ -206,6 +225,23 @@ export function SimulationWorkspace({
           sample.segment.fromPose,
           sample.segment.toPose,
           sample.segmentProgress,
+          undefined,
+          {
+            fromMm: ur10eSegmentLiftMm(
+              layerLifts ?? [],
+              timeline.cycles,
+              sample.segment.cycleIndex,
+              sample.segment.kind,
+              0,
+            ),
+            toMm: ur10eSegmentLiftMm(
+              layerLifts ?? [],
+              timeline.cycles,
+              sample.segment.cycleIndex,
+              sample.segment.kind,
+              1,
+            ),
+          },
         )
       : null;
   const shownArm = solvedArm ?? blendedArm;
