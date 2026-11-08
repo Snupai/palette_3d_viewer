@@ -263,36 +263,18 @@ export function solveUr10eCellPose(
   pose: Ur10eCellPose,
   installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
 ): Ur10eCellSolution {
-  const home = ur10eHomeJoints(installation);
-  const preferredBranch = ur10ePreferredBranch(installation);
   const candidates = ur10eLiftCandidates(pose, installation);
   let firstSingular: Extract<Ur10eCellSolution, { status: "solved" }> | null =
     null;
   let firstJointLimit: number | null = null;
   for (const liftMm of candidates) {
-    const solutions = ur10eInverseKinematics(
-      ur10eFlangeTarget(pose, installation, liftMm),
-    );
-    if (solutions.length === 0) continue;
-    const selected = selectUr10eSolution(solutions, home, preferredBranch);
-    if (!selected) {
+    const solution = solveUr10eCellPoseAtLift(pose, liftMm, installation);
+    if (solution.status === "unreachable") continue;
+    if (solution.status === "joint-limit") {
       firstJointLimit ??= liftMm;
       continue;
     }
-    const margins = ur10eSingularityMargins(selected.joints);
-    const singularities = ur10eSingularities(
-      margins,
-      installation.singularityLimits,
-    );
-    const solution = {
-      status: "solved" as const,
-      liftMm,
-      joints: selected.joints,
-      branch: selected.branch,
-      margins,
-      singularities,
-    };
-    if (singularities.length === 0) return solution;
+    if (solution.singularities.length === 0) return solution;
     firstSingular ??= solution;
   }
   if (firstSingular) return firstSingular;
@@ -307,6 +289,136 @@ export function solveUr10eCellPose(
       ur10eFlangeTarget(pose, installation, liftMm),
     ),
   };
+}
+
+/** Joint angles for one TCP pose at a given lift position, without lift search. */
+export function solveUr10eCellPoseAtLift(
+  pose: Ur10eCellPose,
+  liftMm: number,
+  installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+): Ur10eCellSolution {
+  const { min, max } = installation.liftTravelMm;
+  const lift = clamp(liftMm, min, max);
+  const target = ur10eFlangeTarget(pose, installation, lift);
+  const solutions = ur10eInverseKinematics(target);
+  if (solutions.length === 0) {
+    return {
+      status: "unreachable",
+      liftMm: lift,
+      wristDistanceMm: wristDistanceMm(target),
+    };
+  }
+  const selected = selectUr10eSolution(
+    solutions,
+    ur10eHomeJoints(installation),
+    ur10ePreferredBranch(installation),
+  );
+  if (!selected) return { status: "joint-limit", liftMm: lift };
+  const margins = ur10eSingularityMargins(selected.joints);
+  return {
+    status: "solved",
+    liftMm: lift,
+    joints: selected.joints,
+    branch: selected.branch,
+    margins,
+    singularities: ur10eSingularities(margins, installation.singularityLimits),
+  };
+}
+
+export type Ur10eLayerLift = { layerId: string; liftMm: number };
+
+/**
+ * Lift height per physical layer in stacking order. The lift starts at the
+ * bottom of its travel and only moves up: each layer takes the lowest height
+ * (from the previous layer's height, in `liftSearchStepMm` steps) at which
+ * every waypoint of its cycles is solvable clear of singularities. Without such
+ * a height it takes the lowest one where every waypoint is at least solvable,
+ * then the one solving the most waypoints; the checks report the rest.
+ */
+export function planUr10eLayerLifts(
+  cycles: readonly RobotCycle[],
+  installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+): Ur10eLayerLift[] {
+  const layers: { layerId: string; poses: Ur10eCellPose[] }[] = [];
+  cycles.forEach((cycle, index) => {
+    let layer = layers.find(({ layerId }) => layerId === cycle.physicalLayerId);
+    if (!layer) {
+      layer = { layerId: cycle.physicalLayerId, poses: [] };
+      layers.push(layer);
+    }
+    for (const waypoint of cycleWaypoints(cycles, index)) {
+      layer.poses.push({
+        positionMm: { ...waypoint.pose.positionMm },
+        yawDeg: waypoint.pose.yawDeg,
+      });
+    }
+  });
+  const { min, max } = installation.liftTravelMm;
+  const step = installation.liftSearchStepMm;
+  let floor = min;
+  return layers.map(({ layerId, poses }) => {
+    const lifts: number[] = [];
+    for (let lift = floor; lift < max; lift += step) lifts.push(lift);
+    lifts.push(max);
+    let allSolved: number | null = null;
+    let best = { liftMm: floor, solved: -1 };
+    let chosen: number | null = null;
+    for (const liftMm of lifts) {
+      let solved = 0;
+      let clear = true;
+      for (const pose of poses) {
+        const solution = solveUr10eCellPoseAtLift(pose, liftMm, installation);
+        if (solution.status !== "solved") continue;
+        solved += 1;
+        if (solution.singularities.length > 0) clear = false;
+      }
+      if (solved === poses.length && clear) {
+        chosen = liftMm;
+        break;
+      }
+      if (solved === poses.length) allSolved ??= liftMm;
+      if (solved > best.solved) best = { liftMm, solved };
+    }
+    const liftMm = chosen ?? allSolved ?? best.liftMm;
+    floor = liftMm;
+    return { layerId, liftMm };
+  });
+}
+
+/** Lift of a cycle's layer from a plan; the bottom of travel if unplanned. */
+export function ur10eCycleLiftMm(
+  plan: readonly Ur10eLayerLift[],
+  cycle: Pick<RobotCycle, "physicalLayerId">,
+  installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+): number {
+  return (
+    plan.find(({ layerId }) => layerId === cycle.physicalLayerId)?.liftMm ??
+    installation.liftTravelMm.min
+  );
+}
+
+/**
+ * Lift height during a simulated move of `cycles[cycleIndex]`. It is the
+ * layer's planned height, except on the vertical retract from the previous
+ * cycle's place (`cycle-retract`), where the lift travels linearly from the
+ * previous cycle's height to this one.
+ */
+export function ur10eSegmentLiftMm(
+  plan: readonly Ur10eLayerLift[],
+  cycles: readonly Pick<RobotCycle, "physicalLayerId">[],
+  cycleIndex: number,
+  segmentKind: string,
+  progress: number,
+  installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+): number {
+  const cycle = cycles[cycleIndex];
+  if (!cycle) return installation.liftTravelMm.min;
+  const target = ur10eCycleLiftMm(plan, cycle, installation);
+  const previous = cycles[cycleIndex - 1];
+  if (segmentKind !== "cycle-retract" || !previous) return target;
+  const start = ur10eCycleLiftMm(plan, previous, installation);
+  const t = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
+  return start + (target - start) * t;
 }
 
 export type Ur10eWaypointResult = {
@@ -346,6 +458,8 @@ export type Ur10eCellKinematicsSummary = {
 
 export type Ur10eCellKinematicsResult = {
   summary: Ur10eCellKinematicsSummary;
+  /** Lift height per layer; every waypoint of a layer is solved at it. */
+  layerLifts: readonly Ur10eLayerLift[];
   waypoints: readonly Ur10eWaypointResult[];
   diagnostics: readonly RobotDiagnostic[];
 };
@@ -379,10 +493,10 @@ function round3(value: number): number {
 
 /**
  * UR10e checks for cycles whose poses are expressed in the cell frame: reach
- * (an IK solution exists with the lift axis), joint limits, proximity to the
- * shoulder/elbow/wrist singularities, configuration changes between
- * consecutive route waypoints, and payload (gripper + packages). Results do
- * not depend on the order in which waypoints are evaluated.
+ * (an IK solution exists at the layer's lift height from
+ * `planUr10eLayerLifts`), joint limits, proximity to the shoulder/elbow/wrist
+ * singularities, configuration changes between consecutive route waypoints,
+ * and payload (gripper + packages).
  */
 export function validateUr10eCellKinematics(
   cycles: readonly RobotCycle[],
@@ -392,6 +506,7 @@ export function validateUr10eCellKinematics(
   },
 ): Ur10eCellKinematicsResult {
   const installation = options.installation ?? BUNDLED_UR10E_CELL;
+  const layerLifts = planUr10eLayerLifts(cycles, installation);
   const diagnostics: RobotDiagnostic[] = [];
   const waypoints: Ur10eWaypointResult[] = [];
   let configurationChangeCount = 0;
@@ -400,6 +515,7 @@ export function validateUr10eCellKinematics(
 
   for (let index = 0; index < cycles.length; index += 1) {
     const cycle = cycles[index]!;
+    const liftMm = ur10eCycleLiftMm(layerLifts, cycle, installation);
     const route = cycleWaypoints(cycles, index);
     // Straight moves between waypoints: report the first unsolved interior
     // sample per move, since the animation interpolates the TCP linearly.
@@ -410,7 +526,7 @@ export function validateUr10eCellKinematics(
       for (const fraction of UR10E_PATH_SAMPLE_FRACTIONS) {
         pathSampleCount += 1;
         const sample = interpolateRobotPose(from.pose, to.pose, fraction);
-        const solution = solveUr10eCellPose(sample, installation);
+        const solution = solveUr10eCellPoseAtLift(sample, liftMm, installation);
         if (solution.status === "solved") continue;
         unsolvedPathSampleCount += 1;
         if (reported) continue;
@@ -423,7 +539,7 @@ export function validateUr10eCellKinematics(
             solution.status === "unreachable"
               ? "kinematics-unreachable"
               : "kinematics-joint-limit",
-          message: `Cycle "${cycle.id}" move ${from.name} → ${to.name} passes TCP (${round3(p.x)}, ${round3(p.y)}, ${round3(p.z)}) mm, which the ${UR10E.model} cannot reach${solution.status === "joint-limit" ? " within its joint limits" : " at any lift position"}.`,
+          message: `Cycle "${cycle.id}" move ${from.name} → ${to.name} passes TCP (${round3(p.x)}, ${round3(p.y)}, ${round3(p.z)}) mm, which the ${UR10E.model} cannot reach${solution.status === "joint-limit" ? " within its joint limits" : ""} at the layer lift of ${round3(liftMm)} mm.`,
           cycleId: cycle.id,
           layerId: cycle.physicalLayerId,
           resourceId: installation.id,
@@ -441,7 +557,7 @@ export function validateUr10eCellKinematics(
         positionMm: { ...waypoint.pose.positionMm },
         yawDeg: waypoint.pose.yawDeg,
       };
-      const solution = solveUr10eCellPose(pose, installation);
+      const solution = solveUr10eCellPoseAtLift(pose, liftMm, installation);
       const result = { cycleId: cycle.id, name: waypoint.name, pose, solution };
       waypoints.push(result);
       const context = {
@@ -455,7 +571,7 @@ export function validateUr10eCellKinematics(
           severity: "warning",
           phase: "kinematics",
           code: "kinematics-unreachable",
-          message: `${where} is outside the ${UR10E.model} reach for every lift position (wrist ${round3(solution.wristDistanceMm)} mm from the shoulder at lift ${round3(solution.liftMm)} mm).`,
+          message: `${where} is outside the ${UR10E.model} reach at the layer lift of ${round3(solution.liftMm)} mm (wrist ${round3(solution.wristDistanceMm)} mm from the shoulder).`,
           ...context,
           details: {
             phase: waypoint.name,
@@ -469,7 +585,7 @@ export function validateUr10eCellKinematics(
           severity: "warning",
           phase: "kinematics",
           code: "kinematics-joint-limit",
-          message: `${where} is reachable only outside the ${UR10E.model} joint limits.`,
+          message: `${where} is reachable only outside the ${UR10E.model} joint limits at the layer lift of ${round3(solution.liftMm)} mm.`,
           ...context,
           details: { phase: waypoint.name, liftMm: round3(solution.liftMm) },
         });
@@ -598,6 +714,7 @@ export function validateUr10eCellKinematics(
           : null,
       payload,
     },
+    layerLifts,
     waypoints,
     diagnostics,
   };
@@ -613,9 +730,14 @@ export function blendUr10eCellPoses(
   to: Ur10eCellPose,
   progress: number,
   installation: Ur10eCellInstallation = BUNDLED_UR10E_CELL,
+  lifts?: { fromMm: number; toMm: number },
 ): { liftMm: number; joints: Ur10eJoints } | null {
-  const start = solveUr10eCellPose(from, installation);
-  const end = solveUr10eCellPose(to, installation);
+  const start = lifts
+    ? solveUr10eCellPoseAtLift(from, lifts.fromMm, installation)
+    : solveUr10eCellPose(from, installation);
+  const end = lifts
+    ? solveUr10eCellPoseAtLift(to, lifts.toMm, installation)
+    : solveUr10eCellPose(to, installation);
   if (start.status !== "solved" || end.status !== "solved") return null;
   const t = clamp(Number.isFinite(progress) ? progress : 0, 0, 1);
   return {

@@ -104,7 +104,7 @@ describe("bundled UR10e cell kinematics", () => {
       configurationChangeCount: 0,
       pathSampleCount: 747,
       unsolvedPathSampleCount: 0,
-      liftUsedMm: { min: 0, max: 900 },
+      liftUsedMm: { min: 0, max: 170 },
       payload: {
         status: "checked",
         maxPayloadKg: 5,
@@ -114,6 +114,15 @@ describe("bundled UR10e cell kinematics", () => {
       },
     });
     expect(result?.diagnostics).toEqual([]);
+    // The lift starts at the bottom and only rises once layer 6 needs it.
+    expect(result?.layerLifts).toEqual([
+      { layerId: "layer-1", liftMm: 0 },
+      { layerId: "layer-2", liftMm: 0 },
+      { layerId: "layer-3", liftMm: 0 },
+      { layerId: "layer-4", liftMm: 0 },
+      { layerId: "layer-5", liftMm: 0 },
+      { layerId: "layer-6", liftMm: 170 },
+    ]);
     expect(materialization.cellKinematics).toEqual(result?.summary);
 
     let worstPositionMm = 0;

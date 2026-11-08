@@ -175,16 +175,17 @@ describe("SimulationWorkspace robot cell integration", () => {
       />,
     );
 
-    // Cursor 0 is the first pick on the belt: TCP at 765.8 + 250 mm package.
+    // Cursor 0 is the first pick on the belt (TCP at 765.8 + 250 mm package);
+    // the first layer runs with the lift at the bottom.
     const props = latestViewerProps();
     expect(props.equipment?.robot).toBeNull();
-    expect(props.liftCarriageMm).toBeCloseTo(614.3, 9);
+    expect(props.liftCarriageMm).toBe(0);
     expect(
       props.robotJoints!.map(
         (angle) => Math.round(((angle * 180) / Math.PI) * 1e6) / 1e6,
       ),
     ).toEqual([
-      168.359393, -28.371972, 132.066734, -193.694762, -90, -56.640607,
+      168.359393, -100.2293, 126.481645, -116.252346, -90, -56.640607,
     ]);
     expect(
       screen.getByRole<HTMLInputElement>("slider", {
