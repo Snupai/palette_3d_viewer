@@ -118,6 +118,29 @@ describe("calibrated viewer simulation plan", () => {
     expect(cycles).toEqual(sourceSnapshot);
   });
 
+  it("stands the picked package on the conveyor belt top", () => {
+    const calibrated = createViewerSimulationCycles(
+      cycles,
+      timelinePoseToViewerPose,
+      BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+      250,
+    );
+
+    // Belt top 765.8 mm + 250 mm package: the TCP is on the package top face.
+    expect(calibrated[0]?.pickPose).toEqual({
+      frame: "pallet",
+      positionMm: { x: 1_492, y: 207, z: 1_015.8 },
+      yawDeg: -90,
+    });
+    expect(calibrated[1]?.pickPose.positionMm.z).toBe(1_015.8);
+    // The pallet side is unaffected.
+    expect(calibrated[0]?.placePose.positionMm).toEqual({
+      x: 489,
+      y: 395,
+      z: 100,
+    });
+  });
+
   it("moves the place pre-position with the calibrated pallet", () => {
     const [first, second] = cycles;
     const withApproach = [

@@ -33,6 +33,11 @@ export const BUNDLED_ROBOT_CELL = {
     mountHeightMm: UR10E_MOUNT_BELOW_CAD_NODE_MM,
   },
   liftTravelMm: BUNDLED_UR10E_CELL.liftTravelMm,
+  // Ewellix LIFTKIT: foot at source y = 131.9 mm, carriage plate at 876.9 mm.
+  liftColumn: {
+    node: "LIFTKIT_UR_900_0000_601R",
+    heightMm: 745,
+  },
   sourceToViewer: {
     scaleMmPerMeter: 1_000,
     rotationXRad: Math.PI / 2,
@@ -76,6 +81,9 @@ export const BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION = {
     positionMm: { x: 1_492, y: 207, z: 962 },
     yawDeg: -90,
   },
+  // Belt top of `Förderband 1,5m Multi` in the viewer frame (CAD part
+  // 25.0040_0_108, source y = 909.8 mm); packages stand on it.
+  pickupSurfaceZMm: 765.8,
   robotBaseMm: {
     x: BUNDLED_UR10E_CELL.baseMm.x,
     y: BUNDLED_UR10E_CELL.baseMm.y,

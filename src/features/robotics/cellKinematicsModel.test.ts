@@ -127,7 +127,14 @@ describe("bundled UR10e cell kinematics", () => {
         ),
         downwardToolTransform(
           {
-            ...pose.positionMm,
+            x:
+              pose.positionMm.x +
+              BUNDLED_UR10E_CELL.flangeOffsetXMm *
+                Math.cos((pose.yawDeg * Math.PI) / 180),
+            y:
+              pose.positionMm.y +
+              BUNDLED_UR10E_CELL.flangeOffsetXMm *
+                Math.sin((pose.yawDeg * Math.PI) / 180),
             z: pose.positionMm.z + BUNDLED_UR10E_CELL.flangeToSuctionMm,
           },
           (pose.yawDeg * Math.PI) / 180,

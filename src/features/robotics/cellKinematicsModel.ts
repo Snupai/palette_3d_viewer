@@ -35,6 +35,7 @@ export function createBundledCellKinematics(
     materialization.cycles,
     toViewerPose,
     BUNDLED_ROBOT_CELL_SIMULATION_CALIBRATION,
+    project.package.dimensionsMm.height,
   );
   return validateUr10eCellKinematics(cellCycles, {
     packageWeightKg: project.package.weightKg,

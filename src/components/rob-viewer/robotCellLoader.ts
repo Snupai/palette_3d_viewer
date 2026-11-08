@@ -210,6 +210,10 @@ export const prepareRobotCell = (
   root.updateMatrixWorld(true);
 
   const carriageSourceY = liftCarriage.position.y;
+  const liftColumn = config.liftColumn
+    ? namedNode(fixed, config.liftColumn.node)
+    : null;
+  const liftColumnScaleY = liftColumn?.scale.y ?? 1;
   let disposed = false;
   return {
     root,
@@ -233,6 +237,13 @@ export const prepareRobotCell = (
         carriageSourceY + clamped / config.sourceToViewer.scaleMmPerMeter;
       liftCarriage.updateMatrix();
       liftCarriage.updateMatrixWorld(true);
+      if (liftColumn && config.liftColumn) {
+        liftColumn.scale.y =
+          (liftColumnScaleY * (config.liftColumn.heightMm + clamped)) /
+          config.liftColumn.heightMm;
+        liftColumn.updateMatrix();
+        liftColumn.updateMatrixWorld(true);
+      }
       return clamped;
     },
     dispose() {

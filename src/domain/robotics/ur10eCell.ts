@@ -38,6 +38,14 @@ import {
  */
 export const GRIPPER_FLANGE_TO_SUCTION_MM = 137.4;
 
+/**
+ * Horizontal offset of the flange axis from the suction-face centre along the
+ * gripper's local X axis (which turns with the tool yaw). Measured on the same
+ * model: flange adapter centre at CAD x = −102.0, suction face centre at
+ * x = −51.1.
+ */
+export const GRIPPER_FLANGE_OFFSET_X_MM = -50.9;
+
 export type Ur10eSingularityKind = "shoulder" | "elbow" | "wrist";
 
 export type Ur10eCellInstallation = {
@@ -49,6 +57,8 @@ export type Ur10eCellInstallation = {
   /** Vertical lift axis carrying the robot base. */
   liftTravelMm: { min: number; max: number };
   flangeToSuctionMm: number;
+  /** Flange axis offset from the suction centre along the tool's local X. */
+  flangeOffsetXMm: number;
   /** Gripper mass counted against the payload; null when not recorded. */
   gripperMassKg: number | null;
   /** Reference posture for the configuration choice and joint unwrapping. */
@@ -86,6 +96,7 @@ export const BUNDLED_UR10E_CELL: Ur10eCellInstallation = {
   baseYawDeg: -45,
   liftTravelMm: { min: 0, max: 900 },
   flangeToSuctionMm: GRIPPER_FLANGE_TO_SUCTION_MM,
+  flangeOffsetXMm: GRIPPER_FLANGE_OFFSET_X_MM,
   gripperMassKg: null,
   // Tool-down posture; the base angle sits mid-way between the conveyor
   // (≈166°) and the far pallet side (≈−22°) so joint unwrapping never wraps
@@ -181,13 +192,14 @@ export function ur10eFlangeTarget(
   installation: Ur10eCellInstallation,
   liftMm: number,
 ): Transform4 {
+  const yawRad = pose.yawDeg * DEG;
   const flangeInCell = downwardToolTransform(
     {
-      x: pose.positionMm.x,
-      y: pose.positionMm.y,
+      x: pose.positionMm.x + installation.flangeOffsetXMm * Math.cos(yawRad),
+      y: pose.positionMm.y + installation.flangeOffsetXMm * Math.sin(yawRad),
       z: pose.positionMm.z + installation.flangeToSuctionMm,
     },
-    pose.yawDeg * DEG,
+    yawRad,
   );
   return multiplyTransforms(
     invertRigidTransform(ur10eBaseTransform(installation, liftMm)),

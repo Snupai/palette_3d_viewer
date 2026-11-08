@@ -175,16 +175,16 @@ describe("SimulationWorkspace robot cell integration", () => {
       />,
     );
 
-    // Cursor 0 is the first pick at the calibrated conveyor pickup.
+    // Cursor 0 is the first pick on the belt: TCP at 765.8 + 250 mm package.
     const props = latestViewerProps();
     expect(props.equipment?.robot).toBeNull();
-    expect(props.liftCarriageMm).toBeCloseTo(566.5, 9);
+    expect(props.liftCarriageMm).toBeCloseTo(620.3, 9);
     expect(
       props.robotJoints!.map(
         (angle) => Math.round(((angle * 180) / Math.PI) * 1e6) / 1e6,
       ),
     ).toEqual([
-      165.507316, -29.233318, 128.937033, -189.703715, -90, -59.492684,
+      168.359393, -28.371972, 132.066734, -193.694762, -90, -56.640607,
     ]);
     expect(
       screen.getByRole<HTMLInputElement>("slider", {
@@ -197,7 +197,7 @@ describe("SimulationWorkspace robot cell integration", () => {
       ),
     ).toBeTruthy();
     expect(screen.getByText("erreichbar")).toBeTruthy();
-    expect(screen.getByText("165,5°")).toBeTruthy();
+    expect(screen.getByText("168,4°")).toBeTruthy();
   });
 
   it("does not infer the bundled cell or expose the lift control for ROB imports", () => {

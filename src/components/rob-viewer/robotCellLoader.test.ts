@@ -35,6 +35,9 @@ const createCellScene = () => {
   const fixed = new Group();
   const liftCarriage = new Group();
   const staticArm = new Group();
+  const liftColumn = new Group();
+  liftColumn.name = BUNDLED_ROBOT_CELL.liftColumn.node;
+  fixed.add(liftColumn);
   root.name = BUNDLED_ROBOT_CELL.nodes.root;
   fixed.name = BUNDLED_ROBOT_CELL.nodes.fixed;
   liftCarriage.name = BUNDLED_ROBOT_CELL.nodes.liftCarriage;
@@ -42,7 +45,7 @@ const createCellScene = () => {
   liftCarriage.add(staticArm);
   root.add(fixed, liftCarriage);
   scene.add(root);
-  return { scene, root, fixed, liftCarriage };
+  return { scene, root, fixed, liftCarriage, liftColumn };
 };
 
 afterEach(() => {
@@ -72,6 +75,21 @@ describe("robot-cell loader", () => {
     expect(liftCarriage.position.y).toBeCloseTo(0.9);
     expect(cell.setLiftCarriageMm(null)).toBe(0);
     expect(liftCarriage.position.y).toBe(0);
+  });
+
+  it("stretches the static lift column so its top follows the carriage", () => {
+    const { scene, liftColumn } = createCellScene();
+    // CAD column node scale is 1; its 745 mm height grows by the lift travel.
+    const cell = prepareRobotCell(scene);
+
+    cell.setLiftCarriageMm(0);
+    expect(liftColumn.scale.y).toBe(1);
+    cell.setLiftCarriageMm(372.5);
+    expect(liftColumn.scale.y).toBe(1.5);
+    cell.setLiftCarriageMm(1_200);
+    expect(liftColumn.scale.y).toBeCloseTo((745 + 900) / 745, 12);
+    expect(liftColumn.scale.x).toBe(1);
+    expect(liftColumn.scale.z).toBe(1);
   });
 
   it("mounts the articulated arm at the static arm frame and poses it from the kinematics", () => {

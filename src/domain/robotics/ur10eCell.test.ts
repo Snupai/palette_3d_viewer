@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { RobotCycle, RobotPose } from "~/domain/robotics/types";
 import {
   BUNDLED_UR10E_CELL,
+  GRIPPER_FLANGE_OFFSET_X_MM,
   GRIPPER_FLANGE_TO_SUCTION_MM,
   blendUr10eCellPoses,
   solveUr10eCellPose,
@@ -75,9 +76,11 @@ function cycle(
 }
 
 describe("bundled UR10e lift cell", () => {
-  it("keeps the measured 137.4 mm flange-to-suction offset as one parameter", () => {
+  it("keeps the measured gripper offsets as single parameters", () => {
     expect(GRIPPER_FLANGE_TO_SUCTION_MM).toBe(137.4);
     expect(BUNDLED_UR10E_CELL.flangeToSuctionMm).toBe(137.4);
+    expect(GRIPPER_FLANGE_OFFSET_X_MM).toBe(-50.9);
+    expect(BUNDLED_UR10E_CELL.flangeOffsetXMm).toBe(-50.9);
     expect(BUNDLED_UR10E_CELL.baseMm).toEqual({
       x: 1_058.6,
       y: 599.5,
@@ -114,7 +117,7 @@ describe("bundled UR10e lift cell", () => {
     if (solution.status !== "solved") return;
     expect(solution.liftMm).toBeCloseTo(566.5, 9);
     expect(degrees(solution.joints)).toEqual([
-      165.507316, -29.233318, 128.937033, -189.703715, -90, -59.492684,
+      168.359393, -28.371972, 132.066734, -193.694762, -90, -56.640607,
     ]);
     expect(solution.branch).toEqual({ shoulder: 0, wrist: 1, elbow: 0 });
     expect(solution.singularities).toEqual([]);
@@ -127,7 +130,9 @@ describe("bundled UR10e lift cell", () => {
       flangeInCell,
       downwardToolTransform(
         {
-          ...PICKUP.positionMm,
+          // Yaw −90°: the gripper's local −X flange offset points to cell +Y.
+          x: PICKUP.positionMm.x,
+          y: PICKUP.positionMm.y - GRIPPER_FLANGE_OFFSET_X_MM,
           z: PICKUP.positionMm.z + GRIPPER_FLANGE_TO_SUCTION_MM,
         },
         PICKUP.yawDeg * DEG,
@@ -161,12 +166,13 @@ describe("bundled UR10e lift cell", () => {
     ).toEqual({
       status: "unreachable",
       liftMm: expect.closeTo(104.5, 9) as number,
-      wristDistanceMm: expect.closeTo(3_098.581842, 6) as number,
+      wristDistanceMm: expect.closeTo(3_066.947297, 6) as number,
     });
-    // Straight below the base the wrist stays inside the d4 shoulder offset.
+    // With the flange straight below the base the wrist stays inside the d4
+    // shoulder offset (the flange sits 50.9 mm along −X of the TCP at yaw 0).
     expect(
       solveUr10eCellPose({
-        positionMm: { x: 1_058.6, y: 599.5, z: 500 },
+        positionMm: { x: 1_058.6 + 50.9, y: 599.5, z: 500 },
         yawDeg: 0,
       }),
     ).toEqual({
@@ -178,7 +184,9 @@ describe("bundled UR10e lift cell", () => {
 
   it("flags a TCP close to the base axis as near the shoulder singularity", () => {
     const solution = solveUr10eCellPose({
-      positionMm: { x: 1_058.6 - 180, y: 599.5, z: 900 },
+      // The flange sits 50.9 mm along −X of the TCP at yaw 0, so it ends up
+      // 180 mm from the base axis.
+      positionMm: { x: 1_058.6 - 180 + 50.9, y: 599.5, z: 900 },
       yawDeg: 0,
     });
     expect(solution.status).toBe("solved");
@@ -243,7 +251,7 @@ describe("UR10e cycle checks", () => {
       layerId: "layer-1",
       resourceId: "bundled-ur10e-lift-cell",
       message:
-        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach for every lift position (wrist 2500.485 mm from the shoulder at lift 0 mm).',
+        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach for every lift position (wrist 2531.337 mm from the shoulder at lift 0 mm).',
     });
   });
 
@@ -385,7 +393,7 @@ describe("UR10e cycle checks", () => {
     );
     expect(blend?.liftMm).toBeCloseTo(766.5, 9);
     expect(degrees(blend!.joints)).toEqual([
-      71.515095, -19.317098, 139.374849, -210.057751, -90, -63.484905,
+      75.227371, -16.403163, 141.736582, -215.333418, -90, -59.772629,
     ]);
     expect(
       blendUr10eCellPoses(

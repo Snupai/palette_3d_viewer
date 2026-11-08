@@ -124,6 +124,7 @@ export function SimulationWorkspace({
         materialization.cycles,
         (pose) => robotPoseToViewerPose(pose, project, materialization),
         sceneCalibration,
+        project.package.dimensionsMm.height,
       ),
     [materialization, project, sceneCalibration],
   );
