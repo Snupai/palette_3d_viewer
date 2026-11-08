@@ -177,7 +177,7 @@ describe("bundled UR10e cell kinematics", () => {
         "Die Greifermasse ist nicht hinterlegt; gezählt sind nur die Pakete.",
       ],
       limitations:
-        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 137,4 mm, gemessen am Greifermodell.",
+        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 131,4 mm, gemessen am Greifermodell.",
     });
   });
 

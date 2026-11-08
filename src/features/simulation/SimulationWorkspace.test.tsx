@@ -178,7 +178,7 @@ describe("SimulationWorkspace robot cell integration", () => {
     // Cursor 0 is the first pick on the belt: TCP at 765.8 + 250 mm package.
     const props = latestViewerProps();
     expect(props.equipment?.robot).toBeNull();
-    expect(props.liftCarriageMm).toBeCloseTo(620.3, 9);
+    expect(props.liftCarriageMm).toBeCloseTo(614.3, 9);
     expect(
       props.robotJoints!.map(
         (angle) => Math.round(((angle * 180) / Math.PI) * 1e6) / 1e6,

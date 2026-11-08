@@ -278,7 +278,7 @@ export const roboticsDe = {
   "robotics.kinematics.payloadNotChecked":
     "Paketgewicht fehlt, daher wurde die Traglast nicht geprüft.",
   "robotics.kinematics.limitations":
-    "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 137,4 mm, gemessen am Greifermodell.",
+    "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 131,4 mm, gemessen am Greifermodell.",
   "robotics.kinematics.decimalSeparator": ",",
 
   // Obstacle editor

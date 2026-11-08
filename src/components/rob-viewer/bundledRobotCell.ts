@@ -67,7 +67,7 @@ export const BUNDLED_ROBOT_CELL = {
     placement:
       "Viewer placement derived from measured CAD bounding boxes: the pallet station is set on the free floor area west of the machine frame, with the cell floor one pallet height below the viewer origin plane.",
     limitations:
-      "UR10e reach, joint limits, singularity proximity and payload are checked at every route waypoint with analytic kinematics and the lift axis. Collisions between the arm and the cell and synchronized lift timing are not checked; the flange-to-suction offset is 137.4 mm, measured on the gripper model.",
+      "UR10e reach, joint limits, singularity proximity and payload are checked at every route waypoint with analytic kinematics and the lift axis. Collisions between the arm and the cell and synchronized lift timing are not checked; the flange-to-suction offset is 131.4 mm, measured on the gripper model.",
   },
 } as const satisfies ViewerRobotCellAssetConfig;
 

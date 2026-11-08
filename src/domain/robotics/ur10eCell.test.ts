@@ -77,8 +77,8 @@ function cycle(
 
 describe("bundled UR10e lift cell", () => {
   it("keeps the measured gripper offsets as single parameters", () => {
-    expect(GRIPPER_FLANGE_TO_SUCTION_MM).toBe(137.4);
-    expect(BUNDLED_UR10E_CELL.flangeToSuctionMm).toBe(137.4);
+    expect(GRIPPER_FLANGE_TO_SUCTION_MM).toBe(131.4);
+    expect(BUNDLED_UR10E_CELL.flangeToSuctionMm).toBe(131.4);
     expect(GRIPPER_FLANGE_OFFSET_X_MM).toBe(-50.9);
     expect(BUNDLED_UR10E_CELL.flangeOffsetXMm).toBe(-50.9);
     expect(BUNDLED_UR10E_CELL.baseMm).toEqual({
@@ -99,7 +99,7 @@ describe("bundled UR10e lift cell", () => {
     const candidates = ur10eLiftCandidates(PICKUP, BUNDLED_UR10E_CELL);
     expect(
       candidates.slice(0, 5).map((value) => Math.round(value * 10) / 10),
-    ).toEqual([566.5, 556.5, 576.5, 546.5, 586.5]);
+    ).toEqual([560.5, 550.5, 570.5, 540.5, 580.5]);
     // 5.9 … 895.9 mm in 10 mm steps plus both end stops.
     expect(candidates).toHaveLength(92);
     expect(
@@ -115,7 +115,7 @@ describe("bundled UR10e lift cell", () => {
 
     expect(solution.status).toBe("solved");
     if (solution.status !== "solved") return;
-    expect(solution.liftMm).toBeCloseTo(566.5, 9);
+    expect(solution.liftMm).toBeCloseTo(560.5, 9);
     expect(degrees(solution.joints)).toEqual([
       168.359393, -28.371972, 132.066734, -193.694762, -90, -56.640607,
     ]);
@@ -165,7 +165,7 @@ describe("bundled UR10e lift cell", () => {
       }),
     ).toEqual({
       status: "unreachable",
-      liftMm: expect.closeTo(104.5, 9) as number,
+      liftMm: expect.closeTo(98.5, 9) as number,
       wristDistanceMm: expect.closeTo(3_066.947297, 6) as number,
     });
     // With the flange straight below the base the wrist stays inside the d4
@@ -177,7 +177,7 @@ describe("bundled UR10e lift cell", () => {
       }),
     ).toEqual({
       status: "unreachable",
-      liftMm: expect.closeTo(104.5, 9) as number,
+      liftMm: expect.closeTo(98.5, 9) as number,
       wristDistanceMm: expect.closeTo(264.15, 9) as number,
     });
   });
@@ -193,7 +193,7 @@ describe("bundled UR10e lift cell", () => {
     if (solution.status !== "solved") return;
     expect(solution.singularities).toEqual(["shoulder"]);
     expect(solution.margins.shoulderMm).toBeCloseTo(45.516783, 6);
-    expect(solution.liftMm).toBeCloseTo(504.5, 9);
+    expect(solution.liftMm).toBeCloseTo(498.5, 9);
   });
 });
 
@@ -218,7 +218,7 @@ describe("UR10e cycle checks", () => {
       configurationChangeCount: 0,
       pathSampleCount: 30,
       unsolvedPathSampleCount: 7,
-      liftUsedMm: { min: 0, max: expect.closeTo(766.5, 9) as number },
+      liftUsedMm: { min: 0, max: expect.closeTo(760.5, 9) as number },
       payload: {
         status: "checked",
         maxPayloadKg: 5,
@@ -251,7 +251,7 @@ describe("UR10e cycle checks", () => {
       layerId: "layer-1",
       resourceId: "bundled-ur10e-lift-cell",
       message:
-        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach for every lift position (wrist 2531.337 mm from the shoulder at lift 0 mm).',
+        'Cycle "cycle-2" place TCP (-900, -900, 250) mm is outside the UR10e reach for every lift position (wrist 2532.315 mm from the shoulder at lift 0 mm).',
     });
   });
 
@@ -391,7 +391,7 @@ describe("UR10e cycle checks", () => {
       { positionMm: { x: 789, y: 795, z: 1_162 }, yawDeg: 90 },
       0.5,
     );
-    expect(blend?.liftMm).toBeCloseTo(766.5, 9);
+    expect(blend?.liftMm).toBeCloseTo(760.5, 9);
     expect(degrees(blend!.joints)).toEqual([
       75.227371, -16.403163, 141.736582, -215.333418, -90, -59.772629,
     ]);

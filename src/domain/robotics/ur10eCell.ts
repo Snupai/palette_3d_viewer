@@ -33,10 +33,11 @@ import {
 /**
  * Distance from the UR10e flange (`tool0`) to the gripper suction face along
  * the tool axis. Measured on `public/models/gripper/10_01_43_00016.obj`: the
- * Ø 63 mm flange adapter top sits at CAD y = 117.0, the suction face at
- * y = −20.4. This is the single place to change it.
+ * Ø 63 mm flange adapter face sits at CAD y = 111.0 (the Ø 31.5 mm centring
+ * spigot above it, up to y = 117.0, enters the robot flange recess), the
+ * suction face at y = −20.4. This is the single place to change it.
  */
-export const GRIPPER_FLANGE_TO_SUCTION_MM = 137.4;
+export const GRIPPER_FLANGE_TO_SUCTION_MM = 131.4;
 
 /**
  * Horizontal offset of the flange axis from the suction-face centre along the
