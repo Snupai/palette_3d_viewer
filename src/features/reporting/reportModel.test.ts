@@ -209,7 +209,7 @@ describe("planning report model", () => {
         "Nicht geprüft: Nur geführte Pläne mit Griffen laufen in der mitgelieferten UR10e-Hubzelle.",
       ],
       limitations:
-        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist vorläufig 0 mm.",
+        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 137,4 mm, gemessen am Greifermodell.",
     });
 
     const checked = createPlanningReportModel({

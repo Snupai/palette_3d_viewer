@@ -178,7 +178,7 @@ describe("SimulationWorkspace robot cell integration", () => {
     // Cursor 0 is the first pick at the calibrated conveyor pickup.
     const props = latestViewerProps();
     expect(props.equipment?.robot).toBeNull();
-    expect(props.liftCarriageMm).toBeCloseTo(415.9, 9);
+    expect(props.liftCarriageMm).toBeCloseTo(566.5, 9);
     expect(
       props.robotJoints!.map(
         (angle) => Math.round(((angle * 180) / Math.PI) * 1e6) / 1e6,

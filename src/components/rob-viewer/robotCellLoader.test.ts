@@ -105,7 +105,8 @@ describe("robot-cell loader", () => {
     const expected = {
       x: 1_058.6 + fk[3]! * Math.cos(yaw) - fk[7]! * Math.sin(yaw),
       y: 599.5 + fk[3]! * Math.sin(yaw) + fk[7]! * Math.cos(yaw),
-      z: 746.1 + 450 + fk[11]!,
+      // The base stands on the carriage plate, 13.2 mm below the CAD node.
+      z: 732.9 + 450 + fk[11]!,
     };
     expect(flange.x).toBeCloseTo(expected.x, 3);
     expect(flange.y).toBeCloseTo(expected.y, 3);

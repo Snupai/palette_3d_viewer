@@ -32,10 +32,11 @@ import {
 
 /**
  * Distance from the UR10e flange (`tool0`) to the gripper suction face along
- * the tool axis. Provisional 0 mm until it is matched visually against the
- * gripper model; this is the single place to change it.
+ * the tool axis. Measured on `public/models/gripper/10_01_43_00016.obj`: the
+ * Ø 63 mm flange adapter top sits at CAD y = 117.0, the suction face at
+ * y = −20.4. This is the single place to change it.
  */
-export const GRIPPER_FLANGE_TO_SUCTION_MM = 0;
+export const GRIPPER_FLANGE_TO_SUCTION_MM = 137.4;
 
 export type Ur10eSingularityKind = "shoulder" | "elbow" | "wrist";
 
@@ -66,13 +67,22 @@ export type Ur10eCellInstallation = {
  * UR10e on the lift carriage of the bundled CAD cell
  * (`public/models/robot-cell/ur10-palletizer.glb`, node `eSeries_UR10e_1`).
  * Base position and yaw are the CAD mount node mapped into the viewer frame
- * (source (-141.4, 890.1, 1400.5) m·10⁻³, −45° about the vertical); the CAD
+ * (source (-141.4, 890.1, 1400.5) m·10⁻³, −45° about the vertical), lowered by
+ * `UR10E_MOUNT_BELOW_CAD_NODE_MM` onto the carriage plate; the CAD
  * base part does not show the cable outlet reliably, so the base yaw is the
  * mount yaw. Lift travel is the CAD Ewellix column travel.
  */
+/**
+ * The CAD mount node sits 13.2 mm above the lift-carriage plate (plate top at
+ * source y = 876.9 mm, node at 890.1 mm, measured in `ur10-palletizer.glb`).
+ * The URDF base frame is the bottom face of the base, so the articulated arm
+ * is lowered by this amount to stand on the plate.
+ */
+export const UR10E_MOUNT_BELOW_CAD_NODE_MM = -13.2;
+
 export const BUNDLED_UR10E_CELL: Ur10eCellInstallation = {
   id: "bundled-ur10e-lift-cell",
-  baseMm: { x: 1_058.6, y: 599.5, z: 746.1 },
+  baseMm: { x: 1_058.6, y: 599.5, z: 746.1 + UR10E_MOUNT_BELOW_CAD_NODE_MM },
   baseYawDeg: -45,
   liftTravelMm: { min: 0, max: 900 },
   flangeToSuctionMm: GRIPPER_FLANGE_TO_SUCTION_MM,

@@ -271,7 +271,7 @@ export const roboticsEn = {
   "robotics.kinematics.payloadNotChecked":
     "Package weight is missing, so the payload was not checked.",
   "robotics.kinematics.limitations":
-    "Not checked: collisions between the arm and the cell, and synchronized lift timing. The flange-to-suction gripper offset is a provisional 0 mm.",
+    "Not checked: collisions between the arm and the cell, and synchronized lift timing. The flange-to-suction gripper offset is 137.4 mm, measured on the gripper model.",
   "robotics.kinematics.decimalSeparator": ".",
 
   // Obstacle editor

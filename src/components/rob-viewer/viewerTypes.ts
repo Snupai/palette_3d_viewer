@@ -94,11 +94,13 @@ export type ViewerRobotCellAssetConfig = {
   };
   /**
    * Articulated arm GLB with one node per URDF link (Z-up, metres). It is
-   * mounted on the lift carriage at the `staticArm` node frame.
+   * mounted on the lift carriage at the `staticArm` node frame, shifted along
+   * the node's vertical axis by `mountHeightMm` (negative = lower).
    */
   readonly articulatedArm?: {
     readonly assetUrl: string;
     readonly revision: string;
+    readonly mountHeightMm: number;
   };
   readonly liftTravelMm: {
     readonly min: number;

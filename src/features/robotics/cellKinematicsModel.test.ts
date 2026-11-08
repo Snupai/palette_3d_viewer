@@ -125,7 +125,13 @@ describe("bundled UR10e cell kinematics", () => {
           ur10eBaseTransform(BUNDLED_UR10E_CELL, solution.liftMm),
           ur10eForwardKinematics(solution.joints),
         ),
-        downwardToolTransform(pose.positionMm, (pose.yawDeg * Math.PI) / 180),
+        downwardToolTransform(
+          {
+            ...pose.positionMm,
+            z: pose.positionMm.z + BUNDLED_UR10E_CELL.flangeToSuctionMm,
+          },
+          (pose.yawDeg * Math.PI) / 180,
+        ),
       );
       worstPositionMm = Math.max(worstPositionMm, deviation.positionMm);
       worstRotation = Math.max(worstRotation, deviation.rotation);
@@ -164,7 +170,7 @@ describe("bundled UR10e cell kinematics", () => {
         "Die Greifermasse ist nicht hinterlegt; gezählt sind nur die Pakete.",
       ],
       limitations:
-        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist vorläufig 0 mm.",
+        "Nicht geprüft: Kollisionen des Arms mit der Zelle und synchronisierte Hubzeiten. Der Greifer-Abstand Flansch bis Saugfläche ist 137,4 mm, gemessen am Greifermodell.",
     });
   });
 
