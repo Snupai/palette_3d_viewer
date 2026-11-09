@@ -32,7 +32,7 @@ x-app-build: &app-build
 services:
   db:
     image: docker.io/library/postgres:17
-    restart: unless-stopped
+    restart: always
     environment:
       POSTGRES_USER: palette
       POSTGRES_PASSWORD: ${PALETTE_DB_PASSWORD:-palette}
@@ -65,15 +65,18 @@ services:
       <<: *app-build
       target: runner
     image: localhost/palette-app:latest
-    restart: unless-stopped
+    restart: always
+    network_mode: host
     environment:
-      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
+      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@127.0.0.1:${PALETTE_DB_PORT:-5432}/palette
+      HOSTNAME: "127.0.0.1"
+      PORT: "${PALETTE_APP_PORT:-3000}"
       PALETTE_LOGIN_TRUST_PROXY: ${PALETTE_LOGIN_TRUST_PROXY:-false}
       # Sheet-photo import (optional). SHEET_EXTRACTION_API: `ollama` (default)
-      # or `openai` (OpenAI-compatible, e.g. llama.cpp `llama-server`). Inside
-      # the container 127.0.0.1 is the container itself; point at the host, e.g.
-      # SHEET_EXTRACTION_URL=http://host.docker.internal:8080 (Podman:
-      # host.containers.internal). Empty values fall back to the app defaults
+      # or `openai` (OpenAI-compatible, e.g. llama.cpp `llama-server`). Host
+      # networking lets the app reach the model server at 127.0.0.1 directly,
+      # e.g. SHEET_EXTRACTION_URL=http://127.0.0.1:8080.
+      # Empty values fall back to the app defaults
       # (Ollama :11434 + qwen2.5vl:32b; `openai` :8080 + the server's model —
       # set SHEET_EXTRACTION_MODEL for llama-server in router/multi-model mode).
       # The API key is optional and sent as `Authorization: Bearer`.
@@ -83,14 +86,12 @@ services:
       SHEET_EXTRACTION_MODEL: ${SHEET_EXTRACTION_MODEL:-}
       SHEET_EXTRACTION_API_KEY: ${SHEET_EXTRACTION_API_KEY:-}
       SHEET_EXTRACTION_MAX_CONCURRENT: ${SHEET_EXTRACTION_MAX_CONCURRENT:-1}
-    ports:
-      - "127.0.0.1:${PALETTE_APP_PORT:-3000}:3000"
     healthcheck:
       test:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
+        - "fetch('http://127.0.0.1:' + process.env.PORT + '/').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"
       interval: 10s
       timeout: 5s
       retries: 6
@@ -105,7 +106,7 @@ services:
   # the restore command: scripts/pg-backup.sh, README "Backups and restore".
   backup:
     image: docker.io/library/postgres:17
-    restart: unless-stopped
+    restart: always
     entrypoint: ["sh", "/opt/palette/pg-backup.sh"]
     command: ["loop"]
     # Owner of the dump files. Default root is your own user under rootless
