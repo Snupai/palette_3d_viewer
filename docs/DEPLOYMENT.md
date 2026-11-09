@@ -58,6 +58,25 @@ docker compose run --rm migrate node admin.mjs init
 
 ## Start with Podman
 
+With `just` installed, the repository's `justfile` provides shortcuts without
+requiring Bun on the host. Podman is the default; `.env` is loaded automatically:
+
+```sh
+just up
+just status
+just admin-init
+just logs app
+just down
+```
+
+Run `just` to list all commands, including `db-up`, `backup`,
+`restore <dump-file> --yes`, and `admin-reset-password <username>`.
+Before restoring, stop the app and backup services as described below.
+For Docker, use `CONTAINER_ENGINE=docker just up` (and the same prefix for
+other commands).
+
+Alternatively, run Compose directly:
+
 ```sh
 podman compose up -d --build
 podman compose ps -a

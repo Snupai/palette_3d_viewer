@@ -96,8 +96,8 @@ services:
       retries: 6
       start_period: 10s
     depends_on:
-      migrate:
-        condition: service_completed_successfully
+      db:
+        condition: service_healthy
 
   # Hourly `pg_dump -Fc` into PALETTE_BACKUP_DIR (issue #38, ADR 0009) — put
   # that directory on a separate disk. Keeps PALETTE_BACKUP_RETENTION_DAYS (7)
