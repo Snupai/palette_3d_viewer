@@ -1105,7 +1105,7 @@ describe("solver input and candidate validation", () => {
     expect(new Set(crosswiseGripIds).size).toBe(3);
   }, 30_000);
 
-  it("pairs the crosswise packages of forced rectangular mixed strips", () => {
+  it("keeps forced rectangular mixed strips uniformly spaced", () => {
     const input: LayerSolverInput = {
       package: {
         shape: "cuboid",
@@ -1135,9 +1135,7 @@ describe("solver input and candidate validation", () => {
         .map(({ positionMm }) => positionMm.y)
         .sort((left, right) => left - right);
       return (
-        // The generator spreads the crosswise packages evenly (5 mm gaps);
-        // grip planning slides two pairs together so they share grips.
-        JSON.stringify(crosswiseY) === JSON.stringify([50, 150, 260, 370, 470])
+        JSON.stringify(crosswiseY) === JSON.stringify([50, 155, 260, 365, 470])
       );
     });
 
@@ -1146,7 +1144,6 @@ describe("solver input and candidate validation", () => {
       boundingBlockLengthMm: 165,
       boundingBlockWidthMm: 520,
     });
-    expect(candidate?.grips).toHaveLength(11);
     expect(candidate?.validation.valid).toBe(true);
   }, 30_000);
 

@@ -235,6 +235,7 @@ function canonicalCandidatePlacements(
 function groupCandidatePlacements(
   input: NormalizedLayerSolverInput,
   placements: readonly UngroupedCandidatePlacement[],
+  allowShift: boolean,
 ): Pick<SolverCandidate, "placements" | "grips" | "orderDependencies"> {
   const groupable = placements.map((placement) => ({
     ...placement,
@@ -248,7 +249,7 @@ function groupCandidatePlacements(
     spanMm: input.package.dimensionsMm.length,
     packageSizeMm: input.package.dimensionsMm,
     maxPackagesPerPick: input.constraints.provisionalPackagesPerCycle,
-    maxShiftMm: input.package.dimensionsMm.length,
+    maxShiftMm: allowShift ? input.package.dimensionsMm.length : 0,
     clearanceMm: input.package.clearanceMm,
   });
   const shifted = groupable.map((placement) => {
@@ -567,7 +568,24 @@ export function finalizeGeneratedCandidates(
     const cachedCandidate = canonicalCandidates.get(canonicalKey);
     let prepared = cachedCandidate;
     if (prepared === undefined) {
-      const grouped = groupCandidatePlacements(input, placements);
+      let grouped = groupCandidatePlacements(input, placements, true);
+      let candidateValidation = validation;
+      // Sliding must not break input rules (e.g. a required block shape):
+      // revalidate a slid layout and fall back to the generated spacing.
+      if (
+        grouped.placements.some(
+          ({ positionMm }, index) =>
+            positionMm.x !== placements[index]!.positionMm.x ||
+            positionMm.y !== placements[index]!.positionMm.y,
+        )
+      ) {
+        const slidValidation = validateCandidatePlacements(
+          input,
+          grouped.placements,
+        );
+        if (slidValidation.valid) candidateValidation = slidValidation;
+        else grouped = groupCandidatePlacements(input, placements, false);
+      }
       // Grip planning may slide packages: identify the final geometry, so
       // drafts that slide into the same layout merge as duplicates.
       const finalPlacements = grouped.placements.map((placement) => ({
@@ -580,7 +598,7 @@ export function finalizeGeneratedCandidates(
       const candidate = createUnrankedCandidate(
         input,
         grouped,
-        validation,
+        candidateValidation,
         geometryFingerprint,
       );
       prepared = {

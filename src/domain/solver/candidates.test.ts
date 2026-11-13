@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deriveGripDeltasForPlacementOrder } from "~/domain/gripDependencies";
 import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
+import { validateCandidatePlacements } from "~/domain/solver/validation";
 import { solveLayer } from "~/domain/solver/solve";
 import type {
   GeneratedCandidateDraft,
@@ -285,5 +286,40 @@ describe("candidate grip planning", () => {
     expect(
       result.candidates[0]!.placements.map(({ positionMm }) => positionMm.x),
     ).toEqual([50, 150, 300]);
+  });
+
+  it("keeps the generated spacing when sliding would break a required shape", () => {
+    const result = solveLayer({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 60 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 420, maxY: 160 },
+      constraints: {
+        provisionalPackagesPerCycle: 2,
+        requiredShape: "rectangular-block",
+      },
+    });
+    const { normalized } = validateAndNormalizeSolverInput({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 60 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 420, maxY: 160 },
+      constraints: {
+        provisionalPackagesPerCycle: 2,
+        requiredShape: "rectangular-block",
+      },
+    });
+    if (!normalized) throw new Error("Expected valid shape test input.");
+
+    expect(result.candidates.length).toBeGreaterThan(0);
+    for (const candidate of result.candidates) {
+      expect(
+        validateCandidatePlacements(normalized, candidate.placements).valid,
+      ).toBe(true);
+    }
   });
 });
