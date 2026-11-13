@@ -70,9 +70,11 @@ export function BrowserSyncController({
     live.current = { userId, generation: live.current.generation + 1 };
   const owner = useRef<string | null>(null);
   const paused = useRef(false);
+  // Writes carry the account this tab believes is signed in; the server
+  // rejects them if another tab switched the shared session cookie.
   const target = useMemo(
-    () => createLocalImportTarget(repository, creatorOf),
-    [repository, creatorOf],
+    () => createLocalImportTarget(repository, creatorOf, userId ?? undefined),
+    [repository, creatorOf, userId],
   );
   const [plan, setPlan] = useState<BrowserSyncPlan | null>(null);
   const [entries, setEntries] = useState<BrowserSyncEntry[]>([]);

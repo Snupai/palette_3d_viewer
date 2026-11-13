@@ -14,7 +14,9 @@ import {
 import type { OpenDatabase } from "../db/database";
 import { plannerRecords, sessions, users } from "../db/schema";
 import { openMigratedTestDatabase } from "../db/testing";
+import { deleteUser } from "./deleteUser";
 import {
+  ActorNotAdminError,
   authenticate,
   countActiveSessions,
   createSession,
@@ -239,6 +241,40 @@ describe("createUser / authenticate", () => {
     expect(await database.db.select({ id: users.id }).from(users)).toHaveLength(
       1,
     );
+  });
+
+  it("aborts admin create and reset when the acting admin is deleted mid-request", async () => {
+    const actor = await seedUser("actor");
+    const other = await seedUser("other");
+    const target = await seedUser("target", "user");
+    const deleteActor = async () => {
+      expect(await deleteUser(database.db, other.id, actor.id)).toBe("deleted");
+    };
+
+    interleave.beforeHash = deleteActor;
+    await expect(
+      createUser(
+        database.db,
+        { username: "Backdoor", password: PASSWORD, role: "admin" },
+        NOW,
+        { actorId: actor.id },
+      ),
+    ).rejects.toBeInstanceOf(ActorNotAdminError);
+    await expect(
+      setUserPassword(database.db, target.id, NEW_PASSWORD, {
+        actorId: actor.id,
+      }),
+    ).rejects.toBeInstanceOf(ActorNotAdminError);
+
+    expect(
+      (
+        await database.db
+          .select({ username: users.username })
+          .from(users)
+          .orderBy(asc(users.username))
+      ).map((row) => row.username),
+    ).toEqual(["other", "target"]);
+    expect(await storedHash(target.id)).toBe(passwordHash);
   });
 
   it("authenticates the right password case-insensitively by username", async () => {

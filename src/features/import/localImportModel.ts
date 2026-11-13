@@ -29,6 +29,7 @@ import {
 } from "~/lib/plannerRecordStorage";
 import { savedPalletToProject } from "~/lib/projectAdapters";
 import type { ProjectRepository } from "~/lib/projectRepository";
+import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
 
 /**
  * Explicit import of this browser's local plans into the server (#37,
@@ -307,6 +308,11 @@ export type LocalImportTarget = {
  * The import target backed by the server-mode repository. `creatorOf`
  * reports the creator the server sent with the last read of a record
  * (`ServerPlannerRecordStorage.createdBy`).
+ *
+ * `expectedActorId` binds every write to that account: the server rejects it
+ * when the (cross-tab shared) session cookie belongs to someone else, and a
+ * created project whose reported creator differs is treated as session loss,
+ * so callers keep their local payload.
  */
 export function createLocalImportTarget(
   repository: Pick<
@@ -317,7 +323,12 @@ export function createLocalImportTarget(
     | "saveResourceVersioned"
   >,
   creatorOf: (store: PlannerStoreName, id: string) => string | null | undefined,
+  expectedActorId?: string,
 ): LocalImportTarget {
+  const write = (expectedVersion: RecordVersion | null) =>
+    expectedActorId === undefined
+      ? { expectedVersion }
+      : { expectedVersion, expectedActorId };
   return {
     async readProject(id) {
       const result = await repository.getProject(id);
@@ -348,27 +359,36 @@ export function createLocalImportTarget(
         : { kind: "missing" };
     },
     async createProject(project) {
-      return (
-        await repository.saveProjectVersioned(project, {
-          expectedVersion: null,
-        })
-      ).version;
+      const { version } = await repository.saveProjectVersioned(
+        project,
+        write(null),
+      );
+      if (
+        expectedActorId !== undefined &&
+        creatorOf(PROJECTS_STORE_NAME, project.id) !== expectedActorId
+      ) {
+        throw new ServerStorageError(
+          "unauthenticated",
+          "put",
+          PROJECTS_STORE_NAME,
+          null,
+          "actor_mismatch",
+        );
+      }
+      return version;
     },
     async replaceProject(project, expectedVersion) {
       return (
-        await repository.saveProjectVersioned(project, { expectedVersion })
+        await repository.saveProjectVersioned(project, write(expectedVersion))
       ).version;
     },
     async createCatalog(resource) {
-      return (
-        await repository.saveResourceVersioned(resource, {
-          expectedVersion: null,
-        })
-      ).version;
+      return (await repository.saveResourceVersioned(resource, write(null)))
+        .version;
     },
     async replaceCatalog(resource, expectedVersion) {
       return (
-        await repository.saveResourceVersioned(resource, { expectedVersion })
+        await repository.saveResourceVersioned(resource, write(expectedVersion))
       ).version;
     },
   };

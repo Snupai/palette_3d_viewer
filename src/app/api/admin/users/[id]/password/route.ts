@@ -1,6 +1,10 @@
 import { z } from "zod";
 
-import { findUserById, setUserPassword } from "~/server/auth/accounts";
+import {
+  ActorNotAdminError,
+  findUserById,
+  setUserPassword,
+} from "~/server/auth/accounts";
 import { MAX_PASSWORD_LENGTH } from "~/server/auth/password";
 import { passwordProblem } from "~/server/auth/passwordStrength";
 
@@ -18,7 +22,8 @@ const resetSchema = z.object({
  * `POST /api/admin/users/:id/password` — `{ password }` → 204. Sets the
  * user's password and revokes all of their sessions (ADR 0005), including
  * the admin's own when resetting their own account. 404 `user_not_found`,
- * 400 `weak_password` (with `reason`).
+ * 400 `weak_password` (with `reason`), 403 `forbidden` when the acting admin
+ * was deleted while the request was in flight.
  */
 export async function POST(
   request: Request,
@@ -40,9 +45,18 @@ export async function POST(
   if (problem) {
     return jsonNoStore({ error: "weak_password", reason: problem }, 400);
   }
-  if (!(await setUserPassword(guard.db, id, parsed.data.password))) {
-    return jsonNoStore({ error: "user_not_found" }, 404);
+  let updated: boolean;
+  try {
+    updated = await setUserPassword(guard.db, id, parsed.data.password, {
+      actorId: guard.admin.id,
+    });
+  } catch (error) {
+    if (error instanceof ActorNotAdminError) {
+      return jsonNoStore({ error: "forbidden" }, 403);
+    }
+    throw error;
   }
+  if (!updated) return jsonNoStore({ error: "user_not_found" }, 404);
   return new Response(null, {
     status: 204,
     headers: { "cache-control": "no-store" },

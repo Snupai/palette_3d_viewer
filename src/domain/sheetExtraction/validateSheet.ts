@@ -52,6 +52,20 @@ export type ValidatedSheet = {
 const DEFAULT_PALLET_MM: SheetDimensions2 = { length: 1200, width: 800 };
 /** Largest carton side we accept; anything bigger is almost always a pallet or block value. */
 const MAX_CARTON_SIDE_MM = 800;
+/** Smallest carton side we accept; also bounds the side-sum search below. */
+const MIN_CARTON_SIDE_MM = 10;
+/** Industrial pallets top out around 1300 × 1200 mm; larger reads are misreads. */
+const MAX_PALLET_SIDE_MM = 3000;
+/** Heights (block, load space, total) above this are misreads. */
+const MAX_HEIGHT_MM = 5000;
+const MAX_CARTON_WEIGHT_KG = 1000;
+/** Counts above this are misreads; keeps all derived arithmetic small. */
+const MAX_SHEET_COUNT = 100_000;
+/**
+ * Hard cap on `a` in {@link isCartonSideSum}; with the limits above a real
+ * check needs at most (3000 + 2·100) / 10 = 320 steps.
+ */
+const MAX_SIDE_SUM_TERMS = 1000;
 /** Loads on the sheets overhang a pallet by far less than this per side. */
 const MAX_OVERHANG_PER_SIDE_MM = 100;
 /** Real blocks are bounding boxes of tightly packed layers; sheets fill ≥ 88 %. */
@@ -62,12 +76,20 @@ const SIDE_SUM_TOLERANCE_MM = 3;
 /** Pallet deck heights seen on the sheets (EURO 144/145, some 150). */
 const PALLET_DECK_HEIGHT_RANGE_MM = { min: 100, max: 200 } as const;
 
-function positive(value: number | null): number | null {
-  return value !== null && value > 0 ? value : null;
+function positive(
+  value: number | null,
+  max = Number.POSITIVE_INFINITY,
+): number | null {
+  return value !== null && value > 0 && value <= max ? value : null;
 }
 
 function positiveInteger(value: number | null): number | null {
-  return value !== null && Number.isInteger(value) && value > 0 ? value : null;
+  return value !== null &&
+    Number.isInteger(value) &&
+    value > 0 &&
+    value <= MAX_SHEET_COUNT
+    ? value
+    : null;
 }
 
 function lengthFirst<T extends SheetDimensions2>(value: T): T {
@@ -86,6 +108,14 @@ export function isCartonSideSum(
   cartonWidthMm: number,
   toleranceMm = SIDE_SUM_TOLERANCE_MM,
 ): boolean {
+  if (
+    !(sideMm >= 0) ||
+    !(cartonLengthMm > 0) ||
+    !(cartonWidthMm > 0) ||
+    (sideMm + toleranceMm) / cartonLengthMm > MAX_SIDE_SUM_TERMS
+  ) {
+    return false;
+  }
   for (let a = 0; a * cartonLengthMm <= sideMm + toleranceMm; a += 1) {
     const rest = sideMm - a * cartonLengthMm;
     const b = Math.round(rest / cartonWidthMm);
@@ -161,6 +191,13 @@ export function validatePalletSheet(raw: RawPalletSheet): ValidatedSheet {
       `Carton ${format3(cartonMm)} mm is larger than a carton can be; this is probably a pallet or block value.`,
     );
     cartonMm = null;
+  } else if (Math.min(cartonMm.width, cartonMm.height) < MIN_CARTON_SIDE_MM) {
+    add(
+      "error",
+      "cartonMm",
+      `Carton ${format3(cartonMm)} mm is smaller than a carton can be; check the reading.`,
+    );
+    cartonMm = null;
   }
 
   const palletLength = positive(raw.palletMm.length);
@@ -172,6 +209,13 @@ export function validatePalletSheet(raw: RawPalletSheet): ValidatedSheet {
       "info",
       "palletMm",
       "No pallet size found; assuming EURO 1200 × 800 mm.",
+    );
+  } else if (Math.max(palletLength, palletWidth) > MAX_PALLET_SIDE_MM) {
+    palletMm = { ...DEFAULT_PALLET_MM };
+    add(
+      "error",
+      "palletMm",
+      `Pallet ${palletLength} × ${palletWidth} mm is larger than a pallet can be; check the reading.`,
     );
   } else {
     palletMm = lengthFirst({ length: palletLength, width: palletWidth });
@@ -244,7 +288,7 @@ export function validatePalletSheet(raw: RawPalletSheet): ValidatedSheet {
     blockMm = {
       ...footprint,
       height: resolveBlockHeight(
-        positive(raw.blockMm.height),
+        positive(raw.blockMm.height, MAX_HEIGHT_MM),
         cartonMm,
         layers,
         add,
@@ -301,16 +345,16 @@ export function validatePalletSheet(raw: RawPalletSheet): ValidatedSheet {
     }
   }
 
+  const loadSpaceHeightMm = positive(raw.loadSpaceHeightMm, MAX_HEIGHT_MM);
   if (
     blockMm &&
-    raw.loadSpaceHeightMm !== null &&
-    raw.loadSpaceHeightMm > 0 &&
-    blockMm.height > raw.loadSpaceHeightMm
+    loadSpaceHeightMm !== null &&
+    blockMm.height > loadSpaceHeightMm
   ) {
     add(
       "warning",
       "blockMm",
-      `Block height ${blockMm.height} mm exceeds the load space height ${raw.loadSpaceHeightMm} mm.`,
+      `Block height ${blockMm.height} mm exceeds the load space height ${loadSpaceHeightMm} mm.`,
     );
   }
 
@@ -349,13 +393,13 @@ export function validatePalletSheet(raw: RawPalletSheet): ValidatedSheet {
       cartonMm,
       blockMm,
       palletMm,
-      loadSpaceHeightMm: positive(raw.loadSpaceHeightMm),
-      totalHeightMm: positive(raw.totalHeightMm),
+      loadSpaceHeightMm,
+      totalHeightMm: positive(raw.totalHeightMm, MAX_HEIGHT_MM),
       cartonsPerLayer,
       layers,
       cartonsPerPallet,
       unitsPerCarton: positiveInteger(raw.unitsPerCarton),
-      cartonWeightKg: positive(raw.cartonWeightKg),
+      cartonWeightKg: positive(raw.cartonWeightKg, MAX_CARTON_WEIGHT_KG),
       handwrittenNotes: raw.handwrittenNotes,
     },
     issues,

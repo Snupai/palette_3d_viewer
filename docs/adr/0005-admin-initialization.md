@@ -22,6 +22,9 @@ own account or the last admin is rejected (409 `self_deletion` /
 `last_admin`); unknown accounts return 404 `user_not_found`. Deletions lock
 admin rows in ID order and recheck the acting admin inside the transaction, so
 concurrent requests cannot remove all admins or act as an already deleted admin.
+Account creation and password resets through the admin API take the same lock
+and recheck inside their transaction; a request whose admin was deleted
+meanwhile commits nothing and answers 403 `forbidden`.
 
 The local account model is unchanged: there is no disabled-account state.
 Existing foreign keys revoke all sessions (`ON DELETE CASCADE`) and retain

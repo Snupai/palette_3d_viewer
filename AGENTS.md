@@ -37,7 +37,8 @@ PostgreSQL) and browser-local plans with explicit sync live in `docs/adr/`.
 Read the relevant ADR before changing storage, access, or sync: 0001–0008 cover
 storage/access/concurrency/import/HTTPS; 0009 supersedes 0001 with PostgreSQL in
 Docker/Podman; 0010 amends 0002/0007 with browser-local plans; 0011 amends 0006 with server
-record tombstones and version continuity across delete/recreate. Changing a decision
+record tombstones and version continuity across delete/recreate; 0012 amends 0011 so only
+the former creator or an admin may revive a deleted id. Changing a decision
 means writing a new ADR, not silently diverging. Domain terms (e.g.
 "Werkskatalog") are defined in `GLOSSARY.md` — use them consistently in code,
 UI, and docs.
@@ -112,6 +113,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 - Fields 8/9 (`dx`, `dy` ∈ {−1, 0, 1}, #96) are the place pre-position: pre-position XY = final XY + (dx, dy) · `PLACE_APPROACH_OFFSET_MM` (80 mm; the real cell usually uses less) in pallet axes, not rotated with the place rotation; Z = place Z + package height + `PLACE_APPROACH_CLEARANCE_MM` (provisional 10 mm). The robot slides diagonally from there into the place (`place-slide`); `0 0` is a vertical place. Both constants live in `src/domain/placeApproach.ts` and are shared by the editor sweep and the robot route/simulation. Projects store the raw values as `placeApproachDirection: { dx, dy }` (schema v5; v4 `labelOffset` is migrated); export writes them unchanged. The editor still derives new grips' dx/dy from the label side — external label semantics remain open.
 - Bottom-face Z (`layerZBottom`) is the sum of package heights below plus Zwischenlagen (3 mm each, `ZWISCHENLAGE_HEIGHT_MM`, matching the robot's `Dicke_ZwLagen`); robot place Z (`layerPlaceZ`) is bottom-face Z plus the current package height (top of the box); pallet height is excluded.
 - Selection marker is the gripper OBJ+MTL under `public/models/gripper/` (Y-up CAD → scene Z-up); strip OBJ `l` edge lines for a solid look, but do not dispose shared MTL materials when removing those lines; use ~30% opacity; rotate yaw 90° when the grip is a single package and package length is below 265 mm.
+- Expansion limits live in `src/domain/planLimits.ts` (64 packages per grip, 2000 per layer, 1000 layers, 16 interlayers per boundary, 100k expanded boxes per `.rob`); the parser and project schema both reject values above them, and numeric fields must be safe integers.
 - Saved pallets keep their raw `.rob` text and are re-parsed on load so older entries pick up newer parser fields.
 - Imported raw text is retained verbatim (`source.rawRobText`) and must never be rewritten by editor commands — only project-derived exports are regenerated.
 

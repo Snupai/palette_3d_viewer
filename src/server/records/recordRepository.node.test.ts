@@ -383,7 +383,7 @@ describe("deleteRecord", () => {
       deleted: true,
       json: {},
       version: 1,
-      createdBy: null,
+      createdBy: alice,
     });
     const staleWrite = () =>
       putRecord(
@@ -392,8 +392,8 @@ describe("deleteRecord", () => {
           store: "projects",
           record: { id: "project-1", name: "stale" },
           expectedVersion: 1,
-          userId: bob,
-          onlyCreatedBy: bob,
+          userId: alice,
+          onlyCreatedBy: alice,
         },
         T2,
       );
@@ -409,8 +409,8 @@ describe("deleteRecord", () => {
             store: "projects",
             record: { id: "project-1", name },
             expectedVersion: null,
-            userId: bob,
-            onlyCreatedBy: bob,
+            userId: alice,
+            onlyCreatedBy: alice,
           },
           T1,
         ),
@@ -418,7 +418,7 @@ describe("deleteRecord", () => {
     );
     expect(results.filter((result) => result.ok)).toHaveLength(1);
     expect(results.find((result) => result.ok)).toMatchObject({
-      record: { version: 2, createdBy: bob, createdAt: T1, updatedAt: T1 },
+      record: { version: 2, createdBy: alice, createdAt: T1, updatedAt: T1 },
     });
     expect(results.find((result) => !result.ok)).toMatchObject({
       kind: "conflict",
@@ -433,7 +433,7 @@ describe("deleteRecord", () => {
         store: "projects",
         id: "project-1",
         expectedVersion: 1,
-        onlyCreatedBy: bob,
+        onlyCreatedBy: alice,
       }),
     ).toMatchObject({ kind: "conflict", actualVersion: 2 });
     expect(
@@ -441,11 +441,66 @@ describe("deleteRecord", () => {
         store: "projects",
         id: "project-1",
         expectedVersion: 2,
-        onlyCreatedBy: bob,
+        onlyCreatedBy: alice,
       }),
     ).toEqual({ ok: true });
     const recreated = await insert("project-1");
     expect(recreated).toMatchObject({ ok: true, record: { version: 3 } });
+  });
+
+  it("reserves a tombstone for its former creator; only an unrestricted (admin) write revives it for someone else", async () => {
+    await insert("project-1", { name: "alice's plan" });
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 1,
+        onlyCreatedBy: alice,
+      }),
+    ).toEqual({ ok: true });
+    const revive = (userId: string, onlyCreatedBy?: string) =>
+      putRecord(
+        database.db,
+        {
+          store: "projects",
+          record: { id: "project-1", name: `${userId}'s plan` },
+          expectedVersion: null,
+          userId,
+          onlyCreatedBy,
+        },
+        T1,
+      );
+    expect(await revive(bob, bob)).toEqual({
+      ok: false,
+      kind: "forbidden",
+      store: "projects",
+      id: "project-1",
+    });
+    const [untouched] = await database.db
+      .select()
+      .from(plannerRecords)
+      .where(eq(plannerRecords.id, "project-1"));
+    expect(untouched).toMatchObject({
+      deleted: true,
+      json: {},
+      version: 1,
+      createdBy: alice,
+    });
+    expect(await revive(alice, alice)).toMatchObject({
+      ok: true,
+      record: { version: 2, createdBy: alice },
+    });
+    expect(
+      await deleteRecord(database.db, {
+        store: "projects",
+        id: "project-1",
+        expectedVersion: 2,
+      }),
+    ).toEqual({ ok: true });
+    expect(await revive(bob)).toMatchObject({
+      ok: true,
+      record: { version: 3, createdBy: bob },
+    });
   });
 
   it("reports a conflict for a stale or missing version and keeps the record", async () => {
@@ -491,6 +546,52 @@ it("keeps records when their creator is deleted", async () => {
   await database.db.delete(users);
   const stored = await getRecord(database.db, "projects", "project-1");
   expect(stored.ok && stored.record?.createdBy).toBeNull();
+});
+
+describe("maxCreatedRecords", () => {
+  const create = (id: string, userId = alice) =>
+    putRecord(
+      database.db,
+      {
+        store: "projects",
+        record: { id },
+        expectedVersion: null,
+        userId,
+        onlyCreatedBy: userId,
+        maxCreatedRecords: 2,
+      },
+      T0,
+    );
+
+  it("rejects a creation past the user's live-record quota atomically", async () => {
+    const first = await Promise.all(["a", "b", "c"].map((id) => create(id)));
+    expect(first.map((result) => result.ok)).toEqual([true, true, false]);
+    expect(first[2]).toEqual({
+      ok: false,
+      kind: "quota-exceeded",
+      store: "projects",
+      limit: 2,
+    });
+    // Other users and other stores have their own budget.
+    expect((await create("d", bob)).ok).toBe(true);
+    // Deleting frees a slot; reviving one's own tombstone counts again.
+    await deleteRecord(database.db, {
+      store: "projects",
+      id: "a",
+      expectedVersion: 1,
+    });
+    expect(await create("a")).toMatchObject({
+      ok: true,
+      record: { version: 2 },
+    });
+    expect(await create("e")).toMatchObject({ kind: "quota-exceeded" });
+    const listed = await listRecords(database.db, "projects");
+    expect(listed.ok && listed.records.map((row) => row.id)).toEqual([
+      "a",
+      "b",
+      "d",
+    ]);
+  });
 });
 
 describe("onlyCreatedBy", () => {

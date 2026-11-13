@@ -2,6 +2,17 @@
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { IDBFactory } from "fake-indexeddb";
+
+import { createProject } from "~/domain/project/projectFactory";
+import {
+  planBrowserSync,
+  runBrowserSync,
+} from "~/features/import/browserSyncModel";
+import { createLocalImportTarget } from "~/features/import/localImportModel";
+import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
+import { createBrowserLocalPlannerStorage } from "~/lib/plannerStorageFactory";
+import { createProjectRepository } from "~/lib/projectRepository";
 import { ServerPlannerRecordStorage } from "~/lib/serverPlannerRecordStorage";
 import { RecordVersionConflictError } from "~/lib/plannerRecordStorage";
 
@@ -18,7 +29,7 @@ import {
   PUT as putOne,
 } from "./[store]/[id]/route";
 import { GET as list } from "./[store]/route";
-import { MAX_RECORD_BODY_BYTES } from "./recordApi";
+import { MAX_PROJECTS_PER_USER, MAX_RECORD_BODY_BYTES } from "./recordApi";
 
 const ORIGIN = "https://palette.werk.local";
 const T0 = new Date("2026-01-01T00:00:00Z");
@@ -154,6 +165,30 @@ async function create(
   expect(response.status).toBe(201);
 }
 
+/** Client storage whose requests go straight to the route handlers. */
+function routedStorage(as: keyof typeof cookies) {
+  return new ServerPlannerRecordStorage({
+    fetch: async (input, init) => {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : input.url;
+      const req = new Request(new URL(url, ORIGIN), init);
+      req.headers.set("cookie", cookies[as]);
+      const parts = new URL(req.url).pathname.split("/");
+      const store = parts[3]!;
+      const id = parts[4] && decodeURIComponent(parts[4]);
+      if (!id) return list(req, params({ store }));
+      const context = params({ store, id });
+      if (req.method === "PUT") return putOne(req, context);
+      if (req.method === "DELETE") return deleteOne(req, context);
+      return getOne(req, context);
+    },
+  });
+}
+
 async function storedVersion(store: string, id: string) {
   const [row] = await database.db
     .select({ version: plannerRecords.version, json: plannerRecords.json })
@@ -173,19 +208,10 @@ describe("public reads", () => {
     expect(projects.headers.get("cache-control")).toBe("no-store");
     expect(await projects.json()).toEqual({
       records: [
-        {
-          record: { id: "p-alice", name: "A" },
-          version: 1,
-          createdBy: "alice",
-        },
-        { record: { id: "p-bob", name: "B" }, version: 1, createdBy: "bob" },
+        { record: { id: "p-alice", name: "A" }, version: 1 },
+        { record: { id: "p-bob", name: "B" }, version: 1 },
       ],
     });
-
-    const asBob = await listStore("projects", "bob");
-    expect(
-      ((await asBob.json()) as { records: unknown[] }).records,
-    ).toHaveLength(2);
 
     const one = await get("projects", "p-alice");
     expect(one.status).toBe(200);
@@ -193,18 +219,36 @@ describe("public reads", () => {
     expect(await one.json()).toEqual({
       record: { id: "p-alice", name: "A" },
       version: 1,
-      createdBy: "alice",
     });
 
     const catalog = await listStore("project-resources");
     expect(await catalog.json()).toEqual({
-      records: [
-        {
-          record: { id: "r-1", kind: "pallet" },
-          version: 1,
-          createdBy: "admin",
-        },
-      ],
+      records: [{ record: { id: "r-1", kind: "pallet" }, version: 1 }],
+    });
+  });
+
+  it("reveals a creator id only to that creator or an admin", async () => {
+    await create("projects", "p-alice", "alice", { name: "A" });
+    await create("projects", "p-bob", "bob", { name: "B" });
+
+    const creators = async (as: As) =>
+      (
+        (await (await listStore("projects", as)).json()) as {
+          records: { createdBy?: string | null }[];
+        }
+      ).records.map((entry) => entry.createdBy);
+    expect(await creators("anonymous")).toEqual([undefined, undefined]);
+    expect(await creators("bob")).toEqual([null, "bob"]);
+    expect(await creators("admin")).toEqual(["alice", "bob"]);
+    expect(await (await get("projects", "p-alice", "bob")).json()).toEqual({
+      record: { id: "p-alice", name: "A" },
+      version: 1,
+      createdBy: null,
+    });
+    expect(await (await get("projects", "p-alice", "alice")).json()).toEqual({
+      record: { id: "p-alice", name: "A" },
+      version: 1,
+      createdBy: "alice",
     });
   });
 
@@ -359,6 +403,152 @@ describe("projects: creator or admin", () => {
     });
     expect(byAdmin.status).toBe(200);
     expect(await byAdmin.json()).toMatchObject({ createdBy: null });
+  });
+});
+
+describe("deleted project ids (ADR 0012)", () => {
+  it("lets only the former creator or an admin recreate a deleted id", async () => {
+    await create("projects", "p-1", "alice", { name: "A" });
+    expect((await remove("projects", "p-1", "alice", 1)).status).toBe(204);
+
+    const takeover = await put("projects", "p-1", "bob", {
+      record: { id: "p-1", name: "bob's" },
+      expectedVersion: null,
+    });
+    expect(takeover.status).toBe(403);
+    expect(await takeover.json()).toEqual({ error: "forbidden" });
+    expect((await get("projects", "p-1")).status).toBe(404);
+
+    const restored = await put("projects", "p-1", "alice", {
+      record: { id: "p-1", name: "A again" },
+      expectedVersion: null,
+    });
+    expect(restored.status).toBe(201);
+    expect(await restored.json()).toEqual({
+      record: { id: "p-1", name: "A again" },
+      version: 2,
+      createdBy: "alice",
+    });
+    expect((await remove("projects", "p-1", "admin", 2)).status).toBe(204);
+    const byAdmin = await put("projects", "p-1", "admin", {
+      record: { id: "p-1", name: "admin's" },
+      expectedVersion: null,
+    });
+    expect(byAdmin.status).toBe(201);
+    expect(await byAdmin.json()).toMatchObject({
+      version: 3,
+      createdBy: "admin",
+    });
+  });
+});
+
+describe("project quota", () => {
+  it("answers 403 quota_exceeded past the live-project limit of a non-admin, without writing", async () => {
+    expect(MAX_PROJECTS_PER_USER).toBe(500);
+    await database.db.insert(plannerRecords).values(
+      Array.from({ length: MAX_PROJECTS_PER_USER }, (_, index) => ({
+        store: "projects",
+        id: `bulk-${index}`,
+        json: { id: `bulk-${index}` },
+        createdBy: "bob",
+      })),
+    );
+    const refused = await put("projects", "one-more", "bob", {
+      record: { id: "one-more" },
+      expectedVersion: null,
+    });
+    expect(refused.status).toBe(403);
+    expect(await refused.json()).toEqual({
+      error: "quota_exceeded",
+      limit: 500,
+    });
+    expect(await storedVersion("projects", "one-more")).toBeUndefined();
+    // Updates of existing projects and other accounts are unaffected.
+    expect(
+      (
+        await put("projects", "bulk-0", "bob", {
+          record: { id: "bulk-0", name: "edited" },
+          expectedVersion: 1,
+        })
+      ).status,
+    ).toBe(200);
+    await create("projects", "alice-1", "alice");
+    await create("projects", "admin-1", "admin");
+  });
+});
+
+describe("expected actor (cross-tab account switch)", () => {
+  it("rejects a write meant for another account without changing anything", async () => {
+    await create("projects", "p-1", "bob", { name: "B" });
+    const responses = [
+      await put("projects", "p-new", "bob", {
+        record: { id: "p-new" },
+        expectedVersion: null,
+        expectedActorId: "alice",
+      }),
+      await put("projects", "p-1", "bob", {
+        record: { id: "p-1", name: "changed" },
+        expectedVersion: 1,
+        expectedActorId: "alice",
+      }),
+    ];
+    for (const response of responses) {
+      expect(response.status).toBe(403);
+      expect(await response.json()).toEqual({ error: "actor_mismatch" });
+    }
+    expect(await storedVersion("projects", "p-new")).toBeUndefined();
+    expect(await storedVersion("projects", "p-1")).toMatchObject({
+      version: 1,
+      json: { id: "p-1", name: "B" },
+    });
+    const matching = await put("projects", "p-new", "bob", {
+      record: { id: "p-new" },
+      expectedVersion: null,
+      expectedActorId: "bob",
+    });
+    expect(matching.status).toBe(201);
+  });
+
+  it("keeps the Browserplan when another tab switched the session before sync", async () => {
+    const source = createBrowserLocalPlannerStorage({
+      indexedDb: new IDBFactory(),
+      now: () => 10,
+    });
+    const plan = createProject(
+      { id: "local-1", projectNumber: "A's plan" },
+      { now: () => 100, createId: (kind) => kind },
+    );
+    await source.put(PROJECTS_STORE_NAME, plan);
+    // This tab still believes Alice is signed in; the shared cookie is Bob's.
+    const storage = routedStorage("bob");
+    const target = createLocalImportTarget(
+      createProjectRepository(storage),
+      (store, id) => storage.createdBy(store, id),
+      "alice",
+    );
+    const context = {
+      server: ORIGIN,
+      user: { id: "alice", username: "alice", role: "user" as const },
+    };
+    const syncPlan = await planBrowserSync(source, target, context);
+    const run = await runBrowserSync(
+      source,
+      target,
+      syncPlan,
+      new Set(syncPlan.projects.map((entry) => entry.key)),
+      context,
+      { publicConfirmed: true, isSessionLive: () => true, now: 900 },
+    );
+    expect(run.aborted).toBe("unauthenticated");
+    expect(run.outcomes.map(({ kind }) => kind)).toEqual(["failed"]);
+    expect(run.outcomes[0]?.error).toMatchObject({
+      kind: "unauthenticated",
+      status: 403,
+      errorCode: "actor_mismatch",
+    });
+    expect(await storedVersion("projects", "local-1")).toBeUndefined();
+    expect(await source.get(PROJECTS_STORE_NAME, "local-1")).toEqual(plan);
+    expect(await source.getMetadata("local-1")).toMatchObject({ links: [] });
   });
 });
 
@@ -600,26 +790,7 @@ describe("local storage mode", () => {
 });
 
 it("keeps client storage semantics across deletion and recreation", async () => {
-  const storage = new ServerPlannerRecordStorage({
-    fetch: async (input, init) => {
-      const url =
-        typeof input === "string"
-          ? input
-          : input instanceof URL
-            ? input.href
-            : input.url;
-      const req = new Request(new URL(url, ORIGIN), init);
-      req.headers.set("cookie", cookies.alice);
-      const parts = new URL(req.url).pathname.split("/");
-      const store = parts[3]!;
-      const id = parts[4];
-      if (!id) return list(req, params({ store }));
-      const context = params({ store, id });
-      if (req.method === "PUT") return putOne(req, context);
-      if (req.method === "DELETE") return deleteOne(req, context);
-      return getOne(req, context);
-    },
-  });
+  const storage = routedStorage("alice");
   expect(await storage.put("projects", { id: "p-1", name: "A" })).toBe(1);
   await storage.delete("projects", "p-1", { expectedVersion: 1 });
   expect(await storage.getVersioned("projects", "p-1")).toBeUndefined();

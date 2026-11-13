@@ -178,6 +178,45 @@ describe("POST /api/auth/login", () => {
     expect(form.status).toBe(415);
   });
 
+  it("answers 413 for declared or streamed bodies over 16 KiB without consuming the limiter", async () => {
+    const credentials = JSON.stringify({
+      username: "planer",
+      password: "correct horse battery",
+    });
+    // Valid credentials padded to exactly one byte over the cap.
+    const padded =
+      credentials.slice(0, -1) +
+      `,"pad":"${"x".repeat(16_385 - credentials.length - 9)}"}`;
+    const streamed = new Request(`${ORIGIN}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: new ReadableStream<Uint8Array>({
+        start(controller) {
+          const bytes = new TextEncoder().encode(padded);
+          controller.enqueue(bytes.slice(0, 8_000));
+          controller.enqueue(bytes.slice(8_000));
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+    const declared = new Request(`${ORIGIN}/api/auth/login`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "content-length": "16385",
+      },
+      body: credentials,
+    });
+
+    for (const response of [await login(streamed), await login(declared)]) {
+      expect(response.status).toBe(413);
+      expect(await response.json()).toEqual({ error: "payload_too_large" });
+    }
+    expect(new TextEncoder().encode(padded).byteLength).toBe(16_385);
+    await signIn();
+  });
+
   it("revokes the browser's previous session on a new login", async () => {
     const first = await signIn();
     const second = await login(

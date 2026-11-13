@@ -1,6 +1,8 @@
 # Retain server record versions across deletion
 
 Status: accepted. Amends [ADR 0006](0006-optimistic-concurrency.md) for issue #88.
+Amended by [ADR 0012](0012-tombstone-creator-reservation.md): tombstones keep
+their creator, and only that creator or an admin may revive the id.
 
 Physical deletion restarted a recreated record at version 1, allowing an old
 writer or synchronization link to mistake a recreation for the original.

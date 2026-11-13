@@ -90,7 +90,10 @@ import {
   createBrowserLocalPlannerStorage,
   createPlannerRecordStorage,
 } from "~/lib/plannerStorageFactory";
-import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
+import {
+  isServerQuotaExceeded,
+  ServerStorageError,
+} from "~/lib/serverPlannerRecordStorage";
 import {
   createProjectRepository,
   type ProjectConflictPolicy,
@@ -755,10 +758,13 @@ export function PlannerProjectWorkspace({
     };
   }, [repository]);
 
+  // Re-list on account changes too: the server reports creators per reader,
+  // so the cached write hints must come from the current account.
   useEffect(() => {
     if (!repositoryReady) return;
+    void signedInUserId;
     void refreshProjects();
-  }, [refreshProjects, repositoryReady]);
+  }, [refreshProjects, repositoryReady, signedInUserId]);
 
   useEffect(() => {
     const request = ++projectRequest.current;
@@ -1003,6 +1009,9 @@ export function PlannerProjectWorkspace({
       if (message) throw new Error(message, { cause });
       if (reason === "network") {
         throw new Error(t("project.error.serverUnreachable"), { cause });
+      }
+      if (isServerQuotaExceeded(cause)) {
+        throw new Error(t("project.error.serverQuotaExceeded"), { cause });
       }
       throw cause;
     }

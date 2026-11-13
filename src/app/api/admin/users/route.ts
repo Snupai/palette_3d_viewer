@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import {
+  ActorNotAdminError,
   createUser,
   listUsers,
   UsernameTakenError,
@@ -49,7 +50,8 @@ const createSchema = z.object({
 /**
  * `POST /api/admin/users` — `{ username, password, role? }` → 201 with the
  * new account. 400 `invalid_username` / `weak_password` (with `reason`),
- * 409 `username_taken`.
+ * 409 `username_taken`, 403 `forbidden` if the acting admin was deleted
+ * meanwhile.
  */
 export async function POST(request: Request): Promise<Response> {
   const guard = await requireAdmin(request);
@@ -79,11 +81,15 @@ export async function POST(request: Request): Promise<Response> {
       guard.db,
       { username, password: parsed.data.password, role: parsed.data.role },
       new Date(),
+      { actorId: guard.admin.id },
     );
     return jsonNoStore({ user: toAdminUser(user) }, 201);
   } catch (error) {
     if (error instanceof UsernameTakenError) {
       return jsonNoStore({ error: "username_taken" }, 409);
+    }
+    if (error instanceof ActorNotAdminError) {
+      return jsonNoStore({ error: "forbidden" }, 403);
     }
     throw error;
   }

@@ -250,7 +250,7 @@ describe("ServerPlannerRecordStorage", () => {
     });
   });
 
-  it("remembers each record's creator from lists, reads and writes", async () => {
+  it("remembers the creator each reader may see from lists, reads and writes", async () => {
     const server = await freshServer();
     const alice = client(handlerFetch(server, "alice"));
     const bob = client(handlerFetch(server, "bob"));
@@ -263,14 +263,20 @@ describe("ServerPlannerRecordStorage", () => {
     const listed = ["a", "b", "c"].map((id) =>
       anonymous.createdBy(PROJECTS_STORE_NAME, id),
     );
+    await bob.list(PROJECTS_STORE_NAME);
+    const listedByBob = ["a", "b", "c"].map((id) =>
+      bob.createdBy(PROJECTS_STORE_NAME, id),
+    );
     await bob.get(PROJECTS_STORE_NAME, "a");
     await alice.delete(PROJECTS_STORE_NAME, "a");
     await anonymous.get(PROJECTS_STORE_NAME, "a");
 
     expect(before).toBeUndefined();
-    expect(listed).toEqual(["alice", "bob", undefined]);
+    // Anonymous reads carry no account ids; others' ids read as `null`.
+    expect(listed).toEqual([undefined, undefined, undefined]);
+    expect(listedByBob).toEqual([null, "bob", undefined]);
     expect(alice.createdBy(PROJECTS_STORE_NAME, "a")).toBeUndefined();
-    expect(bob.createdBy(PROJECTS_STORE_NAME, "a")).toBe("alice");
+    expect(bob.createdBy(PROJECTS_STORE_NAME, "a")).toBeNull();
     expect(bob.createdBy(PROJECTS_STORE_NAME, "b")).toBe("bob");
     expect(anonymous.createdBy(PROJECTS_STORE_NAME, "a")).toBeUndefined();
   });

@@ -191,8 +191,8 @@ bun run stack:down            # stop everything; data stays in the volume
 ```
 
 All ports are bound to `127.0.0.1` (`PALETTE_APP_PORT`, `PALETTE_DB_PORT`);
-LAN exposure needs HTTPS first (ADR 0008). Set `PALETTE_DB_PASSWORD` for any
-shared installation; it goes verbatim into `DATABASE_URL`, so keep it URL-safe
+LAN exposure needs HTTPS first (ADR 0008). `PALETTE_DB_PASSWORD` is required
+(Compose refuses to start without it, so there is no known default password); it goes verbatim into `DATABASE_URL`, so keep it URL-safe
 (`A-Z a-z 0-9 - . _ ~`). The storage mode is a build arg and
 defaults to `local`; rebuild with
 `PALETTE_STORAGE_MODE=server bun run stack:up` to store plans on the server. The
@@ -293,7 +293,7 @@ only. See [deployment access setup](docs/DEPLOYMENT.md#access-on-the-plant-netwo
 Failed logins are limited to 5 per normalized username and 30 per client address
 within 15 minutes, with temporary `429` / `Retry-After` responses. Successful
 login clears the username counter. See [deployment configuration](docs/DEPLOYMENT.md#login-throttling)
-for proxy trust, shared-address fallback and process-local limits.
+for proxy trust, unidentified clients and process-local limits.
 
 ### Database only (development)
 
@@ -302,7 +302,7 @@ named volume, bound to `127.0.0.1:5432` only. For `bun run dev` start just the
 database:
 
 ```sh
-cp .env.example .env          # uncomment DATABASE_URL (matches the container)
+cp .env.example .env          # set PALETTE_DB_PASSWORD and DATABASE_URL with the same password
 # Also set NEXT_PUBLIC_PALETTE_STORAGE_MODE=server in .env; DATABASE_URL alone is ignored.
 bun run db:up                 # docker compose up -d db
 bun run db:migrate            # apply drizzle/ migrations to DATABASE_URL

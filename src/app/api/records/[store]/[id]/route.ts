@@ -13,8 +13,10 @@ import {
 import { jsonNoStore, serverStorageDisabled } from "../../../auth/responses";
 import {
   MAX_EXPECTED_VERSION,
+  MAX_PROJECTS_PER_USER,
   MAX_RECORD_BODY_BYTES,
   readJsonBodyWithin,
+  recordReader,
   rejectionResponse,
   toApiRecord,
   unknownStore,
@@ -27,9 +29,12 @@ export const dynamic = "force-dynamic";
 
 type RecordContext = { params: Promise<{ store: string; id: string }> };
 
-/** `GET /api/records/:store/:id` — public; 404 `record_not_found`. */
+/**
+ * `GET /api/records/:store/:id` — public; 404 `record_not_found`.
+ * `createdBy` is projected per reader (`toApiRecord`).
+ */
 export async function GET(
-  _request: Request,
+  request: Request,
   context: RecordContext,
 ): Promise<Response> {
   const db = getServerDatabase();
@@ -40,7 +45,9 @@ export async function GET(
   const result = await getRecord(db, store, id);
   if (!result.ok) return rejectionResponse(result);
   if (!result.record) return jsonNoStore({ error: "record_not_found" }, 404);
-  return jsonNoStore(toApiRecord(result.record));
+  return jsonNoStore(
+    toApiRecord(result.record, await recordReader(request, db)),
+  );
 }
 
 /**
@@ -70,6 +77,12 @@ async function authorizeWrite(
 const putSchema = z.object({
   record: z.unknown(),
   expectedVersion: z.number().int().min(1).max(MAX_EXPECTED_VERSION).nullable(),
+  /**
+   * The account the client believes it writes as (Browserplan sync). Session
+   * cookies are shared across tabs, so a different session user is rejected
+   * before any mutation.
+   */
+  expectedActorId: z.string().optional(),
 });
 
 /**
@@ -77,7 +90,10 @@ const putSchema = z.object({
  * `expectedVersion: null` creates the record (201; the caller becomes its
  * creator), a number updates it if it is still at that version (200). The
  * answer is `{ record, version, createdBy }`. 401 without a session, 403
- * without write permission, 409 `version_conflict` with `currentVersion`
+ * without write permission (including reviving someone else's tombstone,
+ * ADR 0012), 403 `quota_exceeded` past {@link MAX_PROJECTS_PER_USER} live
+ * projects of a non-admin, 403 `actor_mismatch` when `expectedActorId` is
+ * not the session user, 409 `version_conflict` with `currentVersion`
  * (ADR 0006).
  */
 export async function PUT(
@@ -100,7 +116,10 @@ export async function PUT(
   if (!parsed.success || parsed.data.record === undefined) {
     return jsonNoStore({ error: "invalid_request" }, 400);
   }
-  const { record, expectedVersion } = parsed.data;
+  const { record, expectedVersion, expectedActorId } = parsed.data;
+  if (expectedActorId !== undefined && expectedActorId !== auth.userId) {
+    return jsonNoStore({ error: "actor_mismatch" }, 403);
+  }
   if (
     typeof record === "object" &&
     record !== null &&
@@ -118,12 +137,17 @@ export async function PUT(
       expectedVersion,
       userId: auth.userId,
       onlyCreatedBy: auth.onlyCreatedBy,
+      maxCreatedRecords:
+        auth.onlyCreatedBy === undefined ? undefined : MAX_PROJECTS_PER_USER,
     },
     new Date(),
   );
   if (!result.ok) return rejectionResponse(result);
   return jsonNoStore(
-    toApiRecord(result.record),
+    toApiRecord(result.record, {
+      userId: auth.userId,
+      admin: auth.onlyCreatedBy === undefined,
+    }),
     expectedVersion === null ? 201 : 200,
   );
 }
