@@ -7,6 +7,7 @@ import {
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
+  createGripPocketGuard,
   deriveGripDeltasForPlacementOrder,
   mergeGripOrderDependencies,
   orderGripsByDependencies,
@@ -254,6 +255,13 @@ function replanGrips(
   const orderedGrips = orderGripsByDependencies(
     transformedGrips.map((grip) => ({ ...grip, id: grip.sourceGripId })),
     verticalDependencies,
+    undefined,
+    undefined,
+    createGripPocketGuard(
+      transformedGrips.map(({ sourceGripId }) => sourceGripId),
+      transformedPlacements,
+      packageSize,
+    ),
   ).map(({ id: _, ...grip }, sequence) => ({
     ...grip,
     sequence,

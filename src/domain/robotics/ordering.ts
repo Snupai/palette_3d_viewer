@@ -1,6 +1,7 @@
 import {
-  compareGripsByLayerRows,
-  type GripOrderLayout,
+  compareGripPositionsRightBottomToLeftTop,
+  pickAccessibleGripIndex,
+  type GripPocketGuard,
 } from "~/domain/gripDependencies";
 import type { PalletizingDirection } from "~/domain/project/projectSchema";
 import type {
@@ -22,19 +23,21 @@ export type RobotOrderSuggestion = {
 };
 
 export type RobotOrderOptions = {
-  /** Lower half first, row by row; see `compareGripsByLayerRows`. */
-  layerLayout?: GripOrderLayout | null;
+  /**
+   * Free-access rule for suggestions (not for an edited order): never set a
+   * grip into a slot closed on both sides, see `createGripPocketGuard`.
+   */
+  pocketGuard?: GripPocketGuard | null;
 };
 
-function baseComparator(layout: GripOrderLayout | null) {
-  const comparePositions = compareGripsByLayerRows(layout);
+function baseComparator() {
   return (left: RobotGripGroup, right: RobotGripGroup): number =>
     (left.sourceSequence !== null && right.sourceSequence !== null
       ? left.sourceSequence - right.sourceSequence
       : 0) ||
-    comparePositions(
-      { id: left.id, ...left.centerPalletMm },
-      { id: right.id, ...right.centerPalletMm },
+    compareGripPositionsRightBottomToLeftTop(
+      left.centerPalletMm,
+      right.centerPalletMm,
     ) ||
     left.groupNumber - right.groupNumber ||
     left.id.localeCompare(right.id);
@@ -76,7 +79,7 @@ function topologicalOrder(
   dependencies: readonly RobotOrderDependency[],
   diagnostics: RobotDiagnostic[],
   preferredIndexById: ReadonlyMap<string, number> | undefined,
-  layout: GripOrderLayout | null,
+  pocketGuard: GripPocketGuard | null,
 ): RobotGripGroup[] {
   const groupsById = new Map(groups.map((group) => [group.id, group]));
   const outgoing = new Map<string, string[]>();
@@ -92,7 +95,7 @@ function topologicalOrder(
   }
   for (const targets of outgoing.values()) targets.sort();
 
-  const fallbackCompare = baseComparator(layout);
+  const fallbackCompare = baseComparator();
   const compare = (left: RobotGripGroup, right: RobotGripGroup) =>
     preferredIndexById
       ? (preferredIndexById.get(left.id) ?? Number.POSITIVE_INFINITY) -
@@ -103,9 +106,15 @@ function topologicalOrder(
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)
     .sort(compare);
   const ordered: RobotGripGroup[] = [];
+  const placed = new Set<string>();
+  const guard = preferredIndexById ? null : pocketGuard;
   while (available.length > 0) {
-    const current = available.shift()!;
+    const [current] = available.splice(
+      pickAccessibleGripIndex(available, placed, guard, ordered.at(-1)?.id),
+      1,
+    ) as [RobotGripGroup];
     ordered.push(current);
+    placed.add(current.id);
     for (const targetId of outgoing.get(current.id) ?? []) {
       const nextIndegree = (indegree.get(targetId) ?? 0) - 1;
       indegree.set(targetId, nextIndegree);
@@ -201,7 +210,7 @@ export function suggestRobotOrder(
     normalized,
     diagnostics,
     preferredIndexById,
-    options.layerLayout ?? null,
+    options.pocketGuard ?? null,
   );
   const explicitSource = groups.every(
     ({ groupingSource }) => groupingSource === "explicit-project-cycle",

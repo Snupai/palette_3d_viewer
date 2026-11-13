@@ -16,9 +16,10 @@ import {
   buildGripVerticalOverlapDependencies,
   deriveGripDeltasForPlacementOrder,
   mergeGripOrderDependencies,
+  createGripPocketGuard,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
-import { partitionPlacementsForSuction } from "~/domain/robotics/grouping";
+import { optimizeSuctionGroups } from "~/domain/robotics/gripOptimizer";
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import {
   calculateCandidateMetrics,
@@ -239,11 +240,27 @@ function groupCandidatePlacements(
     ...placement,
     id: `placement-${placement.sequence + 1}`,
   }));
-  const partitions = partitionPlacementsForSuction(groupable, {
-    packageLengthMm: input.package.dimensionsMm.length,
+  // Same grip optimizer as the editor's "Order automatically": packages may
+  // slide along their line into small gaps so neighbours share a grip. It
+  // never creates overlaps, keeps outer packages on the layer edge and does
+  // not slide when a clearance is required.
+  const optimized = optimizeSuctionGroups(groupable, {
+    spanMm: input.package.dimensionsMm.length,
+    packageSizeMm: input.package.dimensionsMm,
     maxPackagesPerPick: input.constraints.provisionalPackagesPerCycle,
-    remainderPolicy: input.constraints.suctionRemainderPolicy,
+    maxShiftMm: input.package.dimensionsMm.length,
+    clearanceMm: input.package.clearanceMm,
   });
+  const shifted = groupable.map((placement) => {
+    const positionMm = optimized.movedPositions.get(placement.id);
+    return positionMm ? { ...placement, positionMm } : placement;
+  });
+  const placementById = new Map(
+    shifted.map((placement) => [placement.id, placement]),
+  );
+  const partitions = optimized.groups.map((ids) =>
+    ids.map((id) => placementById.get(id)!),
+  );
   const gripIdByPlacementSequence = new Map<number, string>();
   const rawGrips = partitions.map((members) => {
     const id = `generated-grip:${members
@@ -274,7 +291,7 @@ function groupCandidatePlacements(
       dy: 0,
     };
   });
-  const placementsWithGripIds = placements.map((placement) => ({
+  const placementsWithGripIds = shifted.map(({ id: _, ...placement }) => ({
     ...placement,
     gripId: gripIdByPlacementSequence.get(placement.sequence)!,
   }));
@@ -286,6 +303,13 @@ function groupCandidatePlacements(
   const ungrippedGrips = orderGripsByDependencies(
     rawGrips,
     verticalDependencies,
+    undefined,
+    undefined,
+    createGripPocketGuard(
+      rawGrips.map(({ id }) => id),
+      placementsWithGripIds,
+      input.package.dimensionsMm,
+    ),
   ).map((grip, sequence) => ({
     ...grip,
     groupNumber: sequence + 1,

@@ -93,6 +93,8 @@ export function describeDiagnostic(
       });
     case "invalid-order":
       return t("editor.diag.invalidOrder", { message: diagnostic.message });
+    case "enclosed-placement":
+      return t("editor.diag.enclosedPlacement", { grip });
     case "invalid-project":
       return t("editor.diag.invalidProject", { message: diagnostic.message });
   }

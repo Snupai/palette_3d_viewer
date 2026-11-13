@@ -539,9 +539,7 @@ describe("ProjectEditorWorkspace order and persistence", () => {
     renderEditor({ project: importedGripProject(), onDraftChange });
     fireEvent.click(screen.getByLabelText("Greifreihenfolge"));
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Griffe neu berechnen" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Automatisch ordnen" }));
 
     const draft = onDraftChange.mock.calls.at(-1)?.[0] as Project | null;
     const grips = draft?.solutions[0]?.patterns[0]?.grips ?? [];

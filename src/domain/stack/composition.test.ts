@@ -371,21 +371,21 @@ describe("stack composition transforms", () => {
       "lengthwise",
     );
     const expectedGripPrefix = [
-      { sourceGripId: "generated-grip:8", numPackages: 1 },
+      { sourceGripId: "generated-grip:7+8", numPackages: 2 },
       { sourceGripId: "generated-grip:21+34", numPackages: 2 },
       { sourceGripId: "generated-grip:47", numPackages: 1 },
       { sourceGripId: "generated-grip:60+73", numPackages: 2 },
-      { sourceGripId: "generated-grip:7", numPackages: 1 },
-      { sourceGripId: "generated-grip:20+33", numPackages: 2 },
-      { sourceGripId: "generated-grip:46", numPackages: 1 },
+      { sourceGripId: "generated-grip:20", numPackages: 1 },
+      { sourceGripId: "generated-grip:33+46", numPackages: 2 },
       { sourceGripId: "generated-grip:59+72", numPackages: 2 },
       { sourceGripId: "generated-grip:19+32", numPackages: 2 },
       { sourceGripId: "generated-grip:45", numPackages: 1 },
       { sourceGripId: "generated-grip:58+71", numPackages: 2 },
-      { sourceGripId: "generated-grip:6", numPackages: 1 },
+      { sourceGripId: "generated-grip:5+6", numPackages: 2 },
+      { sourceGripId: "generated-grip:18", numPackages: 1 },
     ];
 
-    expect(transformed.grips).toHaveLength(47);
+    expect(transformed.grips).toHaveLength(43);
     expect(
       [1, 5, 12, 16].map((groupNumber) => {
         const grip = transformed.grips.find(
@@ -395,9 +395,9 @@ describe("stack composition transforms", () => {
       }),
     ).toEqual([
       { groupNumber: 1, dx: 0, dy: 0 },
-      { groupNumber: 5, dx: -1, dy: 0 },
-      { groupNumber: 12, dx: -1, dy: 0 },
-      { groupNumber: 16, dx: -1, dy: 0 },
+      { groupNumber: 5, dx: -1, dy: 1 },
+      { groupNumber: 12, dx: -1, dy: 1 },
+      { groupNumber: 16, dx: -1, dy: 1 },
     ]);
     expect(
       transformed.grips

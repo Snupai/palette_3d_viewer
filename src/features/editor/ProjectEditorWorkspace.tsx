@@ -25,7 +25,6 @@ import {
   activeEditorSolution,
   previewGripFromSelection,
   projectEditorOrderModel,
-  suggestProjectEditorOrder,
   validateProjectEditor,
   type ProjectEditorCommand,
 } from "~/features/editor/editorModel";
@@ -337,24 +336,12 @@ export function ProjectEditorWorkspace({
     if (!base || !canMergeGrips) return;
     execute({ type: "merge-groups", ...base, gripIds: [...selectedGripIds] });
   };
-  const recalculateGroups = () => {
+  // One step: fresh grips from the package geometry, ordered so the gripper
+  // can always reach every place (manual grips are replaced).
+  const orderAutomatically = () => {
     const base = orderBase();
     if (!base) return;
     execute({ type: "recalculate-groups", ...base });
-  };
-  const applySuggestedOrder = () => {
-    const base = orderBase();
-    if (!base) return;
-    const suggestion = suggestProjectEditorOrder(
-      history.present,
-      base.solutionId,
-      base.patternId,
-    );
-    execute({
-      type: "apply-suggested-order",
-      ...base,
-      gripIds: suggestion.order,
-    });
   };
 
   const save = async () => {
@@ -658,17 +645,9 @@ export function ProjectEditorWorkspace({
                 <span className="ed-toolbar-gap" aria-hidden="true" />
                 <button
                   type="button"
-                  className="ui-btn"
-                  disabled={!pattern || pattern.placements.length === 0}
-                  onClick={recalculateGroups}
-                >
-                  {t("editor.recalculateGrips")}
-                </button>
-                <button
-                  type="button"
                   className="ui-btn-primary"
-                  disabled={orderModel.groups.length === 0}
-                  onClick={applySuggestedOrder}
+                  disabled={!pattern || pattern.placements.length === 0}
+                  onClick={orderAutomatically}
                 >
                   {t("editor.autoOrder")}
                 </button>

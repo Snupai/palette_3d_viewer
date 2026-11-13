@@ -12,10 +12,13 @@ import type { Rotation } from "~/domain/palletTypes";
  * 1. fewer grips;
  * 2. fewer single grips;
  * 3. fewer single grips on the outer edge of the layer;
- * 4. fewer single grips touching other single grips ("chains");
- * 5. less total package movement;
- * 6. single grips closer to the layer centre;
- * 7. larger chunks first along the line (deterministic tie-break).
+ * 4. less total package movement;
+ * 5. fewer single grips as the last grip of their line in laying direction
+ *    (bottom to top, right to left): a line then starts with its single and
+ *    the next line does not follow one single with another;
+ * 6. fewer single grips touching other single grips ("chains");
+ * 7. single grips closer to the layer centre;
+ * 8. larger chunks first along the line (deterministic tie-break).
  *
  * Lines are first decided in a fixed geometric order; later passes re-decide
  * each line against the single grips of all other lines until nothing
@@ -81,20 +84,13 @@ type Item = {
   cross: number;
 };
 
-type Cost = [number, number, number, number, number, number];
+type Cost = [number, number, number, number, number, number, number];
 
-const ZERO_COST: Cost = [0, 0, 0, 0, 0, 0];
+const ZERO_COST: Cost = [0, 0, 0, 0, 0, 0, 0];
 const COMPARE_EPSILON = 1e-6;
 
 function addCost(left: Cost, right: Cost): Cost {
-  return [
-    left[0] + right[0],
-    left[1] + right[1],
-    left[2] + right[2],
-    left[3] + right[3],
-    left[4] + right[4],
-    left[5] + right[5],
-  ];
+  return left.map((value, index) => value + right[index]!) as Cost;
 }
 
 function compareCost(left: Cost, right: Cost): number {
@@ -434,7 +430,7 @@ function optimizeOnce(
     };
 
     const singleCost = (index: number): Cost => {
-      if (maxPerPick === 1) return [1, 0, 0, 0, 0, 0];
+      if (maxPerPick === 1) return [1, 0, 0, 0, 0, 0, 0];
       const item = line[index]!;
       const rect = rectFor(item, item.axis, packageSizeMm);
       const chain = otherSingles.filter((single) =>
@@ -446,11 +442,19 @@ function optimizeOnce(
         1,
         1,
         onLayerEdge(rect, layerBounds, tolerance) ? 1 : 0,
-        chain,
         0,
+        endsLine(index) ? 1 : 0,
+        chain,
         Math.abs(centreX - layerCenter.x) + Math.abs(centreY - layerCenter.y),
       ];
     };
+    /**
+     * A single at this index is the line's last grip in laying direction:
+     * the top of a column, the left end of a row (rows go right to left).
+     */
+    const endsLine = (index: number) =>
+      line.length > 1 &&
+      (line[0]!.horizontal ? index === 0 : index === line.length - 1);
     const singleTouchesNext = (index: number) =>
       index + 1 < line.length &&
       Math.abs(line[index + 1]!.axis - line[index]!.axis - spanMm) <= tolerance;
@@ -480,10 +484,10 @@ function optimizeOnce(
           0,
         );
         const chunkCost: Cost =
-          size === 1 ? singleCost(start) : [1, 0, 0, 0, shift, 0];
+          size === 1 ? singleCost(start) : [1, 0, 0, shift, 0, 0, 0];
         const ownChain: Cost =
           size === 1 && previousSingleTouches && maxPerPick > 1
-            ? [0, 0, 0, 1, 0, 0]
+            ? [0, 0, 0, 0, 0, 1, 0]
             : ZERO_COST;
         const rest = solve(
           start + size,
@@ -543,14 +547,15 @@ function optimizeOnce(
 
   /** Whole-layer cost of the current decisions (chains counted per pair). */
   const layerCost = (): Cost => {
-    const cost: Cost = [0, 0, 0, 0, 0, 0];
+    const cost: Cost = [0, 0, 0, 0, 0, 0, 0];
     const singles: Rect[] = [];
     lines.forEach((line, lineIndex) => {
       let start = 0;
-      decisions[lineIndex]!.sizes.forEach((size) => {
+      const sizes = decisions[lineIndex]!.sizes;
+      sizes.forEach((size, chunkIndex) => {
         cost[0] += 1;
         const members = line.slice(start, start + size);
-        cost[4] += members.reduce(
+        cost[3] += members.reduce(
           (sum, item) => sum + Math.abs(positionById.get(item.id)! - item.axis),
           0,
         );
@@ -558,10 +563,12 @@ function optimizeOnce(
           const rect = rectOf(members[0]!);
           cost[1] += 1;
           if (onLayerEdge(rect, layerBounds, tolerance)) cost[2] += 1;
-          cost[3] += singles.filter((single) =>
+          const last = line[0]!.horizontal ? 0 : sizes.length - 1;
+          if (sizes.length > 1 && chunkIndex === last) cost[4] += 1;
+          cost[5] += singles.filter((single) =>
             touches(rect, single, tolerance),
           ).length;
-          cost[5] +=
+          cost[6] +=
             Math.abs((rect.minX + rect.maxX) / 2 - layerCenter.x) +
             Math.abs((rect.minY + rect.maxY) / 2 - layerCenter.y);
           singles.push(rect);

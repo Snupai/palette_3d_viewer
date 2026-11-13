@@ -1105,7 +1105,7 @@ describe("solver input and candidate validation", () => {
     expect(new Set(crosswiseGripIds).size).toBe(3);
   }, 30_000);
 
-  it("keeps forced rectangular mixed strips uniformly spaced", () => {
+  it("pairs the crosswise packages of forced rectangular mixed strips", () => {
     const input: LayerSolverInput = {
       package: {
         shape: "cuboid",
@@ -1135,7 +1135,9 @@ describe("solver input and candidate validation", () => {
         .map(({ positionMm }) => positionMm.y)
         .sort((left, right) => left - right);
       return (
-        JSON.stringify(crosswiseY) === JSON.stringify([50, 155, 260, 365, 470])
+        // The generator spreads the crosswise packages evenly (5 mm gaps);
+        // grip planning slides two pairs together so they share grips.
+        JSON.stringify(crosswiseY) === JSON.stringify([50, 150, 260, 370, 470])
       );
     });
 
@@ -1144,6 +1146,7 @@ describe("solver input and candidate validation", () => {
       boundingBlockLengthMm: 165,
       boundingBlockWidthMm: 520,
     });
+    expect(candidate?.grips).toHaveLength(11);
     expect(candidate?.validation.valid).toBe(true);
   }, 30_000);
 
@@ -2753,7 +2756,7 @@ describe("AP5006 reference geometry", () => {
       legacyCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
-    ).toEqual([29, 29, 29, 36, 43, 43, 43]);
+    ).toEqual([29, 29, 29, 29, 29, 35, 36]);
     expect(
       legacyCandidates
         .map(({ metrics }) => metrics.boundingBlockLengthMm)
@@ -2802,12 +2805,12 @@ describe("AP5006 reference geometry", () => {
       threeBlockCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
-    ).toEqual([29, 36, 43, 43]);
+    ).toEqual([29, 29, 29, 36]);
     expect(cFrameCandidates).toHaveLength(1);
     expect(cFrameCandidates[0]?.metrics).toEqual(
       expect.objectContaining({
         packageCount: 53,
-        provisionalCycleCount: 43,
+        provisionalCycleCount: 35,
         boundingBlockLengthMm: 1188,
         boundingBlockWidthMm: 780,
       }),
@@ -2851,7 +2854,7 @@ describe("AP5006 reference geometry", () => {
   }, 15_000);
 });
 
-it("uses the selected suction remainder policy deterministically", () => {
+it("groups generated grips like the editor whatever the remainder policy", () => {
   const input: LayerSolverInput = {
     package: {
       shape: "cuboid",
@@ -2888,7 +2891,19 @@ it("uses the selected suction remainder policy deterministically", () => {
           .sort((a, b) => a - b),
       )
       .sort((a, b) => a[0]! - b[0]!),
-  ).toEqual([[50], [150, 250], [350, 450]]);
+  ).toEqual([[50, 150], [250], [350, 450]]);
+  // The policy still shapes generator layouts but no longer the grips: the
+  // shared grip optimizer keeps the single grip at the centre of the row.
+  const centered = solveLayer({
+    ...input,
+    constraints: {
+      ...input.constraints,
+      suctionRemainderPolicy: "centered-singleton",
+    },
+  });
+  expect(centered.candidates.map(({ grips }) => grips)).toEqual(
+    first.candidates.map(({ grips }) => grips),
+  );
   expect(
     validateAndNormalizeSolverInput({
       ...input,

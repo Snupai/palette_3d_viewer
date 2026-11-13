@@ -1716,20 +1716,24 @@ export function PlannerProjectWorkspace({
     }
   }, [selectedCandidate, solverInput, workspaceProject]);
 
+  // Robot cycles of the whole stack take seconds to compute. While the
+  // pattern editor is open they follow the saved project, not every draft
+  // step, so editing stays responsive; saving recomputes them.
+  const robotProject =
+    activeTool === "editor" ? selectedProject : workspaceProject;
   const resolvedRobotSettings = useMemo(
     () =>
-      workspaceProject
-        ? (robotSettings ??
-          createInitialRobotWorkspaceSettings(workspaceProject))
+      robotProject
+        ? (robotSettings ?? createInitialRobotWorkspaceSettings(robotProject))
         : null,
-    [robotSettings, workspaceProject],
+    [robotSettings, robotProject],
   );
   const robotMaterialization = useMemo(
     () =>
-      workspaceProject && resolvedRobotSettings
-        ? materializeRobotWorkspace(workspaceProject, resolvedRobotSettings)
+      robotProject && resolvedRobotSettings
+        ? materializeRobotWorkspace(robotProject, resolvedRobotSettings)
         : null,
-    [resolvedRobotSettings, workspaceProject],
+    [resolvedRobotSettings, robotProject],
   );
   const robotPreviewData = useMemo(() => {
     const preview = robotMaterialization

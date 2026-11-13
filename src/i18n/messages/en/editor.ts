@@ -38,7 +38,6 @@ export const editorEn = {
   "editor.selectedCount": "{count} selected",
   "editor.createGrip": "Create grip from selection ({count})",
   "editor.mergeGrips": "Merge grips ({count})",
-  "editor.recalculateGrips": "Recalculate grips",
   "editor.autoOrder": "Order automatically",
   "editor.check": "Check",
   "editor.noHints": "no issues",
@@ -154,6 +153,8 @@ export const editorEn = {
     "The order must contain every grip exactly once.",
   "editor.diag.numberDuplicate": "Two grips share the same number ({grips}).",
   "editor.diag.invalidOrder": "Order invalid: {message}",
+  "editor.diag.enclosedPlacement":
+    "{grip} is placed into a gap already closed on two opposite sides – the gripper cannot reach it.",
   "editor.diag.invalidProject": "Project invalid: {message}",
   "editor.reason.empty": "A grip needs at least one package.",
   "editor.reason.multiPick":

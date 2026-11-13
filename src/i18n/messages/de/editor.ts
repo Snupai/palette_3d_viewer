@@ -37,7 +37,6 @@ export const editorDe = {
   "editor.selectedCount": "{count} ausgewählt",
   "editor.createGrip": "Griff aus Auswahl bilden ({count})",
   "editor.mergeGrips": "Griffe zusammenlegen ({count})",
-  "editor.recalculateGrips": "Griffe neu berechnen",
   "editor.autoOrder": "Automatisch ordnen",
   "editor.check": "Prüfung",
   "editor.noHints": "keine Hinweise",
@@ -154,6 +153,8 @@ export const editorDe = {
   "editor.diag.numberDuplicate":
     "Zwei Griffe tragen dieselbe Nummer ({grips}).",
   "editor.diag.invalidOrder": "Reihenfolge ungültig: {message}",
+  "editor.diag.enclosedPlacement":
+    "{grip} wird in eine Lücke gesetzt, die auf zwei gegenüberliegenden Seiten schon belegt ist – nicht anfahrbar.",
   "editor.diag.invalidProject": "Projekt ungültig: {message}",
   "editor.reason.empty": "Ein Griff braucht mindestens ein Paket.",
   "editor.reason.multiPick":

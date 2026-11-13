@@ -16,10 +16,11 @@ import {
 import {
   buildGripDeltaDependencies,
   buildGripVerticalOverlapDependencies,
-  compareGripsByLayerRows,
-  createGripOrderLayout,
+  compareGripPositionsRightBottomToLeftTop,
+  createGripPocketGuard,
   deriveGripDeltasForPlacementOrder,
-  type GripOrderLayout,
+  enclosedGripsInOrder,
+  type GripPocketGuard,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
 import {
@@ -73,6 +74,7 @@ export type ProjectEditorDiagnostic = {
     | "group-order-omission"
     | "group-number-duplicate"
     | "invalid-order"
+    | "enclosed-placement"
     | "invalid-project";
   message: string;
   placementIds?: readonly string[];
@@ -972,10 +974,16 @@ function assertOrderSatisfiesDependencies(
   );
 }
 
+/**
+ * Persisted grips, or automatic ones for an ungrouped pattern. By default
+ * ("if-valid") the automatic grips may slide packages to close small gaps,
+ * like "Recalculate grips", unless that would worsen the layer geometry; then
+ * packages stay put. `true` always slides (callers validate), `false` never.
+ */
 function ensurePatternGroups(
   project: Project,
   pattern: LayerPattern,
-  options: { allowShift?: boolean } = {},
+  options: { allowShift?: boolean | "if-valid" } = {},
 ): LayerPattern {
   if (pattern.grips.length > 0) {
     const grips = pattern.grips.map((grip, index) => ({
@@ -990,11 +998,34 @@ function ensurePatternGroups(
     });
   }
 
-  const automatic = automaticPlacementGroups(
-    project,
-    pattern,
-    options.allowShift ?? false,
-  );
+  const allowShift = options.allowShift ?? "if-valid";
+  if (allowShift !== "if-valid") {
+    return automaticPatternGroups(project, pattern, allowShift);
+  }
+  const shifted = automaticPatternGroups(project, pattern, true);
+  const moved = shifted.placements.some((placement, index) => {
+    const original = pattern.placements[index]!.positionMm;
+    return (
+      placement.positionMm.x !== original.x ||
+      placement.positionMm.y !== original.y
+    );
+  });
+  if (!moved) return shifted;
+  try {
+    validateGeometryOrThrow(project, shifted, pattern);
+    return shifted;
+  } catch (error) {
+    if (!(error instanceof ProjectEditorCommandError)) throw error;
+    return automaticPatternGroups(project, pattern, false);
+  }
+}
+
+function automaticPatternGroups(
+  project: Project,
+  pattern: LayerPattern,
+  allowShift: boolean,
+): LayerPattern {
+  const automatic = automaticPlacementGroups(project, pattern, allowShift);
   const { movedPositions } = automatic;
   const shiftedPlacements = pattern.placements.map((placement) => {
     const positionMm = movedPositions.get(placement.id);
@@ -1057,7 +1088,8 @@ function ensurePatternGroups(
     grips,
     verticalDependencies,
     undefined,
-    compareGripsByLayerRows(patternOrderLayout(project, placements)),
+    compareGripPositionsRightBottomToLeftTop,
+    patternPocketGuard(project, grips, placements),
   ).map((grip, index) => ({ ...grip, groupNumber: index + 1 }));
   // Like solver-generated grips, a blue line may only reference a grip that
   // is already placed; label-derived offsets could form dependency cycles.
@@ -1865,17 +1897,31 @@ function orderDirection(project: Project) {
   );
 }
 
-/** Row/half layout for the automatic order, see `compareGripsByLayerRows`. */
-function patternOrderLayout(
+/** Free-access rule for the automatic order, see `createGripPocketGuard`. */
+function patternPocketGuard(
   project: Project,
+  grips: readonly { id: string }[],
   placements: readonly PackagePlacement[],
-): GripOrderLayout | null {
-  return createGripOrderLayout(
-    placements.map((placement) => ({
-      gripId: placement.gripId,
-      ...placementRectangleBounds(placement, project.package.dimensionsMm),
-    })),
+): GripPocketGuard {
+  return createGripPocketGuard(
+    grips.map(({ id }) => id),
+    placements,
+    project.package.dimensionsMm,
   );
+}
+
+function enclosedPlacementDiagnostics(
+  project: Project,
+  pattern: LayerPattern,
+  order: readonly string[],
+): ProjectEditorDiagnostic[] {
+  const guard = patternPocketGuard(project, pattern.grips, pattern.placements);
+  return enclosedGripsInOrder(order, guard).map((gripId) => ({
+    severity: "warning",
+    code: "enclosed-placement",
+    message: `Grip "${gripId}" is placed into a slot already closed on two opposite sides; the gripper cannot reach it.`,
+    gripIds: [gripId],
+  }));
 }
 
 function groupAsRobotGroup(group: ProjectEditorGroup): RobotGripGroup {
@@ -1961,7 +2007,6 @@ export function projectEditorOrderModel(
     })),
     orderDirection(project),
     order,
-    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
   );
   return {
     groups: groups
@@ -1973,6 +2018,7 @@ export function projectEditorOrderModel(
     diagnostics: [
       ...validateProjectPattern(project, workingPattern),
       ...robotOrderDiagnostics(suggestion.diagnostics),
+      ...enclosedPlacementDiagnostics(project, workingPattern, order),
     ],
   };
 }
@@ -1998,7 +2044,13 @@ export function suggestProjectEditorOrder(
     })),
     orderDirection(project),
     undefined,
-    { layerLayout: patternOrderLayout(project, workingPattern.placements) },
+    {
+      pocketGuard: patternPocketGuard(
+        project,
+        workingPattern.grips,
+        workingPattern.placements,
+      ),
+    },
   );
   return {
     order: suggestion.order,
