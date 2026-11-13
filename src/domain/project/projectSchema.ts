@@ -1,4 +1,11 @@
 import { z } from "zod";
+import {
+  MAX_EXPANDED_PACKAGES,
+  MAX_INTERLAYERS_PER_BOUNDARY,
+  MAX_PACKAGES_PER_GRIP,
+  MAX_PACKAGES_PER_LAYER,
+  MAX_STACK_LAYERS,
+} from "~/domain/planLimits";
 
 /** Compatibility version used by the existing ProjectV2 fixtures and adapters. */
 export const PROJECT_SCHEMA_VERSION = 2 as const;
@@ -15,6 +22,11 @@ export const CURRENT_PROJECT_SCHEMA_VERSION = 5 as const;
 const finiteNumber = z.number().finite();
 const nonNegativeNumber = finiteNumber.nonnegative();
 const positiveNumber = finiteNumber.positive();
+const interlayerCountSchema = z
+  .number()
+  .int()
+  .nonnegative()
+  .max(MAX_INTERLAYERS_PER_BOUNDARY);
 export const projectIdSchema = z.string().trim().min(1).max(200);
 const optionalReferenceSchema = projectIdSchema.nullable();
 
@@ -51,7 +63,7 @@ export const projectGripSchema = z
     x: finiteNumber,
     y: finiteNumber,
     rotation: rotationSchema,
-    numPackages: z.number().int().positive(),
+    numPackages: z.number().int().positive().max(MAX_PACKAGES_PER_GRIP),
     dx: finiteNumber,
     dy: finiteNumber,
   })
@@ -317,16 +329,32 @@ export const palletStationSchema = z
     }
   });
 
+/** Bounds the boxes a pattern's grips expand to before geometry allocates them. */
+function addGripPackageTotalIssue(
+  grips: ReadonlyArray<{ numPackages: number }>,
+  context: z.RefinementCtx,
+): void {
+  const total = grips.reduce((sum, grip) => sum + grip.numPackages, 0);
+  if (total > MAX_PACKAGES_PER_LAYER) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["grips"],
+      message: `must not expand to more than ${MAX_PACKAGES_PER_LAYER} packages (got ${total})`,
+    });
+  }
+}
+
 /** ProjectV2 layer pattern retained verbatim for fixture and adapter compatibility. */
 export const layerPatternSchema = z
   .object({
     id: projectIdSchema,
     name: z.string().trim().min(1).max(200),
-    grips: z.array(projectGripSchema),
+    grips: z.array(projectGripSchema).max(MAX_PACKAGES_PER_LAYER),
   })
   .strict()
   .superRefine((value, context) => {
     addDuplicateIdIssues(value.grips, context, ["grips"]);
+    addGripPackageTotalIssue(value.grips, context);
     addDuplicateValueIssues(
       value.grips.flatMap(({ groupNumber }) =>
         groupNumber === undefined ? [] : [groupNumber],
@@ -341,15 +369,15 @@ const projectV2StackLayerSchema = z
   .object({
     id: projectIdSchema,
     patternId: projectIdSchema,
-    interlayerBefore: z.number().int().nonnegative(),
+    interlayerBefore: interlayerCountSchema,
   })
   .strict();
 
 const projectV2LayerStackSchema = z
   .object({
     interlayerThicknessMm: positiveNumber,
-    layers: z.array(projectV2StackLayerSchema),
-    trailingInterlayer: z.number().int().nonnegative(),
+    layers: z.array(projectV2StackLayerSchema).max(MAX_STACK_LAYERS),
+    trailingInterlayer: interlayerCountSchema,
   })
   .strict();
 
@@ -357,7 +385,7 @@ export const stackLayerSchema = z
   .object({
     id: projectIdSchema,
     patternId: projectIdSchema,
-    interlayerBefore: z.number().int().nonnegative(),
+    interlayerBefore: interlayerCountSchema,
     /** Exact thickness for sheets before this layer; shared thickness is the fallback. */
     interlayerThicknessMm: positiveNumber.optional(),
   })
@@ -367,8 +395,8 @@ export const layerStackSchema = z
   .object({
     /** Compatibility fallback for ProjectV2 and boundaries without an override. */
     interlayerThicknessMm: positiveNumber,
-    layers: z.array(stackLayerSchema),
-    trailingInterlayer: z.number().int().nonnegative(),
+    layers: z.array(stackLayerSchema).max(MAX_STACK_LAYERS),
+    trailingInterlayer: interlayerCountSchema,
     /** Exact deck-sheet thickness; shared thickness is the fallback. */
     trailingInterlayerThicknessMm: positiveNumber.optional(),
   })
@@ -456,6 +484,48 @@ function addStackReferenceIssues(
   });
 }
 
+/**
+ * Bounds the boxes a whole project expands to (every solution's patterns plus
+ * each stack layer's referenced pattern), mirroring the `.rob` import budget,
+ * so many individually valid patterns cannot add up to unbounded migration or
+ * materialization work.
+ */
+function addProjectExpansionIssue(
+  solutions: ReadonlyArray<{
+    patterns: ReadonlyArray<{
+      id: string;
+      grips: ReadonlyArray<{ numPackages: number }>;
+      /** Canonical patterns only; placements may exist without a grip. */
+      placements?: ReadonlyArray<unknown>;
+    }>;
+    stack: { layers: ReadonlyArray<{ patternId: string }> };
+  }>,
+  context: z.RefinementCtx,
+): void {
+  let total = 0;
+  for (const solution of solutions) {
+    const packagesByPattern = new Map<string, number>();
+    for (const pattern of solution.patterns) {
+      const packages = Math.max(
+        pattern.grips.reduce((sum, grip) => sum + grip.numPackages, 0),
+        pattern.placements?.length ?? 0,
+      );
+      packagesByPattern.set(pattern.id, packages);
+      total += packages;
+    }
+    for (const layer of solution.stack.layers) {
+      total += packagesByPattern.get(layer.patternId) ?? 0;
+    }
+  }
+  if (total > MAX_EXPANDED_PACKAGES) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["solutions"],
+      message: `must not expand to more than ${MAX_EXPANDED_PACKAGES} packages (got ${total})`,
+    });
+  }
+}
+
 function addProjectReferenceIssues(
   value: {
     createdAt: number;
@@ -538,7 +608,10 @@ export const projectV2Schema = z
     activeSolutionId: optionalReferenceSchema,
   })
   .strict()
-  .superRefine(addProjectReferenceIssues);
+  .superRefine((value, context) => {
+    addProjectReferenceIssues(value, context);
+    addProjectExpansionIssue(value.solutions, context);
+  });
 
 const placementLabelSchema = z
   .enum([
@@ -588,8 +661,8 @@ export const planningLayerPatternSchema = z
     id: projectIdSchema,
     name: z.string().trim().min(1).max(200),
     /** Compatibility representation used by the existing .rob adapter/editor. */
-    grips: z.array(projectGripSchema),
-    placements: z.array(packagePlacementSchema),
+    grips: z.array(projectGripSchema).max(MAX_PACKAGES_PER_LAYER),
+    placements: z.array(packagePlacementSchema).max(MAX_PACKAGES_PER_LAYER),
     /** Stable grip ids in editable execution order; group numbers mirror this order. */
     groupOrder: z.array(projectIdSchema).optional(),
     orderDependencies: z.array(patternOrderDependencySchema).optional(),
@@ -598,6 +671,7 @@ export const planningLayerPatternSchema = z
   .strict()
   .superRefine((value, context) => {
     addDuplicateIdIssues(value.grips, context, ["grips"]);
+    addGripPackageTotalIssue(value.grips, context);
     addDuplicateIdIssues(value.placements, context, ["placements"]);
     addDuplicateValueIssues(
       value.grips.flatMap(({ groupNumber }) =>
@@ -828,6 +902,7 @@ export const projectSchema = z
   .strict()
   .superRefine((value, context) => {
     addProjectReferenceIssues(value, context);
+    addProjectExpansionIssue(value.solutions, context);
     const gripperIds = new Set(value.grippers.map(({ id }) => id));
     value.solutions.forEach((solution, solutionIndex) => {
       solution.robotCycles.forEach((cycle, cycleIndex) => {

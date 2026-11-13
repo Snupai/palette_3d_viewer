@@ -90,8 +90,12 @@ describe("DELETE /api/admin/users/:id", () => {
     expect(await record.json()).toEqual({
       record: { id: "saved-plan", name: "Plan" },
       version: 3,
-      createdBy: null,
     });
+    expect(
+      (await database.db.select().from(plannerRecords)).map(
+        (row) => row.createdBy,
+      ),
+    ).toEqual([null]);
     expect((await remove("user", adminCookie)).status).toBe(404);
   });
 

@@ -38,6 +38,14 @@ describe("failed login throttling", () => {
     start(limiter, "fresh-user", "192.0.2.2")(false);
   });
 
+  it("does not let unidentified clients lock out an unrelated user's login", () => {
+    const limiter = createLoginRateLimiter(() => 0);
+    for (let i = 0; i < 100; i++) start(limiter, `user${i}`, "unknown")(false);
+    start(limiter, "valid-user", "unknown")(true);
+    for (let i = 0; i < 4; i++) start(limiter, "user0", "unknown")(false);
+    expect(limiter.begin("user0", "unknown")).toEqual({ retryAfter: 900 });
+  });
+
   it("clears a user's failures on success without accumulating successful logins", () => {
     const limiter = createLoginRateLimiter(() => 0);
     for (let i = 0; i < 4; i++) start(limiter)(false);

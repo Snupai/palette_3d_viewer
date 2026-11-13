@@ -331,8 +331,9 @@ describe("PlannerProjectWorkspace editor integration", () => {
             (await server.getProject(project.id)).project?.productNumber,
           ).toBe("AFTER-SYNC"),
         );
+        // The sync write is bound to the account this tab saw signed in.
         expect(save.mock.calls.map(([, options]) => options)).toEqual([
-          { expectedVersion: null },
+          { expectedVersion: null, expectedActorId: "u-alice" },
           { expectedVersion: 1 },
         ]);
         expect(await browserStorage.list(PROJECTS_STORE_NAME)).toEqual([]);

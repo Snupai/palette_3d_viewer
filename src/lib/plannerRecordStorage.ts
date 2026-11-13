@@ -24,6 +24,12 @@ export type RecordWriteOptions = {
    * A number: the record must exist with exactly that version.
    */
   expectedVersion?: RecordVersion | null;
+  /**
+   * Server storage only: the account id this write is meant for. The server
+   * rejects it without changes when the session belongs to someone else
+   * (e.g. after a sign-in in another tab). Ignored by browser storages.
+   */
+  expectedActorId?: string;
 };
 
 export type VersionedRecord = {

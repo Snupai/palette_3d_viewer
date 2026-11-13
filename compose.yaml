@@ -12,9 +12,9 @@
 #   docker compose run --rm migrate node admin.mjs init            # first admin
 #   docker compose run --rm migrate node admin.mjs reset-password  # recovery
 #
-# Set CONTAINER_ENGINE=podman for the bun scripts. Credentials match
-# DATABASE_URL in .env.example. Change PALETTE_DB_PASSWORD for any shared
-# installation. It is also placed verbatim into the services' DATABASE_URL, so
+# Set CONTAINER_ENGINE=podman for the bun scripts. PALETTE_DB_PASSWORD is
+# required (no default, so the stack never starts with a known password); set
+# it in .env before the first `up`. It is also placed verbatim into the services' DATABASE_URL, so
 # use URL-safe characters (A-Z a-z 0-9 - . _ ~) — `#`, `@`, `/`, `%` … would
 # break the URL and make `migrate` fail (compose cannot percent-encode).
 name: palette
@@ -35,7 +35,7 @@ services:
     restart: always
     environment:
       POSTGRES_USER: palette
-      POSTGRES_PASSWORD: ${PALETTE_DB_PASSWORD:-palette}
+      POSTGRES_PASSWORD: ${PALETTE_DB_PASSWORD:?Set PALETTE_DB_PASSWORD in .env (see docs/DEPLOYMENT.md)}
       POSTGRES_DB: palette
     ports:
       - "127.0.0.1:${PALETTE_DB_PORT:-5432}:5432"
@@ -55,7 +55,7 @@ services:
     image: localhost/palette-migrate:latest
     restart: "no"
     environment:
-      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@db:5432/palette
+      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:?Set PALETTE_DB_PASSWORD in .env (see docs/DEPLOYMENT.md)}@db:5432/palette
     depends_on:
       db:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     restart: always
     network_mode: host
     environment:
-      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:-palette}@127.0.0.1:${PALETTE_DB_PORT:-5432}/palette
+      DATABASE_URL: postgresql://palette:${PALETTE_DB_PASSWORD:?Set PALETTE_DB_PASSWORD in .env (see docs/DEPLOYMENT.md)}@127.0.0.1:${PALETTE_DB_PORT:-5432}/palette
       HOSTNAME: "127.0.0.1"
       PORT: "${PALETTE_APP_PORT:-3000}"
       PALETTE_LOGIN_TRUST_PROXY: ${PALETTE_LOGIN_TRUST_PROXY:-false}
@@ -112,7 +112,7 @@ services:
     environment:
       PGHOST: db
       PGUSER: palette
-      PGPASSWORD: ${PALETTE_DB_PASSWORD:-palette}
+      PGPASSWORD: ${PALETTE_DB_PASSWORD:?Set PALETTE_DB_PASSWORD in .env (see docs/DEPLOYMENT.md)}
       PGDATABASE: palette
       PALETTE_BACKUP_DIR: /backups
       PALETTE_BACKUP_INTERVAL_SECONDS: ${PALETTE_BACKUP_INTERVAL_SECONDS:-3600}

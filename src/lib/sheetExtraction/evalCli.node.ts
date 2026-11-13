@@ -13,10 +13,10 @@
  * Photos contain customer data and stay outside the repository; the report is
  * written next to them.
  */
-import { lstat, readFile, realpath, rename, writeFile } from "node:fs/promises";
-import { basename, isAbsolute, join } from "node:path";
+import { readFile, realpath, rename, writeFile } from "node:fs/promises";
+import { isAbsolute, join } from "node:path";
 import { countSheetErrors, type PalletSheet } from "~/domain/sheetExtraction";
-import { pathIsWithinRoot } from "~/lib/parity/discovery.node";
+import { readCorpusPhoto } from "~/lib/sheetExtraction/corpusPhoto.node";
 import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 import { resolveSheetExtractionEndpoint } from "~/lib/sheetExtraction/sheetExtractionConfig";
 
@@ -46,37 +46,11 @@ const FIELDS: readonly FieldName[] = [
   "productNumber",
 ];
 
-/** Same bound as the upload route; anything larger is not a sheet photo. */
-const MAX_PHOTO_BYTES = 20 * 1024 * 1024;
-
 function photoMimeType(file: string): string {
   const extension = file.toLowerCase().split(".").pop();
   if (extension === "png") return "image/png";
   if (extension === "webp") return "image/webp";
   return "image/jpeg";
-}
-
-/**
- * Reads one labelled photo. `labels.json` keys are untrusted: only plain
- * regular files directly inside the canonical corpus root are accepted, so a
- * key or link cannot send other files to the model.
- */
-async function readCorpusPhoto(root: string, file: string): Promise<Buffer> {
-  if (file !== basename(file) || file === "." || file === "..") {
-    throw new Error("Label key must be a plain file name inside the corpus.");
-  }
-  const path = join(root, file);
-  const stat = await lstat(path);
-  if (!stat.isFile()) {
-    throw new Error("Label key must name a regular file, not a link.");
-  }
-  if (stat.size > MAX_PHOTO_BYTES) {
-    throw new Error("Photo is larger than 20 MB.");
-  }
-  if (!pathIsWithinRoot(root, await realpath(path))) {
-    throw new Error("Photo resolves outside the corpus.");
-  }
-  return readFile(path);
 }
 
 const close = (a: number | null | undefined, b: number) =>

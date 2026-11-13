@@ -17,7 +17,10 @@ import {
 } from "~/domain/project/projectSchema";
 import { createProjectResource } from "~/domain/project/projectResource";
 import { getPalletTemplate } from "~/domain/project/palletTemplates";
-import { projectSolutionToPalletData } from "~/lib/projectAdapters";
+import {
+  projectSolutionToPalletData,
+  savedPalletToProjectV2,
+} from "~/lib/projectAdapters";
 import { semanticRobPlanFingerprint } from "~/lib/parityGoldenCase";
 import {
   MemoryPlannerRecordStorage,
@@ -285,6 +288,87 @@ describe("project repository", () => {
     expect(
       await storage.get(PROJECTS_STORE_NAME, "future-project"),
     ).toBeDefined();
+  });
+
+  it("quarantines legacy rows whose counts exceed plan limits before expansion", async () => {
+    const legacy = savedPalletToProjectV2(savedPallet());
+    const solution = legacy.solutions[0]!;
+    solution.patterns[0]!.grips[0]!.numPackages = 65;
+    solution.stack.trailingInterlayer = 17;
+    const storage = new MemoryPlannerRecordStorage({
+      [PROJECTS_STORE_NAME]: [legacy],
+    });
+    const repository = new ProjectRepository(storage, { now: () => 77 });
+
+    const result = await repository.listProjects();
+
+    expect(result.projects).toEqual([]);
+    expect(
+      result.diagnostics.map(({ code, path, message }) => ({
+        code,
+        path,
+        message,
+      })),
+    ).toEqual([
+      {
+        code: "invalid-project",
+        path: ["solutions", 0, "patterns", 0, "grips", 0, "numPackages"],
+        message: "Number must be less than or equal to 64",
+      },
+      {
+        code: "invalid-project",
+        path: ["solutions", 0, "stack", "trailingInterlayer"],
+        message: "Number must be less than or equal to 16",
+      },
+    ]);
+    expect(await storage.list(PROJECT_QUARANTINE_STORE_NAME)).toHaveLength(1);
+  });
+
+  it("quarantines legacy rows whose patterns add up past the project budget", async () => {
+    const legacy = savedPalletToProjectV2(savedPallet());
+    const solution = legacy.solutions[0]!;
+    const template = solution.patterns[0]!.grips[0]!;
+    // 32 grips × 62 packages = 1984 per pattern, within the per-layer limit.
+    solution.patterns = [
+      {
+        id: "dense",
+        name: "Dense",
+        grips: Array.from({ length: 32 }, (_, index) => ({
+          ...template,
+          id: `grip-${index}`,
+          groupNumber: index + 1,
+          numPackages: 62,
+        })),
+      },
+    ];
+    // 1984 unique + 50 stacked × 1984 = 101184 packages.
+    solution.stack.layers = Array.from({ length: 50 }, (_, index) => ({
+      id: `layer-${index}`,
+      patternId: "dense",
+      interlayerBefore: 0,
+    }));
+    const storage = new MemoryPlannerRecordStorage({
+      [PROJECTS_STORE_NAME]: [legacy],
+    });
+    const repository = new ProjectRepository(storage, { now: () => 77 });
+
+    const result = await repository.listProjects();
+
+    expect(result.projects).toEqual([]);
+    expect(
+      result.diagnostics.map(({ code, path, message }) => ({
+        code,
+        path,
+        message,
+      })),
+    ).toEqual([
+      {
+        code: "invalid-project",
+        path: ["solutions"],
+        message: "must not expand to more than 100000 packages (got 101184)",
+      },
+    ]);
+    expect(await storage.list(PROJECT_QUARANTINE_STORE_NAME)).toHaveLength(1);
   });
 
   it("persists reusable resources in their separate store", async () => {

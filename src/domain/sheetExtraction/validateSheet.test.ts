@@ -168,6 +168,45 @@ describe("validatePalletSheet", () => {
   });
 });
 
+describe("validatePalletSheet bounds", () => {
+  it("rejects oversized pallets, tiny cartons and huge counts before arithmetic", () => {
+    const started = performance.now();
+    const { sheet, issues } = validatePalletSheet(
+      raw({
+        cartonMm: { length: 1e-9, width: 1e-9, height: 122 },
+        blockMm: { length: 1e15, width: 1e15, height: 1e15 },
+        palletMm: { length: 1e15, width: 1e15 },
+        cartonsPerLayer: 1e12,
+        layers: 13,
+        cartonsPerPallet: 520,
+      }),
+    );
+    expect(performance.now() - started).toBeLessThan(1000);
+    expect(sheet.cartonMm).toBeNull();
+    expect(sheet.blockMm).toBeNull();
+    expect(sheet.palletMm).toEqual({ length: 1200, width: 800 });
+    expect(sheet.cartonsPerLayer).toBe(40);
+    expect(
+      issues
+        .filter(({ severity }) => severity === "error")
+        .map(({ field, message }) => [field, message]),
+    ).toEqual([
+      [
+        "cartonMm",
+        "Carton 1e-9 × 1e-9 × 122 mm is smaller than a carton can be; check the reading.",
+      ],
+      [
+        "palletMm",
+        "Pallet 1000000000000000 × 1000000000000000 mm is larger than a pallet can be; check the reading.",
+      ],
+      [
+        "blockMm",
+        "Block 1000000000000000 × 1000000000000000 mm does not fit the 1200 × 800 mm pallet.",
+      ],
+    ]);
+  });
+});
+
 describe("isCartonSideSum", () => {
   it.each([
     [777, 177, 123, true],
@@ -176,6 +215,14 @@ describe("isCartonSideSum", () => {
     [1152.2, 128, 93, true],
   ])("%s mm from %s / %s mm sides → %s", (side, length, width, expected) => {
     expect(isCartonSideSum(side, length, width)).toBe(expected);
+  });
+
+  it("refuses side sums that would need more than 1000 steps", () => {
+    // Both are whole multiples of 10 mm; only the second exceeds the step cap.
+    expect(isCartonSideSum(9_990, 10, 10)).toBe(true);
+    expect(isCartonSideSum(10_010, 10, 10)).toBe(false);
+    expect(isCartonSideSum(1e15, 148, 148)).toBe(false);
+    expect(isCartonSideSum(1184, 1e-12, 148)).toBe(false);
   });
 });
 

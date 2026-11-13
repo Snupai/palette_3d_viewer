@@ -14,6 +14,7 @@ account-independent `429` with `Retry-After`; no permanent account lock is store
 This deliberately accepts lost counters on restart and no coordination across
 processes. Multi-process deployment requires shared or proxy-level limiting.
 Forwarding headers are untrusted by default: Next.js has no socket peer in its
-Request API, so unidentified clients share an address bucket. Explicit proxy
+Request API, so unidentified clients get no address bucket (a shared one let
+one caller block every login); only the username limit applies. Explicit proxy
 trust requires blocking direct app access and overwriting `X-Forwarded-For` with
 one client IP. See [deployment](../DEPLOYMENT.md#login-throttling).

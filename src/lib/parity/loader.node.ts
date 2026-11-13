@@ -1,3 +1,4 @@
+import { constants } from "node:fs";
 import { lstat, open, realpath } from "node:fs/promises";
 import { basename, isAbsolute } from "node:path";
 import { pathIsWithinRoot } from "~/lib/parity/discovery.node";
@@ -111,7 +112,12 @@ export async function loadRobFileSafely(
 
   let handle;
   try {
-    handle = await open(file.absolutePath, "r");
+    // No link following on the final component: a swap to a symlink after
+    // the lstat above fails here instead of opening the link target.
+    handle = await open(
+      file.absolutePath,
+      constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0),
+    );
   } catch {
     rejected("unreadable", entryBasename, "The .rob file could not be opened.");
   }
@@ -148,6 +154,13 @@ export async function loadRobFileSafely(
         "file-too-large",
         entryBasename,
         "The loaded .rob file exceeds the configured byte limit.",
+      );
+    }
+    if (bytes.byteLength !== opened.size) {
+      rejected(
+        "file-changed",
+        entryBasename,
+        "The .rob file changed while it was being read.",
       );
     }
     return { basename: entryBasename, bytes };

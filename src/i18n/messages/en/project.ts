@@ -200,6 +200,8 @@ export const projectEn = {
   "project.library.policy.overwrite": "Overwrite existing",
   "project.library.import": "Import project + resource package",
   "project.action.restoreDraft": "Restore draft",
+  "project.error.serverQuotaExceeded":
+    "You have reached the maximum number of projects on the server. Delete projects you no longer need or contact an administrator.",
   "project.error.serverUnreachable":
     "The server is unreachable. The draft stays in this browser; please save again later.",
   "project.draft.pendingNetwork": "Save pending · server unreachable",

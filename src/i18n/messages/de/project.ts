@@ -210,6 +210,8 @@ export const projectDe = {
   "project.library.policy.overwrite": "Bestehende überschreiben",
   "project.library.import": "Projekt- und Ressourcenpaket importieren",
   "project.action.restoreDraft": "Entwurf wiederherstellen",
+  "project.error.serverQuotaExceeded":
+    "Sie haben die Höchstzahl an Projekten auf dem Server erreicht. Löschen Sie nicht mehr benötigte Projekte oder wenden Sie sich an eine Administratorin bzw. einen Administrator.",
   "project.error.serverUnreachable":
     "Der Server ist nicht erreichbar. Der Entwurf bleibt in diesem Browser erhalten; bitte später erneut speichern.",
   "project.draft.pendingNetwork":

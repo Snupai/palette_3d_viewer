@@ -2,6 +2,7 @@ import { isIP } from "node:net";
 
 const WINDOW_MS = 15 * 60 * 1000;
 const MAX_ENTRIES = 10_000;
+const UNKNOWN_ADDRESS = "unknown";
 
 type Bucket = { failures: number; pending: number; expiresAt: number };
 export type LoginAttempt =
@@ -22,10 +23,10 @@ export function createLoginRateLimiter(
         if (bucket.expiresAt <= time && bucket.pending === 0)
           buckets.delete(key);
       }
-      const keys = [
-        `user:${username.trim().toLowerCase()}`,
-        `address:${address}`,
-      ];
+      // An unidentified client has no address bucket: one shared bucket would
+      // let a single caller lock every account out. Usernames stay limited.
+      const keys = [`user:${username.trim().toLowerCase()}`];
+      if (address !== UNKNOWN_ADDRESS) keys.push(`address:${address}`);
       const limits = [5, 30];
       let retryAfter = 0;
       for (const [index, key] of keys.entries()) {
@@ -73,16 +74,16 @@ export function createLoginRateLimiter(
   };
 }
 
-/** Next's Request exposes no socket peer. Untrusted/missing headers share a bucket. */
+/** Next's Request exposes no socket peer. Untrusted/missing headers yield `unknown`. */
 export function loginClientAddress(
   request: Request,
   trustProxy: boolean,
 ): string {
-  if (!trustProxy) return "unknown";
+  if (!trustProxy) return UNKNOWN_ADDRESS;
   const value = request.headers.get("x-forwarded-for")?.trim() ?? "";
   // Require the trusted proxy to overwrite the header with one client IP.
-  // Scoped IPv6 addresses are not valid URL hosts. Use the shared fallback.
-  if (!isIP(value) || value.includes("%")) return "unknown";
+  // Scoped IPv6 addresses are not valid URL hosts. Treat them as unknown.
+  if (!isIP(value) || value.includes("%")) return UNKNOWN_ADDRESS;
   // URL canonicalizes equivalent IPv6 spellings.
   return isIP(value) === 6 ? new URL(`http://[${value}]`).hostname : value;
 }

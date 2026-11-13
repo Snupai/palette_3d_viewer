@@ -24,7 +24,11 @@ export const SERVER_STORE_NAMES: readonly PlannerStoreName[] = [
 ];
 
 export type ServerStorageErrorKind =
-  /** No or expired session (401). Sign in again; the draft stays local. */
+  /**
+   * No or expired session (401), or the session now belongs to another
+   * account than the write expected (403 `actor_mismatch`, e.g. a sign-in in
+   * another tab). Sign in again; the draft stays local.
+   */
   | "unauthenticated"
   /** The session user may not change this record (403). */
   | "forbidden"
@@ -73,7 +77,11 @@ export type ServerPlannerRecordStorageOptions = {
 const apiRecordSchema = z.object({
   record: z.record(z.string(), z.unknown()),
   version: z.number().int().positive(),
-  /** Absent in answers of older servers; treated as unknown. */
+  /**
+   * Absent for anonymous readers (and in answers of older servers): unknown.
+   * Signed-in readers see their own id or, as admins, any creator's;
+   * otherwise `null` (not theirs).
+   */
   createdBy: z.string().nullable().optional(),
 });
 const listSchema = z.object({ records: z.array(apiRecordSchema) });
@@ -135,9 +143,10 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
 
   /**
    * The id of the user who created the record, as last seen by a list, read
-   * or write of this client: `null` when the server records no creator (the
-   * account was deleted), `undefined` when this client has not seen the
-   * record. A hint for the UI only; the server enforces write access.
+   * or write of this client: `null` when it is not the signed-in reader's
+   * (another account, or the creator was deleted; admins see every id),
+   * `undefined` when unknown (not seen, or read anonymously). A hint for the
+   * UI only; the server enforces write access.
    */
   createdBy(
     storeName: PlannerStoreName,
@@ -176,7 +185,14 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
       storeName,
       method: "PUT",
       path: recordPath(storeName, id),
-      body: { record, expectedVersion },
+      body:
+        options?.expectedActorId === undefined
+          ? { record, expectedVersion }
+          : {
+              record,
+              expectedVersion,
+              expectedActorId: options.expectedActorId,
+            },
     });
     if (response.status === 409) {
       throw await conflict(response, "put", storeName, id, expectedVersion);
@@ -318,6 +334,15 @@ export class ServerPlannerRecordStorage implements PlannerRecordStorage {
   }
 }
 
+/** The server refused a creation past the user's live-project quota. */
+export function isServerQuotaExceeded(error: unknown): boolean {
+  return (
+    error instanceof ServerStorageError &&
+    error.status === 403 &&
+    error.errorCode === "quota_exceeded"
+  );
+}
+
 function creatorKey(storeName: PlannerStoreName, id: string): string {
   return `${storeName}\u0000${id}`;
 }
@@ -348,8 +373,10 @@ async function failure(
   operation: keyof PlannerRecordStorage,
   storeName: PlannerStoreName,
 ): Promise<ServerStorageError> {
+  const errorCode = await errorCodeOf(response);
   const kind: ServerStorageErrorKind =
-    response.status === 401
+    response.status === 401 ||
+    (response.status === 403 && errorCode === "actor_mismatch")
       ? "unauthenticated"
       : response.status === 403
         ? "forbidden"
@@ -359,7 +386,7 @@ async function failure(
     operation,
     storeName,
     response.status,
-    await errorCodeOf(response),
+    errorCode,
   );
 }
 

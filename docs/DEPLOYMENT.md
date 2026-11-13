@@ -207,9 +207,15 @@ Rejected requests do not extend the window. A successful login clears only the
 username's failures, preserving the address's protection against password sprays.
 
 Next.js Request does not expose the socket peer. By default the app ignores all
-forwarding headers and uses one shared address bucket, alongside individual
-username buckets. This also applies to missing or invalid trusted headers and
-means users can temporarily share an address throttle.
+forwarding headers and applies only the per-username limit; there is no
+address limit for unidentified clients, because one shared bucket would let a
+single caller lock every account out. This also applies to missing or invalid
+trusted headers. Without proxy trust, password sprays across many usernames are
+therefore bounded only per username; enable proxy trust to add the per-IP limit.
+
+Login and admin API JSON bodies are capped at 16 KiB (declared
+`Content-Length` and streamed bytes); larger requests get `413
+payload_too_large` before parsing.
 
 Set runtime `PALETTE_LOGIN_TRUST_PROXY=true` (also passed through Compose) only
 when direct client access to the app is blocked and your trusted HTTPS proxy

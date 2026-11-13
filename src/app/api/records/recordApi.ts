@@ -10,8 +10,11 @@ import {
   type RecordConflict,
   type RecordForbidden,
   type RecordInvalid,
+  type RecordQuotaExceeded,
   type StoredRecord,
 } from "~/server/records/recordRepository";
+import { getSessionUser } from "~/server/auth/sessionUser";
+import type { PlannerDatabase } from "~/server/db/database";
 
 import { jsonNoStore } from "../auth/responses";
 
@@ -49,18 +52,48 @@ export const MAX_EXPECTED_VERSION = 2_147_483_646;
 /** Request bodies wrap the record; leave room for the envelope. */
 export const MAX_RECORD_BODY_BYTES = MAX_RECORD_BYTES + 64 * 1024;
 
+/**
+ * Live projects a non-admin user may have created at once (finding: unlimited
+ * creation). Generous for one planner's work, small enough that one account
+ * cannot fill the shared database; admins are exempt.
+ */
+export const MAX_PROJECTS_PER_USER = 500;
+
+/** Who reads a record: `null` for an anonymous caller. */
+export type RecordReader = { userId: string; admin: boolean } | null;
+
 export type ApiRecord = {
   record: Record<string, unknown>;
   version: number;
-  /** Creating user's id; `null` when unknown or that user was deleted. */
-  createdBy: string | null;
+  /**
+   * Only for signed-in readers (ADR 0003 excludes account data from public
+   * reads): the creator's id when the reader is that creator or an admin,
+   * otherwise `null` (someone else's, or the creator was deleted).
+   */
+  createdBy?: string | null;
 };
 
-export function toApiRecord(stored: StoredRecord): ApiRecord {
+/** The reader of a public GET: the session user, if any. */
+export async function recordReader(
+  request: Request,
+  db: PlannerDatabase,
+): Promise<RecordReader> {
+  const user = await getSessionUser(request, db);
+  return user ? { userId: user.id, admin: user.role === "admin" } : null;
+}
+
+export function toApiRecord(
+  stored: StoredRecord,
+  reader: RecordReader,
+): ApiRecord {
+  const base = { record: stored.record, version: stored.version };
+  if (!reader) return base;
   return {
-    record: stored.record,
-    version: stored.version,
-    createdBy: stored.createdBy,
+    ...base,
+    createdBy:
+      reader.admin || stored.createdBy === reader.userId
+        ? stored.createdBy
+        : null,
   };
 }
 
@@ -70,9 +103,15 @@ export function unknownStore(): NextResponse {
 
 /** Maps a repository rejection to its HTTP response. */
 export function rejectionResponse(
-  result: RecordInvalid | RecordForbidden | RecordConflict,
+  result:
+    | RecordInvalid
+    | RecordForbidden
+    | RecordConflict
+    | RecordQuotaExceeded,
 ): NextResponse {
   switch (result.kind) {
+    case "quota-exceeded":
+      return jsonNoStore({ error: "quota_exceeded", limit: result.limit }, 403);
     case "conflict":
       return jsonNoStore(
         { error: "version_conflict", currentVersion: result.actualVersion },

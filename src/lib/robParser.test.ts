@@ -186,6 +186,21 @@ describe("parseRobText validation", () => {
     expect(() => parseRobText(text)).toThrow(/num_packages.*must be > 0/i);
   });
 
+  it("rejects package counts above the per-grip limit or outside safe integers", () => {
+    const withCount = (count: string) =>
+      sampleRob().replace(
+        "100 50 0 600 400 0 1 0 0",
+        `100 50 0 600 400 0 ${count} 0 0`,
+      );
+    expect(() => parseRobText(withCount("64"))).not.toThrow();
+    expect(() => parseRobText(withCount("65"))).toThrow(
+      '.rob line 8: field "num_packages" must be <= 64 (got 65)',
+    );
+    expect(() => parseRobText(withCount("9007199254740993"))).toThrow(
+      '.rob line 8: field "num_packages" is not a safe integer',
+    );
+  });
+
   it("rejects undefined unique layer references", () => {
     const text = [
       "1200 800 144",

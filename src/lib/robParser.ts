@@ -1,5 +1,12 @@
 import { createGripId } from "~/domain/gripId";
 import { gripsToBoxes, pickOffsetForCount } from "~/domain/palletGeometry";
+import {
+  MAX_EXPANDED_PACKAGES,
+  MAX_INTERLAYERS_PER_BOUNDARY,
+  MAX_PACKAGES_PER_GRIP,
+  MAX_PACKAGES_PER_LAYER,
+  MAX_STACK_LAYERS,
+} from "~/domain/planLimits";
 import type {
   Box,
   Grip,
@@ -64,8 +71,23 @@ function parseRequiredIntToken(
     );
   }
   const value = Number.parseInt(token, 10);
-  if (!Number.isFinite(value)) {
-    throw robError(lineNumber, `field "${field}" is not a finite integer`);
+  if (!Number.isSafeInteger(value)) {
+    throw robError(lineNumber, `field "${field}" is not a safe integer`);
+  }
+  return value;
+}
+
+function assertAtMost(
+  value: number,
+  max: number,
+  lineNumber: number,
+  field: string,
+): number {
+  if (value > max) {
+    throw robError(
+      lineNumber,
+      `field "${field}" must be <= ${max} (got ${value})`,
+    );
   }
   return value;
 }
@@ -199,15 +221,21 @@ export function parseRobText(text: string): PalletData {
     3,
     "unique layer count",
   );
-  const num_layers = parseNonNegativeCount(
-    splitTokens(layersCountLine)[0],
+  const num_layers = assertAtMost(
+    parseNonNegativeCount(
+      splitTokens(layersCountLine)[0],
+      4,
+      "total layer count",
+    ),
+    MAX_STACK_LAYERS,
     4,
     "total layer count",
   );
 
   const headerTokens = splitTokens(lines[4] ?? "");
-  const firstLayerZwischenlage = parseOptionalNonNegIntToken(
-    headerTokens[1],
+  const firstLayerZwischenlage = assertAtMost(
+    parseOptionalNonNegIntToken(headerTokens[1], 5, "base zwischenlage"),
+    MAX_INTERLAYERS_PER_BOUNDARY,
     5,
     "base zwischenlage",
   );
@@ -227,8 +255,9 @@ export function parseRobText(text: string): PalletData {
       lineNumber,
       "unique layer id",
     );
-    const zwischenlage = parseOptionalNonNegIntToken(
-      parts[1],
+    const zwischenlage = assertAtMost(
+      parseOptionalNonNegIntToken(parts[1], lineNumber, "zwischenlage"),
+      MAX_INTERLAYERS_PER_BOUNDARY,
       lineNumber,
       "zwischenlage",
     );
@@ -236,6 +265,7 @@ export function parseRobText(text: string): PalletData {
     current_line += 1;
   }
 
+  let expandedPackages = 0;
   const parseLayerGrips = (uniqueLayerId: number): Grip[] => {
     // Skip over any empty lines before the count line
     while (current_line < lines.length && lines[current_line]?.trim() === "")
@@ -248,13 +278,19 @@ export function parseRobText(text: string): PalletData {
         `missing coordinates count for unique layer ${uniqueLayerId}`,
       );
     }
-    const num_coordinates = parseNonNegativeCount(
-      splitTokens(countLine)[0],
+    const num_coordinates = assertAtMost(
+      parseNonNegativeCount(
+        splitTokens(countLine)[0],
+        countLineNumber,
+        "coordinates count",
+      ),
+      MAX_PACKAGES_PER_LAYER,
       countLineNumber,
       "coordinates count",
     );
     current_line += 1;
     const grips: Grip[] = [];
+    let layerPackages = 0;
     for (let i = 0; i < num_coordinates; i++) {
       // Move past accidental blank lines within coordinate block
       while (current_line < lines.length && lines[current_line]?.trim() === "")
@@ -271,6 +307,26 @@ export function parseRobText(text: string): PalletData {
           `coordinate line needs 9 integer fields (got ${rawParts.length})`,
         );
       }
+      const numPackages = assertAtMost(
+        parsePositiveCount(rawParts[6], lineNumber, "num_packages"),
+        MAX_PACKAGES_PER_GRIP,
+        lineNumber,
+        "num_packages",
+      );
+      layerPackages += numPackages;
+      if (layerPackages > MAX_PACKAGES_PER_LAYER) {
+        throw robError(
+          lineNumber,
+          `unique layer ${uniqueLayerId} exceeds ${MAX_PACKAGES_PER_LAYER} packages`,
+        );
+      }
+      expandedPackages += numPackages;
+      if (expandedPackages > MAX_EXPANDED_PACKAGES) {
+        throw robError(
+          lineNumber,
+          `plan exceeds ${MAX_EXPANDED_PACKAGES} packages`,
+        );
+      }
       grips.push({
         id: createGripId(),
         pickX: parseRequiredIntToken(rawParts[0], lineNumber, "pick x"),
@@ -283,11 +339,7 @@ export function parseRobText(text: string): PalletData {
         x: parseRequiredIntToken(rawParts[3], lineNumber, "x"),
         y: parseRequiredIntToken(rawParts[4], lineNumber, "y"),
         rotation: parseRotationToken(rawParts[5], lineNumber, "rotation"),
-        numPackages: parsePositiveCount(
-          rawParts[6],
-          lineNumber,
-          "num_packages",
-        ),
+        numPackages,
         dx: parseRequiredIntToken(rawParts[7], lineNumber, "dx"),
         dy: parseRequiredIntToken(rawParts[8], lineNumber, "dy"),
       });
@@ -341,6 +393,13 @@ export function parseRobText(text: string): PalletData {
       throw robError(
         lineNumber,
         `unique layer id ${entry.unique_layer_id} is not defined`,
+      );
+    }
+    expandedPackages += src.boxes.length;
+    if (expandedPackages > MAX_EXPANDED_PACKAGES) {
+      throw robError(
+        lineNumber,
+        `plan exceeds ${MAX_EXPANDED_PACKAGES} packages`,
       );
     }
     layers.push({

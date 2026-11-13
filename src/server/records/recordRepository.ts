@@ -22,8 +22,10 @@ import { plannerRecords, type PlannerRecordRow } from "../db/schema";
  * and `conflict` → 409.
  * Database failures still throw.
  *
- * Deletes retain a tombstone with an empty payload. Recreating the same key
- * atomically advances its version; reads and conflicts hide deleted rows.
+ * Deletes retain a tombstone with an empty payload and the former creator.
+ * Recreating the same key atomically advances its version; with
+ * `onlyCreatedBy` only the former creator may revive it (ADR 0012). Reads and
+ * conflicts hide deleted rows.
  */
 
 /** Largest accepted record, measured as UTF-8 bytes of its JSON text. */
@@ -80,6 +82,17 @@ export type RecordForbidden = {
   id: string;
 };
 
+/**
+ * A creation restricted by `maxCreatedRecords` would exceed the user's
+ * live-record quota in this store.
+ */
+export type RecordQuotaExceeded = {
+  ok: false;
+  kind: "quota-exceeded";
+  store: PlannerStoreName;
+  limit: number;
+};
+
 export type ListRecordsResult =
   | { ok: true; records: StoredRecord[] }
   | RecordInvalid;
@@ -92,7 +105,8 @@ export type PutRecordResult =
   | { ok: true; record: StoredRecord }
   | RecordInvalid
   | RecordForbidden
-  | RecordConflict;
+  | RecordConflict
+  | RecordQuotaExceeded;
 
 export type DeleteRecordResult =
   | { ok: true }
@@ -112,10 +126,17 @@ export type PutRecordInput = {
   /** Creator on creation (including recreation); unchanged by updates. */
   userId: string | null;
   /**
-   * Update only: apply only if the record's `created_by` is this user id,
-   * checked in the same statement as the version. Ignored for inserts.
+   * Apply only if the record's `created_by` is this user id, checked in the
+   * same statement as the version. For creation it restricts only the revival
+   * of a tombstone to its former creator (ADR 0012); a fresh id is unaffected.
    */
   onlyCreatedBy?: string;
+  /**
+   * Creation only: reject with `quota-exceeded` when `userId` already created
+   * this many live records in the store. Counted and inserted under a per-user
+   * advisory lock, so concurrent creations cannot overshoot.
+   */
+  maxCreatedRecords?: number;
 };
 
 export type DeleteRecordInput = {
@@ -301,6 +322,114 @@ async function rejectedWrite(
   };
 }
 
+/**
+ * Why a creation matched no row: a tombstone reserved for its former creator
+ * is `forbidden`, a live record a conflict with its version.
+ */
+async function rejectedCreate(
+  db: PlannerDatabase,
+  store: PlannerStoreName,
+  id: string,
+): Promise<RecordForbidden | RecordConflict> {
+  const [row] = await db
+    .select({
+      version: plannerRecords.version,
+      deleted: plannerRecords.deleted,
+    })
+    .from(plannerRecords)
+    .where(recordKey(store, id))
+    .limit(1);
+  if (row?.deleted) return { ok: false, kind: "forbidden", store, id };
+  return {
+    ok: false,
+    kind: "conflict",
+    store,
+    id,
+    expectedVersion: null,
+    actualVersion: row?.version ?? null,
+  };
+}
+
+type PlannerExecutor =
+  | PlannerDatabase
+  | Parameters<Parameters<PlannerDatabase["transaction"]>[0]>[0];
+
+/** Insert a fresh row, or revive a tombstone the caller may revive. */
+function insertOrRevive(
+  db: PlannerExecutor,
+  store: PlannerStoreName,
+  id: string,
+  json: Record<string, unknown>,
+  input: PutRecordInput,
+  now: Date,
+) {
+  return db
+    .insert(plannerRecords)
+    .values({
+      store,
+      id,
+      json,
+      version: 1,
+      createdBy: input.userId,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .onConflictDoUpdate({
+      target: [plannerRecords.store, plannerRecords.id],
+      set: {
+        json,
+        deleted: false,
+        version: sql`${plannerRecords.version} + 1`,
+        createdBy: input.userId,
+        createdAt: now,
+        updatedAt: now,
+      },
+      setWhere: and(
+        eq(plannerRecords.deleted, true),
+        creatorGuard(input.onlyCreatedBy),
+      ),
+    })
+    .returning();
+}
+
+/**
+ * Creation under the per-user quota: a transaction-scoped advisory lock per
+ * store and user serializes the count and the insert.
+ */
+async function createWithinQuota(
+  db: PlannerDatabase,
+  store: PlannerStoreName,
+  id: string,
+  json: Record<string, unknown>,
+  input: PutRecordInput & { userId: string; maxCreatedRecords: number },
+  now: Date,
+): Promise<PlannerRecordRow[] | RecordQuotaExceeded> {
+  return db.transaction(async (tx) => {
+    await tx.execute(
+      sql`select pg_advisory_xact_lock(hashtextextended(${`planner_records:${store}:${input.userId}`}, 0))`,
+    );
+    const [counted] = await tx
+      .select({ live: sql<number>`count(*)::int` })
+      .from(plannerRecords)
+      .where(
+        and(
+          eq(plannerRecords.store, store),
+          eq(plannerRecords.createdBy, input.userId),
+          eq(plannerRecords.deleted, false),
+        ),
+      );
+    if ((counted?.live ?? 0) >= input.maxCreatedRecords) {
+      return {
+        ok: false,
+        kind: "quota-exceeded",
+        store,
+        limit: input.maxCreatedRecords,
+      } satisfies RecordQuotaExceeded;
+    }
+    return insertOrRevive(tx, store, id, json, input, now);
+  });
+}
+
 /** All records of one store, ordered by id. */
 export async function listRecords(
   db: PlannerDatabase,
@@ -356,60 +485,46 @@ export async function putRecord(
   if (!validated.ok) return validated;
   const { id, json } = validated.value;
 
-  const rows =
-    expectedVersion === null
-      ? await db
-          .insert(plannerRecords)
-          .values({
+  if (expectedVersion === null) {
+    const { userId, maxCreatedRecords } = input;
+    const created =
+      maxCreatedRecords !== undefined && userId !== null
+        ? await createWithinQuota(
+            db,
             store,
             id,
             json,
-            version: 1,
-            createdBy: input.userId,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .onConflictDoUpdate({
-            target: [plannerRecords.store, plannerRecords.id],
-            set: {
-              json,
-              deleted: false,
-              version: sql`${plannerRecords.version} + 1`,
-              createdBy: input.userId,
-              createdAt: now,
-              updatedAt: now,
-            },
-            setWhere: eq(plannerRecords.deleted, true),
-          })
-          .returning()
-      : await db
-          .update(plannerRecords)
-          // `created_by` / `created_at` are deliberately not touched.
-          .set({
-            json,
-            version: expectedVersion + 1,
-            updatedAt: now,
-          })
-          .where(
-            and(
-              recordKey(store, id),
-              eq(plannerRecords.deleted, false),
-              eq(plannerRecords.version, expectedVersion),
-              creatorGuard(input.onlyCreatedBy),
-            ),
+            { ...input, userId, maxCreatedRecords },
+            now,
           )
-          .returning();
+        : await insertOrRevive(db, store, id, json, input, now);
+    if (!Array.isArray(created)) return created;
+    const [row] = created;
+    if (row) return { ok: true, record: toStoredRecord(row) };
+    return rejectedCreate(db, store, id);
+  }
+
+  const rows = await db
+    .update(plannerRecords)
+    // `created_by` / `created_at` are deliberately not touched.
+    .set({
+      json,
+      version: expectedVersion + 1,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        recordKey(store, id),
+        eq(plannerRecords.deleted, false),
+        eq(plannerRecords.version, expectedVersion),
+        creatorGuard(input.onlyCreatedBy),
+      ),
+    )
+    .returning();
 
   const [row] = rows;
   if (row) return { ok: true, record: toStoredRecord(row) };
-  return rejectedWrite(
-    db,
-    store,
-    id,
-    expectedVersion,
-    // Creation only replaces tombstones; a live record always conflicts.
-    expectedVersion === null ? undefined : input.onlyCreatedBy,
-  );
+  return rejectedWrite(db, store, id, expectedVersion, input.onlyCreatedBy);
 }
 
 /** Deletes one record if it is still at `expectedVersion`. */
@@ -429,10 +544,11 @@ export async function deleteRecord(
   }
   const removed = await db
     .update(plannerRecords)
+    // `created_by` stays: only the former creator (or an admin) may revive
+    // this id (ADR 0012).
     .set({
       deleted: true,
       json: {},
-      createdBy: null,
       updatedAt: new Date(),
     })
     .where(

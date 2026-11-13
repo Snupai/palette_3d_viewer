@@ -13,7 +13,10 @@ import type {
 } from "~/lib/browserPlanStorage";
 import { PROJECTS_STORE_NAME } from "~/lib/plannerDatabase";
 import { RecordVersionConflictError } from "~/lib/plannerRecordStorage";
-import { ServerStorageError } from "~/lib/serverPlannerRecordStorage";
+import {
+  isServerQuotaExceeded,
+  ServerStorageError,
+} from "~/lib/serverPlannerRecordStorage";
 import {
   contentHash,
   mayReplaceProject,
@@ -236,6 +239,8 @@ export function browserSyncErrorMessage(error: unknown, t: Translate): string {
     error.errorCode === "record_too_large"
   )
     return t("localImport.error.recordTooLarge");
+  if (isServerQuotaExceeded(error))
+    return t("project.error.serverQuotaExceeded");
   return error instanceof Error
     ? error.message
     : t("localImport.error.unknown");

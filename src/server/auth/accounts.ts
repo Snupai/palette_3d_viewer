@@ -50,10 +50,46 @@ function getDummyHash(): Promise<string> {
   return dummyHash;
 }
 
+/** The acting admin was deleted (or demoted) after the request was authorized. */
+export class ActorNotAdminError extends Error {
+  constructor() {
+    super("acting user is no longer an admin");
+  }
+}
+
+type PlannerTransaction = Parameters<
+  Parameters<PlannerDatabase["transaction"]>[0]
+>[0];
+
+/**
+ * Locks every admin row in ID order and returns their IDs, or `null` when
+ * `actorId` is not among them. All privileged mutations take this lock first,
+ * in the same order, so they serialize against account deletion (ADR 0005)
+ * without deadlocking, and none commits for an already deleted admin.
+ */
+export async function lockAdminsForActor(
+  tx: PlannerTransaction,
+  actorId: string,
+): Promise<string[] | null> {
+  const admins = await tx
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.role, "admin"))
+    .orderBy(asc(users.id))
+    .for("update");
+  const ids = admins.map((admin) => admin.id);
+  return ids.includes(actorId) ? ids : null;
+}
+
+/**
+ * Creates an account. With `actorId` (admin API), the insert commits only if
+ * that user is still an admin; otherwise `ActorNotAdminError` is thrown.
+ */
 export async function createUser(
   db: PlannerDatabase,
   input: { username: string; password: string; role: UserRole },
   now: Date,
+  options: { actorId?: string } = {},
 ): Promise<AuthUser> {
   const username = normalizeUsername(input.username);
   const passwordHash = await hashPassword(input.password);
@@ -66,11 +102,16 @@ export async function createUser(
   };
   // ON CONFLICT instead of a pre-check: two concurrent creates of the same
   // name cannot both pass, and the loser gets the domain error.
-  const inserted = await db
-    .insert(users)
-    .values(row)
-    .onConflictDoNothing({ target: users.username })
-    .returning({ id: users.id });
+  const inserted = await db.transaction(async (tx) => {
+    if (options.actorId && !(await lockAdminsForActor(tx, options.actorId))) {
+      throw new ActorNotAdminError();
+    }
+    return tx
+      .insert(users)
+      .values(row)
+      .onConflictDoNothing({ target: users.username })
+      .returning({ id: users.id });
+  });
   if (inserted.length === 0) throw new UsernameTakenError(username);
   return toAuthUser(row);
 }
@@ -228,15 +269,20 @@ async function passwordHashUnchanged(
 /**
  * Sets a new password and revokes all of the user's sessions in one
  * transaction (ADR 0005: a reset invalidates existing logins). Returns
- * `false` for an unknown user.
+ * `false` for an unknown user. With `actorId` (admin API), throws
+ * `ActorNotAdminError` unless that user is still an admin at commit time.
  */
 export async function setUserPassword(
   db: PlannerDatabase,
   userId: string,
   password: string,
+  options: { actorId?: string } = {},
 ): Promise<boolean> {
   const passwordHash = await hashPassword(password);
   return db.transaction(async (tx) => {
+    if (options.actorId && !(await lockAdminsForActor(tx, options.actorId))) {
+      throw new ActorNotAdminError();
+    }
     const updated = await tx
       .update(users)
       .set({ passwordHash })
