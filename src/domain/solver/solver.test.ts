@@ -1842,8 +1842,8 @@ describe("candidate canonicalization and geometric deduplication", () => {
 
 describe("deterministic solve orchestration", () => {
   it.each([
-    { packageCount: 102, candidateCount: 372, groupCapacity: 3 },
-    { packageCount: 101, candidateCount: 555, groupCapacity: 2 },
+    { packageCount: 102, candidateCount: 357, groupCapacity: 3 },
+    { packageCount: 101, candidateCount: 563, groupCapacity: 2 },
   ])(
     "finds dense 121 × 76 mm layouts with exactly $packageCount packages on a EURO pallet",
     ({ packageCount, candidateCount, groupCapacity }) => {

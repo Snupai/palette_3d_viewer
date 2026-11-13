@@ -567,10 +567,16 @@ export function finalizeGeneratedCandidates(
     const cachedCandidate = canonicalCandidates.get(canonicalKey);
     let prepared = cachedCandidate;
     if (prepared === undefined) {
-      const geometryFingerprint = candidateGeometryFingerprint({
-        placements,
-      });
       const grouped = groupCandidatePlacements(input, placements);
+      // Grip planning may slide packages: identify the final geometry, so
+      // drafts that slide into the same layout merge as duplicates.
+      const finalPlacements = grouped.placements.map((placement) => ({
+        ...placement,
+        gripId: null,
+      }));
+      const geometryFingerprint = candidateGeometryFingerprint({
+        placements: finalPlacements,
+      });
       const candidate = createUnrankedCandidate(
         input,
         grouped,
@@ -582,7 +588,10 @@ export function finalizeGeneratedCandidates(
         symmetryClassKey:
           hooks.candidateEquivalence === "identity"
             ? candidate.identityFingerprint
-            : candidateSymmetryClassKey(placements, input.generationBoundsMm),
+            : candidateSymmetryClassKey(
+                finalPlacements,
+                input.generationBoundsMm,
+              ),
       };
       canonicalCandidates.set(canonicalKey, prepared);
     }
