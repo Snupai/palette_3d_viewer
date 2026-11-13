@@ -235,9 +235,10 @@ describe("optimizeSuctionGroups", () => {
   });
 
   it("keeps re-deciding lines until no single chain is left", () => {
-    // Four passes left (500,75) touching the single (550,125); a later pass
-    // makes (300,75) the single instead.
-    const rows: [number, number[]][] = [
+    // Columns (laid bottom to top, so a single may lead a column). Four
+    // passes left (500,75) touching the single (550,125); a later pass makes
+    // (300,75) the single instead. Ids name (axis/cross) positions.
+    const columns: [number, number[]][] = [
       [25, [1200]],
       [75, [300, 400, 500]],
       [125, [350, 450, 550]],
@@ -245,8 +246,8 @@ describe("optimizeSuctionGroups", () => {
       [225, [475, 575, 675]],
       [275, [200, 550]],
     ];
-    const placements = rows.flatMap(([y, xs]) =>
-      xs.map((x) => box(`${x}/${y}`, x, y)),
+    const placements = columns.flatMap(([x, ys]) =>
+      ys.map((y) => box(`${y}/${x}`, x, y, 90)),
     );
     const result = optimizeSuctionGroups(placements, {
       spanMm: 100,

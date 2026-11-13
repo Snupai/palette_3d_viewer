@@ -16,9 +16,10 @@ import {
   buildGripVerticalOverlapDependencies,
   deriveGripDeltasForPlacementOrder,
   mergeGripOrderDependencies,
+  createGripPocketGuard,
   orderGripsByDependencies,
 } from "~/domain/gripDependencies";
-import { partitionPlacementsForSuction } from "~/domain/robotics/grouping";
+import { optimizeSuctionGroups } from "~/domain/robotics/gripOptimizer";
 import { selectNearestEdgeLabelYaw } from "~/domain/solver/labelOrientation";
 import {
   calculateCandidateMetrics,
@@ -234,16 +235,33 @@ function canonicalCandidatePlacements(
 function groupCandidatePlacements(
   input: NormalizedLayerSolverInput,
   placements: readonly UngroupedCandidatePlacement[],
+  allowShift: boolean,
 ): Pick<SolverCandidate, "placements" | "grips" | "orderDependencies"> {
   const groupable = placements.map((placement) => ({
     ...placement,
     id: `placement-${placement.sequence + 1}`,
   }));
-  const partitions = partitionPlacementsForSuction(groupable, {
-    packageLengthMm: input.package.dimensionsMm.length,
+  // Same grip optimizer as the editor's "Order automatically": packages may
+  // slide along their line into small gaps so neighbours share a grip. It
+  // never creates overlaps, keeps outer packages on the layer edge and does
+  // not slide when a clearance is required.
+  const optimized = optimizeSuctionGroups(groupable, {
+    spanMm: input.package.dimensionsMm.length,
+    packageSizeMm: input.package.dimensionsMm,
     maxPackagesPerPick: input.constraints.provisionalPackagesPerCycle,
-    remainderPolicy: input.constraints.suctionRemainderPolicy,
+    maxShiftMm: allowShift ? input.package.dimensionsMm.length : 0,
+    clearanceMm: input.package.clearanceMm,
   });
+  const shifted = groupable.map((placement) => {
+    const positionMm = optimized.movedPositions.get(placement.id);
+    return positionMm ? { ...placement, positionMm } : placement;
+  });
+  const placementById = new Map(
+    shifted.map((placement) => [placement.id, placement]),
+  );
+  const partitions = optimized.groups.map((ids) =>
+    ids.map((id) => placementById.get(id)!),
+  );
   const gripIdByPlacementSequence = new Map<number, string>();
   const rawGrips = partitions.map((members) => {
     const id = `generated-grip:${members
@@ -274,7 +292,7 @@ function groupCandidatePlacements(
       dy: 0,
     };
   });
-  const placementsWithGripIds = placements.map((placement) => ({
+  const placementsWithGripIds = shifted.map(({ id: _, ...placement }) => ({
     ...placement,
     gripId: gripIdByPlacementSequence.get(placement.sequence)!,
   }));
@@ -286,6 +304,13 @@ function groupCandidatePlacements(
   const ungrippedGrips = orderGripsByDependencies(
     rawGrips,
     verticalDependencies,
+    undefined,
+    undefined,
+    createGripPocketGuard(
+      rawGrips.map(({ id }) => id),
+      placementsWithGripIds,
+      input.package.dimensionsMm,
+    ),
   ).map((grip, sequence) => ({
     ...grip,
     groupNumber: sequence + 1,
@@ -543,14 +568,37 @@ export function finalizeGeneratedCandidates(
     const cachedCandidate = canonicalCandidates.get(canonicalKey);
     let prepared = cachedCandidate;
     if (prepared === undefined) {
+      let grouped = groupCandidatePlacements(input, placements, true);
+      let candidateValidation = validation;
+      // Sliding must not break input rules (e.g. a required block shape):
+      // revalidate a slid layout and fall back to the generated spacing.
+      if (
+        grouped.placements.some(
+          ({ positionMm }, index) =>
+            positionMm.x !== placements[index]!.positionMm.x ||
+            positionMm.y !== placements[index]!.positionMm.y,
+        )
+      ) {
+        const slidValidation = validateCandidatePlacements(
+          input,
+          grouped.placements,
+        );
+        if (slidValidation.valid) candidateValidation = slidValidation;
+        else grouped = groupCandidatePlacements(input, placements, false);
+      }
+      // Grip planning may slide packages: identify the final geometry, so
+      // drafts that slide into the same layout merge as duplicates.
+      const finalPlacements = grouped.placements.map((placement) => ({
+        ...placement,
+        gripId: null,
+      }));
       const geometryFingerprint = candidateGeometryFingerprint({
-        placements,
+        placements: finalPlacements,
       });
-      const grouped = groupCandidatePlacements(input, placements);
       const candidate = createUnrankedCandidate(
         input,
         grouped,
-        validation,
+        candidateValidation,
         geometryFingerprint,
       );
       prepared = {
@@ -558,7 +606,10 @@ export function finalizeGeneratedCandidates(
         symmetryClassKey:
           hooks.candidateEquivalence === "identity"
             ? candidate.identityFingerprint
-            : candidateSymmetryClassKey(placements, input.generationBoundsMm),
+            : candidateSymmetryClassKey(
+                finalPlacements,
+                input.generationBoundsMm,
+              ),
       };
       canonicalCandidates.set(canonicalKey, prepared);
     }

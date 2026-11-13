@@ -643,7 +643,9 @@ describe("solver input and candidate validation", () => {
         input.package.dimensionsMm,
       ),
     ).toEqual(input.envelopeMm);
-  }, 30_000);
+    // CI runners take about 2.3x the local time (23 s of 30 s before grip
+    // access planning); the budget only guards against hangs.
+  }, 60_000);
 
   it("fills a pinwheel center to reach an exact package count", () => {
     const input: LayerSolverInput = {
@@ -1839,8 +1841,8 @@ describe("candidate canonicalization and geometric deduplication", () => {
 
 describe("deterministic solve orchestration", () => {
   it.each([
-    { packageCount: 102, candidateCount: 372, groupCapacity: 3 },
-    { packageCount: 101, candidateCount: 555, groupCapacity: 2 },
+    { packageCount: 102, candidateCount: 357, groupCapacity: 3 },
+    { packageCount: 101, candidateCount: 563, groupCapacity: 2 },
   ])(
     "finds dense 121 × 76 mm layouts with exactly $packageCount packages on a EURO pallet",
     ({ packageCount, candidateCount, groupCapacity }) => {
@@ -2483,7 +2485,9 @@ describe("AP5006 reference geometry", () => {
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );
-  }, 60_000);
+    // CI runners take about 2.2x the local time (52 s of 60 s before grip
+    // access planning); the budget only guards against hangs.
+  }, 90_000);
 
   it("keeps the observed 53-package four-block layout after finalization", () => {
     const envelopeMm = createCenteredEffectivePalletEnvelope(
@@ -2753,7 +2757,7 @@ describe("AP5006 reference geometry", () => {
       legacyCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
-    ).toEqual([29, 29, 29, 36, 43, 43, 43]);
+    ).toEqual([29, 29, 29, 29, 29, 35, 36]);
     expect(
       legacyCandidates
         .map(({ metrics }) => metrics.boundingBlockLengthMm)
@@ -2802,12 +2806,12 @@ describe("AP5006 reference geometry", () => {
       threeBlockCandidates
         .map(({ metrics }) => metrics.provisionalCycleCount)
         .sort((left, right) => left - right),
-    ).toEqual([29, 36, 43, 43]);
+    ).toEqual([29, 29, 29, 36]);
     expect(cFrameCandidates).toHaveLength(1);
     expect(cFrameCandidates[0]?.metrics).toEqual(
       expect.objectContaining({
         packageCount: 53,
-        provisionalCycleCount: 43,
+        provisionalCycleCount: 35,
         boundingBlockLengthMm: 1188,
         boundingBlockWidthMm: 780,
       }),
@@ -2851,7 +2855,7 @@ describe("AP5006 reference geometry", () => {
   }, 15_000);
 });
 
-it("uses the selected suction remainder policy deterministically", () => {
+it("groups generated grips like the editor whatever the remainder policy", () => {
   const input: LayerSolverInput = {
     package: {
       shape: "cuboid",
@@ -2888,7 +2892,19 @@ it("uses the selected suction remainder policy deterministically", () => {
           .sort((a, b) => a - b),
       )
       .sort((a, b) => a[0]! - b[0]!),
-  ).toEqual([[50], [150, 250], [350, 450]]);
+  ).toEqual([[50, 150], [250], [350, 450]]);
+  // The policy still shapes generator layouts but no longer the grips: the
+  // shared grip optimizer keeps the single grip at the centre of the row.
+  const centered = solveLayer({
+    ...input,
+    constraints: {
+      ...input.constraints,
+      suctionRemainderPolicy: "centered-singleton",
+    },
+  });
+  expect(centered.candidates.map(({ grips }) => grips)).toEqual(
+    first.candidates.map(({ grips }) => grips),
+  );
   expect(
     validateAndNormalizeSolverInput({
       ...input,

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { deriveGripDeltasForPlacementOrder } from "~/domain/gripDependencies";
 import { finalizeGeneratedCandidates } from "~/domain/solver/candidates";
+import { validateCandidatePlacements } from "~/domain/solver/validation";
 import { solveLayer } from "~/domain/solver/solve";
 import type {
   GeneratedCandidateDraft,
@@ -248,5 +249,77 @@ describe("candidate topology preferences", () => {
           provenance.some(({ family }) => family === "block"),
       ),
     ).toEqual([]);
+  });
+});
+
+describe("candidate grip planning", () => {
+  it("merges drafts that slide into the same layout", () => {
+    // p2 starts 5 or 10 mm away from p1; grip planning slides it against p1
+    // in both drafts, so they are one candidate, not two with one geometry.
+    const { normalized } = validateAndNormalizeSolverInput({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 50 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 350, maxY: 50 },
+      constraints: { allowedRotations: [0], provisionalPackagesPerCycle: 2 },
+    });
+    if (!normalized) throw new Error("Expected valid sliding test input.");
+    const draft = (x: number): GeneratedCandidateDraft => ({
+      placements: [50, x, 300].map((positionX) => ({
+        positionMm: { x: positionX, y: 25 },
+        rotation: 0,
+      })),
+      provenance: [{ family: "block", variant: `p2-at-${x}` }],
+    });
+    const result = finalizeGeneratedCandidates(normalized, [
+      draft(155),
+      draft(160),
+    ]);
+
+    expect(result.diagnostics.map(({ code }) => code)).not.toContain(
+      "geometry-id-hash-collision",
+    );
+    expect(result.candidates).toHaveLength(1);
+    expect(result.geometricDuplicateCount).toBe(1);
+    expect(
+      result.candidates[0]!.placements.map(({ positionMm }) => positionMm.x),
+    ).toEqual([50, 150, 300]);
+  });
+
+  it("keeps the generated spacing when sliding would break a required shape", () => {
+    const result = solveLayer({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 60 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 420, maxY: 160 },
+      constraints: {
+        provisionalPackagesPerCycle: 2,
+        requiredShape: "rectangular-block",
+      },
+    });
+    const { normalized } = validateAndNormalizeSolverInput({
+      package: {
+        shape: "cuboid",
+        dimensionsMm: { length: 100, width: 60 },
+        clearanceMm: 0,
+      },
+      envelopeMm: { minX: 0, minY: 0, maxX: 420, maxY: 160 },
+      constraints: {
+        provisionalPackagesPerCycle: 2,
+        requiredShape: "rectangular-block",
+      },
+    });
+    if (!normalized) throw new Error("Expected valid shape test input.");
+
+    expect(result.candidates.length).toBeGreaterThan(0);
+    for (const candidate of result.candidates) {
+      expect(
+        validateCandidatePlacements(normalized, candidate.placements).valid,
+      ).toBe(true);
+    }
   });
 });

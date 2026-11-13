@@ -379,8 +379,8 @@ describe("stack composition transforms", () => {
       { sourceGripId: "generated-grip:20+33", numPackages: 2 },
       { sourceGripId: "generated-grip:46", numPackages: 1 },
       { sourceGripId: "generated-grip:59+72", numPackages: 2 },
-      { sourceGripId: "generated-grip:19+32", numPackages: 2 },
-      { sourceGripId: "generated-grip:45", numPackages: 1 },
+      { sourceGripId: "generated-grip:19", numPackages: 1 },
+      { sourceGripId: "generated-grip:32+45", numPackages: 2 },
       { sourceGripId: "generated-grip:58+71", numPackages: 2 },
       { sourceGripId: "generated-grip:6", numPackages: 1 },
     ];

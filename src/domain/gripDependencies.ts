@@ -62,122 +62,16 @@ export function compareGripPositionsBottomRightRowMajor(
   return left.y - right.y || right.x - left.x;
 }
 
+/**
+ * Automatic grip order: right to left, then bottom to top. Together with the
+ * support dependencies (a grip only after everything it rests on) and the
+ * free-access guard this fills a layer column by column from the right.
+ */
 export function compareGripPositionsRightBottomToLeftTop(
   left: { x: number; y: number },
   right: { x: number; y: number },
 ): number {
   return right.x - left.x || left.y - right.y;
-}
-
-/** Layer geometry behind {@link compareGripsByLayerRows}. */
-export type GripOrderLayout = {
-  /** Grips whose centre is at or below this y go first. */
-  splitYMm: number;
-  /** Bottom of the layer; row bands are counted from here. */
-  originYMm: number;
-  /** Height of one row band: the most common package footprint height. */
-  rowPitchMm: number;
-  /** Lowest footprint edge per grip id. */
-  bottomYById: ReadonlyMap<string, number>;
-};
-
-/**
- * Builds the row/half layout of a layer from its package footprints. The
- * row pitch is the most frequent footprint height (ties: the smaller one), so
- * a column of crosswise packages next to lengthwise rows does not define rows.
- */
-export function createGripOrderLayout(
-  footprints: readonly {
-    gripId: string | null;
-    minY: number;
-    maxY: number;
-  }[],
-): GripOrderLayout | null {
-  const splitYMm = lowerHalfSplitYMm(footprints);
-  if (splitYMm === null) return null;
-  const heightCounts = new Map<number, number>();
-  for (const { minY, maxY } of footprints) {
-    const height = Math.round((maxY - minY) * 1000) / 1000;
-    heightCounts.set(height, (heightCounts.get(height) ?? 0) + 1);
-  }
-  const [rowPitchMm] = [...heightCounts].sort(
-    ([leftHeight, leftCount], [rightHeight, rightCount]) =>
-      rightCount - leftCount || leftHeight - rightHeight,
-  )[0]!;
-  const bottomYById = new Map<string, number>();
-  for (const { gripId, minY } of footprints) {
-    if (gripId === null) continue;
-    bottomYById.set(gripId, Math.min(bottomYById.get(gripId) ?? minY, minY));
-  }
-  return {
-    splitYMm,
-    originYMm: Math.min(...footprints.map(({ minY }) => minY)),
-    rowPitchMm,
-    bottomYById,
-  };
-}
-
-/**
- * Automatic grip order of a layer:
- *
- * 1. every grip below the split line before any grip above it; a grip that
- *    straddles the line belongs to the half containing its centre (a centre
- *    on the line counts as lower);
- * 2. inside a half, row band by band from the bottom; a grip belongs to the
- *    band that contains its bottom edge, so a crosswise column pair starting
- *    in the bottom row band is placed with that row;
- * 3. inside a band right to left, then bottom to top.
- *
- * Without a layout this is the plain right-to-left, bottom-to-top order.
- */
-export function compareGripsByLayerRows(
-  layout: GripOrderLayout | null,
-): (
-  left: { id: string; x: number; y: number },
-  right: { id: string; x: number; y: number },
-) => number {
-  if (layout === null) return compareGripPositionsRightBottomToLeftTop;
-  const tolerance = 0.5;
-  const half = ({ y }: { y: number }) => (y <= layout.splitYMm + 0.001 ? 0 : 1);
-  const band = ({ id, y }: { id: string; y: number }) =>
-    Math.floor(
-      ((layout.bottomYById.get(id) ?? y) - layout.originYMm + tolerance) /
-        layout.rowPitchMm,
-    );
-  return (left, right) =>
-    half(left) - half(right) ||
-    band(left) - band(right) ||
-    compareGripPositionsRightBottomToLeftTop(left, right);
-}
-
-/**
- * Split line for {@link compareGripsByLayerRows}: the package row
- * boundary (a footprint top or bottom edge strictly inside the layer) nearest
- * the layer's vertical midline, so the line never cuts through a row of
- * aligned packages. Falls back to the midline when no inner edge exists;
- * equally near edges resolve to the lower one.
- */
-export function lowerHalfSplitYMm(
-  footprints: readonly { minY: number; maxY: number }[],
-): number | null {
-  if (footprints.length === 0) return null;
-  const minY = Math.min(...footprints.map(({ minY }) => minY));
-  const maxY = Math.max(...footprints.map(({ maxY }) => maxY));
-  const midline = (minY + maxY) / 2;
-  const tolerance = 0.001;
-  let best: number | null = null;
-  for (const edge of footprints.flatMap(({ minY, maxY }) => [minY, maxY])) {
-    if (edge <= minY + tolerance || edge >= maxY - tolerance) continue;
-    const distance = Math.abs(edge - midline);
-    const bestDistance = best === null ? Infinity : Math.abs(best - midline);
-    if (
-      distance < bestDistance - tolerance ||
-      (Math.abs(distance - bestDistance) <= tolerance && edge < best!)
-    ) {
-      best = edge;
-    }
-  }
-  return best ?? midline;
 }
 
 function boxBoundsByGrip(
@@ -325,6 +219,365 @@ export function mergeGripOrderDependencies(
   );
 }
 
+/**
+ * Free-access rule for placing grips: the gripper needs a free corner, so a
+ * grip can never be set into a slot that already-placed packages close on
+ * both sides of one axis (left and right, or front and back). A neighbour
+ * blocks a side when it overlaps the grip across the axis and leaves less
+ * than the place approach offset between them.
+ *
+ * An open run of slots along an axis can still be filled as long as one of
+ * its ends is open (fill it from the closed end); once both ends are closed,
+ * its last slot will be enclosed. The guard counts such dead runs so an order
+ * can avoid creating them.
+ *
+ * A side that touches placed packages must touch them along its whole
+ * length: a grip half supported on one side (e.g. a two-package column next
+ * to a single) is pushed off line and blocks the slot beside its free half.
+ */
+export type GripPocketGuard = {
+  /** The grip is closed on both sides of an axis by `placed` grips. */
+  isEnclosed(gripId: string, placed: ReadonlySet<string>): boolean;
+  /**
+   * Unplaced grips that can no longer be reached in any order once `gripId`
+   * is placed, but still could before.
+   */
+  newDeadlocks(gripId: string, placed: ReadonlySet<string>): number;
+  /** Sides that touch `placed` grips along only part of their length. */
+  partialSides(gripId: string, placed: ReadonlySet<string>): number;
+  /** The two grips close a side of each other. */
+  adjacent(left: string, right: string): boolean;
+};
+
+/** Holes and ends up to this size still count as a fully supported side. */
+const SIDE_COVER_TOLERANCE_MM = 10;
+
+// Sides of a grip: 0 = x-, 1 = x+, 2 = y-, 3 = y+ (opposite: side ^ 1).
+const POCKET_SIDE_COUNT = 4;
+
+type SideContact = { neighbour: number; from: number; to: number };
+
+export function createGripPocketGuard(
+  gripIds: readonly string[],
+  placements: readonly GripPlacementFootprint[],
+  packageSize: RectangleSizeMm,
+  blockingGapMm: number = PLACE_APPROACH_OFFSET_MM,
+): GripPocketGuard {
+  // Index-based tables: the guard runs for every grip of every candidate.
+  const ids = [...new Set(gripIds)].sort();
+  const count = ids.length;
+  const indexById = new Map(ids.map((id, index) => [id, index]));
+  const boundsByGrip = placementBoundsByGrip(ids, placements, packageSize);
+  const bounds = ids.map((id) => boundsByGrip.get(id) ?? []);
+  // neighbours[g * 4 + side]: grips that close that side of g.
+  const neighbours: number[][] = Array.from(
+    { length: count * POCKET_SIDE_COUNT },
+    () => [],
+  );
+  // contacts[g * 4 + side]: stretches of that side touched per neighbour.
+  const contacts: SideContact[][] = Array.from(
+    { length: count * POCKET_SIDE_COUNT },
+    () => [],
+  );
+  // Extent of each grip side along the side.
+  const extentFrom = new Float64Array(count * POCKET_SIDE_COUNT);
+  const extentTo = new Float64Array(count * POCKET_SIDE_COUNT);
+  const near = (gap: number) =>
+    gap >= -COORDINATE_TOLERANCE && gap < blockingGapMm;
+  // Whole-grip outlines: far apart grips never close a side of each other.
+  const outline = bounds.map((boxes) => ({
+    left: Math.min(...boxes.map(({ left }) => left)),
+    right: Math.max(...boxes.map(({ right }) => right)),
+    bottom: Math.min(...boxes.map(({ bottom }) => bottom)),
+    top: Math.max(...boxes.map(({ top }) => top)),
+  }));
+  const addSides = (grip: number, neighbour: number) => {
+    const sides = [false, false, false, false];
+    for (const source of bounds[grip]!) {
+      for (const other of bounds[neighbour]!) {
+        const fromY = Math.max(source.bottom, other.bottom);
+        const toY = Math.min(source.top, other.top);
+        const fromX = Math.max(source.left, other.left);
+        const toX = Math.min(source.right, other.right);
+        const touch = (side: number, from: number, to: number) => {
+          sides[side] = true;
+          contacts[grip * POCKET_SIDE_COUNT + side]!.push({
+            neighbour,
+            from,
+            to,
+          });
+        };
+        if (toY - fromY > COORDINATE_TOLERANCE) {
+          if (near(other.left - source.right)) touch(1, fromY, toY);
+          if (near(source.left - other.right)) touch(0, fromY, toY);
+        }
+        if (toX - fromX > COORDINATE_TOLERANCE) {
+          if (near(other.bottom - source.top)) touch(3, fromX, toX);
+          if (near(source.bottom - other.top)) touch(2, fromX, toX);
+        }
+      }
+    }
+    sides.forEach((touches, side) => {
+      if (touches) neighbours[grip * POCKET_SIDE_COUNT + side]!.push(neighbour);
+    });
+  };
+  // Sweep along x: only grips within the blocking gap can close a side.
+  const byLeft = outline
+    .map((_, index) => index)
+    .sort((left, right) => outline[left]!.left - outline[right]!.left);
+  for (let position = 0; position < count; position += 1) {
+    const grip = byLeft[position]!;
+    const a = outline[grip]!;
+    for (let next = position + 1; next < count; next += 1) {
+      const neighbour = byLeft[next]!;
+      const b = outline[neighbour]!;
+      if (b.left - a.right >= blockingGapMm) break;
+      if (
+        b.bottom - a.top >= blockingGapMm ||
+        a.bottom - b.top >= blockingGapMm
+      )
+        continue;
+      addSides(grip, neighbour);
+      addSides(neighbour, grip);
+    }
+  }
+  for (let grip = 0; grip < count; grip += 1) {
+    const own = bounds[grip]!;
+    if (own.length > 0) {
+      const minX = Math.min(...own.map(({ left }) => left));
+      const maxX = Math.max(...own.map(({ right }) => right));
+      const minY = Math.min(...own.map(({ bottom }) => bottom));
+      const maxY = Math.max(...own.map(({ top }) => top));
+      const base = grip * POCKET_SIDE_COUNT;
+      extentFrom.set([minY, minY, minX, minX], base);
+      extentTo.set([maxY, maxY, maxX, maxX], base);
+    }
+  }
+
+  // Placement state as flags, cached per (set, size): an order only adds to
+  // its placed set, so every candidate of one step shares the conversion and
+  // the dead runs before the step.
+  let cachedSet: ReadonlySet<string> | null = null;
+  let cachedSize = -1;
+  let cachedFlags = new Uint8Array(count);
+  let cachedBeforeMemo: Uint8Array | null = null;
+  const placedFlags = (placed: ReadonlySet<string>): Uint8Array => {
+    if (placed !== cachedSet || placed.size !== cachedSize) {
+      cachedSet = placed;
+      cachedSize = placed.size;
+      cachedFlags = new Uint8Array(count);
+      cachedBeforeMemo = null;
+      placed.forEach((id) => {
+        const index = indexById.get(id);
+        if (index !== undefined) cachedFlags[index] = 1;
+      });
+    }
+    return cachedFlags;
+  };
+
+  const sideClosed = (flags: Uint8Array, grip: number, side: number) =>
+    neighbours[grip * POCKET_SIDE_COUNT + side]!.some(
+      (neighbour) => flags[neighbour] === 1,
+    );
+
+  /**
+   * Whether an unplaced grip's run is closed at both ends along some axis.
+   * `memo` (0 unknown, 1 open, 2 closed) belongs to one placement state.
+   */
+  const isDeadlocked = (
+    flags: Uint8Array,
+    memo: Uint8Array,
+    grip: number,
+  ): boolean => {
+    const closedToward = (from: number, side: number): boolean => {
+      const key = from * POCKET_SIDE_COUNT + side;
+      if (memo[key] !== 0) return memo[key] === 2;
+      // Runs only move one way along the axis, so this recursion ends.
+      const closed = neighbours[key]!.some(
+        (neighbour) => flags[neighbour] === 1 || closedToward(neighbour, side),
+      );
+      memo[key] = closed ? 2 : 1;
+      return closed;
+    };
+    return (
+      (closedToward(grip, 0) && closedToward(grip, 1)) ||
+      (closedToward(grip, 2) && closedToward(grip, 3))
+    );
+  };
+
+  const sideIsPartial = (
+    flags: Uint8Array,
+    grip: number,
+    side: number,
+  ): boolean => {
+    const key = grip * POCKET_SIDE_COUNT + side;
+    // Only worth waiting for when a neighbour of that side is still missing;
+    // a side the layout itself leaves partly open stays as it is.
+    if (neighbours[key]!.every((neighbour) => flags[neighbour] === 1)) {
+      return false;
+    }
+    const stretches = contacts[key]!.filter(
+      ({ neighbour }) => flags[neighbour] === 1,
+    ).sort((left, right) => left.from - right.from);
+    if (stretches.length === 0) return false;
+    let reached = extentFrom[key]!;
+    for (const { from, to } of stretches) {
+      if (from > reached + SIDE_COVER_TOLERANCE_MM) return true;
+      reached = Math.max(reached, to);
+    }
+    return reached < extentTo[key]! - SIDE_COVER_TOLERANCE_MM;
+  };
+
+  const isEnclosed = (gripId: string, placed: ReadonlySet<string>) => {
+    const grip = indexById.get(gripId);
+    if (grip === undefined) return false;
+    const flags = placedFlags(placed);
+    return (
+      (sideClosed(flags, grip, 0) && sideClosed(flags, grip, 1)) ||
+      (sideClosed(flags, grip, 2) && sideClosed(flags, grip, 3))
+    );
+  };
+
+  return {
+    isEnclosed,
+    newDeadlocks(gripId, placed) {
+      const grip = indexById.get(gripId);
+      if (grip === undefined) return 0;
+      const flags = placedFlags(placed);
+      cachedBeforeMemo ??= new Uint8Array(count * POCKET_SIDE_COUNT);
+      const beforeMemo = cachedBeforeMemo;
+      // Only grips whose run passes through `grip` can change: walk away
+      // from it along every side.
+      const affected = new Set<number>();
+      for (let side = 0; side < POCKET_SIDE_COUNT; side += 1) {
+        const queue: number[] = [grip];
+        while (queue.length > 0) {
+          const current = queue.pop()!;
+          for (const next of neighbours[current * POCKET_SIDE_COUNT + side]!) {
+            if (flags[next] === 1 || next === grip || affected.has(next)) {
+              continue;
+            }
+            affected.add(next);
+            queue.push(next);
+          }
+        }
+      }
+      if (affected.size === 0) return 0;
+      const was = flags[grip]!;
+      flags[grip] = 1;
+      const afterMemo = new Uint8Array(count * POCKET_SIDE_COUNT);
+      let added = 0;
+      affected.forEach((other) => {
+        if (isDeadlocked(flags, afterMemo, other)) {
+          flags[grip] = was;
+          const before = isDeadlocked(flags, beforeMemo, other);
+          flags[grip] = 1;
+          if (!before) added += 1;
+        }
+      });
+      flags[grip] = was;
+      return added;
+    },
+    partialSides(gripId, placed) {
+      const grip = indexById.get(gripId);
+      if (grip === undefined) return 0;
+      const flags = placedFlags(placed);
+      let partial = 0;
+      for (let side = 0; side < POCKET_SIDE_COUNT; side += 1) {
+        if (sideIsPartial(flags, grip, side)) partial += 1;
+      }
+      return partial;
+    },
+    adjacent(left, right) {
+      const grip = indexById.get(left);
+      const other = indexById.get(right);
+      if (grip === undefined || other === undefined) return false;
+      for (let side = 0; side < POCKET_SIDE_COUNT; side += 1) {
+        if (neighbours[grip * POCKET_SIDE_COUNT + side]!.includes(other)) {
+          return true;
+        }
+      }
+      return false;
+    },
+  };
+}
+
+/** Grips that a given order sets into a slot closed on both sides. */
+export function enclosedGripsInOrder(
+  order: readonly string[],
+  guard: GripPocketGuard,
+): string[] {
+  const placed = new Set<string>();
+  const enclosed: string[] = [];
+  for (const gripId of order) {
+    if (guard.isEnclosed(gripId, placed)) enclosed.push(gripId);
+    placed.add(gripId);
+  }
+  return enclosed;
+}
+
+/**
+ * Index of the next grip to place. A grip is fine when it is reachable, leaves
+ * every other slot reachable and rests fully against its placed neighbours.
+ * The preferred (first) grip goes when it is fine; otherwise a fine grip next
+ * to the previously placed one (the robot keeps working in that area), else
+ * the first fine one. Without a fine grip, the least bad one is taken.
+ */
+export function pickAccessibleGripIndex<T extends { id: string }>(
+  available: readonly T[],
+  placed: ReadonlySet<string>,
+  guard: GripPocketGuard | null | undefined,
+  lastPlacedId?: string | null,
+): number {
+  if (!guard || available.length <= 1) return 0;
+  type Cost = [number, number, number];
+  const costs = new Map<number, Cost>();
+  const costOf = (index: number): Cost => {
+    const cached = costs.get(index);
+    if (cached) return cached;
+    const id = available[index]!.id;
+    const enclosed = guard.isEnclosed(id, placed) ? 1 : 0;
+    const cost: Cost = enclosed
+      ? [1, 0, 0]
+      : [0, guard.newDeadlocks(id, placed), guard.partialSides(id, placed)];
+    costs.set(index, cost);
+    return cost;
+  };
+  // Cheap checks first; the run lookahead only for otherwise fine grips.
+  const fine = (index: number) => {
+    const cached = costs.get(index);
+    if (cached) return cached.every((value) => value === 0);
+    const id = available[index]!.id;
+    return (
+      !guard.isEnclosed(id, placed) &&
+      guard.partialSides(id, placed) === 0 &&
+      guard.newDeadlocks(id, placed) === 0
+    );
+  };
+  if (fine(0)) return 0;
+  const indices = available.map((_, index) => index);
+  // The preferred grip has to wait: continue next to the last grip first.
+  if (lastPlacedId) {
+    const near = indices.find(
+      (index) =>
+        guard.adjacent(lastPlacedId, available[index]!.id) && fine(index),
+    );
+    if (near !== undefined) return near;
+  }
+  const first = indices.find(fine);
+  if (first !== undefined) return first;
+  return indices.reduce((best, index) => {
+    const left = costOf(index);
+    const right = costOf(best);
+    for (let position = 0; position < left.length; position += 1) {
+      if (left[position]! !== right[position]!) {
+        return left[position]! < right[position]! ? index : best;
+      }
+    }
+    return best;
+  }, 0);
+}
+
 export function orderGripsByDependencies<
   T extends { id: string; x: number; y: number },
 >(
@@ -335,6 +588,7 @@ export function orderGripsByDependencies<
     left: T,
     right: T,
   ) => number = compareGripPositionsRightBottomToLeftTop,
+  pocketGuard?: GripPocketGuard | null,
 ): T[] {
   const gripById = new Map(grips.map((grip) => [grip.id, grip]));
   const outgoing = new Map<string, string[]>();
@@ -370,9 +624,19 @@ export function orderGripsByDependencies<
     .filter(({ id }) => (indegree.get(id) ?? 0) === 0)
     .sort(compare);
   const ordered: T[] = [];
+  const placed = new Set<string>();
   while (available.length > 0) {
-    const current = available.shift()!;
+    const [current] = available.splice(
+      pickAccessibleGripIndex(
+        available,
+        placed,
+        pocketGuard,
+        ordered.at(-1)?.id,
+      ),
+      1,
+    ) as [T];
     ordered.push(current);
+    placed.add(current.id);
     for (const targetId of outgoing.get(current.id) ?? []) {
       const nextIndegree = (indegree.get(targetId) ?? 0) - 1;
       indegree.set(targetId, nextIndegree);
