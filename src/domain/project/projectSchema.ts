@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  MAX_EXPANDED_PACKAGES,
   MAX_INTERLAYERS_PER_BOUNDARY,
   MAX_PACKAGES_PER_GRIP,
   MAX_PACKAGES_PER_LAYER,
@@ -483,6 +484,46 @@ function addStackReferenceIssues(
   });
 }
 
+/**
+ * Bounds the boxes a whole project expands to (every solution's patterns plus
+ * each stack layer's referenced pattern), mirroring the `.rob` import budget,
+ * so many individually valid patterns cannot add up to unbounded migration or
+ * materialization work.
+ */
+function addProjectExpansionIssue(
+  solutions: ReadonlyArray<{
+    patterns: ReadonlyArray<{
+      id: string;
+      grips: ReadonlyArray<{ numPackages: number }>;
+    }>;
+    stack: { layers: ReadonlyArray<{ patternId: string }> };
+  }>,
+  context: z.RefinementCtx,
+): void {
+  let total = 0;
+  for (const solution of solutions) {
+    const packagesByPattern = new Map<string, number>();
+    for (const pattern of solution.patterns) {
+      const packages = pattern.grips.reduce(
+        (sum, grip) => sum + grip.numPackages,
+        0,
+      );
+      packagesByPattern.set(pattern.id, packages);
+      total += packages;
+    }
+    for (const layer of solution.stack.layers) {
+      total += packagesByPattern.get(layer.patternId) ?? 0;
+    }
+  }
+  if (total > MAX_EXPANDED_PACKAGES) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["solutions"],
+      message: `must not expand to more than ${MAX_EXPANDED_PACKAGES} packages (got ${total})`,
+    });
+  }
+}
+
 function addProjectReferenceIssues(
   value: {
     createdAt: number;
@@ -565,7 +606,10 @@ export const projectV2Schema = z
     activeSolutionId: optionalReferenceSchema,
   })
   .strict()
-  .superRefine(addProjectReferenceIssues);
+  .superRefine((value, context) => {
+    addProjectReferenceIssues(value, context);
+    addProjectExpansionIssue(value.solutions, context);
+  });
 
 const placementLabelSchema = z
   .enum([
@@ -856,6 +900,7 @@ export const projectSchema = z
   .strict()
   .superRefine((value, context) => {
     addProjectReferenceIssues(value, context);
+    addProjectExpansionIssue(value.solutions, context);
     const gripperIds = new Set(value.grippers.map(({ id }) => id));
     value.solutions.forEach((solution, solutionIndex) => {
       solution.robotCycles.forEach((cycle, cycleIndex) => {

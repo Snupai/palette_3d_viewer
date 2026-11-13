@@ -17,5 +17,5 @@ export const MAX_STACK_LAYERS = 1_000;
 /** Interlayer sheets at one stack boundary (`.rob` Zwischenlage column). */
 export const MAX_INTERLAYERS_PER_BOUNDARY = 16;
 
-/** Boxes one `.rob` import may expand to, across unique and stacked layers. */
+/** Boxes one `.rob` import or one project may expand to, across unique and stacked layers. */
 export const MAX_EXPANDED_PACKAGES = 100_000;
