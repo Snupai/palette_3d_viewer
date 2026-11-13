@@ -495,6 +495,8 @@ function addProjectExpansionIssue(
     patterns: ReadonlyArray<{
       id: string;
       grips: ReadonlyArray<{ numPackages: number }>;
+      /** Canonical patterns only; placements may exist without a grip. */
+      placements?: ReadonlyArray<unknown>;
     }>;
     stack: { layers: ReadonlyArray<{ patternId: string }> };
   }>,
@@ -504,9 +506,9 @@ function addProjectExpansionIssue(
   for (const solution of solutions) {
     const packagesByPattern = new Map<string, number>();
     for (const pattern of solution.patterns) {
-      const packages = pattern.grips.reduce(
-        (sum, grip) => sum + grip.numPackages,
-        0,
+      const packages = Math.max(
+        pattern.grips.reduce((sum, grip) => sum + grip.numPackages, 0),
+        pattern.placements?.length ?? 0,
       );
       packagesByPattern.set(pattern.id, packages);
       total += packages;

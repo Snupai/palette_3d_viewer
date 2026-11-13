@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import { migrateProjectV2 } from "~/domain/project/projectMigration";
 import {
   planningLayerPatternSchema,
   PROJECT_SCHEMA_VERSION,
+  projectSchema,
   projectV2Schema,
 } from "~/domain/project/projectSchema";
 
@@ -143,6 +145,46 @@ describe("project v2 schema", () => {
       height: 150,
     });
     expect(result.solutions[0]?.patterns[0]?.grips).toHaveLength(1);
+  });
+
+  it("counts gripless placements toward the project expansion budget", () => {
+    const project = migrateProjectV2(projectV2Schema.parse(validProject()));
+    const solution = project.solutions[0]!;
+    const pattern = solution.patterns[0]!;
+    const placement = pattern.placements[0]!;
+    // 2000 unassigned placements × (1 unique + 50 stacked) = 102000 packages.
+    solution.patterns = [
+      {
+        ...pattern,
+        grips: [],
+        groupOrder: [],
+        orderDependencies: [],
+        placements: Array.from({ length: 2000 }, (_, index) => ({
+          ...placement,
+          id: `placement-${index}`,
+          sequence: index,
+          gripId: null,
+        })),
+      },
+    ];
+    solution.robotCycles = [];
+    solution.stack.layers = Array.from({ length: 50 }, (_, index) => ({
+      id: `layer-${index}`,
+      patternId: pattern.id,
+      interlayerBefore: 0,
+    }));
+
+    const result = projectSchema.safeParse(project);
+
+    expect(result.success).toBe(false);
+    expect(
+      result.error?.issues.map(({ path, message }) => ({ path, message })),
+    ).toEqual([
+      {
+        path: ["solutions"],
+        message: "must not expand to more than 100000 packages (got 102000)",
+      },
+    ]);
   });
 
   it("accepts legacy and source-tagged grip dependencies", () => {
