@@ -643,7 +643,9 @@ describe("solver input and candidate validation", () => {
         input.package.dimensionsMm,
       ),
     ).toEqual(input.envelopeMm);
-  }, 30_000);
+    // CI runners take about 2.3x the local time (23 s of 30 s before grip
+    // access planning); the budget only guards against hangs.
+  }, 60_000);
 
   it("fills a pinwheel center to reach an exact package count", () => {
     const input: LayerSolverInput = {
@@ -2483,7 +2485,9 @@ describe("AP5006 reference geometry", () => {
     expect(maximumCandidates.every(({ validation }) => validation.valid)).toBe(
       true,
     );
-  }, 60_000);
+    // CI runners take about 2.2x the local time (52 s of 60 s before grip
+    // access planning); the budget only guards against hangs.
+  }, 90_000);
 
   it("keeps the observed 53-package four-block layout after finalization", () => {
     const envelopeMm = createCenteredEffectivePalletEnvelope(

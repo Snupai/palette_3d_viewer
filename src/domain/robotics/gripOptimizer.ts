@@ -226,6 +226,11 @@ function optimizeOnce(
   const maxShift = slidingAllowed ? (options.maxShiftMm ?? 0) : 0;
 
   const items = placements.map(toItem).sort(compareItems);
+  // One package per pick: nothing to decide, every package is its own grip
+  // (same order as the line-by-line result below).
+  if (maxPerPick === 1) {
+    return { groups: items.map(({ id }) => [id]), movedPositions: new Map() };
+  }
   const positionById = new Map(items.map((item) => [item.id, item.axis]));
   const rectOf = (item: Item) =>
     rectFor(item, positionById.get(item.id)!, packageSizeMm);
