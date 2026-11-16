@@ -85,6 +85,9 @@ services:
       OLLAMA_URL: ${OLLAMA_URL:-}
       SHEET_EXTRACTION_MODEL: ${SHEET_EXTRACTION_MODEL:-}
       SHEET_EXTRACTION_API_KEY: ${SHEET_EXTRACTION_API_KEY:-}
+      # Optional fast first reader, see .env.example.
+      SHEET_EXTRACTION_FAST_MODEL: ${SHEET_EXTRACTION_FAST_MODEL:-}
+      SHEET_EXTRACTION_FAST_URL: ${SHEET_EXTRACTION_FAST_URL:-}
       SHEET_EXTRACTION_MAX_CONCURRENT: ${SHEET_EXTRACTION_MAX_CONCURRENT:-1}
     healthcheck:
       test: ["CMD", "node", "/opt/palette/healthcheck.cjs"]

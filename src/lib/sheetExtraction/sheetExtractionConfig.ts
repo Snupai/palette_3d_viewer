@@ -1,3 +1,8 @@
+import {
+  sheetPromptStyleFor,
+  type SheetPromptStyle,
+} from "~/domain/sheetExtraction";
+
 /**
  * Which local model server reads the sheet photos, and how to reach it.
  *
@@ -29,6 +34,8 @@ export type SheetExtractionEndpoint = {
   model?: string;
   /** Sent as `Authorization: Bearer <key>` when set. Never logged. */
   apiKey?: string;
+  /** Prompt shape, derived from the model name (`sheetPromptStyleFor`). */
+  promptStyle: SheetPromptStyle;
 };
 
 export type SheetExtractionSettings = {
@@ -38,6 +45,9 @@ export type SheetExtractionSettings = {
   OLLAMA_URL?: string;
   SHEET_EXTRACTION_MODEL?: string;
   SHEET_EXTRACTION_API_KEY?: string;
+  /** Fast first reader, see `resolveSheetExtractionFastEndpoint`. */
+  SHEET_EXTRACTION_FAST_MODEL?: string;
+  SHEET_EXTRACTION_FAST_URL?: string;
 };
 
 function present(value: string | undefined): string | undefined {
@@ -75,6 +85,7 @@ export function resolveSheetExtractionEndpoint(
     baseUrl,
     ...(model ? { model } : {}),
     ...(apiKey ? { apiKey } : {}),
+    promptStyle: sheetPromptStyleFor(model),
   };
 }
 
@@ -95,4 +106,25 @@ export function chatEndpointUrl(api: SheetExtractionApi, baseUrl: string): URL {
   url.search = "";
   url.hash = "";
   return url;
+}
+
+/**
+ * Optional fast model that reads first. When its answer fails the consistency
+ * checks (or the call fails), the main endpoint reads the photo instead, so
+ * most sheets take a second and only the hard ones wait for the large model.
+ * It shares the API and key of the main endpoint; `SHEET_EXTRACTION_FAST_URL`
+ * only when it runs on another server. Unset: the main model reads alone.
+ */
+export function resolveSheetExtractionFastEndpoint(
+  settings: SheetExtractionSettings,
+): SheetExtractionEndpoint | null {
+  const model = present(settings.SHEET_EXTRACTION_FAST_MODEL);
+  if (!model) return null;
+  const main = resolveSheetExtractionEndpoint(settings);
+  return {
+    ...main,
+    baseUrl: present(settings.SHEET_EXTRACTION_FAST_URL) ?? main.baseUrl,
+    model,
+    promptStyle: sheetPromptStyleFor(model),
+  };
 }

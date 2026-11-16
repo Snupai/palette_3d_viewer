@@ -1,9 +1,10 @@
 import {
   countSheetErrors,
-  palletSheetJsonSchema,
   rawPalletSheetSchema,
-  SHEET_EXTRACTION_PROMPT,
+  sheetPromptPlan,
   sheetRetryPrompt,
+  type SheetPromptStep,
+  type SheetPromptStyle,
   validatePalletSheet,
   type ValidatedSheet,
 } from "~/domain/sheetExtraction";
@@ -27,6 +28,8 @@ export type OllamaSheetExtractorOptions = {
   model?: string;
   /** Sent as `Authorization: Bearer <key>` when set. Never logged. */
   apiKey?: string;
+  /** Prompt shape for the model family; defaults to `instruct`. */
+  promptStyle?: SheetPromptStyle;
   /** MIME type for the OpenAI data URL; Ollama ignores it. */
   imageMimeType?: string;
   /** Extra attempts when the answer fails the consistency checks. */
@@ -44,13 +47,21 @@ export type SheetExtractionResult = ValidatedSheet & {
   /** Configured model, else the one the server reported, else `"unknown"`. */
   model: string;
   attempts: number;
+  /** Total time, including a fast read that was discarded. */
   durationMs: number;
+  /**
+   * Set when a fast model read first and its answer was replaced by the main
+   * model's: `fastErrors` is its error count, `null` when the call failed.
+   */
+  fallback?: { fastModel: string; fastErrors: number | null };
 };
 
 type ChatMessage = {
   role: "user" | "assistant";
   content: string;
   images?: string[];
+  /** OpenAI content order: photo before the text. Ollama ignores it. */
+  imageFirst?: boolean;
 };
 
 export type SheetExtractionErrorKind =
@@ -109,8 +120,10 @@ function chatSignal(timeoutMs: number, external?: AbortSignal): AbortSignal {
  * Reads a photographed pallet sheet with a local vision model. The only network
  * call goes to the configured local model server (Ollama, or an
  * OpenAI-compatible one such as llama.cpp's `llama-server`).
+ * The prompt follows `promptStyle` (see `sheetPromptPlan`): prelude steps such
+ * as an OCR pass run once, then the extraction step answers in JSON.
  * If the answer fails the arithmetic checks, the model is shown its own errors
- * once and asked again; the attempt with fewer errors wins.
+ * once and asked again (where the style allows it); fewer errors wins.
  */
 export async function extractPalletSheet(
   imageBase64: string,
@@ -119,6 +132,7 @@ export async function extractPalletSheet(
     baseUrl,
     model,
     apiKey,
+    promptStyle = "instruct",
     imageMimeType = "image/jpeg",
     maxRetries = 1,
     timeoutMs = 300_000,
@@ -127,30 +141,55 @@ export async function extractPalletSheet(
   }: OllamaSheetExtractorOptions,
 ): Promise<SheetExtractionResult> {
   const startedAt = Date.now();
-  const messages: ChatMessage[] = [
-    { role: "user", content: SHEET_EXTRACTION_PROMPT, images: [imageBase64] },
-  ];
+  const plan = sheetPromptPlan(promptStyle);
+  const userMessage = (step: SheetPromptStep): ChatMessage => ({
+    role: "user",
+    content: step.text,
+    ...(step.image
+      ? {
+          images: [imageBase64],
+          ...(step.imageFirst ? { imageFirst: true } : {}),
+        }
+      : {}),
+  });
+  const transport = {
+    api,
+    baseUrl,
+    model,
+    apiKey,
+    imageMimeType,
+    timeoutMs,
+    signal,
+    fetchImpl,
+  };
+  const messages: ChatMessage[] = [];
+  let reportedModel: string | undefined;
+  for (const step of plan.prelude) {
+    if (signal?.aborted) throw abortError(signal.reason);
+    messages.push(userMessage(step));
+    const { content, model: answeredBy } = await chat(messages, {
+      ...transport,
+      jsonSchema: null,
+    });
+    reportedModel ??= answeredBy;
+    messages.push({ role: "assistant", content });
+  }
+  messages.push(userMessage(plan.extract));
 
   let best: ValidatedSheet | null = null;
-  let reportedModel: string | undefined;
   let attempts = 0;
-  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+  const retries = plan.allowRetry ? maxRetries : 0;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     if (signal?.aborted) {
       throw abortError(signal.reason);
     }
     attempts += 1;
     const { content: answer, model: answeredBy } = await chat(messages, {
-      api,
-      baseUrl,
-      model,
-      apiKey,
-      imageMimeType,
-      timeoutMs,
-      signal,
-      fetchImpl,
+      ...transport,
+      jsonSchema: plan.jsonSchema,
     });
     reportedModel ??= answeredBy;
-    const validated = validatePalletSheet(parseAnswer(answer));
+    const validated = validatePalletSheet(parseAnswer(answer, plan.toRawSheet));
     if (
       best === null ||
       countSheetErrors(validated.issues) < countSheetErrors(best.issues)
@@ -172,10 +211,54 @@ export async function extractPalletSheet(
   };
 }
 
-function parseAnswer(answer: string) {
+/**
+ * Reads with the fast model first when one is configured. An answer that passes
+ * every consistency check is used as is; otherwise (errors, failed or timed-out
+ * call) the main model reads the photo and its answer is used. The fast model
+ * gets no retry turn: a failed check goes straight to the main model. Caller
+ * aborts are never turned into a fallback.
+ */
+export async function extractPalletSheetWithFallback(
+  imageBase64: string,
+  {
+    fast,
+    main,
+  }: {
+    fast: OllamaSheetExtractorOptions | null;
+    main: OllamaSheetExtractorOptions;
+  },
+): Promise<SheetExtractionResult> {
+  if (!fast) return extractPalletSheet(imageBase64, main);
+  const startedAt = Date.now();
+  let fastErrors: number | null = null;
+  let fastModel = fast.model ?? "unknown";
+  try {
+    const first = await extractPalletSheet(imageBase64, {
+      ...fast,
+      maxRetries: 0,
+    });
+    fastModel = first.model;
+    fastErrors = countSheetErrors(first.issues);
+    if (fastErrors === 0) return first;
+  } catch (cause) {
+    if (!(cause instanceof SheetExtractionError)) throw cause;
+    console.warn(
+      "Fast sheet reader failed, using the main model",
+      cause.message,
+    );
+  }
+  const second = await extractPalletSheet(imageBase64, main);
+  return {
+    ...second,
+    durationMs: Date.now() - startedAt,
+    fallback: { fastModel, fastErrors },
+  };
+}
+
+function parseAnswer(answer: string, toRawSheet: (answer: unknown) => unknown) {
   let json: unknown;
   try {
-    json = JSON.parse(answer);
+    json = toRawSheet(JSON.parse(answer));
   } catch {
     throw new SheetExtractionError(
       "The model did not return JSON.",
@@ -198,6 +281,8 @@ type ChatOptions = {
   model?: string;
   apiKey?: string;
   imageMimeType: string;
+  /** Constrains the answer to JSON; `null` for free-text steps (OCR). */
+  jsonSchema: object | null;
   timeoutMs: number;
   signal?: AbortSignal;
   fetchImpl: typeof fetch;
@@ -212,39 +297,45 @@ const SERVER_LABEL: Record<SheetExtractionApi, string> = {
 
 function requestBody(
   messages: readonly ChatMessage[],
-  { api, model, imageMimeType }: ChatOptions,
+  { api, model, imageMimeType, jsonSchema }: ChatOptions,
 ): unknown {
   if (api === "ollama") {
     return {
       ...(model ? { model } : {}),
       stream: false,
-      format: palletSheetJsonSchema,
+      ...(jsonSchema ? { format: jsonSchema } : {}),
       options: { temperature: 0 },
-      messages,
+      messages: messages.map(({ role, content, images }) => ({
+        role,
+        content,
+        ...(images ? { images } : {}),
+      })),
     };
   }
   return {
     ...(model ? { model } : {}),
     stream: false,
     temperature: 0,
-    response_format: {
-      type: "json_schema",
-      json_schema: { name: "pallet_sheet", schema: palletSheetJsonSchema },
-    },
-    messages: messages.map(({ role, content, images }) =>
-      images?.length
-        ? {
-            role,
-            content: [
-              { type: "text", text: content },
-              ...images.map((image) => ({
-                type: "image_url",
-                image_url: { url: `data:${imageMimeType};base64,${image}` },
-              })),
-            ],
-          }
-        : { role, content },
-    ),
+    ...(jsonSchema
+      ? {
+          response_format: {
+            type: "json_schema",
+            json_schema: { name: "pallet_sheet", schema: jsonSchema },
+          },
+        }
+      : {}),
+    messages: messages.map(({ role, content, images, imageFirst }) => {
+      if (!images?.length) return { role, content };
+      const text = { type: "text", text: content };
+      const pictures = images.map((image) => ({
+        type: "image_url",
+        image_url: { url: `data:${imageMimeType};base64,${image}` },
+      }));
+      return {
+        role,
+        content: imageFirst ? [...pictures, text] : [text, ...pictures],
+      };
+    }),
   };
 }
 

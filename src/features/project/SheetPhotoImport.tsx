@@ -237,6 +237,7 @@ export function SheetPhotoImport({
                   </div>
                 )}
                 <div className="text-muted text-[11px]">
+                  {result.fallback ? `${result.fallback.fastModel} → ` : ""}
                   {result.model} · {(result.durationMs / 1000).toFixed(1)} s
                   {result.attempts > 1
                     ? ` · ${t("projectForm.sheetAttempts", { count: result.attempts })}`

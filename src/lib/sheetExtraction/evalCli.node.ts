@@ -17,8 +17,11 @@ import { readFile, realpath, rename, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { countSheetErrors, type PalletSheet } from "~/domain/sheetExtraction";
 import { readCorpusPhoto } from "~/lib/sheetExtraction/corpusPhoto.node";
-import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
-import { resolveSheetExtractionEndpoint } from "~/lib/sheetExtraction/sheetExtractionConfig";
+import { extractPalletSheetWithFallback } from "~/lib/sheetExtraction/ollamaSheetExtractor";
+import {
+  resolveSheetExtractionEndpoint,
+  resolveSheetExtractionFastEndpoint,
+} from "~/lib/sheetExtraction/sheetExtractionConfig";
 
 type Label = {
   carton: [number, number, number];
@@ -89,13 +92,17 @@ async function main(): Promise<void> {
   if (!corpusDir || !isAbsolute(corpusDir)) {
     throw new Error("Set SHEET_CORPUS_DIR to an absolute folder path.");
   }
-  const endpoint = resolveSheetExtractionEndpoint({
+  const settings = {
     SHEET_EXTRACTION_API: process.env.SHEET_EXTRACTION_API,
     SHEET_EXTRACTION_URL: process.env.SHEET_EXTRACTION_URL,
     OLLAMA_URL: process.env.OLLAMA_URL,
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
     SHEET_EXTRACTION_API_KEY: process.env.SHEET_EXTRACTION_API_KEY,
-  });
+    SHEET_EXTRACTION_FAST_MODEL: process.env.SHEET_EXTRACTION_FAST_MODEL,
+    SHEET_EXTRACTION_FAST_URL: process.env.SHEET_EXTRACTION_FAST_URL,
+  };
+  const endpoint = resolveSheetExtractionEndpoint(settings);
+  const fastEndpoint = resolveSheetExtractionFastEndpoint(settings);
   // Without a configured name (`openai`), label the report with the model the
   // server reports, so runs against different loaded models do not collide.
   let reportedModel: string | undefined;
@@ -118,11 +125,12 @@ async function main(): Promise<void> {
   for (const file of files) {
     try {
       const image = (await readCorpusPhoto(root, file)).toString("base64");
-      const result = await extractPalletSheet(image, {
-        ...endpoint,
-        imageMimeType: photoMimeType(file),
+      const imageMimeType = photoMimeType(file);
+      const result = await extractPalletSheetWithFallback(image, {
+        fast: fastEndpoint ? { ...fastEndpoint, imageMimeType } : null,
+        main: { ...endpoint, imageMimeType },
       });
-      reportedModel ??= result.model;
+      if (!fastEndpoint || result.fallback) reportedModel ??= result.model;
       const fields = score(result.sheet, labels[file]!);
       const correct = FIELDS.every((f) => fields[f]);
       const errors = countSheetErrors(result.issues);
@@ -134,6 +142,9 @@ async function main(): Promise<void> {
       console.log(
         `${file.padEnd(7)} ${correct ? "OK  " : "FAIL"} ${(result.durationMs / 1000).toFixed(1).padStart(5)}s` +
           ` attempts=${result.attempts} errors=${errors}` +
+          (result.fallback
+            ? ` fallback-from=${result.fallback.fastModel}`
+            : "") +
           (failed.length ? ` wrong=${failed.join(",")}` : ""),
       );
       rows.push({
@@ -153,7 +164,11 @@ async function main(): Promise<void> {
     }
   }
 
-  const model = endpoint.model ?? reportedModel ?? `${endpoint.api}-unknown`;
+  const mainModel =
+    endpoint.model ?? reportedModel ?? `${endpoint.api}-unknown`;
+  const model = fastEndpoint?.model
+    ? `${fastEndpoint.model}+${mainModel}`
+    : mainModel;
   const n = files.length;
   console.log(`\nModel ${model}: ${allCorrect}/${n} sheets fully correct`);
   console.log(
