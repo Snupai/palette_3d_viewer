@@ -91,6 +91,13 @@ function seededRandom(seed: number): () => number {
   };
 }
 
+// Pull-request CI runs the first two seeded cases (same seed stream, so they
+// are a prefix of the full run); pushes to main and local runs check all eight.
+const SEEDED_CASE_COUNT =
+  process.env.SOLVER_SEEDED_CASES === undefined
+    ? 8
+    : Number(process.env.SOLVER_SEEDED_CASES);
+
 describe("solver input and candidate validation", () => {
   it("adapts ProjectV2-compatible per-side underhang without touching legacy geometry", () => {
     const project = createProject(
@@ -1244,7 +1251,7 @@ describe("solver input and candidate validation", () => {
 
   it("keeps every candidate valid across seeded package and envelope dimensions", () => {
     const random = seededRandom(0x5017e2);
-    for (let caseIndex = 0; caseIndex < 8; caseIndex += 1) {
+    for (let caseIndex = 0; caseIndex < SEEDED_CASE_COUNT; caseIndex += 1) {
       const dimensionsMm = {
         length: 40 + Math.floor(random() * 80),
         width: 30 + Math.floor(random() * 70),

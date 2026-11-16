@@ -134,7 +134,8 @@ deliberately behaviour-first. Keep it that way:
 - **Don't test the platform.** No assertions about Node `crypto`, `JSON`, or framework
   behaviour — only project logic.
 - **Seeded property tests are allowed but budgeted.** `solver.test.ts` alone is ~37 % of
-  total runtime; do not add more `O(n²)` sweeps there without trimming cases.
+  total runtime; do not add more `O(n²)` sweeps there without trimming cases. PR CI sets
+  `SOLVER_SEEDED_CASES=2` for the seeded property test; main and local runs check all eight.
 - **`// @vitest-environment node`** for anything touching `node:fs`/`node:crypto`
   (parity, digests, discovery, bundled asset checks).
 
