@@ -1131,6 +1131,9 @@ export function PlannerProjectWorkspace({
   ): Promise<Project> => {
     setError(null);
     setStatusMessage(null);
+    // Taken before the first await: a user who leaves meanwhile is not
+    // asked about, nor switched to, this plan.
+    const generation = navigationGeneration.current;
     // "Keep new version" replaces exactly the plan the dialog showed, at the
     // version it showed; a change made meanwhile makes the delete fail.
     let replaced: { key: string; version: RecordVersion | null } | null = null;
@@ -1139,6 +1142,7 @@ export function PlannerProjectWorkspace({
       const key = routing.keyFor(duplicate);
       const shown = await routing.load(key);
       const existing = shown.project ?? duplicate;
+      if (generation !== navigationGeneration.current) return project;
       const choice = await askDuplicate(
         project,
         existing,
@@ -1146,6 +1150,7 @@ export function PlannerProjectWorkspace({
           ? null
           : t("conflict.duplicate.keepNewForbidden"),
       );
+      if (generation !== navigationGeneration.current) return project;
       if (choice === "keep-server") {
         openExistingInsteadOf(existing);
         return existing;
@@ -1158,7 +1163,6 @@ export function PlannerProjectWorkspace({
     setProjectDrawerOpen(false);
     const switchedProject =
       selectedId !== routing.key({ id: project.id, origin });
-    const generation = navigationGeneration.current;
     const { saved, version, copied } = await saveForSession(project, origin);
     let removeFailure: string | null = null;
     if (replaced) {
