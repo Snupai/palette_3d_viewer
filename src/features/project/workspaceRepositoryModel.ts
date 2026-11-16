@@ -152,18 +152,23 @@ export class WorkspaceRepositoryModel {
     return this.save(copy, origin, { expectedVersion: null });
   }
 
-  async remove(key: string) {
+  /** `expectedVersion`: delete only that version (a confirmed comparison). */
+  async remove(key: string, expectedVersion?: RecordVersion | null) {
     const { origin, id } = this.reference(key);
     const repository = this.repository(origin);
     const version =
-      origin === "browser-local"
-        ? (this.localVersions.get(id) ??
-          (await repository.getProject(id)).version ??
-          null)
-        : null;
+      expectedVersion !== undefined
+        ? expectedVersion
+        : origin === "browser-local"
+          ? (this.localVersions.get(id) ??
+            (await repository.getProject(id)).version ??
+            null)
+          : null;
     const deleted = await repository.deleteProject(
       id,
-      origin === "browser-local" ? { expectedVersion: version } : undefined,
+      origin === "browser-local" || expectedVersion !== undefined
+        ? { expectedVersion: version }
+        : undefined,
     );
     if (deleted && origin === "browser-local") this.localVersions.delete(id);
     return deleted;

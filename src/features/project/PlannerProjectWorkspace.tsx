@@ -1131,18 +1131,20 @@ export function PlannerProjectWorkspace({
   ): Promise<Project> => {
     setError(null);
     setStatusMessage(null);
-    const duplicates = await duplicatePlansFor(project, origin);
-    if (duplicates.length > 0) {
-      const existing = duplicates[0]!;
-      const keepNewDisabledReason = duplicates.every(
-        (entry) => accessFor(routing.keyFor(entry)).canDelete,
-      )
-        ? null
-        : t("conflict.duplicate.keepNewForbidden");
+    // "Keep new version" replaces exactly the plan the dialog showed, at the
+    // version it showed; a change made meanwhile makes the delete fail.
+    let replaced: { key: string; version: RecordVersion | null } | null = null;
+    const [duplicate] = await duplicatePlansFor(project, origin);
+    if (duplicate) {
+      const key = routing.keyFor(duplicate);
+      const shown = await routing.load(key);
+      const existing = shown.project ?? duplicate;
       const choice = await askDuplicate(
         project,
         existing,
-        keepNewDisabledReason,
+        accessFor(key).canDelete
+          ? null
+          : t("conflict.duplicate.keepNewForbidden"),
       );
       if (choice === "keep-server") {
         openExistingInsteadOf(existing);
@@ -1150,6 +1152,7 @@ export function PlannerProjectWorkspace({
       }
       if (choice !== "keep-mine")
         throw new Error(t("conflict.duplicate.cancelled"));
+      if (shown.project) replaced = { key, version: shown.version ?? null };
     }
     setShowWelcome(false);
     setProjectDrawerOpen(false);
@@ -1157,20 +1160,18 @@ export function PlannerProjectWorkspace({
       selectedId !== routing.key({ id: project.id, origin });
     const generation = navigationGeneration.current;
     const { saved, version, copied } = await saveForSession(project, origin);
-    // "Keep new version": the plans it replaces go.
     let removeFailure: string | null = null;
-    for (const entry of duplicates) {
+    if (replaced) {
       try {
-        await routing.remove(routing.keyFor(entry));
+        await routing.remove(replaced.key, replaced.version);
       } catch (cause) {
         console.error("Failed to delete replaced duplicate plan", cause);
         removeFailure = cause instanceof Error ? cause.message : String(cause);
+        setError(
+          t("conflict.duplicate.removeFailed", { message: removeFailure }),
+        );
       }
     }
-    if (removeFailure)
-      setError(
-        t("conflict.duplicate.removeFailed", { message: removeFailure }),
-      );
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = routing.keyFor(saved);
     loadedVersionRef.current =
@@ -1190,7 +1191,7 @@ export function PlannerProjectWorkspace({
       t(
         copied
           ? "auth.status.savedAsCopy"
-          : duplicates.length > 0 && !removeFailure
+          : replaced && !removeFailure
             ? "conflict.duplicate.replaced"
             : "project.status.planSaved",
         { name: projectLabel(saved, t) },

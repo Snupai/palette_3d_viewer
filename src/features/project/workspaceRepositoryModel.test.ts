@@ -51,6 +51,25 @@ describe("workspace repository routing", () => {
     ).toBe("server");
   });
 
+  it("deletes a server plan only at the version the user confirmed", async () => {
+    const { model, server } = setup();
+    const shown = await model.save(plan("dup"), "server");
+    // Changed elsewhere after the comparison was shown.
+    await server.saveProjectVersioned(
+      { ...shown.project, projectNumber: "EDITED" },
+      { expectedVersion: shown.version },
+    );
+    await expect(
+      model.remove(model.key({ id: "dup", origin: "server" }), shown.version),
+    ).rejects.toBeInstanceOf(RecordVersionConflictError);
+    expect((await server.getProject("dup")).project?.projectNumber).toBe(
+      "EDITED",
+    );
+    expect(
+      await model.remove(model.key({ id: "dup", origin: "server" }), 2),
+    ).toBe(true);
+  });
+
   it("saves a browser plan without touching the server repository", async () => {
     const { model, server, browser } = setup();
     const request = vi.spyOn(server, "saveProjectVersioned");
