@@ -77,4 +77,29 @@ export const conflictDe = {
     "Der Entwurf wurde verworfen; der Plan ist auf dem Server gelöscht.",
   "conflict.status.savedCopy":
     "Ihr Entwurf wurde als Kopie {name} gespeichert.",
+  "conflict.duplicate.title": "Plan mit dieser Nummer existiert bereits",
+  "conflict.duplicate.intro":
+    "Es gibt bereits einen gespeicherten Plan mit derselben Produkt- bzw. Projektnummer. Wählen Sie, welche Version behalten wird – die andere wird gelöscht.",
+  "conflict.duplicate.mineHeading": "Neue Version",
+  "conflict.duplicate.mineCaption": "Noch nicht gespeichert",
+  "conflict.duplicate.existingHeading": "Vorhandener Plan",
+  "conflict.duplicate.existingCaption": "Gespeichert {date}",
+  "conflict.duplicate.keepNew": "Neue Version behalten",
+  "conflict.duplicate.keepNewHint":
+    "Speichert die neue Version und löscht den vorhandenen Plan.",
+  "conflict.duplicate.keepNewForbidden":
+    "Der vorhandene Plan gehört einem anderen Benutzer und kann nicht ersetzt werden.",
+  "conflict.duplicate.keepExisting": "Vorhandenen Plan behalten",
+  "conflict.duplicate.keepExistingHint":
+    "Verwirft die neue Version und öffnet den vorhandenen Plan.",
+  "conflict.duplicate.cancel": "Abbrechen",
+  "conflict.duplicate.cancelHint":
+    "Nichts wird gespeichert; Sie können die Nummer ändern.",
+  "conflict.duplicate.cancelled":
+    "Nicht gespeichert: Ein Plan mit dieser Nummer existiert bereits.",
+  "conflict.duplicate.keptExisting": "Vorhandener Plan {name} wurde behalten.",
+  "conflict.duplicate.replaced":
+    "Plan {name} gespeichert; die alte Version wurde gelöscht.",
+  "conflict.duplicate.removeFailed":
+    "Plan gespeichert, aber die alte Version konnte nicht gelöscht werden: {message}",
 } as const;

@@ -136,6 +136,10 @@ import {
   type LoadedProjectVersion,
   type ProjectConflict,
 } from "~/features/project/projectConflictModel";
+import {
+  findDuplicatePlans,
+  needsDuplicateCheck,
+} from "~/features/project/duplicatePlanModel";
 
 function WorkspaceLoading() {
   return (
@@ -493,6 +497,12 @@ export function PlannerProjectWorkspace({
   /** Stored version the open plan was read at (ADR 0006). */
   const loadedVersionRef = useRef<LoadedProjectVersion | null>(null);
   const [conflict, setConflict] = useState<ProjectConflict | null>(null);
+  /** A save would duplicate a stored plan's number: which one stays? */
+  const [duplicatePrompt, setDuplicatePrompt] = useState<{
+    conflict: ProjectConflict;
+    keepNewDisabledReason: string | null;
+    decide: (choice: ConflictChoice | "cancel") => void;
+  } | null>(null);
 
   /**
    * The lease of the draft of `project`: the window's lease when it is for
@@ -1042,18 +1052,125 @@ export function PlannerProjectWorkspace({
     selectedId && selectedProject?.id === project.id
       ? routing.reference(selectedId).origin
       : newPlanOrigin;
+  /**
+   * Stored plans (same origin) that `project` would duplicate by number. A
+   * copy of another user's plan is a deliberate copy and never asks; a
+   * failed listing never blocks the save.
+   */
+  const duplicatePlansFor = async (
+    project: Project,
+    origin: WorkspacePlanOrigin,
+  ): Promise<Project[]> => {
+    if (accessFor(routing.key({ id: project.id, origin })).save === "copy")
+      return [];
+    const previous =
+      selectedProject?.id === project.id &&
+      selectedId === routing.key({ id: project.id, origin })
+        ? selectedProject
+        : null;
+    // Re-saving a plan under its own number needs no listing.
+    if (!needsDuplicateCheck(project, previous)) return [];
+    try {
+      const { projects: stored } = await routing.list();
+      return findDuplicatePlans(
+        project,
+        previous,
+        stored.filter(
+          (entry) => routing.reference(routing.keyFor(entry)).origin === origin,
+        ),
+      );
+    } catch (cause) {
+      console.error("Failed to check for duplicate plans", cause);
+      return [];
+    }
+  };
+
+  /** Resolves with the user's choice; the dialog closes on any choice. */
+  const askDuplicate = (
+    mine: Project,
+    existing: Project,
+    keepNewDisabledReason: string | null,
+  ) =>
+    new Promise<ConflictChoice | "cancel">((resolve) => {
+      setDuplicatePrompt({
+        conflict: createProjectConflict(mine, {
+          project: existing,
+          version: 0,
+        }),
+        keepNewDisabledReason,
+        decide: (choice) => {
+          setDuplicatePrompt(null);
+          resolve(choice);
+        },
+      });
+    });
+
+  /** "Keep existing": the new version is discarded, the stored plan opens. */
+  const openExistingInsteadOf = (existing: Project) => {
+    discardDraftLease();
+    discardUnsavedPlannerChanges();
+    setGeneratorLaunchRequest(null);
+    failedCreateIdRef.current = null;
+    setDialogMode("closed");
+    const key = routing.keyFor(existing);
+    selectedProjectIdRef.current = key;
+    setActiveStage(planningStageForProject(existing));
+    setShowWelcome(false);
+    setProjectDrawerOpen(false);
+    setSelectedId(key);
+    setStatusMessage(
+      t("conflict.duplicate.keptExisting", {
+        name: projectLabel(existing, t),
+      }),
+    );
+  };
+
   const saveProject = async (
     project: Project,
     origin = draftOrigin(project),
   ): Promise<Project> => {
-    setShowWelcome(false);
-    setProjectDrawerOpen(false);
     setError(null);
     setStatusMessage(null);
+    const duplicates = await duplicatePlansFor(project, origin);
+    if (duplicates.length > 0) {
+      const existing = duplicates[0]!;
+      const keepNewDisabledReason = duplicates.every(
+        (entry) => accessFor(routing.keyFor(entry)).canDelete,
+      )
+        ? null
+        : t("conflict.duplicate.keepNewForbidden");
+      const choice = await askDuplicate(
+        project,
+        existing,
+        keepNewDisabledReason,
+      );
+      if (choice === "keep-server") {
+        openExistingInsteadOf(existing);
+        return existing;
+      }
+      if (choice !== "keep-mine")
+        throw new Error(t("conflict.duplicate.cancelled"));
+    }
+    setShowWelcome(false);
+    setProjectDrawerOpen(false);
     const switchedProject =
       selectedId !== routing.key({ id: project.id, origin });
     const generation = navigationGeneration.current;
     const { saved, version, copied } = await saveForSession(project, origin);
+    // "Keep new version": the plans it replaces go.
+    let removeFailure: string | null = null;
+    for (const entry of duplicates) {
+      try {
+        await routing.remove(routing.keyFor(entry));
+      } catch (cause) {
+        console.error("Failed to delete replaced duplicate plan", cause);
+        removeFailure = cause instanceof Error ? cause.message : String(cause);
+      }
+    }
+    if (removeFailure)
+      setError(
+        t("conflict.duplicate.removeFailed", { message: removeFailure }),
+      );
     if (generation !== navigationGeneration.current) return saved;
     selectedProjectIdRef.current = routing.keyFor(saved);
     loadedVersionRef.current =
@@ -1070,9 +1187,14 @@ export function PlannerProjectWorkspace({
       setActiveTool(null);
     }
     setStatusMessage(
-      t(copied ? "auth.status.savedAsCopy" : "project.status.planSaved", {
-        name: projectLabel(saved, t),
-      }),
+      t(
+        copied
+          ? "auth.status.savedAsCopy"
+          : duplicates.length > 0 && !removeFailure
+            ? "conflict.duplicate.replaced"
+            : "project.status.planSaved",
+        { name: projectLabel(saved, t) },
+      ),
     );
     await refreshProjects();
     return saved;
@@ -1584,7 +1706,9 @@ export function PlannerProjectWorkspace({
         rawText,
         originalRawText: rawText,
       });
+      const generation = navigationGeneration.current;
       const saved = await saveProject(project, origin);
+      if (generation !== navigationGeneration.current) return;
       setActiveStage(planningStageForProject(saved));
       setStatusMessage(
         t("project.status.robOpened", {
@@ -2884,6 +3008,17 @@ export function PlannerProjectWorkspace({
           }}
         />
       </div>
+      {duplicatePrompt ? (
+        <ProjectConflictView
+          variant="duplicate"
+          conflict={duplicatePrompt.conflict}
+          busy={false}
+          error={null}
+          keepMineDisabledReason={duplicatePrompt.keepNewDisabledReason}
+          onChoose={duplicatePrompt.decide}
+          onLater={() => duplicatePrompt.decide("cancel")}
+        />
+      ) : null}
       {conflict ? (
         <ProjectConflictView
           conflict={conflict}
