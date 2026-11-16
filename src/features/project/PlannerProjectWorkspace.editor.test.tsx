@@ -951,6 +951,34 @@ describe("PlannerProjectWorkspace editor integration", () => {
     ]);
   });
 
+  it("starts a fresh plan at /new when a reload lands on a plan that was never saved", async () => {
+    stubLocalStorage();
+    const repository = new ProjectRepository(new MemoryPlannerRecordStorage());
+    window.history.replaceState(null, "", "/plan/never-saved/patterns");
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        storageMode="server"
+        fetchImpl={signedInFetch}
+      />,
+    );
+
+    await waitFor(() => expect(window.location.pathname).toBe("/new"));
+    const steps = screen.getByRole("list", { name: "Planungsschritte" });
+    expect(
+      within(steps)
+        .getByText("Paket & Palette")
+        .closest("li")
+        ?.getAttribute("aria-current"),
+    ).toBe("step");
+    expect(
+      screen.queryByText(
+        "Projekt „never-saved“ konnte nicht erneut geöffnet werden.",
+      ),
+    ).toBeNull();
+  });
+
   it("asks before signing out with unsaved drafts and then removes this user's backups", async () => {
     const storage = stubLocalStorage();
     const { project, repository } = await repositoryWithProject();

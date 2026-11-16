@@ -481,6 +481,11 @@ export function PlannerProjectWorkspace({
   const routeStageRef = useRef<PlanningStage | null>(null);
   /** Tool requested by the URL; restored once the project has loaded. */
   const routeToolRef = useRef<ProductionTool | null>(null);
+  /**
+   * Plan opened from the URL on page load. If it was never saved (reload
+   * while creating it), the user starts over at `/new` instead of an error.
+   */
+  const routePlanKeyRef = useRef<string | null>(null);
   /** Bumped when the open project was replaced on disk and must be re-read. */
   const [projectReloadToken, setProjectReloadToken] = useState(0);
   const [routeReady, setRouteReady] = useState(false);
@@ -594,6 +599,7 @@ export function PlannerProjectWorkspace({
     } else if (route.kind === "plan") {
       setShowWelcome(false);
       selectedProjectIdRef.current = routing.key(routing.reference(route.id));
+      routePlanKeyRef.current = selectedProjectIdRef.current;
       setSelectedId(routing.key(routing.reference(route.id)));
       if (route.stage) {
         routeStageRef.current = route.stage;
@@ -788,6 +794,21 @@ export function PlannerProjectWorkspace({
       .load(selectedId)
       .then((result) => {
         if (request !== projectRequest.current) return;
+        const fromRoute = routePlanKeyRef.current === selectedId;
+        routePlanKeyRef.current = null;
+        if (fromRoute && !result.project && result.diagnostics.length === 0) {
+          // Reloaded before the plan was ever saved: back to a fresh `/new`.
+          loadedVersionRef.current = null;
+          routeStageRef.current = null;
+          routeToolRef.current = null;
+          pendingEditIdRef.current = null;
+          selectedProjectIdRef.current = null;
+          setSelectedProject(null);
+          setSelectedId(null);
+          setInputSection("meta");
+          setDialogMode("create");
+          return;
+        }
         loadedVersionRef.current =
           routing.reference(selectedId).origin === "server" &&
           result.project &&
