@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   boundingRectangleForPlacements,
-  createCenteredEffectivePalletEnvelope,
   rectangleBoundsCenter,
 } from "~/domain/geometry";
 import { solveLayer } from "~/domain/solver/solve";
@@ -52,6 +51,24 @@ function syntheticPattern(ref: string, packageCount = 1): StackPattern {
     },
   };
 }
+
+const OBSERVED_AP5006_PLACEMENTS = [
+  ...[95.5, 1104.5].flatMap((x) =>
+    [58.5, 164.5, 270.5].map((y) => ({
+      positionMm: { x, y },
+      rotation: 0 as const,
+    })),
+  ),
+  ...[229, 335, 441, 547, 653, 759, 865, 971].flatMap((x) =>
+    [84, 245].map((y) => ({ positionMm: { x, y }, rotation: 90 as const })),
+  ),
+  ...[70, 176, 282, 388, 494, 600, 706, 812, 918, 1024, 1130].flatMap((x) =>
+    [402, 559, 716].map((y) => ({
+      positionMm: { x, y },
+      rotation: 90 as const,
+    })),
+  ),
+];
 
 describe("M4 stack golden calculations", () => {
   it("preserves centered solver coordinates through identity stack materialization", () => {
@@ -135,38 +152,31 @@ describe("M4 stack golden calculations", () => {
 
   it("materializes the observed 55 package candidate over 10 layers as 550", () => {
     const values = observedAp5006.input.values;
-    const solverEnvelope = createCenteredEffectivePalletEnvelope(
-      {
-        length: values.pallet.lengthMm,
-        width: values.pallet.widthMm,
+    // The observed AP5006 geometry. solver.ap5006.test.ts pins that the solver
+    // generates exactly this layout; re-solving here would only cost time.
+    const stackPattern: StackPattern = {
+      ...syntheticPattern("ap5006-observed"),
+      placements: OBSERVED_AP5006_PLACEMENTS.map((placement, index) => ({
+        sourcePlacementId: `ap5006-observed-placement-${index + 1}`,
+        sequence: index,
+        ...placement,
+        gripId: null,
+        labelSide: null,
+      })),
+      cycleCount: OBSERVED_AP5006_PLACEMENTS.length,
+      // Solver-generated patterns carry an unverified cycle count.
+      cycleCountProvenance: {
+        status: "unverified",
+        source: "solver-candidate:golden-fixture",
+        detail: "Observed AP5006 geometry without explicit robot cycles.",
       },
-      {
-        length: values.pallet.underhangLengthMm,
-        width: values.pallet.underhangWidthMm,
+      transformFrameMm: {
+        minX: 0,
+        minY: 0,
+        maxX: values.pallet.lengthMm,
+        maxY: values.pallet.widthMm,
       },
-    );
-    const solved = solveLayer({
-      package: {
-        shape: values.package.shape,
-        dimensionsMm: {
-          length: values.package.lengthMm,
-          width: values.package.widthMm,
-        },
-        clearanceMm: values.package.clearanceMm,
-      },
-      envelopeMm: solverEnvelope,
-      constraints: {
-        minimumPackageCount: 55,
-        maximumPackageCount: 55,
-        maxCandidatesPerGenerator: 200,
-      },
-    });
-    const candidate = solved.candidates.find(
-      ({ metrics }) => metrics.packageCount === 55,
-    )!;
-    const stackPattern = stackPatternFromSolverCandidate(candidate, {
-      transformFrameMm: solverEnvelope,
-    });
+    };
     const result = materializeStack({
       package: {
         shape: "cuboid",
@@ -241,7 +251,7 @@ describe("M4 stack golden calculations", () => {
     expect(result.warnings.map(({ code }) => code)).toContain(
       "metric-provenance-unverified",
     );
-  }, 30_000);
+  });
 
   it("uses variable all-rule interlayers plus base/deck sheets in exact height and weight", () => {
     const layers = createCompositionSequence({
