@@ -8,16 +8,18 @@ default:
     @just --list
 
 # Build and start the full stack, including migrations and backups.
+# --force-recreate: podman-compose 1.x only recreates containers when the
+# compose config changes, so a rebuilt image would otherwise never run.
 up:
     mkdir -p "${PALETTE_BACKUP_DIR:-backups}"
-    "${CONTAINER_ENGINE:-podman}" compose up -d --build
+    "${CONTAINER_ENGINE:-podman}" compose up -d --build --force-recreate
 
 # Pull the latest commits of the current branch (fast-forward only) and redeploy.
 update:
     git fetch --prune
     git pull --ff-only
     mkdir -p "${PALETTE_BACKUP_DIR:-backups}"
-    "${CONTAINER_ENGINE:-podman}" compose up -d --build
+    "${CONTAINER_ENGINE:-podman}" compose up -d --build --force-recreate
 
 # Stop the stack; keep the database volume.
 down:
