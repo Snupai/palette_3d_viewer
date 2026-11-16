@@ -119,7 +119,7 @@ that must survive server rendering (report/preview markup) has to stay free of
 
 ## Testing Policy
 
-The suite contains 1914 tests in 196 files (2 tests and 1 file skipped) and is
+The suite contains 1914 tests in 191 files (2 tests and 1 file skipped) and is
 deliberately behaviour-first. Keep it that way:
 
 - **Test the model, not the DOM.** Prefer `*Model.ts` / domain unit tests. Reach for
@@ -133,11 +133,9 @@ deliberately behaviour-first. Keep it that way:
   progress batching. Any new solver path needs that guarantee.
 - **Don't test the platform.** No assertions about Node `crypto`, `JSON`, or framework
   behaviour — only project logic.
-- **Seeded property tests are allowed but budgeted.** The solver suite is split into
-  `src/domain/solver/solver.*.test.ts` (shared fixtures in `solverTestSupport.ts`) because
-  Vitest parallelizes per file and one slow file becomes the CI critical path. Put slow solves
-  in their own file instead of growing an existing one; do not add more `O(n²)` sweeps without
-  trimming cases. PR CI sets `SOLVER_SEEDED_CASES=2`; main and local runs check all eight.
+- **Seeded property tests are allowed but budgeted.** `solver.test.ts` alone is ~37 % of
+  total runtime; do not add more `O(n²)` sweeps there without trimming cases. PR CI sets
+  `SOLVER_SEEDED_CASES=2` for the seeded property test; main and local runs check all eight.
 - **`// @vitest-environment node`** for anything touching `node:fs`/`node:crypto`
   (parity, digests, discovery, bundled asset checks).
 
