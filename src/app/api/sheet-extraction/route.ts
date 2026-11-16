@@ -1,7 +1,7 @@
 import { env } from "~/env";
 import { aiFeaturesEnabled } from "~/lib/aiFeatures";
 import {
-  extractPalletSheet,
+  extractPalletSheetWithFallback,
   SheetExtractionError,
   type SheetExtractionErrorKind,
 } from "~/lib/sheetExtraction/ollamaSheetExtractor";
@@ -10,7 +10,10 @@ import {
   limitRequestBody,
   RequestBodyTooLargeError,
 } from "~/lib/sheetExtraction/requestGuards";
-import { resolveSheetExtractionEndpoint } from "~/lib/sheetExtraction/sheetExtractionConfig";
+import {
+  resolveSheetExtractionEndpoint,
+  resolveSheetExtractionFastEndpoint,
+} from "~/lib/sheetExtraction/sheetExtractionConfig";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -143,10 +146,11 @@ export async function POST(request: Request): Promise<Response> {
     const imageBase64 = Buffer.from(await image.arrayBuffer()).toString(
       "base64",
     );
-    const result = await extractPalletSheet(imageBase64, {
-      ...resolveSheetExtractionEndpoint(env),
-      imageMimeType: image.type,
-      signal: request.signal,
+    const perRequest = { imageMimeType: image.type, signal: request.signal };
+    const fast = resolveSheetExtractionFastEndpoint(env);
+    const result = await extractPalletSheetWithFallback(imageBase64, {
+      fast: fast ? { ...fast, ...perRequest } : null,
+      main: { ...resolveSheetExtractionEndpoint(env), ...perRequest },
     });
     return Response.json(result);
   } catch (cause) {

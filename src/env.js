@@ -26,6 +26,13 @@ export const env = createEnv({
     SHEET_EXTRACTION_MODEL: z.string().optional(),
     /** Optional key, sent as `Authorization: Bearer` (e.g. `llama-server --api-key`). */
     SHEET_EXTRACTION_API_KEY: z.string().optional(),
+    /**
+     * Optional fast model (e.g. `nuextract3`) that reads first; the main model
+     * reads only when its answer fails the checks. Unset: main model only.
+     */
+    SHEET_EXTRACTION_FAST_MODEL: z.string().optional(),
+    /** Server of the fast model when it differs from `SHEET_EXTRACTION_URL`. */
+    SHEET_EXTRACTION_FAST_URL: z.string().url().optional(),
     /** Concurrent sheet-extraction inferences per process; others get 429. */
     SHEET_EXTRACTION_MAX_CONCURRENT: z.coerce.number().int().min(1).default(1),
     /**
@@ -77,6 +84,8 @@ export const env = createEnv({
     OLLAMA_URL: process.env.OLLAMA_URL,
     SHEET_EXTRACTION_MODEL: process.env.SHEET_EXTRACTION_MODEL,
     SHEET_EXTRACTION_API_KEY: process.env.SHEET_EXTRACTION_API_KEY,
+    SHEET_EXTRACTION_FAST_MODEL: process.env.SHEET_EXTRACTION_FAST_MODEL,
+    SHEET_EXTRACTION_FAST_URL: process.env.SHEET_EXTRACTION_FAST_URL,
     SHEET_EXTRACTION_MAX_CONCURRENT:
       process.env.SHEET_EXTRACTION_MAX_CONCURRENT,
     DATABASE_URL: process.env.DATABASE_URL,

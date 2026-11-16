@@ -8,19 +8,20 @@ vi.mock("~/env", () => ({
     SHEET_EXTRACTION_API: "ollama",
     OLLAMA_URL: "http://localhost:11434",
     SHEET_EXTRACTION_MODEL: "test",
+    SHEET_EXTRACTION_FAST_MODEL: "nuextract3",
   },
 }));
 vi.mock(
   "~/lib/sheetExtraction/ollamaSheetExtractor",
   async (importOriginal) => ({
     ...(await importOriginal<typeof Extractor>()),
-    extractPalletSheet: vi.fn(async () => ({ ok: true })),
+    extractPalletSheetWithFallback: vi.fn(async () => ({ ok: true })),
   }),
 );
 const aiFeatures = vi.hoisted(() => ({ aiFeaturesEnabled: true }));
 vi.mock("~/lib/aiFeatures", () => aiFeatures);
 import { POST } from "./route";
-import { extractPalletSheet } from "~/lib/sheetExtraction/ollamaSheetExtractor";
+import { extractPalletSheetWithFallback } from "~/lib/sheetExtraction/ollamaSheetExtractor";
 
 describe("sheet extraction upload admission", () => {
   it("allows a completed upload to use Ollama while another upload stalls", async () => {
@@ -51,7 +52,7 @@ describe("sheet extraction upload admission", () => {
         }),
       );
       expect(response.status).toBe(200);
-      expect(extractPalletSheet).toHaveBeenCalledTimes(1);
+      expect(extractPalletSheetWithFallback).toHaveBeenCalledTimes(1);
     } finally {
       controller.abort();
       expect((await pending).status).toBe(499);
@@ -60,7 +61,7 @@ describe("sheet extraction upload admission", () => {
 
   it("answers 404 without calling the model when AI features are disabled", async () => {
     aiFeatures.aiFeaturesEnabled = false;
-    vi.mocked(extractPalletSheet).mockClear();
+    vi.mocked(extractPalletSheetWithFallback).mockClear();
     try {
       const form = new FormData();
       form.set(
@@ -75,9 +76,38 @@ describe("sheet extraction upload admission", () => {
         }),
       );
       expect(response.status).toBe(404);
-      expect(extractPalletSheet).not.toHaveBeenCalled();
+      expect(extractPalletSheetWithFallback).not.toHaveBeenCalled();
     } finally {
       aiFeatures.aiFeaturesEnabled = true;
     }
+  });
+});
+
+describe("sheet extraction readers", () => {
+  it("hands the fast NuExtract reader and the main model to the fallback flow", async () => {
+    vi.mocked(extractPalletSheetWithFallback).mockClear();
+    const form = new FormData();
+    form.set("image", new Blob(["image"], { type: "image/png" }), "photo.png");
+    const response = await POST(
+      new Request("http://localhost/api/sheet-extraction", {
+        method: "POST",
+        body: form,
+      }),
+    );
+    expect(response.status).toBe(200);
+    const [, readers] = vi.mocked(extractPalletSheetWithFallback).mock
+      .calls[0]!;
+    expect(readers.fast).toMatchObject({
+      api: "ollama",
+      baseUrl: "http://localhost:11434",
+      model: "nuextract3",
+      promptStyle: "nuextract",
+      imageMimeType: "image/png",
+    });
+    expect(readers.main).toMatchObject({
+      model: "test",
+      promptStyle: "instruct",
+      imageMimeType: "image/png",
+    });
   });
 });

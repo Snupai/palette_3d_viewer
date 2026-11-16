@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   chatEndpointUrl,
   resolveSheetExtractionEndpoint,
+  resolveSheetExtractionFastEndpoint,
 } from "./sheetExtractionConfig";
 
 describe("resolveSheetExtractionEndpoint", () => {
@@ -11,6 +12,7 @@ describe("resolveSheetExtractionEndpoint", () => {
       api: "ollama",
       baseUrl: "http://127.0.0.1:11434",
       model: "qwen2.5vl:32b",
+      promptStyle: "instruct",
     });
   });
 
@@ -34,7 +36,11 @@ describe("resolveSheetExtractionEndpoint", () => {
         SHEET_EXTRACTION_MODEL: "",
         SHEET_EXTRACTION_API_KEY: "  ",
       }),
-    ).toEqual({ api: "openai", baseUrl: "http://127.0.0.1:8080" });
+    ).toEqual({
+      api: "openai",
+      baseUrl: "http://127.0.0.1:8080",
+      promptStyle: "instruct",
+    });
   });
 
   it("passes model and key through when set", () => {
@@ -50,6 +56,7 @@ describe("resolveSheetExtractionEndpoint", () => {
       baseUrl: "http://llama:8080",
       model: "qwen2.5-vl-7b",
       apiKey: "secret",
+      promptStyle: "instruct",
     });
   });
 
@@ -69,5 +76,37 @@ describe("chatEndpointUrl", () => {
     ["openai", "http://h/llm", "http://h/llm/v1/chat/completions"],
   ] as const)("%s %s → %s", (api, base, expected) => {
     expect(chatEndpointUrl(api, base).href).toBe(expected);
+  });
+});
+
+describe("resolveSheetExtractionFastEndpoint", () => {
+  it("is off unless a fast model is set", () => {
+    expect(resolveSheetExtractionFastEndpoint({})).toBeNull();
+    expect(
+      resolveSheetExtractionFastEndpoint({ SHEET_EXTRACTION_FAST_MODEL: " " }),
+    ).toBeNull();
+  });
+
+  it("shares API, server and key with the main model and picks its prompt style", () => {
+    const settings = {
+      SHEET_EXTRACTION_API: "openai",
+      SHEET_EXTRACTION_URL: "http://127.0.0.1:8200",
+      SHEET_EXTRACTION_MODEL: "qwen3.8-27b",
+      SHEET_EXTRACTION_API_KEY: "k",
+      SHEET_EXTRACTION_FAST_MODEL: "nuextract3",
+    };
+    expect(resolveSheetExtractionFastEndpoint(settings)).toEqual({
+      api: "openai",
+      baseUrl: "http://127.0.0.1:8200",
+      model: "nuextract3",
+      apiKey: "k",
+      promptStyle: "nuextract",
+    });
+    expect(
+      resolveSheetExtractionFastEndpoint({
+        ...settings,
+        SHEET_EXTRACTION_FAST_URL: "http://127.0.0.1:8202",
+      })?.baseUrl,
+    ).toBe("http://127.0.0.1:8202");
   });
 });
