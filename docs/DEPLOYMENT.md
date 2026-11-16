@@ -135,7 +135,11 @@ After changes to the code or the build settings:
 docker compose up -d --build
 ```
 
-For Podman, replace `docker` with `podman` in each case.
+For Podman, use `just update` (pull + rebuild) or
+`podman compose up -d --build --force-recreate`: podman-compose 1.x only
+recreates containers when `compose.yaml` changes, so without
+`--force-recreate` the old containers keep running the previous image.
+For other commands, replace `docker` with `podman`.
 `PALETTE_DISABLE_AI_FEATURES` is also a build setting. After changes to
 runtime settings such as `SHEET_EXTRACTION_URL`, `docker compose up -d` is enough.
 A plain `restart` picks up neither new code nor changed environment variables.
