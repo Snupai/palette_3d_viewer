@@ -36,6 +36,9 @@ export const metadata: Metadata = {
       "Palettierpläne erstellen, passende Lagenmuster finden und vorhandene .rob-Pläne ansehen.",
     images: ["/opengraph-image"],
   },
+  // The app ships its own UI languages. Browser page translation rewrites
+  // React-owned text nodes and crashes reconciliation (`insertBefore` NotFoundError).
+  other: { google: "notranslate" },
 };
 
 /** Let the on-screen keyboard shrink the layout so dialogs stay scrollable. */
@@ -69,7 +72,11 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="de" className={`${barlow.variable} ${condensed.variable}`}>
+    <html
+      lang="de"
+      translate="no"
+      className={`${barlow.variable} ${condensed.variable}`}
+    >
       <body className="bg-canvas text-ink">
         <LocaleProvider>{children}</LocaleProvider>
         <DocAlignerPrefetch />
