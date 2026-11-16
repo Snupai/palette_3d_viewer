@@ -12,13 +12,21 @@ up:
     mkdir -p "${PALETTE_BACKUP_DIR:-backups}"
     "${CONTAINER_ENGINE:-podman}" compose up -d --build
 
+# Pull the latest commits of the current branch (fast-forward only) and redeploy.
+update:
+    git fetch --prune
+    git pull --ff-only
+    mkdir -p "${PALETTE_BACKUP_DIR:-backups}"
+    "${CONTAINER_ENGINE:-podman}" compose up -d --build
+
 # Stop the stack; keep the database volume.
 down:
     "${CONTAINER_ENGINE:-podman}" compose down
 
 # Show all containers, including the completed migration.
+# podman-compose 1.x rejects `ps -a` but already lists stopped containers.
 status:
-    "${CONTAINER_ENGINE:-podman}" compose ps -a
+    "${CONTAINER_ENGINE:-podman}" compose ps -a 2>/dev/null || "${CONTAINER_ENGINE:-podman}" compose ps
 
 # Follow logs (optionally name services, e.g. just logs app).
 logs *services:
