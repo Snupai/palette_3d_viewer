@@ -69,6 +69,12 @@ just logs app
 just down
 ```
 
+To deploy the latest version of the checked-out branch (usually `main`), run
+`just update`: it fetches, fast-forwards the branch (it stops instead of
+merging when local commits diverge), then rebuilds and restarts the stack.
+Migrations run automatically on start; take `just backup` first if you want a
+fresh dump before upgrading.
+
 Run `just` to list all commands, including `db-up`, `backup`,
 `restore <dump-file> --yes`, and `admin-reset-password <username>`.
 Before restoring, stop the app and backup services as described below.
@@ -79,7 +85,7 @@ Alternatively, run Compose directly:
 
 ```sh
 podman compose up -d --build
-podman compose ps -a
+podman compose ps   # podman-compose 1.x: no -a; it already lists stopped containers
 podman compose logs migrate
 podman compose run --rm migrate node admin.mjs init
 ```
