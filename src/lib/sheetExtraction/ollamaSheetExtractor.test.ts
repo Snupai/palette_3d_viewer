@@ -414,6 +414,21 @@ describe("extractPalletSheetWithFallback", () => {
     expect(result.fallback).toEqual({ fastModel: "nuextract3", fastErrors: 1 });
   });
 
+  it("gives a retrying fast model no second attempt before the main model", async () => {
+    const fast = reader("qwen3-vl-8b", answering(inconsistentSheetJson));
+    const main = reader("qwen3.8-27b", answering(validSheetJson));
+
+    const result = await extractPalletSheetWithFallback("aaa", {
+      // Default `maxRetries` (1), as the route passes it.
+      fast: { ...fast.options, maxRetries: undefined },
+      main: main.options,
+    });
+
+    expect(fast.fetchImpl).toHaveBeenCalledTimes(1);
+    expect(main.fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.model).toBe("qwen3.8-27b");
+  });
+
   it("falls back when the fast model is unreachable", async () => {
     const fast = reader("nuextract3", async () => {
       throw new TypeError("fetch failed");

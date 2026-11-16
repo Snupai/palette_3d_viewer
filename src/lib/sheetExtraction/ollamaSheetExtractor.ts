@@ -214,8 +214,9 @@ export async function extractPalletSheet(
 /**
  * Reads with the fast model first when one is configured. An answer that passes
  * every consistency check is used as is; otherwise (errors, failed or timed-out
- * call) the main model reads the photo and its answer is used. Caller aborts
- * are never turned into a fallback.
+ * call) the main model reads the photo and its answer is used. The fast model
+ * gets no retry turn: a failed check goes straight to the main model. Caller
+ * aborts are never turned into a fallback.
  */
 export async function extractPalletSheetWithFallback(
   imageBase64: string,
@@ -232,7 +233,10 @@ export async function extractPalletSheetWithFallback(
   let fastErrors: number | null = null;
   let fastModel = fast.model ?? "unknown";
   try {
-    const first = await extractPalletSheet(imageBase64, fast);
+    const first = await extractPalletSheet(imageBase64, {
+      ...fast,
+      maxRetries: 0,
+    });
     fastModel = first.model;
     fastErrors = countSheetErrors(first.issues);
     if (fastErrors === 0) return first;
