@@ -32,7 +32,8 @@ export type ProjectConflictViewProps = {
   keepMineDisabledReason?: string | null;
 };
 
-export type ConflictViewVariant = "draft" | "import";
+/** `duplicate`: a new plan whose number an existing plan already has. */
+export type ConflictViewVariant = "draft" | "import" | "duplicate";
 
 type VariantTexts = {
   title: MessageKey;
@@ -40,13 +41,16 @@ type VariantTexts = {
   serverDeleted: MessageKey;
   mineHeading: MessageKey;
   mineCaption: MessageKey;
+  serverHeading: MessageKey;
+  serverCaption: MessageKey;
   keepMine: MessageKey;
   keepMineHint: MessageKey;
   keepServer: MessageKey;
   keepServerHint: MessageKey;
   keepServerDeleted: MessageKey;
   keepServerDeletedHint: MessageKey;
-  saveCopy: MessageKey;
+  /** `null`: no "keep both" choice. */
+  saveCopy: MessageKey | null;
   saveCopyHint: MessageKey;
   later: MessageKey;
   laterHint: MessageKey;
@@ -59,6 +63,8 @@ const VARIANT_TEXTS: Record<ConflictViewVariant, VariantTexts> = {
     serverDeleted: "conflict.serverDeleted",
     mineHeading: "conflict.mine.heading",
     mineCaption: "conflict.mine.caption",
+    serverHeading: "conflict.server.heading",
+    serverCaption: "conflict.server.caption",
     keepMine: "conflict.action.keepMine",
     keepMineHint: "conflict.action.keepMineHint",
     keepServer: "conflict.action.keepServer",
@@ -76,6 +82,8 @@ const VARIANT_TEXTS: Record<ConflictViewVariant, VariantTexts> = {
     serverDeleted: "localImport.conflict.serverDeleted",
     mineHeading: "localImport.conflict.mineHeading",
     mineCaption: "localImport.conflict.mineCaption",
+    serverHeading: "conflict.server.heading",
+    serverCaption: "conflict.server.caption",
     keepMine: "localImport.conflict.keepMine",
     keepMineHint: "localImport.conflict.keepMineHint",
     keepServer: "localImport.conflict.keepServer",
@@ -86,6 +94,25 @@ const VARIANT_TEXTS: Record<ConflictViewVariant, VariantTexts> = {
     saveCopyHint: "localImport.conflict.saveCopyHint",
     later: "localImport.conflict.later",
     laterHint: "localImport.conflict.laterHint",
+  },
+  duplicate: {
+    title: "conflict.duplicate.title",
+    intro: "conflict.duplicate.intro",
+    serverDeleted: "conflict.serverDeleted",
+    mineHeading: "conflict.duplicate.mineHeading",
+    mineCaption: "conflict.duplicate.mineCaption",
+    serverHeading: "conflict.duplicate.existingHeading",
+    serverCaption: "conflict.duplicate.existingCaption",
+    keepMine: "conflict.duplicate.keepNew",
+    keepMineHint: "conflict.duplicate.keepNewHint",
+    keepServer: "conflict.duplicate.keepExisting",
+    keepServerHint: "conflict.duplicate.keepExistingHint",
+    keepServerDeleted: "conflict.duplicate.keepExisting",
+    keepServerDeletedHint: "conflict.duplicate.keepExistingHint",
+    saveCopy: null,
+    saveCopyHint: "conflict.action.saveCopyHint",
+    later: "conflict.duplicate.cancel",
+    laterHint: "conflict.duplicate.cancelHint",
   },
 };
 
@@ -273,11 +300,11 @@ export function ProjectConflictView({
             <figure className="border-line m-0 border p-3">
               <figcaption className="mb-2">
                 <span className="text-ink text-body block font-semibold">
-                  {t("conflict.server.heading")}
+                  {t(texts.serverHeading)}
                 </span>
                 <span className="text-muted text-micro">
                   {server
-                    ? t("conflict.server.caption", {
+                    ? t(texts.serverCaption, {
                         version: server.version,
                         date: new Date(server.project.updatedAt).toLocaleString(
                           tag,
@@ -290,7 +317,7 @@ export function ProjectConflictView({
                 <PlanThumb
                   project={server.project}
                   title={t("conflict.thumbTitle", {
-                    side: t("conflict.server.heading"),
+                    side: t(texts.serverHeading),
                     title: planTitle(server.project),
                   })}
                 />
@@ -307,7 +334,7 @@ export function ProjectConflictView({
                 <tr>
                   <th scope="col">{t("conflict.column.field")}</th>
                   <th scope="col">{t(texts.mineHeading)}</th>
-                  <th scope="col">{t("conflict.server.heading")}</th>
+                  <th scope="col">{t(texts.serverHeading)}</th>
                 </tr>
               </thead>
               <tbody>
@@ -403,7 +430,9 @@ export function ProjectConflictView({
                   t(texts.keepServerDeleted),
                   t(texts.keepServerDeletedHint),
                 )}
-            {action("save-copy", t(texts.saveCopy), t(texts.saveCopyHint))}
+            {texts.saveCopy
+              ? action("save-copy", t(texts.saveCopy), t(texts.saveCopyHint))
+              : null}
             {action("later", t(texts.later), t(texts.laterHint))}
           </div>
         </footer>

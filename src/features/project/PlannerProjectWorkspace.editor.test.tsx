@@ -1868,4 +1868,63 @@ describe("PlannerProjectWorkspace editor integration", () => {
       height: 40,
     });
   });
+
+  it("asks which version to keep when a .rob with an existing plan's number is opened again", async () => {
+    const { repository } = await repositoryWithProject();
+    render(<PlannerProjectWorkspace repository={repository} />);
+    await openSavedPlan();
+    await screen.findByRole(
+      "heading",
+      { name: "M5-EDITOR" },
+      { timeout: 5_000 },
+    );
+
+    const importRob = async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Pläne" }));
+      await screen.findByRole("region", { name: "Planbibliothek" });
+      const input = document.querySelector<HTMLInputElement>(
+        'input[type="file"][accept=".rob,text/plain"]',
+      )!;
+      const file = new File([referenceRob], "reference.rob", {
+        type: "text/plain",
+      });
+      Object.defineProperty(file, "text", {
+        value: () => Promise.resolve(referenceRob),
+      });
+      fireEvent.change(input, { target: { files: [file] } });
+    };
+    const importedIds = async () =>
+      (await repository.listProjects()).projects
+        .filter((entry) => entry.source.kind === "rob-import")
+        .map(({ id }) => id);
+
+    await importRob();
+    await screen.findByRole(
+      "heading",
+      { name: "reference" },
+      { timeout: 5_000 },
+    );
+    const [first] = await importedIds();
+    expect(first).toBeDefined();
+
+    // Keep the new version: the earlier plan is replaced, not duplicated.
+    await importRob();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Neue Version behalten" }),
+    );
+    await waitFor(async () => {
+      const ids = await importedIds();
+      expect(ids).toHaveLength(1);
+      expect(ids[0]).not.toBe(first);
+    });
+    const afterReplace = await importedIds();
+
+    // Keep the existing plan: nothing new is stored.
+    await importRob();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Vorhandenen Plan behalten" }),
+    );
+    await screen.findByText("Vorhandener Plan reference wurde behalten.");
+    expect(await importedIds()).toEqual(afterReplace);
+  });
 });

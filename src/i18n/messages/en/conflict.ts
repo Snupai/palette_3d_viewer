@@ -76,4 +76,29 @@ export const conflictEn = {
   "conflict.status.serverDeleted":
     "The draft was discarded; the plan is deleted on the server.",
   "conflict.status.savedCopy": "Your draft was saved as the copy {name}.",
+  "conflict.duplicate.title": "A plan with this number already exists",
+  "conflict.duplicate.intro":
+    "A saved plan with the same product or project number already exists. Choose which version to keep – the other one is deleted.",
+  "conflict.duplicate.mineHeading": "New version",
+  "conflict.duplicate.mineCaption": "Not saved yet",
+  "conflict.duplicate.existingHeading": "Existing plan",
+  "conflict.duplicate.existingCaption": "Saved {date}",
+  "conflict.duplicate.keepNew": "Keep new version",
+  "conflict.duplicate.keepNewHint":
+    "Saves the new version and deletes the existing plan.",
+  "conflict.duplicate.keepNewForbidden":
+    "The existing plan belongs to another user and cannot be replaced.",
+  "conflict.duplicate.keepExisting": "Keep existing plan",
+  "conflict.duplicate.keepExistingHint":
+    "Discards the new version and opens the existing plan.",
+  "conflict.duplicate.cancel": "Cancel",
+  "conflict.duplicate.cancelHint":
+    "Nothing is saved; you can change the number.",
+  "conflict.duplicate.cancelled":
+    "Not saved: a plan with this number already exists.",
+  "conflict.duplicate.keptExisting": "Kept the existing plan {name}.",
+  "conflict.duplicate.replaced":
+    "Plan {name} saved; the old version was deleted.",
+  "conflict.duplicate.removeFailed":
+    "Plan saved, but the old version could not be deleted: {message}",
 } as const satisfies Record<keyof typeof conflictDe, string>;
