@@ -97,6 +97,12 @@ export type ListRecordsResult =
   | { ok: true; records: StoredRecord[] }
   | RecordInvalid;
 
+export type RecordManifestEntry = { id: string; version: RecordVersion };
+
+export type ListRecordManifestResult =
+  | { ok: true; entries: RecordManifestEntry[] }
+  | RecordInvalid;
+
 export type GetRecordResult =
   | { ok: true; record: StoredRecord | null }
   | RecordInvalid;
@@ -444,6 +450,26 @@ export async function listRecords(
     )
     .orderBy(asc(plannerRecords.id));
   return { ok: true, records: rows.map(toStoredRecord) };
+}
+
+/**
+ * Id and version of every live record of one store, ordered by id like
+ * `listRecords`, without payloads. Clients compare it with what they hold and
+ * fetch only missing ids. Tombstones stay hidden (ADR 0011).
+ */
+export async function listRecordManifest(
+  db: PlannerDatabase,
+  store: string,
+): Promise<ListRecordManifestResult> {
+  if (!isPlannerStoreName(store)) return unknownStore(store);
+  const entries = await db
+    .select({ id: plannerRecords.id, version: plannerRecords.version })
+    .from(plannerRecords)
+    .where(
+      and(eq(plannerRecords.store, store), eq(plannerRecords.deleted, false)),
+    )
+    .orderBy(asc(plannerRecords.id));
+  return { ok: true, entries };
 }
 
 /** One record, or `record: null` when it does not exist. */

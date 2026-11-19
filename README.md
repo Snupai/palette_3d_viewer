@@ -175,6 +175,27 @@ IndexedDB. `createPlannerRecordStorage()` selects the primary storage;
 `createBrowserLocalPlannerStorage()` explicitly constructs the anonymous browser
 inventory, both in `src/lib/plannerStorageFactory.ts`.
 
+### Pulling missing plans
+
+`GET /api/record-manifest/projects` lists every published project as
+`{ "entries": [{ "id": "p-1", "version": 2 }] }`, without plan content or
+creator, identical for every reader and never cached. A client that wants the
+plans it does not have yet:
+
+1. fetches the manifest;
+2. fetches each id whose content it does not hold from this server with
+   `GET /api/records/projects/:id` (id URL-encoded) and stores content and
+   version from that response; a sync link without content does not count, and
+   local IndexedDB write counters are never compared with server versions;
+3. skips an id answering `404 record_not_found` — it was deleted meanwhile.
+
+Deleted plans do not appear in the manifest. A client that compares only ids
+keeps stale copies after updates or after a deleted id is recreated (ADR 0012);
+to avoid that, also refetch ids whose stored server version differs from the
+manifest. Entries are ordered by id in the database's collation, which may
+differ from a JavaScript sort. In local storage mode the route answers
+`404 server_storage_disabled`.
+
 ### Running the full stack in containers
 
 Step-by-step instructions for both engines, configuration, updates and recovery:
