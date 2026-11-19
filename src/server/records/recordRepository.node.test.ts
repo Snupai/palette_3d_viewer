@@ -8,6 +8,7 @@ import { openMigratedTestDatabase } from "../db/testing";
 import {
   deleteRecord,
   getRecord,
+  listRecordManifest,
   listRecords,
   MAX_RECORD_BYTES,
   MAX_RECORD_ID_LENGTH,
@@ -329,7 +330,72 @@ describe("getRecord / listRecords", () => {
     ]);
   });
 
+  it("lists one store's live ids and versions ordered by id", async () => {
+    await insert("b");
+    await insert("a");
+    await putRecord(
+      database.db,
+      {
+        store: "pallets",
+        record: { id: "c" },
+        expectedVersion: null,
+        userId: alice,
+      },
+      T0,
+    );
+    await putRecord(
+      database.db,
+      {
+        store: "projects",
+        record: { id: "a", name: "changed" },
+        expectedVersion: 1,
+        userId: alice,
+      },
+      T1,
+    );
+    expect(await listRecordManifest(database.db, "projects")).toEqual({
+      ok: true,
+      entries: [
+        { id: "a", version: 2 },
+        { id: "b", version: 1 },
+      ],
+    });
+
+    await deleteRecord(database.db, {
+      store: "projects",
+      id: "b",
+      expectedVersion: 1,
+    });
+    expect(await listRecordManifest(database.db, "projects")).toEqual({
+      ok: true,
+      entries: [{ id: "a", version: 2 }],
+    });
+
+    await putRecord(
+      database.db,
+      {
+        store: "projects",
+        record: { id: "b" },
+        expectedVersion: null,
+        userId: alice,
+        onlyCreatedBy: alice,
+      },
+      T2,
+    );
+    expect(await listRecordManifest(database.db, "projects")).toEqual({
+      ok: true,
+      entries: [
+        { id: "a", version: 2 },
+        { id: "b", version: 2 },
+      ],
+    });
+  });
+
   it("validates store and id", async () => {
+    expect(await listRecordManifest(database.db, "users")).toMatchObject({
+      ok: false,
+      reason: "unknown-store",
+    });
     expect(await listRecords(database.db, "users")).toMatchObject({
       ok: false,
       reason: "unknown-store",

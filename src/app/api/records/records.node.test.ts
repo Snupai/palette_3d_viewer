@@ -29,6 +29,7 @@ import {
   PUT as putOne,
 } from "./[store]/[id]/route";
 import { GET as list } from "./[store]/route";
+import { GET as manifest } from "../record-manifest/projects/route";
 import { MAX_PROJECTS_PER_USER, MAX_RECORD_BODY_BYTES } from "./recordApi";
 
 const ORIGIN = "https://palette.werk.local";
@@ -224,6 +225,24 @@ describe("public reads", () => {
     const catalog = await listStore("project-resources");
     expect(await catalog.json()).toEqual({
       records: [{ record: { id: "r-1", kind: "pallet" }, version: 1 }],
+    });
+  });
+
+  it("lists live project ids and versions for everyone, without payloads or creators", async () => {
+    await create("projects", "p-alice", "alice", { name: "A" });
+    await create("projects", "p-bob", "bob", { name: "B" });
+    await create("projects", "p-gone", "alice", { name: "C" });
+    await create("project-resources", "r-1", "admin", { kind: "pallet" });
+    expect((await remove("projects", "p-gone", "alice", 1)).status).toBe(204);
+
+    const response = await manifest();
+    expect(response.status).toBe(200);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.json()).toEqual({
+      entries: [
+        { id: "p-alice", version: 1 },
+        { id: "p-bob", version: 1 },
+      ],
     });
   });
 
@@ -779,6 +798,7 @@ describe("local storage mode", () => {
         expectedVersion: null,
       }),
       remove("projects", "p-1", "alice", 1),
+      manifest(),
     ]);
     for (const response of responses) {
       expect(response.status).toBe(404);
