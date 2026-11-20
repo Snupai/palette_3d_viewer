@@ -22,7 +22,6 @@ import { jsonNoStore, serverStorageDisabled } from "../../auth/responses";
  */
 export async function requireHmi(
   request: Request,
-  options: { recordSeen?: boolean } = {},
 ): Promise<
   { db: PlannerDatabase; hmi: AuthenticatedHmi } | { response: NextResponse }
 > {
@@ -31,7 +30,7 @@ export async function requireHmi(
   const result = await authenticateHmi(
     db,
     request.headers.get("authorization"),
-    { now: new Date(), limiter: hmiRateLimiter(), ...options },
+    { now: new Date(), limiter: hmiRateLimiter() },
   );
   if (result.ok) return { db, hmi: result.hmi };
   if (result.kind === "rate-limited") {

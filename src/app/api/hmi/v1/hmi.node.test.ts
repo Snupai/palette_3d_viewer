@@ -248,7 +248,7 @@ describe("GET /api/hmi/v1/finals", () => {
 
 describe("GET /api/hmi/v1/finals/:id/rob", () => {
   it("returns the marked bytes unchanged, CRLF included, with the SHA-256 as ETag", async () => {
-    const final = await mark("p1", "SKU 9", CRLF_ROB, "Linie 7 – Ä.rob");
+    const final = await mark("p1", "SKU 9", CRLF_ROB, "Linie 7 – Ä's.rob");
 
     const response = await downloadRob(
       request("GET", `/api/hmi/v1/finals/${final.id}/rob`),
@@ -262,7 +262,7 @@ describe("GET /api/hmi/v1/finals/:id/rob", () => {
     expect(response.headers.get("etag")).toBe(`"${CRLF_SHA256}"`);
     expect(response.headers.get("cache-control")).toBe("no-store");
     expect(response.headers.get("content-disposition")).toBe(
-      `attachment; filename="Linie 7 _ _.rob"; filename*=UTF-8''Linie%207%20%E2%80%93%20%C3%84.rob`,
+      `attachment; filename="Linie 7 _ _'s.rob"; filename*=UTF-8''Linie%207%20%E2%80%93%20%C3%84%27s.rob`,
     );
     const bytes = Buffer.from(await response.arrayBuffer());
     expect(bytes.equals(Buffer.from(CRLF_ROB, "utf8"))).toBe(true);
@@ -368,7 +368,37 @@ describe("POST /api/hmi/v1/status", () => {
       expect(response.status).toBe(400);
       expect(await response.json()).toEqual({ error: "invalid_request" });
     }
-    expect((await storedDevice()).lastSeenAt).toBeNull();
+    expect(await storedDevice()).toMatchObject({
+      activeFinalId: null,
+      appVersion: null,
+    });
+  });
+
+  it("leaves a fresh last_seen_at alone: status reports obey the write throttle", async () => {
+    const recent = new Date(Date.now() - 5_000);
+    await database.db
+      .update(hmiDevices)
+      .set({ lastSeenAt: recent })
+      .where(eq(hmiDevices.id, hmiId));
+
+    const response = await postStatus(
+      request(
+        "POST",
+        "/api/hmi/v1/status",
+        {},
+        {
+          activeFinalId: null,
+          activeSha256: null,
+          appVersion: "MultipackParser 3.4.0",
+        },
+      ),
+    );
+
+    expect(response.status).toBe(204);
+    expect(await storedDevice()).toMatchObject({
+      lastSeenAt: recent,
+      appVersion: "MultipackParser 3.4.0",
+    });
   });
 });
 

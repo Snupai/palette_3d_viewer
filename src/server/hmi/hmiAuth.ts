@@ -73,8 +73,8 @@ export type HmiAuthResult =
 
 /**
  * Resolves the request's token to its HMI and counts the request against the
- * token's budget. Unless `recordSeen` is `false`, an accepted request also
- * updates `last_seen_at` (throttled, see `recordHmiSeen`).
+ * token's budget. An accepted request also updates `last_seen_at`
+ * (throttled, see `recordHmiSeen`).
  */
 export async function authenticateHmi(
   db: PlannerDatabase,
@@ -82,7 +82,6 @@ export async function authenticateHmi(
   options: {
     now: Date;
     limiter: HmiRateLimiter;
-    recordSeen?: boolean;
   },
 ): Promise<HmiAuthResult> {
   const token = readBearerToken(authorization);
@@ -96,7 +95,7 @@ export async function authenticateHmi(
   if (!allowed.ok) {
     return { ok: false, kind: "rate-limited", retryAfter: allowed.retryAfter };
   }
-  if (options.recordSeen !== false) await recordHmiSeen(db, hmi, options.now);
+  await recordHmiSeen(db, hmi, options.now);
   return { ok: true, hmi };
 }
 

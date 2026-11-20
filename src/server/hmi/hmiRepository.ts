@@ -298,8 +298,8 @@ export type HmiStatusReport = {
 };
 
 /**
- * Stores what the HMI reports as running (`POST /api/hmi/v1/status`) and
- * marks it seen. The active Fertigstand is kept only when the planner knows
+ * Stores what the HMI reports as running (`POST /api/hmi/v1/status`).
+ * `last_seen_at` is left to the throttled {@link recordHmiSeen}. The active Fertigstand is kept only when the planner knows
  * it and `activeSha256` matches its bytes; otherwise the HMI runs something
  * the planner cannot vouch for and `active_final_id` becomes `null`.
  * Returns the stored active Fertigstand id.
@@ -308,7 +308,6 @@ export async function reportHmiStatus(
   db: PlannerDatabase,
   hmiId: string,
   report: HmiStatusReport,
-  now: Date,
 ): Promise<{ activeFinalId: string | null }> {
   let activeFinalId: string | null = null;
   if (report.activeFinalId !== null) {
@@ -320,7 +319,6 @@ export async function reportHmiStatus(
     .set({
       activeFinalId,
       appVersion: normalizeHmiAppVersion(report.appVersion),
-      lastSeenAt: now,
     })
     .where(and(eq(hmiDevices.id, hmiId), isNull(hmiDevices.revokedAt)));
   return { activeFinalId };

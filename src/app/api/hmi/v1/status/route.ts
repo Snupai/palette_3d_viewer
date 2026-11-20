@@ -20,20 +20,19 @@ const statusSchema = z.object({
 
 /**
  * `POST /api/hmi/v1/status` — `{ activeFinalId, activeSha256, appVersion }`,
- * JSON. Stores what runs on the HMI and marks it seen: 204. The active
+ * JSON. Stores what runs on the HMI: 204. The active
  * Fertigstand is kept only when the planner knows `activeFinalId` and
  * `activeSha256` matches it; otherwise none is recorded. 400
  * `invalid_request` for a malformed body.
  */
 export async function POST(request: Request): Promise<Response> {
-  // The status write sets `last_seen_at` itself.
-  const auth = await requireHmi(request, { recordSeen: false });
+  const auth = await requireHmi(request);
   if ("response" in auth) return auth.response;
   const json = await readJsonBody(request);
   if ("response" in json) return json.response;
   const parsed = statusSchema.safeParse(json.body);
   if (!parsed.success) return jsonNoStore({ error: "invalid_request" }, 400);
-  await reportHmiStatus(auth.db, auth.hmi.id, parsed.data, new Date());
+  await reportHmiStatus(auth.db, auth.hmi.id, parsed.data);
   return new Response(null, {
     status: 204,
     headers: { "cache-control": "no-store" },

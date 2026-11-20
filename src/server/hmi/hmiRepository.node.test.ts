@@ -258,16 +258,6 @@ describe("authenticateHmi", () => {
     );
     expect(LAST_SEEN_WRITE_INTERVAL_MS).toBe(15_000);
   });
-
-  it("does not record a visit when told not to", async () => {
-    const { hmi, token } = await register();
-    await authenticateHmi(database.db, `Bearer ${token}`, {
-      now: T1,
-      limiter: createHmiRateLimiter(() => T1.getTime()),
-      recordSeen: false,
-    });
-    expect((await storedRow(hmi.id)).lastSeenAt).toBeNull();
-  });
 });
 
 describe("recordHmiSeen", () => {
@@ -292,25 +282,19 @@ describe("recordHmiSeen", () => {
 });
 
 describe("reportHmiStatus", () => {
-  it("stores the active Fertigstand and app version, and marks the HMI seen", async () => {
+  it("stores the active Fertigstand and app version, leaving last_seen_at to the throttle", async () => {
     const { hmi } = await register();
     const final = await finalOf("p1", "SKU 9");
 
     expect(
-      await reportHmiStatus(
-        database.db,
-        hmi.id,
-        {
-          activeFinalId: final.id,
-          activeSha256: final.sha256,
-          appVersion: " MultipackParser 3.4.0 ",
-        },
-        T1,
-      ),
+      await reportHmiStatus(database.db, hmi.id, {
+        activeFinalId: final.id,
+        activeSha256: final.sha256,
+        appVersion: " MultipackParser 3.4.0 ",
+      }),
     ).toEqual({ activeFinalId: final.id });
     expect(await getHmi(database.db, hmi.id)).toEqual({
       ...hmi,
-      lastSeenAt: T1,
       appVersion: "MultipackParser 3.4.0",
       activeFinal: {
         id: final.id,
@@ -342,19 +326,16 @@ describe("reportHmiStatus", () => {
       { activeFinalId: null, activeSha256: null },
     ];
     for (const report of reports) {
-      await reportHmiStatus(
-        database.db,
-        hmi.id,
-        { activeFinalId: final.id, activeSha256: final.sha256, appVersion: "" },
-        T0,
-      );
+      await reportHmiStatus(database.db, hmi.id, {
+        activeFinalId: final.id,
+        activeSha256: final.sha256,
+        appVersion: "",
+      });
       expect(
-        await reportHmiStatus(
-          database.db,
-          hmi.id,
-          { ...report, appVersion: "\u0007" },
-          T1,
-        ),
+        await reportHmiStatus(database.db, hmi.id, {
+          ...report,
+          appVersion: "\u0007",
+        }),
       ).toEqual({ activeFinalId: null });
       expect(await getHmi(database.db, hmi.id)).toMatchObject({
         activeFinal: null,

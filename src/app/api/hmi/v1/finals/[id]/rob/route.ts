@@ -9,7 +9,12 @@ export const dynamic = "force-dynamic";
 /** `Content-Disposition` with an ASCII fallback and the exact UTF-8 name. */
 function attachmentDisposition(fileName: string): string {
   const fallback = fileName.replace(/[^\x20-\x7e]|["\\%]/g, "_");
-  return `attachment; filename="${fallback}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  // RFC 8187 attr-chars: `encodeURIComponent` leaves `'()*!` unescaped.
+  const encoded = encodeURIComponent(fileName).replace(
+    /['()*!]/g,
+    (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`,
+  );
+  return `attachment; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
 /**

@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 
 import { Field } from "~/components/ui/Field";
 import { useLocale, type MessageKey } from "~/i18n";
@@ -33,8 +39,8 @@ type Load =
   | { status: "ready"; hmis: AdminHmi[] };
 type Pending = { id: string; action: "rename" | "revoke" | "token" };
 
-/** Relative "last seen" times refresh this often. */
-const CLOCK_TICK_MS = 15_000;
+/** The list (connection state, running plan) and "last seen" refresh this often. */
+const REFRESH_MS = 15_000;
 
 const CONNECTION_KEYS: Record<HmiConnection, MessageKey> = {
   online: "admin.hmis.status.online",
@@ -63,6 +69,8 @@ export function AdminHmisSection({
   const [pending, setPending] = useState<Pending | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  /** Bumped by every successful action; older background answers are dropped. */
+  const generation = useRef(0);
 
   const reload = useCallback(async () => {
     const result = await loadAdminHmis(fetchImpl);
@@ -77,7 +85,16 @@ export function AdminHmisSection({
       if (result.status === "screen") onScreen(result.screen);
       else setLoad(result);
     });
-    const timer = window.setInterval(() => setNow(Date.now()), CLOCK_TICK_MS);
+    const timer = window.setInterval(() => {
+      setNow(Date.now());
+      const started = generation.current;
+      void loadAdminHmis(fetchImpl).then((result) => {
+        if (!active || started !== generation.current) return;
+        if (result.status === "screen") onScreen(result.screen);
+        // A failed background refresh keeps the last list.
+        else if (result.status === "ready") setLoad(result);
+      });
+    }, REFRESH_MS);
     return () => {
       active = false;
       window.clearInterval(timer);
@@ -94,6 +111,7 @@ export function AdminHmisSection({
       if (result.screen) onScreen(result.screen);
       return false;
     }
+    generation.current++;
     setNotice({ tone: "success", text: success(result.hmi) });
     setNow(Date.now());
     setLoad((current) =>

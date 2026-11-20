@@ -1,4 +1,5 @@
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -124,5 +125,23 @@ describe("AdminHmisSection", () => {
     await waitFor(() =>
       expect(within(row).getByText("Noch nie verbunden")).toBeTruthy(),
     );
+  });
+
+  it("refreshes the list in the background so a polling HMI shows as online", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      let lastSeenAt: string | null = null;
+      const fetchImpl = (async () =>
+        json({ hmis: [hmi({ lastSeenAt })] })) as typeof fetch;
+      render(<AdminHmisSection fetchImpl={fetchImpl} onScreen={vi.fn()} />);
+      expect(await screen.findByText("Noch nie verbunden")).toBeTruthy();
+
+      lastSeenAt = new Date(Date.now()).toISOString();
+      await act(() => vi.advanceTimersByTimeAsync(15_000));
+
+      expect(await screen.findByText("Online")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
