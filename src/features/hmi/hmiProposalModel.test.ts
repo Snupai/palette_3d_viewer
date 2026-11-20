@@ -92,19 +92,32 @@ describe("loadHmiPage", () => {
     expect(await loadHmiPage(offline, HMI_ID)).toEqual({ status: "error" });
   });
 
-  it("gives up on a hanging request when its signal aborts", async () => {
-    const hanging = vi.fn<typeof fetch>(
-      (_url, init) =>
-        new Promise<Response>((_resolve, reject) => {
+  it("gives up on a hanging request or body after the timeout", async () => {
+    vi.useFakeTimers();
+    try {
+      const abortable = (init?: RequestInit) =>
+        new Promise<never>((_resolve, reject) => {
           init?.signal?.addEventListener("abort", () =>
-            reject(new DOMException("timed out", "TimeoutError")),
+            reject(new DOMException("aborted", "AbortError")),
           );
-        }),
-    );
-    const controller = new AbortController();
-    const pending = loadHmiPage(hanging, HMI_ID, controller.signal);
-    controller.abort();
-    expect(await pending).toEqual({ status: "error" });
+        });
+      const hanging = vi.fn<typeof fetch>((_url, init) => abortable(init));
+      const pendingRequest = loadHmiPage(hanging, HMI_ID, 15_000);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await pendingRequest).toEqual({ status: "error" });
+
+      // A 404 whose body never arrives must not read as "not found".
+      const hangingBody = vi.fn<typeof fetch>(async (_url, init) => {
+        const response = new Response(null, { status: 404 });
+        vi.spyOn(response, "json").mockImplementation(() => abortable(init));
+        return response;
+      });
+      const pendingBody = loadHmiPage(hangingBody, HMI_ID, 15_000);
+      await vi.advanceTimersByTimeAsync(15_000);
+      expect(await pendingBody).toEqual({ status: "error" });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

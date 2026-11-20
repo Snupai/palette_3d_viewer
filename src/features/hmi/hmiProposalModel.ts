@@ -134,30 +134,32 @@ function parseFinal(value: unknown): HmiPageFinal | null {
 }
 
 /**
- * `GET /api/hmis/:hmiId`. Aborted after {@link HMI_PAGE_REQUEST_TIMEOUT_MS}
- * by default, body included; an abort counts as `error`, so the next poll
- * runs.
+ * `GET /api/hmis/:hmiId`. Gives up after `timeoutMs`, body included (a
+ * plain `AbortController` and timer: older iOS Safari lacks
+ * `AbortSignal.timeout`); a timeout counts as `error`, so polling goes on.
  */
 export async function loadHmiPage(
   fetchImpl: Fetch,
   hmiId: string,
-  signal: AbortSignal = AbortSignal.timeout(HMI_PAGE_REQUEST_TIMEOUT_MS),
+  timeoutMs = HMI_PAGE_REQUEST_TIMEOUT_MS,
 ): Promise<HmiPageState> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetchImpl(`/api/hmis/${encodeURIComponent(hmiId)}`, {
       cache: "no-store",
-      signal,
+      signal: controller.signal,
     });
     if (response.status === 401) return { status: "unauthenticated" };
+    const body = await readJson(response);
+    // `readJson` turns an aborted body read into `null`; that is no answer.
+    if (controller.signal.aborted) return { status: "error" };
     if (response.status === 404) {
-      const body = await readJson(response);
       return isRecord(body) && body.error === "server_storage_disabled"
         ? { status: "unavailable" }
         : { status: "not-found" };
     }
-    if (!response.ok) return { status: "error" };
-    const body = await readJson(response);
-    if (!isRecord(body)) return { status: "error" };
+    if (!response.ok || !isRecord(body)) return { status: "error" };
     const hmi = parseAdminHmi(body.hmi);
     const proposal =
       body.proposal === null ? null : parseHmiPageProposal(body.proposal);
@@ -167,6 +169,8 @@ export async function loadHmiPage(
     return { status: "ready", hmi, proposal };
   } catch {
     return { status: "error" };
+  } finally {
+    clearTimeout(timer);
   }
 }
 
