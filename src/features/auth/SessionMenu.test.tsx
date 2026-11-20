@@ -193,7 +193,7 @@ describe("SessionMenu", () => {
     },
   );
 
-  it("asks before leaving for the user management and stays when declined", async () => {
+  it("asks before leaving for the administration and stays when declined", async () => {
     const admin = { id: "u-admin", username: "admin", role: "admin" };
     const fetchImpl = vi.fn<typeof fetch>(async () => json({ user: admin }));
     const beforeLeave = vi.fn(() => false);
@@ -201,7 +201,7 @@ describe("SessionMenu", () => {
       <Harness mode="server" fetchImpl={fetchImpl} beforeLeave={beforeLeave} />,
     );
     const link = await screen.findByRole("link", {
-      name: "Benutzerverwaltung",
+      name: "Verwaltung",
     });
 
     // `false`: the click's default (following the link) was prevented.

@@ -1569,6 +1569,20 @@ details:has(> .report-sheet) {
   gap: 12px;
   max-width: 420px;
 }
+.admin-subheading {
+  font-size: 17px;
+  font-weight: 600;
+}
+/* One-time HMI token display (ADR 0013). */
+.admin-issued {
+  max-width: 560px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.admin-token {
+  font-family: var(--font-mono);
+}
 /* Page-level label size, like `.filter-content label`; the shared Field is drawer-sized. */
 .admin-form > label,
 .session-form > label {

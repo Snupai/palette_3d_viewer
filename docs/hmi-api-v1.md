@@ -11,9 +11,9 @@ built in stages; the status column says what exists.
 | Part                                                | Status                |
 | --------------------------------------------------- | --------------------- |
 | Fertigstände in the planner (`/api/finals`, UI)     | implemented (stage 1) |
-| HMI registration, tokens, config file (`/admin`)    | planned (stage 2)     |
-| `/api/hmi/v1/finals`, `…/rob`, `/api/hmi/v1/status` | planned (stage 3)     |
-| Planvorschläge (`/api/hmi/v1/proposal…`), QR page   | planned (stage 4)     |
+| HMI registration, tokens, config file (`/admin`)    | implemented (stage 2) |
+| `/api/hmi/v1/finals`, `…/rob`, `/api/hmi/v1/status` | implemented (stage 2) |
+| Planvorschläge (`/api/hmi/v1/proposal…`), QR page   | planned (stage 3)     |
 
 Until a part is implemented its contract below is the target; changes before
 release are made here first.
@@ -43,7 +43,8 @@ release are made here first.
   for development against `localhost`.
 - **Authentication:** every request sends
   `Authorization: Bearer <token>`. The token is 43 base64url characters
-  (32 random bytes). The server stores only its SHA-256.
+  (32 random bytes). The server stores only its SHA-256. A 401 carries
+  `WWW-Authenticate: Bearer realm="hmi"`.
 - **Errors** are JSON `{ "error": "<code>" }` with `Cache-Control: no-store`,
   except `304` and `204`, which have no body.
 
@@ -52,14 +53,17 @@ release are made here first.
 | 401    | `unauthenticated`                       | Missing, unknown or revoked token. Stop polling the API, show "HMI nicht freigeschaltet", keep the local plans. Retry at most every 5 min. |
 | 404    | `server_storage_disabled`               | Planner runs in local mode. Treat like 401.                                                                                                |
 | 404    | `final_not_found`, `proposal_not_found` | The id does not exist (any more).                                                                                                          |
-| 429    | `rate_limited`                          | Too many requests for this token. Wait `Retry-After` seconds.                                                                              |
+| 429    | `rate_limited`                          | More than 300 requests within 60 s for this token. Wait `Retry-After` seconds.                                                             |
 | 5xx    | —                                       | Server problem. Back off (see polling).                                                                                                    |
 
 ## Configuration on the HMI
 
 An admin registers the HMI in the planner (`/admin` → HMIs) and downloads its
 configuration file. The token is shown only once; generating a new token
-invalidates the old one.
+invalidates the old one. A revoked HMI gets 401 until an admin generates a
+new token for it, which re-admits it with the new configuration file.
+`serverUrl` is the planner address the admin enters when downloading (the
+admin's own address by default).
 
 ```json
 {
@@ -81,14 +85,17 @@ trailing slash; all paths below are relative to it.
   10 s, 20 s, 40 s, … capped at **5 min**, each delay multiplied by a random
   factor between 0.5 and 1.5. A 429 `Retry-After` overrides the delay. A
   successful answer resets the delay to 10 s.
-- The server rate-limits each token. Normal polling (two requests per 10 s
-  plus downloads and status reports) stays far below the limit.
+- The server rate-limits each token: 300 requests per fixed 60 s window.
+  Normal polling (two requests per 10 s plus downloads and status reports)
+  stays far below the limit; a first sync downloading many Fertigstände at
+  once may hit it and then continues after `Retry-After`.
 
 ## Endpoints
 
 ### `GET /api/hmi/v1/finals`
 
-The current Fertigstände. Also records the HMI as seen.
+The current Fertigstände. Also records the HMI as seen, like every
+authenticated request; the planner writes that time at most every 15 s.
 
 Request headers: `Authorization`, optionally `If-None-Match: <etag>`.
 
@@ -213,9 +220,16 @@ Body:
 ```
 
 `activeFinalId` and `activeSha256` are `null` when the running plan did not
-come from the planner (USB stick) or no plan is active. `204` on success,
-`400 invalid_request` for a malformed body. The planner shows this as
-"läuft: Plan X" and uses it for the "online vor 5 s" display.
+come from the planner (USB stick) or no plan is active. All three fields are
+required (each may be `null`); `activeFinalId` is a UUID, `activeSha256` 64
+hex characters (any case), `appVersion` a string of at most 1000 characters
+(stored trimmed when that is 1–100 printable characters, otherwise not
+stored). Unknown fields are ignored. `204` on success, `400 invalid_request`
+for a malformed body. The planner records the active Fertigstand only when it
+knows `activeFinalId` (current or withdrawn) and `activeSha256` matches its
+bytes; otherwise it records "no planner plan" and still answers `204`. The
+planner shows this as "läuft: Plan X" and uses it for the "online vor 5 s"
+display.
 
 ## QR code on the HMI
 
@@ -247,6 +261,20 @@ rob_invalid { message }` when the text does not parse as `.rob`.
 - `DELETE /api/finals/{id}` — withdraws a current Fertigstand: `204`; `404
 final_not_found` when unknown or already withdrawn.
 - Deleting a project withdraws its Fertigstand; it is not deleted.
+
+Admin only (`requireAdmin`: 401 without session, 403 for non-admins), JSON
+bodies only:
+
+- `GET /api/admin/hmis` — `{ hmis: [{ id, name, createdAt, revokedAt,
+lastSeenAt, appVersion, activeFinal: { id, name, sha256, withdrawn } |
+null }] }`, ordered by name. Never a token or its hash.
+- `POST /api/admin/hmis` — `{ name }` (1–100 characters) → `201 { hmi,
+token }`; `400 invalid_name`.
+- `PATCH /api/admin/hmis/{id}` — `{ name }` → `200 { hmi }`.
+- `POST /api/admin/hmis/{id}/revoke` — `{}` → `200 { hmi }`; idempotent.
+- `POST /api/admin/hmis/{id}/token` — `{}` → `200 { hmi, token }`; the old
+  token stops working and a revocation is lifted.
+- Unknown id: `404 hmi_not_found`.
 
 ## Versioning
 

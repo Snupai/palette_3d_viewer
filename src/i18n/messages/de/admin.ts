@@ -1,6 +1,6 @@
-/** Admin screen: user management (#32). */
+/** Admin screen: user management (#32) and HMIs (ADR 0013). */
 export const adminDe = {
-  "admin.title": "Benutzerverwaltung",
+  "admin.title": "Verwaltung",
   "admin.backToPlanner": "Zum Palettenplaner",
   "admin.loading": "Benutzer werden geladen …",
   "admin.state.unavailable":
@@ -65,4 +65,68 @@ export const adminDe = {
   "admin.error.sessionLost":
     "Ihre Anmeldung ist abgelaufen oder hat keine Admin-Rechte mehr.",
   "admin.error.generic": "Speichern fehlgeschlagen.",
+  "admin.hmis.heading": "HMIs",
+  "admin.hmis.intro":
+    "Die Bediengeräte an den Linien holen die Fertigstände selbst beim Planer ab. Jedes HMI braucht eine eigene Konfigurationsdatei mit Token.",
+  "admin.hmis.loading": "HMIs werden geladen …",
+  "admin.hmis.loadError": "Die HMIs konnten nicht geladen werden.",
+  "admin.hmis.empty": "Noch keine HMIs registriert.",
+  "admin.hmis.column.name": "Name",
+  "admin.hmis.column.status": "Status",
+  "admin.hmis.column.lastSeen": "Zuletzt gesehen",
+  "admin.hmis.column.active": "Läuft",
+  "admin.hmis.column.appVersion": "App-Version",
+  "admin.hmis.column.actions": "Aktionen",
+  "admin.hmis.status.online": "Online",
+  "admin.hmis.status.offline": "Offline",
+  "admin.hmis.status.never": "Noch nie verbunden",
+  "admin.hmis.status.revoked": "Gesperrt",
+  "admin.hmis.seen.never": "nie",
+  "admin.hmis.seen.seconds": "vor {count} s",
+  "admin.hmis.seen.minutes": "vor {count} min",
+  "admin.hmis.seen.hours": "vor {count} h",
+  "admin.hmis.seen.days": "vor {count} Tagen",
+  "admin.hmis.seen.days_one": "vor {count} Tag",
+  "admin.hmis.seen.days_other": "vor {count} Tagen",
+  "admin.hmis.active.none": "–",
+  "admin.hmis.active.current": "{name}",
+  "admin.hmis.active.withdrawn": "{name} (zurückgezogen)",
+  "admin.hmis.appVersion.unknown": "–",
+  "admin.hmis.rename.open": "Umbenennen",
+  "admin.hmis.rename.label": "Neuer Name für {name}",
+  "admin.hmis.rename.submit": "Speichern",
+  "admin.hmis.rename.success": "HMI {name} wurde umbenannt.",
+  "admin.hmis.revoke.open": "Sperren",
+  "admin.hmis.revoke.confirm":
+    "HMI {name} sperren? Es kann keine Fertigstände mehr abholen, bis ein neuer Token erzeugt wird.",
+  "admin.hmis.revoke.submit": "Sperren",
+  "admin.hmis.revoke.success": "HMI {name} wurde gesperrt.",
+  "admin.hmis.token.open": "Neuer Token",
+  "admin.hmis.token.confirm":
+    "Neuen Token für {name} erzeugen? Der bisherige Token wird sofort ungültig; das HMI braucht die neue Konfigurationsdatei.",
+  "admin.hmis.token.submit": "Token erzeugen",
+  "admin.hmis.token.success": "Neuer Token für HMI {name} wurde erzeugt.",
+  "admin.hmis.cancel": "Abbrechen",
+  "admin.hmis.create.heading": "HMI registrieren",
+  "admin.hmis.create.name": "Name",
+  "admin.hmis.create.nameHint":
+    "Zum Beispiel die Linie, an der das HMI steht. Höchstens 100 Zeichen.",
+  "admin.hmis.create.submit": "HMI registrieren",
+  "admin.hmis.create.success": "HMI {name} wurde registriert.",
+  "admin.hmis.issued.heading": "Konfiguration für {name}",
+  "admin.hmis.issued.once":
+    "Der Token wird nur jetzt angezeigt. Laden Sie die Konfigurationsdatei herunter und spielen Sie sie per USB-Stick auf das HMI ein.",
+  "admin.hmis.issued.token": "Token",
+  "admin.hmis.issued.close": "Schließen",
+  "admin.hmis.config.serverUrl": "Planer-Adresse für die HMIs",
+  "admin.hmis.config.serverUrlHint":
+    "So, wie die HMIs den Planer im Werksnetz erreichen.",
+  "admin.hmis.config.invalidUrl":
+    "Bitte eine vollständige http(s)-Adresse ohne Parameter eingeben.",
+  "admin.hmis.config.insecure":
+    "Ohne HTTPS geht der Token unverschlüsselt durchs Netz. Im Betrieb ist HTTPS Pflicht.",
+  "admin.hmis.config.download": "Konfigurationsdatei herunterladen",
+  "admin.hmis.error.nameRequired": "Bitte einen Namen eingeben.",
+  "admin.hmis.error.invalidName": "Name: 1–100 Zeichen ohne Steuerzeichen.",
+  "admin.hmis.error.notFound": "Dieses HMI gibt es nicht mehr.",
 } as const;

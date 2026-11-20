@@ -7,6 +7,7 @@ import { Field } from "~/components/ui/Field";
 import { LOCALE_TAGS, useLocale, type MessageKey } from "~/i18n";
 import { LanguageSwitcher } from "~/i18n/LanguageSwitcher";
 
+import { AdminHmisSection } from "./AdminHmisSection";
 import {
   createAdminUser,
   deleteAdminUser,
@@ -22,7 +23,10 @@ import {
 
 type Notice = { tone: "success" | "error"; text: string };
 
-/** Admin-only user list, create form and password reset (#32, ADR 0005). */
+/**
+ * Admin-only user list, create form and password reset (#32, ADR 0005), and
+ * the HMI registration (ADR 0013).
+ */
 export function AdminUsersScreen({
   fetchImpl = fetch,
 }: {
@@ -109,6 +113,7 @@ export function AdminUsersScreen({
             void reload();
           }}
           onResult={apply}
+          onScreen={setScreen}
           clearNotice={() => setNotice(null)}
         />
       </div>
@@ -122,6 +127,7 @@ function ScreenBody({
   fetchImpl,
   onReload,
   onResult,
+  onScreen,
   clearNotice,
 }: {
   screen: AdminScreenState;
@@ -129,6 +135,7 @@ function ScreenBody({
   fetchImpl: typeof fetch;
   onReload: () => void;
   onResult: (result: AdminActionResult, success: string) => Promise<boolean>;
+  onScreen: (screen: AdminScreenState) => void;
   clearNotice: () => void;
 }) {
   const { t } = useLocale();
@@ -186,6 +193,7 @@ function ScreenBody({
             onResult={onResult}
             clearNotice={clearNotice}
           />
+          <AdminHmisSection fetchImpl={fetchImpl} onScreen={onScreen} />
         </>
       );
   }
