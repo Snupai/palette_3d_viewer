@@ -22,3 +22,24 @@ _Avoid_: automatic upload, field merge
 A one-way transfer of an existing plan into another inventory; legacy local-mode
 import keeps the local original, unlike Browserplan synchronization.
 _Avoid_: synchronization (for legacy local-mode import)
+
+**Fertigstand (finished version)**:
+The frozen, immutable `.rob` of one saved plan version, created by "Als fertig
+markieren". A plan has at most one current Fertigstand; marking again replaces
+it, "Nicht mehr fertig" or deleting the plan withdraws it.
+_Avoid_: release, Freigabe-Export
+
+**HMI**:
+A registered Raspberry Pi operator panel (MultipackParser) with its own device
+token.
+_Avoid_: client, Pi user
+
+**HMI-Abgleich (HMI sync)**:
+An HMI fetching the list of current Fertigstände from the planner and
+downloading new or changed ones; it never changes the running plan by itself.
+_Avoid_: synchronization (already means Browserplan publication)
+
+**Planvorschlag (plan proposal)**:
+A hint sent from a phone (via the HMI's QR code) to one HMI to take over a
+Fertigstand; it only takes effect once the operator confirms it on the HMI.
+_Avoid_: push, remote activation
