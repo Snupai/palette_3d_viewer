@@ -1,7 +1,6 @@
 /** QR page `/hmi/[hmiId]`: Planvorschläge from a phone (ADR 0013). */
 export const hmiDe = {
   "hmi.title": "HMI",
-  "hmi.backToPlanner": "Zum Palettenplaner",
   "hmi.loading": "HMI wird geladen …",
   "hmi.state.unavailable":
     "Diese Installation speichert lokal im Browser und kennt keine HMIs.",

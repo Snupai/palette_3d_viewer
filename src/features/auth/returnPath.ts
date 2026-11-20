@@ -35,6 +35,8 @@ export function safeReturnPath(value: string | null | undefined): string {
   ) {
     return FALLBACK;
   }
+  // Dot segments can normalize to `//host` (`/a/..//evil.example`).
+  if (url.pathname.startsWith("//")) return FALLBACK;
   return `${url.pathname}${url.search}${url.hash}`;
 }
 

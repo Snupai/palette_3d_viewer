@@ -210,8 +210,12 @@ already answered, superseded, expired or taken back — the HMI then drops
 its dialog. The 409 body is `{ "error": "proposal_closed", "state": "…" }`
 with the proposal's final state. A proposal sent to another HMI is `404`.
 Recording the answer changes nothing else on the planner.
-After `accepted`, the HMI also reports its new active plan via
-`/api/hmi/v1/status`.
+Order on the HMI: the operator confirms → send `accepted` → only after
+`204` switch the plan (and only while the robot is not executing a
+program) → report the new active plan via `/api/hmi/v1/status`. On `409`
+or `404` do not switch: the proposal was taken back, superseded or expired
+meanwhile. On a network error keep the dialog and retry the answer; never
+switch on an unconfirmed `accepted`.
 
 ### `POST /api/hmi/v1/status`
 

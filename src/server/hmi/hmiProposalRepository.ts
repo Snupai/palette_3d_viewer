@@ -189,25 +189,39 @@ async function closeProposal(
   next: "accepted" | "rejected" | "cancelled",
   now: Date,
 ): Promise<CloseHmiProposalResult> {
-  const row = await findProposal(db, hmiId, proposalId);
-  if (!row) return { ok: false, kind: "not-found" };
-  const current = toProposal(row, now);
-  if (current.state !== "pending") {
-    await persistClosing(db, current);
-    return { ok: false, kind: "closed", proposal: current };
-  }
-  const updated = await db
-    .update(hmiProposals)
-    .set({ state: next, resolvedAt: now })
-    .where(
-      and(eq(hmiProposals.id, proposalId), eq(hmiProposals.state, "pending")),
-    )
-    .returning({ id: hmiProposals.id });
-  const stored = await findProposal(db, hmiId, proposalId);
-  const proposal = toProposal(stored!, now);
-  return updated.length > 0
-    ? { ok: true, proposal }
-    : { ok: false, kind: "closed", proposal };
+  return db.transaction(async (tx): Promise<CloseHmiProposalResult> => {
+    const found = await findProposal(tx, hmiId, proposalId);
+    if (!found) return { ok: false, kind: "not-found" };
+    // Hold the Fertigstand so it cannot be withdrawn between the check and
+    // the answer; then re-read the proposal with the locked state.
+    await tx
+      .select({ id: planFinals.id })
+      .from(planFinals)
+      .where(eq(planFinals.id, found.finalId))
+      .for("share");
+    const current = toProposal(
+      (await findProposal(tx, hmiId, proposalId))!,
+      now,
+    );
+    if (current.state !== "pending") {
+      await persistClosing(tx, current);
+      return { ok: false, kind: "closed", proposal: current };
+    }
+    const updated = await tx
+      .update(hmiProposals)
+      .set({ state: next, resolvedAt: now })
+      .where(
+        and(eq(hmiProposals.id, proposalId), eq(hmiProposals.state, "pending")),
+      )
+      .returning({ id: hmiProposals.id });
+    const proposal = toProposal(
+      (await findProposal(tx, hmiId, proposalId))!,
+      now,
+    );
+    return updated.length > 0
+      ? { ok: true, proposal }
+      : { ok: false, kind: "closed", proposal };
+  });
 }
 
 /**
@@ -256,11 +270,18 @@ export async function createHmiProposal(
     if (open) {
       const effective = toProposal(open, now);
       if (effective.state === "pending") {
-        supersededId = open.id;
-        await tx
+        // Conditional: an answer or cancel that committed first stays.
+        const superseded = await tx
           .update(hmiProposals)
           .set({ state: "superseded", resolvedAt: now })
-          .where(eq(hmiProposals.id, open.id));
+          .where(
+            and(
+              eq(hmiProposals.id, open.id),
+              eq(hmiProposals.state, "pending"),
+            ),
+          )
+          .returning({ id: hmiProposals.id });
+        supersededId = superseded[0]?.id ?? null;
       } else {
         await persistClosing(tx, effective);
       }

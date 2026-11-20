@@ -27,6 +27,8 @@ describe("safeReturnPath", () => {
     "/login",
     "/login?returnTo=/x",
     "/login/",
+    "/a/..//evil.example/x",
+    "/.//evil.example",
     `/${"a".repeat(2048)}`,
   ])("falls back to / for %j", (value) => {
     expect(safeReturnPath(value)).toBe("/");

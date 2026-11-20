@@ -75,13 +75,13 @@ export function HmiProposalScreen({
     setFinals(await loadHmiPageFinals(fetchImpl));
   }, [fetchImpl]);
 
+  // The HMI itself is loaded by the visibility effect below.
   useEffect(() => {
-    void refresh();
     void reloadFinals();
     return () => {
       generation.current += 1;
     };
-  }, [refresh, reloadFinals]);
+  }, [reloadFinals]);
 
   useEffect(() => {
     const onChange = () => setVisible(isVisible());
@@ -95,7 +95,8 @@ export function HmiProposalScreen({
     const timer = window.setInterval(() => void refresh(), HMI_PAGE_POLL_MS);
     return () => window.clearInterval(timer);
   }, [polling, refresh]);
-  // Coming back to the tab refreshes at once instead of after one interval.
+  // Loads on mount and, coming back to the tab, at once instead of after
+  // one interval.
   useEffect(() => {
     if (visible) void refresh();
   }, [visible, refresh]);
@@ -182,6 +183,7 @@ export function HmiProposalScreen({
             void refresh();
             void reloadFinals();
           }}
+          onRetryFinals={() => void reloadFinals()}
         />
       </div>
     </div>
@@ -201,6 +203,7 @@ function Body({
   onPropose,
   onCancel,
   onRetry,
+  onRetryFinals,
 }: {
   hmiId: string;
   state: HmiPageState;
@@ -214,6 +217,7 @@ function Body({
   onPropose: (hmi: AdminHmi) => void;
   onCancel: (proposal: HmiPageProposal) => void;
   onRetry: () => void;
+  onRetryFinals: () => void;
 }) {
   const t = useT();
   switch (state.status) {
@@ -354,9 +358,14 @@ function Body({
             {t("hmi.finals.loading")}
           </p>
         ) : finals === null ? (
-          <p role="alert" className="fable-notice">
-            {t("hmi.finals.loadError")}
-          </p>
+          <div className="admin-state">
+            <p role="alert" className="fable-notice">
+              {t("hmi.finals.loadError")}
+            </p>
+            <button className="ui-btn" type="button" onClick={onRetryFinals}>
+              {t("hmi.retry")}
+            </button>
+          </div>
         ) : finals.length === 0 ? (
           <p className="text-muted">{t("hmi.finals.empty")}</p>
         ) : visibleFinals.length === 0 ? (

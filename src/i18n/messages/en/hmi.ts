@@ -2,7 +2,6 @@ import type { hmiDe } from "../de/hmi";
 
 export const hmiEn = {
   "hmi.title": "HMI",
-  "hmi.backToPlanner": "To the pallet planner",
   "hmi.loading": "Loading HMI …",
   "hmi.state.unavailable":
     "This installation stores data locally in the browser and has no HMIs.",
