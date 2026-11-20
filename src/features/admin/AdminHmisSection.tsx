@@ -85,10 +85,15 @@ export function AdminHmisSection({
       if (result.status === "screen") onScreen(result.screen);
       else setLoad(result);
     });
+    // At most one background refresh at a time, so answers cannot overtake.
+    let refreshing = false;
     const timer = window.setInterval(() => {
       setNow(Date.now());
+      if (refreshing) return;
+      refreshing = true;
       const started = generation.current;
       void loadAdminHmis(fetchImpl).then((result) => {
+        refreshing = false;
         if (!active || started !== generation.current) return;
         if (result.status === "screen") onScreen(result.screen);
         // A failed background refresh keeps the last list.
