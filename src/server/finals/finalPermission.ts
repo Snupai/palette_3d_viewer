@@ -1,8 +1,9 @@
 import type { SessionUser } from "../auth/sessionUser";
 
 /**
- * Who may mark a project finished or withdraw a Fertigstand (ADR 0013).
- * The one place to change that rule: for now every signed-in user may.
+ * Who may mark a project finished, withdraw a Fertigstand, and send or take
+ * back a Planvorschlag to an HMI (ADR 0013). The one place to change that
+ * rule: for now every signed-in user may.
  * The client mirrors it in `canManageFinals` (`projectFinalModel.ts`).
  */
 export function mayManageFinals(user: SessionUser): boolean {

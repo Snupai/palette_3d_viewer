@@ -55,6 +55,14 @@ unsaved drafts require confirmation before sign-out. Admins also see
 (with confirmation and a note that saved plans remain), with explicit loading, error
 and access-denied states. It is unavailable in local mode.
 
+The QR code on an HMI opens `/hmi/<id>`, a single phone-width column: the HMI's
+name with Online/Offline, last seen and the running plan, the latest
+**Planvorschlag** and its state, then a searchable list of Fertigstände and
+**An HMI vorschlagen**. The page always says that the running plan only
+changes after the operator confirms on the HMI. Without a session it offers
+**Anmelden**, which opens the full-page sign-in `/login` and returns to the
+QR page afterwards.
+
 ## Creation
 
 New plans move sequentially through **Paket & Palette → Muster auswählen → Stapel aufbauen**

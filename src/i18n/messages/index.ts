@@ -17,6 +17,8 @@ import { authDe } from "./de/auth";
 import { browserSyncDe } from "./de/browserSync";
 import { browserSyncEn } from "./en/browserSync";
 import { localImportDe } from "./de/localImport";
+import { hmiDe } from "./de/hmi";
+import { hmiEn } from "./en/hmi";
 import { shellEn } from "./en/shell";
 import { projectEn } from "./en/project";
 import { projectFormEn } from "./en/projectForm";
@@ -60,6 +62,7 @@ export const de = {
   ...authDe,
   ...localImportDe,
   ...browserSyncDe,
+  ...hmiDe,
 } as const;
 
 export type MessageKey = keyof typeof de;
@@ -83,6 +86,7 @@ export const en: Messages = {
   ...authEn,
   ...localImportEn,
   ...browserSyncEn,
+  ...hmiEn,
 };
 
 export const MESSAGES: Record<Locale, Messages> = { de, en };

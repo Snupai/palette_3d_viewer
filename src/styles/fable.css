@@ -1714,3 +1714,99 @@ details:has(> .report-sheet) {
 .library-results {
   min-width: 0;
 }
+
+/* Full-page sign-in (`/login`) and the HMI QR page (`/hmi/[hmiId]`, ADR 0013):
+   both are reached on phones, so they stay one narrow column. */
+.login-page,
+.hmi-page {
+  max-width: 640px;
+  display: grid;
+  gap: 20px;
+}
+.login-page > .page-intro,
+.hmi-page > .page-intro {
+  margin-bottom: 0;
+}
+.hmi-signin {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+}
+.hmi-status {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  font-size: 15px;
+}
+.hmi-connection {
+  font-weight: 600;
+}
+.hmi-connection--online {
+  color: var(--ok);
+}
+.hmi-connection--revoked {
+  color: var(--danger);
+}
+.hmi-proposal {
+  padding: 16px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.hmi-proposal .admin-heading {
+  margin-bottom: 0;
+}
+.hmi-proposal-name {
+  font-weight: 600;
+}
+.hmi-proposal-state--accepted {
+  color: var(--ok);
+}
+.hmi-proposal-state--rejected {
+  color: var(--danger);
+}
+.hmi-proposal button {
+  justify-self: start;
+}
+.hmi-final-list {
+  display: grid;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.hmi-final-list li + li {
+  border-top: 1px solid var(--line);
+}
+.hmi-final {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 12px;
+  align-items: center;
+  min-height: 56px;
+  padding: 8px 14px;
+  cursor: pointer;
+}
+.hmi-final:hover {
+  background: var(--surface-hover);
+}
+.hmi-final input {
+  grid-row: span 2;
+  width: 20px;
+  height: 20px;
+  accent-color: var(--brand);
+  cursor: pointer;
+}
+.hmi-final-name {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.hmi-final-file {
+  color: var(--muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.hmi-propose {
+  display: grid;
+  gap: 8px;
+}
+.hmi-propose p {
+  font-size: 14px;
+}
