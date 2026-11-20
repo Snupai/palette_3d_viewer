@@ -1,5 +1,6 @@
 CREATE TABLE "hmi_proposals" (
 	"id" uuid PRIMARY KEY NOT NULL,
+	"sequence" bigint GENERATED ALWAYS AS IDENTITY (sequence name "hmi_proposals_sequence_seq" INCREMENT BY 1 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 1 CACHE 1),
 	"hmi_id" uuid NOT NULL,
 	"final_id" uuid NOT NULL,
 	"proposed_by" text,
@@ -14,4 +15,4 @@ ALTER TABLE "hmi_proposals" ADD CONSTRAINT "hmi_proposals_hmi_id_hmi_devices_id_
 ALTER TABLE "hmi_proposals" ADD CONSTRAINT "hmi_proposals_final_id_plan_finals_id_fk" FOREIGN KEY ("final_id") REFERENCES "public"."plan_finals"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "hmi_proposals" ADD CONSTRAINT "hmi_proposals_proposed_by_users_id_fk" FOREIGN KEY ("proposed_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "hmi_proposals_one_pending_per_hmi" ON "hmi_proposals" USING btree ("hmi_id") WHERE "hmi_proposals"."state" = 'pending';--> statement-breakpoint
-CREATE INDEX "hmi_proposals_hmi_created_idx" ON "hmi_proposals" USING btree ("hmi_id","created_at");
+CREATE INDEX "hmi_proposals_hmi_sequence_idx" ON "hmi_proposals" USING btree ("hmi_id","sequence");

@@ -61,6 +61,8 @@ export function HmiProposalScreen({
   const [visible, setVisible] = useState(isVisible);
   /** Bumped by every applied answer; older in-flight loads are dropped. */
   const generation = useRef(0);
+  /** A poll is in flight; the interval skips ticks until it settles. */
+  const polling = useRef(false);
 
   const refresh = useCallback(async () => {
     const current = ++generation.current;
@@ -69,6 +71,17 @@ export function HmiProposalScreen({
     setState(next);
     setNow(Date.now());
   }, [fetchImpl, hmiId]);
+
+  /** Interval tick: slow answers must not be superseded by the next tick. */
+  const poll = useCallback(async () => {
+    if (polling.current) return;
+    polling.current = true;
+    try {
+      await refresh();
+    } finally {
+      polling.current = false;
+    }
+  }, [refresh]);
 
   const reloadFinals = useCallback(async () => {
     setFinals("loading");
@@ -89,12 +102,12 @@ export function HmiProposalScreen({
     return () => document.removeEventListener("visibilitychange", onChange);
   }, []);
 
-  const polling = shouldPollHmiPage(state, visible);
+  const shouldPoll = shouldPollHmiPage(state, visible);
   useEffect(() => {
-    if (!polling) return;
-    const timer = window.setInterval(() => void refresh(), HMI_PAGE_POLL_MS);
+    if (!shouldPoll) return;
+    const timer = window.setInterval(() => void poll(), HMI_PAGE_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [polling, refresh]);
+  }, [shouldPoll, poll]);
   // Loads on mount and, coming back to the tab, at once instead of after
   // one interval.
   useEffect(() => {

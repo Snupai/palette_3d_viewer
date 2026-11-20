@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  bigint,
   check,
   index,
   pgTable,
@@ -39,6 +40,10 @@ export const hmiProposals = pgTable(
   "hmi_proposals",
   {
     id: uuid("id").primaryKey(),
+    /** Insertion order; proposals to one HMI are created under its row lock. */
+    sequence: bigint("sequence", { mode: "number" })
+      .generatedAlwaysAsIdentity()
+      .notNull(),
     hmiId: uuid("hmi_id")
       .notNull()
       .references(() => hmiDevices.id),
@@ -62,7 +67,7 @@ export const hmiProposals = pgTable(
     uniqueIndex("hmi_proposals_one_pending_per_hmi")
       .on(table.hmiId)
       .where(sql`${table.state} = 'pending'`),
-    index("hmi_proposals_hmi_created_idx").on(table.hmiId, table.createdAt),
+    index("hmi_proposals_hmi_sequence_idx").on(table.hmiId, table.sequence),
     check(
       "hmi_proposals_state_known",
       sql`${table.state} IN ('pending', 'accepted', 'rejected', 'superseded', 'expired', 'cancelled')`,

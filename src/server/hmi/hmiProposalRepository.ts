@@ -339,7 +339,10 @@ export async function getHmiProposal(
   return row ? toProposal(row, now) : null;
 }
 
-/** The HMI's latest proposals, newest first, with their state at `now`. */
+/**
+ * The HMI's latest proposals, newest first (insertion order, not
+ * `createdAt`, which two proposals can share), with their state at `now`.
+ */
 export async function listHmiProposals(
   db: PlannerDatabase,
   hmiId: string,
@@ -349,7 +352,7 @@ export async function listHmiProposals(
   if (!isHmiId(hmiId)) return [];
   const rows = await selectProposals(db)
     .where(eq(hmiProposals.hmiId, hmiId))
-    .orderBy(desc(hmiProposals.createdAt), desc(hmiProposals.id))
+    .orderBy(desc(hmiProposals.sequence))
     .limit(limit);
   return rows.map((row) => toProposal(row, now));
 }

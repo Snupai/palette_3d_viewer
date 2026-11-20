@@ -1,5 +1,5 @@
 {
-  "id": "254f19c6-0820-490f-8ec4-2b06442fbe90",
+  "id": "d9ed81f3-97cb-4eea-af65-1ebc6cb16bae",
   "prevId": "3abff522-e78c-4131-846b-963ed4cd9dfd",
   "version": "7",
   "dialect": "postgresql",
@@ -102,6 +102,23 @@
           "primaryKey": true,
           "notNull": true
         },
+        "sequence": {
+          "name": "sequence",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "identity": {
+            "type": "always",
+            "name": "hmi_proposals_sequence_seq",
+            "schema": "public",
+            "increment": "1",
+            "startWith": "1",
+            "minValue": "1",
+            "maxValue": "9223372036854775807",
+            "cache": "1",
+            "cycle": false
+          }
+        },
         "hmi_id": {
           "name": "hmi_id",
           "type": "uuid",
@@ -156,8 +173,8 @@
           "method": "btree",
           "with": {}
         },
-        "hmi_proposals_hmi_created_idx": {
-          "name": "hmi_proposals_hmi_created_idx",
+        "hmi_proposals_hmi_sequence_idx": {
+          "name": "hmi_proposals_hmi_sequence_idx",
           "columns": [
             {
               "expression": "hmi_id",
@@ -166,7 +183,7 @@
               "nulls": "last"
             },
             {
-              "expression": "created_at",
+              "expression": "sequence",
               "isExpression": false,
               "asc": true,
               "nulls": "last"

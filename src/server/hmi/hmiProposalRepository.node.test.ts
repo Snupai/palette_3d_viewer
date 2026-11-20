@@ -385,7 +385,20 @@ describe("listHmiProposals", () => {
       [first.proposal.id, "superseded"],
     ]);
     expect(listed[0]).toMatchObject({ proposedBy: null, proposedByName: null });
+
     expect(await listHmiProposals(database.db, otherHmiId, T2)).toEqual([]);
     expect(await listHmiProposals(database.db, hmiId, T2, 1)).toHaveLength(1);
+  });
+
+  it("orders proposals with the same timestamp by insertion", async () => {
+    const final = await finalOf("project-1", "A");
+    // Same timestamp: insertion order decides, not the random id.
+    const sameTime = [];
+    for (let i = 0; i < 5; i++) sameTime.push(await propose(final.id, T2));
+    const [newest] = await listHmiProposals(database.db, hmiId, T2, 1);
+    expect(newest).toMatchObject({
+      id: sameTime[4]!.proposal.id,
+      state: "pending",
+    });
   });
 });
