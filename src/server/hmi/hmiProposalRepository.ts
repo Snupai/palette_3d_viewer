@@ -226,7 +226,9 @@ async function closeProposal(
       (await findProposal(tx, hmiId, proposalId))!,
       now,
     );
-    return updated.length > 0
+    // A concurrent identical answer (retry racing the first request) won.
+    return updated.length > 0 ||
+      (proposal.state === next && next !== "cancelled")
       ? { ok: true, proposal }
       : { ok: false, kind: "closed", proposal };
   });
