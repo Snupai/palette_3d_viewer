@@ -42,4 +42,7 @@ _Avoid_: synchronization (already means Browserplan publication)
 **Planvorschlag (plan proposal)**:
 A hint sent from a phone (via the HMI's QR code) to one HMI to take over a
 Fertigstand; it only takes effect once the operator confirms it on the HMI.
+An HMI has at most one open Planvorschlag; it ends accepted or rejected (by
+the operator), superseded (newer proposal or withdrawn Fertigstand), expired
+(24 h) or taken back (by the planner user).
 _Avoid_: push, remote activation

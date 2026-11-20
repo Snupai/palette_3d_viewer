@@ -5,7 +5,13 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import type { OpenDatabase } from "~/server/db/database";
-import { hmiDevices, planFinals, plannerRecords } from "~/server/db/schema";
+import {
+  hmiDevices,
+  hmiProposals,
+  planFinals,
+  plannerRecords,
+  users,
+} from "~/server/db/schema";
 import { setServerDatabaseForTesting } from "~/server/db/serverDatabase";
 import { openMigratedTestDatabase } from "~/server/db/testing";
 import { markFinal, withdrawFinal } from "~/server/finals/finalRepository";
@@ -14,9 +20,15 @@ import {
   setHmiRateLimiterForTesting,
 } from "~/server/hmi/hmiAuth";
 import { createHmi, revokeHmi } from "~/server/hmi/hmiRepository";
+import {
+  createHmiProposal,
+  getHmiProposal,
+} from "~/server/hmi/hmiProposalRepository";
 
 import { GET as downloadRob } from "./finals/[id]/rob/route";
 import { GET as listFinals } from "./finals/route";
+import { POST as answerProposal } from "./proposal/[id]/route";
+import { GET as getProposal } from "./proposal/route";
 import { POST as postStatus } from "./status/route";
 
 const ORIGIN = "https://palette.werk.local";
@@ -54,6 +66,7 @@ afterAll(async () => {
 beforeEach(async () => {
   setServerDatabaseForTesting(database.db);
   setHmiRateLimiterForTesting(undefined);
+  await database.db.delete(hmiProposals);
   await database.db.delete(hmiDevices);
   await database.db.delete(planFinals);
   await database.db.delete(plannerRecords);
@@ -424,6 +437,16 @@ describe("local storage mode", () => {
           },
         ),
       ),
+      await getProposal(request("GET", "/api/hmi/v1/proposal")),
+      await answerProposal(
+        request(
+          "POST",
+          `/api/hmi/v1/proposal/${id}`,
+          {},
+          { result: "accepted" },
+        ),
+        params({ id }),
+      ),
     ];
     for (const response of responses) {
       expect(response.status).toBe(404);
@@ -431,5 +454,136 @@ describe("local storage mode", () => {
         error: "server_storage_disabled",
       });
     }
+  });
+});
+
+describe("Planvorschläge on the HMI side", () => {
+  async function proposeToHmi(finalId: string, target = hmiId) {
+    await database.db
+      .insert(users)
+      .values({
+        id: "alice",
+        username: "alice",
+        passwordHash: "x",
+        role: "user",
+        createdAt: T0,
+      })
+      .onConflictDoNothing();
+    const created = await createHmiProposal(
+      database.db,
+      { hmiId: target, finalId, userId: "alice" },
+      new Date(),
+    );
+    if (!created.ok) throw new Error("createHmiProposal failed");
+    return created.proposal;
+  }
+
+  it("answers 204 without an open proposal", async () => {
+    const response = await getProposal(request("GET", "/api/hmi/v1/proposal"));
+    expect(response.status).toBe(204);
+    expect(response.headers.get("cache-control")).toBe("no-store");
+    expect(await response.text()).toBe("");
+  });
+
+  it("returns the open proposal and records the operator's answer", async () => {
+    const final = await mark("project-1", "SKU 9 · P-12", CRLF_ROB);
+    const proposal = await proposeToHmi(final.id);
+
+    const open = await getProposal(request("GET", "/api/hmi/v1/proposal"));
+    expect(open.status).toBe(200);
+    expect(await open.json()).toEqual({
+      proposal: {
+        id: proposal.id,
+        finalId: final.id,
+        name: "SKU 9 · P-12",
+        sha256: CRLF_SHA256,
+        proposedBy: "alice",
+        createdAt: proposal.createdAt.toISOString(),
+      },
+    });
+
+    const answered = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        {},
+        { result: "accepted" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(answered.status).toBe(204);
+    expect(
+      (await getHmiProposal(database.db, hmiId, proposal.id, new Date()))!
+        .state,
+    ).toBe("accepted");
+
+    const again = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        {},
+        { result: "rejected" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(again.status).toBe(409);
+    expect(await again.json()).toEqual({
+      error: "proposal_closed",
+      state: "accepted",
+    });
+    const retry = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        {},
+        { result: "accepted" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(retry.status).toBe(204);
+    const none = await getProposal(request("GET", "/api/hmi/v1/proposal"));
+    expect(none.status).toBe(204);
+  });
+
+  it("hides other HMIs' proposals and refuses malformed answers", async () => {
+    const other = await createHmi(database.db, "Linie 4", T0);
+    if (!other.ok) throw new Error("createHmi failed");
+    const final = await mark("project-1", "A", CRLF_ROB);
+    const proposal = await proposeToHmi(final.id, other.hmi.id);
+
+    expect(
+      (await getProposal(request("GET", "/api/hmi/v1/proposal"))).status,
+    ).toBe(204);
+    const foreign = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        {},
+        { result: "accepted" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(foreign.status).toBe(404);
+    expect(await foreign.json()).toEqual({ error: "proposal_not_found" });
+
+    const malformed = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        { token: other.token },
+        { result: "maybe" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(malformed.status).toBe(400);
+    expect(await malformed.json()).toEqual({ error: "invalid_request" });
+  });
+
+  it("requires a valid token", async () => {
+    const response = await getProposal(
+      request("GET", "/api/hmi/v1/proposal", { token: null }),
+    );
+    expect(response.status).toBe(401);
+    expect(response.headers.get("www-authenticate")).toBe('Bearer realm="hmi"');
   });
 });

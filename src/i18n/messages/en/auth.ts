@@ -7,6 +7,13 @@ export const authEn = {
   "auth.browserLocal.signOutNote":
     "Plans created after signing out stay in this browser. The next person who signs in can synchronize and publish them.",
   "auth.menu": "Account",
+  "auth.login.title": "Sign in",
+  "auth.login.intro": "Sign in with your planner account.",
+  "auth.login.returnHint": "Afterwards you return to {path}.",
+  "auth.login.unavailable":
+    "This installation stores data locally in the browser and has no sign-in.",
+  "auth.login.redirecting": "Signed in – redirecting …",
+  "auth.login.backToPlanner": "To the pallet planner",
   "auth.signIn": "Sign in",
   "auth.signingIn": "Signing in …",
   "auth.signOut": "Sign out",

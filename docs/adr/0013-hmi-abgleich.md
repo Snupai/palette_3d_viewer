@@ -49,9 +49,20 @@ transport is irrelevant to the planner.
   independently of the planner. Incompatible changes get a new version.
 - **Server mode only.** In local storage mode (ADR 0002) all new routes answer
   404, like the records, auth and admin routes.
-- **Permission.** For now every signed-in user may mark a plan finished or
-  withdraw a Fertigstand. The rule is one function (`mayManageFinals`) so it
-  can be narrowed to roles later.
+- **Planvorschläge.** A signed-in user may propose a current Fertigstand to
+  one HMI (table `hmi_proposals`). An HMI has at most one pending proposal
+  (partial unique index); a new one supersedes it. The HMI polls it, shows it
+  to its operator and reports `accepted` or `rejected`; recording the answer
+  changes nothing else in the planner. A pending proposal expires after 24 h
+  and is superseded when its Fertigstand is withdrawn; both are derived on
+  read and persisted by the next write. The proposing side may take a
+  pending proposal back (`cancelled`, an addition to the original state
+  list). Proposal reads need a session too: HMI names and what runs where are
+  not public like projects (ADR 0003). Without a session the QR page links to
+  `/login?returnTo=…`, which returns only to same-origin paths.
+- **Permission.** For now every signed-in user may mark a plan finished,
+  withdraw a Fertigstand and send or take back a Planvorschlag. The rule is
+  one function (`mayManageFinals`) so it can be narrowed to roles later.
 - **HTTPS is required for the HMIs.** ADR 0008 applies to device tokens as it
   does to session cookies: tokens must not cross the mesh unencrypted. Each Pi
   must trust the planner's certificate — either a certificate from a CA the

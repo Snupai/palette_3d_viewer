@@ -13,10 +13,9 @@ built in stages; the status column says what exists.
 | Fertigstände in the planner (`/api/finals`, UI)     | implemented (stage 1) |
 | HMI registration, tokens, config file (`/admin`)    | implemented (stage 2) |
 | `/api/hmi/v1/finals`, `…/rob`, `/api/hmi/v1/status` | implemented (stage 2) |
-| Planvorschläge (`/api/hmi/v1/proposal…`), QR page   | planned (stage 3)     |
+| Planvorschläge (`/api/hmi/v1/proposal…`), QR page   | implemented (stage 3) |
 
-Until a part is implemented its contract below is the target; changes before
-release are made here first.
+Every part is implemented. Changes before release are made here first.
 
 ## Principles
 
@@ -184,7 +183,12 @@ The open Planvorschlag for this HMI.
 ```
 
 - An HMI has at most one open proposal; a newer one replaces (supersedes) the
-  older. Proposals expire after **24 h**.
+  older. Proposals expire after **24 h** without an answer. A proposal whose
+  Fertigstand is withdrawn (marked again or "Nicht mehr fertig") closes as
+  superseded, and the planner user may take a proposal back; in all these
+  cases the next poll answers `204`.
+- `proposedBy` is the proposing user's name, `null` once that account is
+  deleted.
 - The proposed Fertigstand may be one the HMI has not downloaded yet: fetch it
   via `…/finals/{finalId}/rob` first.
 
@@ -200,11 +204,19 @@ Reports the operator's decision. Body (`Content-Type: application/json`):
 { "result": "accepted" }
 ```
 
-`result` is `accepted` or `rejected`. `204` on success. `404
+`result` is `accepted` or `rejected`. `204` on success, also when the same
+answer is repeated (a retry after a lost `204` is safe). `404
 proposal_not_found` when the id is unknown; `409 proposal_closed` when it was
-already answered, superseded or expired — the HMI then drops its dialog.
-After `accepted`, the HMI also reports its new active plan via
-`/api/hmi/v1/status`.
+answered differently, superseded, expired or taken back — the HMI then drops
+its dialog. The 409 body is `{ "error": "proposal_closed", "state": "…" }`
+with the proposal's final state. A proposal sent to another HMI is `404`.
+Recording the answer changes nothing else on the planner.
+Order on the HMI: the operator confirms → send `accepted` → only after
+`204` switch the plan (and only while the robot is not executing a
+program) → report the new active plan via `/api/hmi/v1/status`. On `409`
+or `404` do not switch: the proposal was taken back, superseded or expired
+meanwhile. On a network error keep the dialog and retry the answer; never
+switch on an unconfirmed `accepted`.
 
 ### `POST /api/hmi/v1/status`
 
@@ -239,9 +251,14 @@ The HMI permanently shows a QR code with the URL
 https://<planer>/hmi/<hmiId>
 ```
 
-No token, nothing secret. The page requires a normal planner sign-in, lists
-the Fertigstände and sends a Planvorschlag; the takeover itself still needs
-the operator's confirmation on the HMI. Show next to the code whether the HMI
+No token, nothing secret. The page requires a normal planner sign-in (without
+one it links to `/login?returnTo=/hmi/<hmiId>`, which returns there after
+signing in; only same-origin paths are accepted as `returnTo`), lists the
+Fertigstände and sends a Planvorschlag; the takeover itself still needs the
+operator's confirmation on the HMI. The page re-reads the HMI every 5 s while
+it is visible and shows the proposal's state (waiting, accepted, rejected,
+superseded, expired, taken back), with a hint when the HMI has not been seen
+for more than 60 s. Show next to the code whether the HMI
 is online (last successful poll) or offline.
 
 ## Planner-side API (session users, for reference)
@@ -261,6 +278,28 @@ rob_invalid { message }` when the text does not parse as `.rob`.
 - `DELETE /api/finals/{id}` — withdraws a current Fertigstand: `204`; `404
 final_not_found` when unknown or already withdrawn.
 - Deleting a project withdraws its Fertigstand; it is not deleted.
+
+Planvorschläge (session required for every route, also reads; writes use
+the same permission rule as Fertigstände — for now every signed-in user):
+
+- `GET /api/hmis/{hmiId}` — `{ hmi, proposal }`: `hmi` has the shape of the
+  admin list below; `proposal` is the HMI's latest proposal in any state or
+  `null`.
+- `GET /api/hmis/{hmiId}/proposals` — `{ proposals: [...] }`, the latest 20,
+  newest first.
+- `POST /api/hmis/{hmiId}/proposals` — `{ finalId }` → `201 { proposal,
+supersededId }`. The HMI's open proposal is superseded. `404
+hmi_not_found`, `404 final_not_found` (unknown or withdrawn), `409
+hmi_revoked`.
+- `GET /api/hmis/{hmiId}/proposals/{id}` — `{ proposal }`; `404
+proposal_not_found`.
+- `DELETE /api/hmis/{hmiId}/proposals/{id}` — takes back a pending proposal:
+  `204`; `409 proposal_closed { state }` when it is no longer pending.
+
+A proposal is `{ id, hmiId, finalId, finalName, finalSha256, proposedBy,
+createdAt, state, resolvedAt }` with `state` one of `pending`, `accepted`,
+`rejected`, `superseded`, `expired`, `cancelled` (taken back). All routes
+answer 401 without a session and 404 `server_storage_disabled` in local mode.
 
 Admin only (`requireAdmin`: 401 without session, 403 for non-admins), JSON
 bodies only:

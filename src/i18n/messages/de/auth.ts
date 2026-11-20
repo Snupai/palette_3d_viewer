@@ -6,6 +6,13 @@ export const authDe = {
   "auth.browserLocal.signOutNote":
     "Nach dem Abmelden erstellte Pläne bleiben in diesem Browser. Die nächste Person, die sich anmeldet, kann sie synchronisieren und veröffentlichen.",
   "auth.menu": "Konto",
+  "auth.login.title": "Anmelden",
+  "auth.login.intro": "Melden Sie sich mit Ihrem Planer-Konto an.",
+  "auth.login.returnHint": "Danach geht es zurück zu {path}.",
+  "auth.login.unavailable":
+    "Diese Installation speichert lokal im Browser und hat keine Anmeldung.",
+  "auth.login.redirecting": "Angemeldet – Sie werden weitergeleitet …",
+  "auth.login.backToPlanner": "Zum Palettenplaner",
   "auth.signIn": "Anmelden",
   "auth.signingIn": "Wird angemeldet …",
   "auth.signOut": "Abmelden",

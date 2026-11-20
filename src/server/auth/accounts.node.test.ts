@@ -14,6 +14,7 @@ import {
 import type { OpenDatabase } from "../db/database";
 import {
   hmiDevices,
+  hmiProposals,
   planFinals,
   plannerRecords,
   sessions,
@@ -91,7 +92,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await database.db.execute(
-    sql`TRUNCATE ${sessions}, ${hmiDevices}, ${planFinals}, ${plannerRecords}, ${users}`,
+    sql`TRUNCATE ${sessions}, ${hmiProposals}, ${hmiDevices}, ${planFinals}, ${plannerRecords}, ${users}`,
   );
 });
 
