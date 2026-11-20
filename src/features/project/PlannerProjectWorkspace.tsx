@@ -2387,7 +2387,7 @@ export function PlannerProjectWorkspace({
         projectId: finalTargetId,
         state: result.ok
           ? { status: "loaded", final: result.final }
-          : { status: "unknown" },
+          : { status: "failed" },
       });
     });
     return () => {
@@ -2414,7 +2414,7 @@ export function PlannerProjectWorkspace({
             state:
               finalRead?.projectId === selectedProject.id
                 ? finalRead.state
-                : { status: "unknown" },
+                : { status: "loading" },
             busy: finalBusy,
           },
           t,

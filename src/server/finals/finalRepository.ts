@@ -26,8 +26,11 @@ import { isValidRecordId } from "../records/recordRepository";
 
 /** Largest accepted `.rob`, in UTF-8 bytes. Real plans are below ~10 KB. */
 export const MAX_FINAL_ROB_BYTES = 256 * 1024;
-/** Longest display name shown on an HMI, in UTF-16 code units. */
-export const MAX_FINAL_NAME_LENGTH = 200;
+/**
+ * Longest display name shown on an HMI, in UTF-16 code units: room for the
+ * product and project numbers (200 each) joined by the client.
+ */
+export const MAX_FINAL_NAME_LENGTH = 500;
 /** Longest `.rob` file name, in UTF-16 code units. */
 export const MAX_FINAL_FILE_NAME_LENGTH = 255;
 
@@ -204,7 +207,19 @@ export function validateMarkFinalInput(
   return { ok: true, sha256: robSha256(input.robText) };
 }
 
-function toSummary(row: PlanFinalRow): FinalSummary {
+const summaryColumns = {
+  id: planFinals.id,
+  recordId: planFinals.recordId,
+  recordVersion: planFinals.recordVersion,
+  name: planFinals.name,
+  fileName: planFinals.fileName,
+  sha256: planFinals.sha256,
+  markedBy: planFinals.markedBy,
+  markedAt: planFinals.markedAt,
+  withdrawnAt: planFinals.withdrawnAt,
+};
+
+function toSummary(row: FinalSummary | PlanFinalRow): FinalSummary {
   return {
     id: row.id,
     recordId: row.recordId,
@@ -295,10 +310,13 @@ export async function markFinal(
 
     let replaced: FinalSummary | null = null;
     if (current) {
+      // A concurrent withdraw may have won; then nothing is replaced.
       const [withdrawn] = await tx
         .update(planFinals)
         .set({ withdrawnAt: now })
-        .where(eq(planFinals.id, current.id))
+        .where(
+          and(eq(planFinals.id, current.id), isNull(planFinals.withdrawnAt)),
+        )
         .returning();
       replaced = withdrawn ? toSummary(withdrawn) : null;
     }
@@ -369,7 +387,7 @@ export async function listCurrentFinals(
   filter: { recordId?: string } = {},
 ): Promise<FinalSummary[]> {
   const rows = await db
-    .select()
+    .select(summaryColumns)
     .from(planFinals)
     .where(
       and(

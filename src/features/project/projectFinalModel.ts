@@ -39,8 +39,14 @@ export function canManageFinals(session: PlannerSession): boolean {
 
 /** The Fertigstand of the open plan as last read from the server. */
 export type ProjectFinalState =
-  /** Not read yet (or the read failed). */
-  { status: "unknown" } | { status: "loaded"; final: ProjectFinal | null };
+  /** Not read yet. */
+  | { status: "loading" }
+  /**
+   * The read failed: marking stays possible (the server checks and replaces
+   * a current Fertigstand); only the hint and withdrawing are missing.
+   */
+  | { status: "failed" }
+  | { status: "loaded"; final: ProjectFinal | null };
 
 export type ProjectFinalInput = {
   storageMode: StorageMode;
@@ -119,7 +125,7 @@ export function projectFinalControls(
       disabledReason:
         busyReason ??
         permissionReason ??
-        (input.state.status === "unknown"
+        (input.state.status === "loading"
           ? t("project.final.loading")
           : null) ??
         (newer ? t("project.final.reloadFirst") : null) ??

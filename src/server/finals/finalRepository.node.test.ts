@@ -154,6 +154,12 @@ describe("validateMarkFinalInput", () => {
     expect(
       validateMarkFinalInput(input({ fileName: "a\\x.rob" })),
     ).toMatchObject({ reason: "invalid-file-name" });
+    // Product and project number (200 each) joined by " · " still fit.
+    expect(
+      validateMarkFinalInput(
+        input({ name: `${"a".repeat(200)} · ${"b".repeat(200)}` }),
+      ),
+    ).toMatchObject({ ok: true });
     expect(validateMarkFinalInput(input({ recordVersion: 0 }))).toMatchObject({
       reason: "invalid-version",
     });

@@ -120,7 +120,7 @@ describe("projectFinalControls", () => {
       visible: true,
       mark: null,
       withdraw: { label: "Nicht mehr fertig", disabledReason: null },
-      hint: "Fertigstand vom <2026-11-19T08:30:00.000Z>: Diese Version ist an die HMIs verteilt.",
+      hint: "Als fertig markiert am <2026-11-19T08:30:00.000Z>. Die HMIs übernehmen diesen Stand beim Abgleich.",
     });
   });
 
@@ -151,8 +151,15 @@ describe("projectFinalControls", () => {
   });
 
   it("waits for the Fertigstand to load and for running requests", () => {
-    expect(controls({ state: { status: "unknown" } })).toMatchObject({
+    expect(controls({ state: { status: "loading" } })).toMatchObject({
       mark: { disabledReason: "Fertigstand wird geladen …" },
+    });
+    // A failed read does not block marking; the server decides.
+    expect(controls({ state: { status: "failed" } })).toEqual({
+      visible: true,
+      mark: { label: "Als fertig markieren", disabledReason: null },
+      withdraw: null,
+      hint: null,
     });
     expect(
       controls({

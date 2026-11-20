@@ -156,7 +156,7 @@ export const projectEn = {
   "project.final.markAgain": "Mark as finished again",
   "project.final.withdraw": "No longer finished",
   "project.final.current":
-    "Finished version of {date}: this version is distributed to the HMIs.",
+    "Marked as finished on {date}. The HMIs pick up this version when they sync.",
   "project.final.changedSince":
     "Finished version of {date}, changed since. The HMIs still have the old version.",
   "project.final.newerElsewhere":

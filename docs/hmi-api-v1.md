@@ -117,9 +117,11 @@ Content-Type: application/json
 
 - Ordered by `name` (case-insensitive), then `id`.
 - `id` identifies one immutable Fertigstand. `recordId` identifies the plan
-  (project) across versions: when a plan is marked again, its entry keeps the
-  `recordId` and gets a new `id` and `sha256`. Use `recordId` to show
-  "Neue Version verfügbar" for the running plan.
+  (project) across versions: a newly created Fertigstand of the same plan
+  keeps the `recordId` and gets a new `id` (repeating an identical mark keeps
+  the existing one). Use `recordId` and `id` to show "Neue Version verfügbar"
+  for the running plan. `sha256` is only the checksum of the bytes; two
+  Fertigstände can have the same one.
 - `markedAt` is ISO 8601 UTC.
 - The ETag is opaque; send it back unchanged. `304` (no body) when the list is
   unchanged.

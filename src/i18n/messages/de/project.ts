@@ -162,7 +162,7 @@ export const projectDe = {
   "project.final.markAgain": "Erneut als fertig markieren",
   "project.final.withdraw": "Nicht mehr fertig",
   "project.final.current":
-    "Fertigstand vom {date}: Diese Version ist an die HMIs verteilt.",
+    "Als fertig markiert am {date}. Die HMIs übernehmen diesen Stand beim Abgleich.",
   "project.final.changedSince":
     "Fertigstand vom {date}, seitdem geändert. Die HMIs haben noch den alten Stand.",
   "project.final.newerElsewhere":
