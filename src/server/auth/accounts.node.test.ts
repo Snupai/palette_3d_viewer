@@ -12,7 +12,13 @@ import {
 } from "vitest";
 
 import type { OpenDatabase } from "../db/database";
-import { planFinals, plannerRecords, sessions, users } from "../db/schema";
+import {
+  hmiDevices,
+  planFinals,
+  plannerRecords,
+  sessions,
+  users,
+} from "../db/schema";
 import { openMigratedTestDatabase } from "../db/testing";
 import { deleteUser } from "./deleteUser";
 import {
@@ -85,7 +91,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
   await database.db.execute(
-    sql`TRUNCATE ${sessions}, ${planFinals}, ${plannerRecords}, ${users}`,
+    sql`TRUNCATE ${sessions}, ${hmiDevices}, ${planFinals}, ${plannerRecords}, ${users}`,
   );
 });
 

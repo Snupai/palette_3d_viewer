@@ -148,7 +148,7 @@ describe("migrations", () => {
       database,
       sql`SELECT COUNT(*)::int AS count FROM drizzle.__drizzle_migrations`,
     );
-    expect(applied).toEqual([{ count: 4 }]);
+    expect(applied).toEqual([{ count: 5 }]);
   });
 });
 
@@ -160,7 +160,9 @@ describe("planner_records", () => {
     shared = await openMigratedTestDatabase();
   });
   afterEach(async () => {
-    await shared.db.execute(sql`TRUNCATE plan_finals, planner_records`);
+    await shared.db.execute(
+      sql`TRUNCATE hmi_devices, plan_finals, planner_records`,
+    );
   });
   afterAll(async () => {
     await shared.close();

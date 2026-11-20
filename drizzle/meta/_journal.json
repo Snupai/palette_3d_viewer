@@ -29,6 +29,13 @@
       "when": 1795162034365,
       "tag": "0003_plan_finals",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1795166953046,
+      "tag": "0004_hmi_devices",
+      "breakpoints": true
     }
   ]
 }

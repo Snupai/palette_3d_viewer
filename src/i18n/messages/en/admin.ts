@@ -1,7 +1,7 @@
 import type { adminDe } from "../de/admin";
 
 export const adminEn = {
-  "admin.title": "User management",
+  "admin.title": "Administration",
   "admin.backToPlanner": "To the pallet planner",
   "admin.loading": "Loading users …",
   "admin.state.unavailable":
@@ -65,4 +65,69 @@ export const adminEn = {
   "admin.error.sessionLost":
     "Your sign-in has expired or no longer has admin rights.",
   "admin.error.generic": "Saving failed.",
+  "admin.hmis.heading": "HMIs",
+  "admin.hmis.intro":
+    "The operator panels at the lines fetch the Fertigstände from the planner themselves. Each HMI needs its own configuration file with a token.",
+  "admin.hmis.loading": "Loading HMIs …",
+  "admin.hmis.loadError": "The HMIs could not be loaded.",
+  "admin.hmis.empty": "No HMIs registered yet.",
+  "admin.hmis.column.name": "Name",
+  "admin.hmis.column.status": "Status",
+  "admin.hmis.column.lastSeen": "Last seen",
+  "admin.hmis.column.active": "Running",
+  "admin.hmis.column.appVersion": "App version",
+  "admin.hmis.column.actions": "Actions",
+  "admin.hmis.status.online": "Online",
+  "admin.hmis.status.offline": "Offline",
+  "admin.hmis.status.never": "Never connected",
+  "admin.hmis.status.revoked": "Revoked",
+  "admin.hmis.seen.never": "never",
+  "admin.hmis.seen.seconds": "{count} s ago",
+  "admin.hmis.seen.minutes": "{count} min ago",
+  "admin.hmis.seen.hours": "{count} h ago",
+  "admin.hmis.seen.days": "{count} days ago",
+  "admin.hmis.seen.days_one": "{count} day ago",
+  "admin.hmis.seen.days_other": "{count} days ago",
+  "admin.hmis.active.none": "–",
+  "admin.hmis.active.current": "{name}",
+  "admin.hmis.active.withdrawn": "{name} (withdrawn)",
+  "admin.hmis.appVersion.unknown": "–",
+  "admin.hmis.rename.open": "Rename",
+  "admin.hmis.rename.label": "New name for {name}",
+  "admin.hmis.rename.submit": "Save",
+  "admin.hmis.rename.success": "HMI {name} was renamed.",
+  "admin.hmis.revoke.open": "Revoke",
+  "admin.hmis.revoke.confirm":
+    "Revoke HMI {name}? It can no longer fetch Fertigstände until a new token is generated.",
+  "admin.hmis.revoke.submit": "Revoke",
+  "admin.hmis.revoke.success": "HMI {name} was revoked.",
+  "admin.hmis.token.open": "New token",
+  "admin.hmis.token.confirm":
+    "Generate a new token for {name}? The current token stops working at once; the HMI needs the new configuration file.",
+  "admin.hmis.token.submit": "Generate token",
+  "admin.hmis.token.success": "A new token for HMI {name} was generated.",
+  "admin.hmis.cancel": "Cancel",
+  "admin.hmis.create.heading": "Register HMI",
+  "admin.hmis.create.name": "Name",
+  "admin.hmis.create.nameHint":
+    "For example the line the HMI is installed at. At most 100 characters.",
+  "admin.hmis.create.submit": "Register HMI",
+  "admin.hmis.create.success": "HMI {name} was registered.",
+  "admin.hmis.issued.heading": "Configuration for {name}",
+  "admin.hmis.issued.once":
+    "The token is shown only now. Download the configuration file and load it onto the HMI with a USB stick.",
+  "admin.hmis.issued.token": "Token",
+  "admin.hmis.issued.close": "Close",
+  "admin.hmis.config.serverUrl": "Planner address for the HMIs",
+  "admin.hmis.config.serverUrlHint":
+    "As the HMIs reach the planner on the factory network.",
+  "admin.hmis.config.invalidUrl":
+    "Please enter a complete http(s) address without parameters.",
+  "admin.hmis.config.insecure":
+    "Without HTTPS the token crosses the network unencrypted. HTTPS is required in production.",
+  "admin.hmis.config.download": "Download configuration file",
+  "admin.hmis.error.nameRequired": "Please enter a name.",
+  "admin.hmis.error.invalidName":
+    "Name: 1–100 characters without control characters.",
+  "admin.hmis.error.notFound": "This HMI no longer exists.",
 } as const satisfies Record<keyof typeof adminDe, string>;

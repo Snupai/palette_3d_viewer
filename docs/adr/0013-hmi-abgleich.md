@@ -40,7 +40,8 @@ transport is irrelevant to the planner.
   sent from a phone via the HMI's QR code.
 - **Device tokens.** Each HMI is registered by an admin and authenticates with
   its own random bearer token. Only the token's SHA-256 is stored, like
-  session tokens (ADR 0005); a revoked token gets 401. The QR code on an HMI
+  session tokens (ADR 0005); a revoked token gets 401. Generating a new
+  token invalidates the old one and lifts a revocation. The QR code on an HMI
   contains only the URL of its planner page, never a token; that page needs a
   normal planner sign-in.
 - **Versioned API.** The HMI endpoints live under `/api/hmi/v1/…`
