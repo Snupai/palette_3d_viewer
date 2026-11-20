@@ -204,9 +204,10 @@ Reports the operator's decision. Body (`Content-Type: application/json`):
 { "result": "accepted" }
 ```
 
-`result` is `accepted` or `rejected`. `204` on success. `404
+`result` is `accepted` or `rejected`. `204` on success, also when the same
+answer is repeated (a retry after a lost `204` is safe). `404
 proposal_not_found` when the id is unknown; `409 proposal_closed` when it was
-already answered, superseded, expired or taken back — the HMI then drops
+answered differently, superseded, expired or taken back — the HMI then drops
 its dialog. The 409 body is `{ "error": "proposal_closed", "state": "…" }`
 with the proposal's final state. A proposal sent to another HMI is `404`.
 Recording the answer changes nothing else on the planner.

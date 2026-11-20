@@ -15,7 +15,8 @@ const answerSchema = z.object({ result: z.enum(["accepted", "rejected"]) });
  * JSON. The operator's decision on a Planvorschlag sent to the calling HMI:
  * 204. 400 `invalid_request` for a malformed body, 404 `proposal_not_found`
  * when the id is unknown or belongs to another HMI, 409 `proposal_closed`
- * when it was already answered, superseded, expired or cancelled. Recording
+ * when it was answered differently, superseded, expired or cancelled (the
+ * same answer again is 204, so a retry after a lost reply is safe). Recording
  * the answer changes nothing else; the HMI reports its running plan via
  * `/api/hmi/v1/status`.
  */

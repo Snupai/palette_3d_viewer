@@ -531,6 +531,16 @@ describe("Planvorschläge on the HMI side", () => {
       error: "proposal_closed",
       state: "accepted",
     });
+    const retry = await answerProposal(
+      request(
+        "POST",
+        `/api/hmi/v1/proposal/${proposal.id}`,
+        {},
+        { result: "accepted" },
+      ),
+      params({ id: proposal.id }),
+    );
+    expect(retry.status).toBe(204);
     const none = await getProposal(request("GET", "/api/hmi/v1/proposal"));
     expect(none.status).toBe(204);
   });

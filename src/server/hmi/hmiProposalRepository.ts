@@ -101,8 +101,12 @@ export function effectiveProposalState(
   }
   const expiresAt = new Date(row.createdAt.getTime() + HMI_PROPOSAL_TTL_MS);
   const withdrawnAt = row.finalWithdrawnAt;
-  if (withdrawnAt !== null && withdrawnAt <= now && withdrawnAt < expiresAt) {
-    return { state: "superseded", resolvedAt: withdrawnAt };
+  // A withdrawal that is visible counts even if its time is after `now`
+  // (taken before the read): it already happened.
+  if (withdrawnAt !== null) {
+    return withdrawnAt < expiresAt
+      ? { state: "superseded", resolvedAt: withdrawnAt }
+      : { state: "expired", resolvedAt: expiresAt };
   }
   if (expiresAt <= now) return { state: "expired", resolvedAt: expiresAt };
   return { state: "pending", resolvedAt: null };
@@ -203,6 +207,10 @@ async function closeProposal(
       (await findProposal(tx, hmiId, proposalId))!,
       now,
     );
+    // The HMI repeating its own answer (e.g. after a lost 204) succeeds again.
+    if (current.state === next && next !== "cancelled") {
+      return { ok: true, proposal: current };
+    }
     if (current.state !== "pending") {
       await persistClosing(tx, current);
       return { ok: false, kind: "closed", proposal: current };
@@ -344,7 +352,11 @@ export async function listHmiProposals(
   return rows.map((row) => toProposal(row, now));
 }
 
-/** The operator's answer, reported by the HMI the proposal was sent to. */
+/**
+ * The operator's answer, reported by the HMI the proposal was sent to.
+ * Repeating the stored answer succeeds again (idempotent retry); a different
+ * answer or another closing is `closed`.
+ */
 export function answerHmiProposal(
   db: PlannerDatabase,
   hmiId: string,

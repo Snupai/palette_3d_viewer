@@ -224,6 +224,40 @@ describe("closing", () => {
       kind: "closed",
       proposal: { ...proposal, state: "accepted", resolvedAt: T2 },
     });
+    // A retry of the same answer (lost 204) succeeds without changing it.
+    const later = new Date(T2.getTime() + 60_000);
+    expect(
+      await answerHmiProposal(
+        database.db,
+        hmiId,
+        proposal.id,
+        "accepted",
+        later,
+      ),
+    ).toEqual({
+      ok: true,
+      proposal: { ...proposal, state: "accepted", resolvedAt: T2 },
+    });
+  });
+
+  it("refuses an answer once the Fertigstand is withdrawn, even with an older clock", async () => {
+    const final = await finalOf("project-1", "A");
+    const { proposal } = await propose(final.id);
+    await withdrawFinal(database.db, final.id, T2);
+    const requestTime = new Date(T2.getTime() - 1);
+    expect(
+      await answerHmiProposal(
+        database.db,
+        hmiId,
+        proposal.id,
+        "accepted",
+        requestTime,
+      ),
+    ).toEqual({
+      ok: false,
+      kind: "closed",
+      proposal: { ...proposal, state: "superseded", resolvedAt: T2 },
+    });
   });
 
   it("does not let another HMI answer", async () => {
@@ -327,6 +361,9 @@ describe("derived closing", () => {
     expect(
       effectiveProposalState({ ...pending, finalWithdrawnAt: null }, T1),
     ).toEqual({ state: "pending", resolvedAt: null });
+    expect(
+      effectiveProposalState({ ...pending, finalWithdrawnAt: T2 }, T1),
+    ).toEqual({ state: "superseded", resolvedAt: T2 });
     expect(
       effectiveProposalState(
         { state: "accepted", resolvedAt: T1, createdAt, finalWithdrawnAt: T1 },
