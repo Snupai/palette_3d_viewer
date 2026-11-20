@@ -22,6 +22,11 @@ const JSON_HEADERS = { "content-type": "application/json" } as const;
 
 /** The page re-reads the HMI this often while it is visible. */
 export const HMI_PAGE_POLL_MS = 5_000;
+/**
+ * One HMI read gives up after this long, so a hanging request cannot block
+ * the polls after it (longer than the poll interval).
+ */
+export const HMI_PAGE_REQUEST_TIMEOUT_MS = 15_000;
 
 export type ProposalState =
   | "pending"
@@ -128,14 +133,20 @@ function parseFinal(value: unknown): HmiPageFinal | null {
   return { id, name, fileName, markedAt };
 }
 
-/** `GET /api/hmis/:hmiId`. */
+/**
+ * `GET /api/hmis/:hmiId`. Aborted after {@link HMI_PAGE_REQUEST_TIMEOUT_MS}
+ * by default, body included; an abort counts as `error`, so the next poll
+ * runs.
+ */
 export async function loadHmiPage(
   fetchImpl: Fetch,
   hmiId: string,
+  signal: AbortSignal = AbortSignal.timeout(HMI_PAGE_REQUEST_TIMEOUT_MS),
 ): Promise<HmiPageState> {
   try {
     const response = await fetchImpl(`/api/hmis/${encodeURIComponent(hmiId)}`, {
       cache: "no-store",
+      signal,
     });
     if (response.status === 401) return { status: "unauthenticated" };
     if (response.status === 404) {

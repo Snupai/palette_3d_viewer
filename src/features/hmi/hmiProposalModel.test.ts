@@ -61,6 +61,7 @@ describe("loadHmiPage", () => {
     });
     expect(fetchImpl).toHaveBeenCalledWith(`/api/hmis/${HMI_ID}`, {
       cache: "no-store",
+      signal: expect.any(AbortSignal) as AbortSignal,
     });
     expect(
       await loadHmiPage(
@@ -89,6 +90,21 @@ describe("loadHmiPage", () => {
     }
     const offline = vi.fn<typeof fetch>().mockRejectedValue(new Error("x"));
     expect(await loadHmiPage(offline, HMI_ID)).toEqual({ status: "error" });
+  });
+
+  it("gives up on a hanging request when its signal aborts", async () => {
+    const hanging = vi.fn<typeof fetch>(
+      (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () =>
+            reject(new DOMException("timed out", "TimeoutError")),
+          );
+        }),
+    );
+    const controller = new AbortController();
+    const pending = loadHmiPage(hanging, HMI_ID, controller.signal);
+    controller.abort();
+    expect(await pending).toEqual({ status: "error" });
   });
 });
 
