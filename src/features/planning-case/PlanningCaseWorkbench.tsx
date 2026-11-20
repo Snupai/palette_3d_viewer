@@ -49,6 +49,8 @@ export type PlanningCaseWorkbenchProps = {
   stackContent?: ReactNode;
   /** Downloads the saved plan's .rob file (shown once a stack is saved). */
   onDownloadRob?: () => void;
+  /** Fertigstand buttons shown next to the .rob download (ADR 0013). */
+  finalControls?: ReactNode;
   loadingProject: boolean;
   error: string | null;
   statusMessage: string | null;
@@ -298,9 +300,12 @@ export function PlanningCaseWorkbench(p: PlanningCaseWorkbenchProps) {
                 ) ?? t("planningCase.yourPalletPlan")}
               </h1>
             </div>
-            <button className="ui-btn-primary" onClick={p.onDownloadRob}>
-              {t("planningCase.downloadRob")}
-            </button>
+            <div className="viewer-heading-actions">
+              {p.finalControls}
+              <button className="ui-btn-primary" onClick={p.onDownloadRob}>
+                {t("planningCase.downloadRob")}
+              </button>
+            </div>
           </div>
           <div className="fable-two-column">
             <div className="viewer-main">

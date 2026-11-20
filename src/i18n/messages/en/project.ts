@@ -151,6 +151,36 @@ export const projectEn = {
     ".rob stores whole millimetres only, but the pick point of grip G{group} is at X {x} / Y {y}. It follows from the grip's size and composition; form the grip differently, e.g. with another package count.",
   "project.download.packageCountMismatch":
     "The generated .rob contains {exported} instead of {expected} packages.",
+  // Fertigstand (HMI sync, ADR 0013)
+  "project.final.mark": "Mark as finished",
+  "project.final.markAgain": "Mark as finished again",
+  "project.final.withdraw": "No longer finished",
+  "project.final.current":
+    "Marked as finished on {date}. The HMIs pick up this version when they sync.",
+  "project.final.changedSince":
+    "Finished version of {date}, changed since. The HMIs still have the old version.",
+  "project.final.newerElsewhere":
+    "A newer version of this plan was marked finished on {date}. Reload the plan.",
+  "project.final.signInRequired": "Sign in to mark plans as finished.",
+  "project.final.busy": "Sending …",
+  "project.final.loading": "Loading finished version …",
+  "project.final.reloadFirst":
+    "Reload the plan before marking it as finished again.",
+  "project.final.saveFirst":
+    "Save your changes first. Only a saved version can be marked as finished.",
+  "project.final.status.marked":
+    "“{name}” is marked as finished. The HMIs add it to their plan lists on their next sync.",
+  "project.final.status.withdrawn":
+    "“{name}” is no longer finished and leaves the HMIs' plan lists.",
+  "project.final.error.conflict":
+    "The plan was changed or deleted in the meantime. Reload it, then mark it again.",
+  "project.final.error.forbidden": "You may not mark plans as finished.",
+  "project.final.error.notFound":
+    "This finished version was already withdrawn.",
+  "project.final.error.rejected": "The server refused the .rob file.",
+  "project.final.error.rejectedWithReason":
+    "The server refused the .rob file: {message}",
+  "project.final.error.failed": "The server is unreachable. Try again.",
   // Sheet extraction
   "project.sheet.extractionFailed": "Sheet extraction failed ({status}).",
   // Project library

@@ -157,6 +157,39 @@ export const projectDe = {
     ".rob speichert nur ganze Millimeter, aber der Greifpunkt von Griff G{group} liegt bei X {x} / Y {y}. Er ergibt sich aus Größe und Zusammensetzung des Griffs; bilden Sie den Griff anders, z. B. mit einer anderen Paketanzahl.",
   "project.download.packageCountMismatch":
     "Die erzeugte .rob enthält {exported} statt {expected} Pakete.",
+  // Fertigstand (HMI-Abgleich, ADR 0013)
+  "project.final.mark": "Als fertig markieren",
+  "project.final.markAgain": "Erneut als fertig markieren",
+  "project.final.withdraw": "Nicht mehr fertig",
+  "project.final.current":
+    "Als fertig markiert am {date}. Die HMIs übernehmen diesen Stand beim Abgleich.",
+  "project.final.changedSince":
+    "Fertigstand vom {date}, seitdem geändert. Die HMIs haben noch den alten Stand.",
+  "project.final.newerElsewhere":
+    "Ein neuerer Stand dieses Plans ist seit {date} fertig markiert. Laden Sie den Plan neu.",
+  "project.final.signInRequired":
+    "Melden Sie sich an, um Pläne als fertig zu markieren.",
+  "project.final.busy": "Wird übertragen …",
+  "project.final.loading": "Fertigstand wird geladen …",
+  "project.final.reloadFirst":
+    "Laden Sie den Plan neu, bevor Sie ihn erneut als fertig markieren.",
+  "project.final.saveFirst":
+    "Speichern Sie zuerst Ihre Änderungen. Fertig markiert wird nur ein gespeicherter Stand.",
+  "project.final.status.marked":
+    "„{name}“ ist als fertig markiert. Die HMIs übernehmen ihn beim nächsten Abgleich in ihre Planliste.",
+  "project.final.status.withdrawn":
+    "„{name}“ ist nicht mehr fertig und verschwindet aus den Planlisten der HMIs.",
+  "project.final.error.conflict":
+    "Der Plan wurde inzwischen geändert oder gelöscht. Laden Sie ihn neu und markieren Sie ihn dann erneut.",
+  "project.final.error.forbidden":
+    "Sie dürfen Pläne nicht als fertig markieren.",
+  "project.final.error.notFound":
+    "Dieser Fertigstand ist bereits zurückgezogen.",
+  "project.final.error.rejected": "Der Server hat die .rob-Datei abgelehnt.",
+  "project.final.error.rejectedWithReason":
+    "Der Server hat die .rob-Datei abgelehnt: {message}",
+  "project.final.error.failed":
+    "Der Server ist nicht erreichbar. Versuchen Sie es erneut.",
   // Sheet extraction
   "project.sheet.extractionFailed":
     "Auslesen des Blatts fehlgeschlagen ({status}).",

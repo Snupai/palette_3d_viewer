@@ -690,6 +690,26 @@ h3 {
 .viewer-heading h1 {
   font-size: 34px;
 }
+.viewer-heading-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 10px;
+}
+.final-controls {
+  display: grid;
+  justify-items: end;
+  gap: 6px;
+  max-width: 360px;
+}
+.final-controls-note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 18px;
+  text-align: right;
+  color: var(--muted);
+}
 .tool-content {
   overflow: auto;
   min-width: 0;
@@ -1432,7 +1452,7 @@ h3 {
     font-family: var(--font-barlow-condensed);
     font-weight: 700;
   }
-  .viewer-heading > .ui-btn-primary {
+  .viewer-heading-actions > .ui-btn-primary {
     font-size: 13px;
     padding: 9px 12px;
   }

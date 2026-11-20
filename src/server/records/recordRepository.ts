@@ -2,11 +2,13 @@ import { and, asc, eq, sql } from "drizzle-orm";
 
 import {
   PLANNER_STORE_NAMES,
+  PROJECTS_STORE_NAME,
   type PlannerStoreName,
 } from "~/lib/plannerDatabase";
 
 import type { PlannerDatabase } from "../db/database";
 import { plannerRecords, type PlannerRecordRow } from "../db/schema";
+import { withdrawFinalsOfRecord } from "../finals/finalRepository";
 
 /**
  * Server-side planner record repository (ADR 0004 / 0006). Server-only.
@@ -25,7 +27,8 @@ import { plannerRecords, type PlannerRecordRow } from "../db/schema";
  * Deletes retain a tombstone with an empty payload and the former creator.
  * Recreating the same key atomically advances its version; with
  * `onlyCreatedBy` only the former creator may revive it (ADR 0012). Reads and
- * conflicts hide deleted rows.
+ * conflicts hide deleted rows. Deleting a project also withdraws its
+ * Fertigstände in the same transaction (ADR 0013).
  */
 
 /** Largest accepted record, measured as UTF-8 bytes of its JSON text. */
@@ -542,24 +545,33 @@ export async function deleteRecord(
       "Expected version must be a positive integer.",
     );
   }
-  const removed = await db
-    .update(plannerRecords)
-    // `created_by` stays: only the former creator (or an admin) may revive
-    // this id (ADR 0012).
-    .set({
-      deleted: true,
-      json: {},
-      updatedAt: new Date(),
-    })
-    .where(
-      and(
-        recordKey(store, id),
-        eq(plannerRecords.deleted, false),
-        eq(plannerRecords.version, expectedVersion),
-        creatorGuard(input.onlyCreatedBy),
-      ),
-    )
-    .returning({ id: plannerRecords.id });
+  const now = new Date();
+  const removed = await db.transaction(async (tx) => {
+    const rows = await tx
+      .update(plannerRecords)
+      // `created_by` stays: only the former creator (or an admin) may revive
+      // this id (ADR 0012).
+      .set({
+        deleted: true,
+        json: {},
+        updatedAt: now,
+      })
+      .where(
+        and(
+          recordKey(store, id),
+          eq(plannerRecords.deleted, false),
+          eq(plannerRecords.version, expectedVersion),
+          creatorGuard(input.onlyCreatedBy),
+        ),
+      )
+      .returning({ id: plannerRecords.id });
+    // A deleted project's Fertigstände are withdrawn, never deleted
+    // (ADR 0013): an HMI may still be running one of them.
+    if (rows.length > 0 && store === PROJECTS_STORE_NAME) {
+      await withdrawFinalsOfRecord(tx, id, now);
+    }
+    return rows;
+  });
   if (removed.length > 0) return { ok: true };
   return rejectedWrite(db, store, id, expectedVersion, input.onlyCreatedBy);
 }

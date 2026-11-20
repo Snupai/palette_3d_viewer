@@ -47,6 +47,16 @@ import {
 } from "~/features/project/plannerRoute";
 import { PlannerWelcome } from "~/features/planner/PlannerWelcome";
 import { libraryRobDownload } from "~/features/project/projectRobDownload";
+import { ProjectFinalControls } from "~/features/project/ProjectFinalControls";
+import {
+  finalRequestErrorMessage,
+  loadProjectFinal,
+  markFinalBody,
+  markProjectFinal,
+  projectFinalControls,
+  withdrawProjectFinal,
+  type ProjectFinalState,
+} from "~/features/project/projectFinalModel";
 import { downloadText } from "~/lib/download";
 import { RoboticsWorkspace } from "~/features/robotics/RoboticsWorkspace";
 import {
@@ -73,7 +83,7 @@ import {
   solverCandidateToPatternPreview,
 } from "~/lib/previewAdapters";
 import { LanguageSwitcher } from "~/i18n/LanguageSwitcher";
-import { useT, type Translate } from "~/i18n";
+import { LOCALE_TAGS, useLocale, useT, type Translate } from "~/i18n";
 import { parseRobText } from "~/lib/robParser";
 import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
 import { SessionMenu, usePlannerSession } from "~/features/auth/SessionMenu";
@@ -2346,6 +2356,137 @@ export function PlannerProjectWorkspace({
     setBackupRevision((revision) => revision + 1);
   };
 
+  // Fertigstand of the open plan (ADR 0013). Only server-stored plans have
+  // one; the `.rob` frozen by marking is the one the download produces.
+  const { locale } = useLocale();
+  const finalFetch = fetchImpl ?? fetch;
+  const selectedOrigin = selectedId
+    ? routing.reference(selectedId).origin
+    : null;
+  const savedVersion =
+    selectedProject &&
+    loadedVersionRef.current?.projectId === selectedProject.id
+      ? loadedVersionRef.current.version
+      : null;
+  const finalTargetId =
+    storageMode === "server" && selectedOrigin === "server" && selectedProject
+      ? selectedProject.id
+      : null;
+  const [finalRead, setFinalRead] = useState<{
+    projectId: string;
+    state: ProjectFinalState;
+  } | null>(null);
+  const [finalBusy, setFinalBusy] = useState(false);
+  const [finalReloadToken, setFinalReloadToken] = useState(0);
+  useEffect(() => {
+    if (!finalTargetId) return;
+    let current = true;
+    void loadProjectFinal(finalFetch, finalTargetId).then((result) => {
+      if (!current) return;
+      setFinalRead({
+        projectId: finalTargetId,
+        state: result.ok
+          ? { status: "loaded", final: result.final }
+          : { status: "failed" },
+      });
+    });
+    return () => {
+      current = false;
+    };
+  }, [finalFetch, finalTargetId, finalReloadToken]);
+  const finalDownload = useMemo(
+    () =>
+      finalTargetId && selectedProject && savedVersion !== null
+        ? libraryRobDownload(selectedProject, t)
+        : null,
+    [finalTargetId, savedVersion, selectedProject, t],
+  );
+  const finalControls =
+    finalDownload && selectedProject
+      ? projectFinalControls(
+          {
+            storageMode,
+            origin: selectedOrigin,
+            session,
+            savedVersion,
+            hasUnsavedChanges,
+            download: finalDownload,
+            state:
+              finalRead?.projectId === selectedProject.id
+                ? finalRead.state
+                : { status: "loading" },
+            busy: finalBusy,
+          },
+          t,
+          (iso) =>
+            new Intl.DateTimeFormat(LOCALE_TAGS[locale], {
+              dateStyle: "short",
+              timeStyle: "short",
+            }).format(new Date(iso)),
+        )
+      : ({ visible: false } as const);
+  const currentFinal =
+    finalRead?.projectId === selectedProject?.id &&
+    finalRead?.state.status === "loaded"
+      ? finalRead.state.final
+      : null;
+
+  /** A failed mark or withdraw: explain it; 401 ends the session. */
+  const finalRequestFailed = (
+    result: Parameters<typeof finalRequestErrorMessage>[0],
+    message: string | null,
+  ) => {
+    if (result === "unauthenticated") sessionControls.markSessionLost();
+    if (result === "conflict" || result === "not-found")
+      setFinalReloadToken((token) => token + 1);
+    setError(finalRequestErrorMessage(result, message, t));
+  };
+
+  const markAsFinal = async () => {
+    if (!selectedProject || savedVersion === null || !finalDownload) return;
+    const body = markFinalBody(selectedProject, savedVersion, finalDownload, t);
+    if (!body || finalBusy) return;
+    const key = selectedProjectIdRef.current;
+    setFinalBusy(true);
+    setError(null);
+    setStatusMessage(null);
+    const result = await markProjectFinal(finalFetch, body);
+    setFinalBusy(false);
+    if (selectedProjectIdRef.current !== key) return;
+    if (!result.ok) {
+      finalRequestFailed(result.error, result.message);
+      return;
+    }
+    setFinalRead({
+      projectId: body.recordId,
+      state: { status: "loaded", final: result.final },
+    });
+    setStatusMessage(
+      t("project.final.status.marked", { name: result.final.name }),
+    );
+  };
+
+  const withdrawFinal = async () => {
+    if (!currentFinal || finalBusy) return;
+    const final = currentFinal;
+    const key = selectedProjectIdRef.current;
+    setFinalBusy(true);
+    setError(null);
+    setStatusMessage(null);
+    const result = await withdrawProjectFinal(finalFetch, final.id);
+    setFinalBusy(false);
+    if (selectedProjectIdRef.current !== key) return;
+    if (!result.ok) {
+      finalRequestFailed(result.error, result.message);
+      return;
+    }
+    setFinalRead({
+      projectId: final.recordId,
+      state: { status: "loaded", final: null },
+    });
+    setStatusMessage(t("project.final.status.withdrawn", { name: final.name }));
+  };
+
   const createNew = () => {
     if (!generalAccess.canCreate) return;
     if (!confirmDiscardUnsaved(t("project.action.createPlan"))) return;
@@ -2650,6 +2791,15 @@ export function PlannerProjectWorkspace({
               selectedProject
                 ? () => downloadRob(routing.keyFor(selectedProject))
                 : undefined
+            }
+            finalControls={
+              finalControls.visible ? (
+                <ProjectFinalControls
+                  controls={finalControls}
+                  onMark={() => void markAsFinal()}
+                  onWithdraw={() => void withdrawFinal()}
+                />
+              ) : undefined
             }
             loadingProject={loadingProject}
             error={error}

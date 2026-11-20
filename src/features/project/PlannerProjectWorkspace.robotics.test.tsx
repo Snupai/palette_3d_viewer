@@ -8,6 +8,11 @@ import {
 } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProject } from "~/domain/project/projectFactory";
+import { translateDe } from "~/i18n";
+import { libraryRobDownload } from "~/features/project/projectRobDownload";
+import { CURRENT_PALLET_SCHEMA_VERSION } from "~/lib/palletPersistence";
+import { savedPalletToProject } from "~/lib/projectAdapters";
+import { parseRobText } from "~/lib/robParser";
 import { PlannerProjectWorkspace } from "~/features/project/PlannerProjectWorkspace";
 import {
   MemoryPlannerRecordStorage,
@@ -269,5 +274,117 @@ describe("PlannerProjectWorkspace robotics integration", () => {
       );
       expect(row?.textContent).not.toContain("PASS");
     });
+  });
+});
+
+describe("PlannerProjectWorkspace Fertigstand", () => {
+  /** An imported `.rob` with CRLF line endings, kept verbatim. */
+  const crlfRob = [
+    "1200 800 144",
+    "200 300 150",
+    "1",
+    "1",
+    "0 0",
+    "1 0",
+    "2",
+    "100 50 0 150 200 0 1 0 0",
+    "100 50 0 450 200 0 1 0 0",
+  ].join("\r\n");
+
+  it("marks the saved plan finished with the downloaded .rob text, then withdraws it", async () => {
+    const storage = Object.assign(new MemoryPlannerRecordStorage(), {
+      createdBy: () => "u-alice",
+    });
+    const repository = new ProjectRepository(storage);
+    const project = savedPalletToProject({
+      schemaVersion: CURRENT_PALLET_SCHEMA_VERSION,
+      id: "rob-final",
+      name: "line-7.rob",
+      createdAt: 1,
+      data: parseRobText(crlfRob),
+      rawText: crlfRob,
+      originalRawText: crlfRob,
+    });
+    await repository.saveProjectVersioned(project, { expectedVersion: null });
+    const final = {
+      id: "f-1",
+      recordId: "rob-final",
+      recordVersion: 1,
+      name: "line-7",
+      fileName: "line-7.rob",
+      sha256: "a".repeat(64),
+      markedAt: "2026-11-19T08:30:00.000Z",
+    };
+    const posted: unknown[] = [];
+    const fetchImpl = vi.fn<typeof fetch>(async (input, init) => {
+      if (input === "/api/auth/me")
+        return Response.json({
+          user: { id: "u-alice", username: "alice", role: "user" },
+        });
+      if (input === "/api/finals?recordId=rob-final")
+        return Response.json({ finals: [] });
+      if (input === "/api/finals" && init?.method === "POST") {
+        posted.push(JSON.parse(init.body as string));
+        return Response.json({ final, replacedId: null }, { status: 201 });
+      }
+      if (input === "/api/finals/f-1" && init?.method === "DELETE")
+        return new Response(null, { status: 204 });
+      throw new Error("unexpected request");
+    });
+    const download = libraryRobDownload(
+      (await repository.getProject("rob-final")).project!,
+      translateDe,
+    );
+    expect(download).toEqual({
+      ok: true,
+      fileName: "line-7.rob",
+      text: crlfRob,
+    });
+
+    render(
+      <PlannerProjectWorkspace
+        repository={repository}
+        browserRepository={
+          new ProjectRepository(new MemoryPlannerRecordStorage())
+        }
+        storageMode="server"
+        fetchImpl={fetchImpl}
+      />,
+    );
+    // The only stored plan is already open behind the welcome screen.
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Zum geöffneten Plan zurück" }),
+    );
+    const mark = await screen.findByRole(
+      "button",
+      { name: "Als fertig markieren" },
+      { timeout: 5_000 },
+    );
+    await waitFor(() => expect(mark).toHaveProperty("disabled", false));
+    fireEvent.click(mark);
+
+    await screen.findByText(
+      "„line-7“ ist als fertig markiert. Die HMIs übernehmen ihn beim nächsten Abgleich in ihre Planliste.",
+    );
+    expect(posted).toEqual([
+      {
+        recordId: "rob-final",
+        recordVersion: 1,
+        name: "line-7",
+        fileName: "line-7.rob",
+        robText: crlfRob,
+      },
+    ]);
+    expect(
+      screen.queryByRole("button", { name: "Als fertig markieren" }),
+    ).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Nicht mehr fertig" }));
+    await screen.findByText(
+      "„line-7“ ist nicht mehr fertig und verschwindet aus den Planlisten der HMIs.",
+    );
+    expect(
+      screen.getByRole("button", { name: "Als fertig markieren" }),
+    ).toBeTruthy();
   });
 });
